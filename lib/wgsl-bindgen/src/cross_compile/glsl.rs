@@ -1,0 +1,88 @@
+use super::ShaderCrossCompiler;
+use naga::{
+    back::glsl::{Options, PipelineOptions, WriterFlags},
+    ShaderStage,
+};
+use proc_macro2::TokenStream;
+use versions::SemVer;
+
+pub struct GlslCrossCompiler;
+
+impl ShaderCrossCompiler for GlslCrossCompiler {
+    fn compile(
+        module: &naga::Module,
+        module_info: &naga::valid::ModuleInfo,
+        version: SemVer,
+    ) -> Result<(TokenStream, TokenStream), Box<dyn std::error::Error>> {
+        let mut vertex_output_string = String::new();
+        let vertex_shader_entry = module
+            .entry_points
+            .iter()
+            .find(|e| e.stage == ShaderStage::Vertex)
+            .unwrap()
+            .name
+            .clone();
+
+        naga::back::glsl::Writer::new(
+            &mut vertex_output_string,
+            &module,
+            &module_info,
+            &Options {
+                version: naga::back::glsl::Version::Desktop(
+                    format!("{}{:02}", version.major, version.minor)
+                        .parse()
+                        .unwrap(),
+                ),
+                writer_flags: WriterFlags::INCLUDE_UNUSED_ITEMS,
+                ..Default::default()
+            },
+            &PipelineOptions {
+                shader_stage: ShaderStage::Vertex,
+                entry_point: vertex_shader_entry,
+                multiview: None,
+            },
+            Default::default(),
+        )?
+        .write()?;
+
+        let mut fragment_output_string = String::new();
+        let fragment_shader_entry = module
+            .entry_points
+            .iter()
+            .find(|e| e.stage == ShaderStage::Fragment)
+            .unwrap()
+            .name
+            .clone();
+
+        naga::back::glsl::Writer::new(
+            &mut fragment_output_string,
+            &module,
+            &module_info,
+            &Options {
+                version: naga::back::glsl::Version::Desktop(
+                    format!("{}{:02}", version.major, version.minor)
+                        .parse()
+                        .unwrap(),
+                ),
+                writer_flags: WriterFlags::INCLUDE_UNUSED_ITEMS,
+                ..Default::default()
+            },
+            &PipelineOptions {
+                shader_stage: ShaderStage::Fragment,
+                entry_point: fragment_shader_entry,
+                multiview: None,
+            },
+            Default::default(),
+        )?
+        .write()?;
+
+        Ok((
+            syn::parse_quote! {
+                const VERTEX_SHADER: &str = #vertex_output_string;
+            },
+            syn::parse_quote! {
+                const FRAGMENT_SHADER: &str = #fragment_output_string;
+            },
+        ))
+    }
+}

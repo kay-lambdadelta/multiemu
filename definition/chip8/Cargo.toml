@@ -1,0 +1,54 @@
+[package]
+name = "multiemu-definition-chip8"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-config = { workspace = true }
+multiemu-machine = { workspace = true }
+multiemu-input = { workspace = true }
+multiemu-definition-misc = { workspace = true }
+num = { workspace = true }
+bytemuck = { workspace = true }
+serde = { workspace = true }
+arrayvec = { workspace = true }
+tracing = { workspace = true }
+bitvec = { workspace = true }
+nalgebra = { workspace = true }
+strum = { workspace = true }
+rangemap = { workspace = true }
+rand = { workspace = true }
+downcast-rs = { workspace = true }
+palette = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
+vulkano = { workspace = true, optional = true }
+glium = { workspace = true, optional = true }
+
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64", target_arch = "s390x")))'.dependencies]
+cranelift = { workspace = true, optional = true }
+
+[build-dependencies]
+multiemu-macros = { workspace = true }
+cfg_aliases = { workspace = true }
+
+[features]
+jit = ["dep:cranelift", "multiemu-machine/jit", "multiemu-config/jit"]
+vulkan = [
+    "dep:vulkano",
+    "multiemu-machine/vulkan",
+    "multiemu-config/vulkan",
+]
+opengl = [
+    "dep:glium",
+    "multiemu-machine/opengl",
+    "multiemu-config/opengl",
+]
+
+[[bench]]
+name = "instruction_decode"
+harness = false

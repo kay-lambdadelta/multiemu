@@ -1,0 +1,109 @@
+[package]
+name = "multiemu-gui"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+authors = ["Kay <lambdadeltacommunism@gmail.com>"]
+description = "A multi system emulator"
+
+# We try to keep as little and as multiplatform dependencies as possible
+# I do not expect our pulled in dependencies to expand much as this program evolves
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-config = { workspace = true }
+multiemu-machine = { workspace = true }
+multiemu-input = { workspace = true }
+multiemu-macros = { workspace = true }
+multiemu-definition-chip8 = { workspace = true }
+naga = { workspace = true }
+tracing = { workspace = true }
+strum = { workspace = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+serde-inline-default = { workspace = true }
+rayon = { workspace = true }
+nalgebra = { workspace = true }
+bytemuck = { workspace = true }
+encase = { workspace = true }
+num = { workspace = true }
+arrayvec = { workspace = true }
+thiserror = { workspace = true }
+bitvec = { workspace = true }
+rangemap = { workspace = true }
+tracing-subscriber = { workspace = true }
+indexmap = { workspace = true }
+crossbeam = { workspace = true }
+palette = { workspace = true }
+egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
+egui_extras = { version = "0.31", default-features = false, features = [
+    "image",
+] }
+image = { version = "0.25", default-features = false, features = ["webp"] }
+ringbuffer = "0.15"
+petgraph = "0.7"
+mini-moka = "0.10"
+itertools = "0.14"
+
+# Desktop type dependencies
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
+winit = { version = "0.30", default-features = false, features = [
+    "wayland",
+    "wayland-dlopen",
+    "x11",
+    "rwh_05",
+    "rwh_06",
+    "android-game-activity",
+] }
+egui-winit = { version = "0.31", default-features = false, features = [
+    "android-game-activity",
+    "links",
+    "wayland",
+    "x11",
+] }
+softbuffer = "0.4"
+cpal = "0.15"
+gilrs = "0.11"
+# Vulkan support
+vulkano = { workspace = true, optional = true }
+# Opengl support
+glium = { workspace = true, optional = true }
+glutin = { version = "0.32", optional = true }
+clap = { workspace = true }
+
+# Jit support
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64", target_arch = "s390x")))'.dependencies]
+cranelift = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "horizon")'.dependencies]
+ctru-rs = { workspace = true }
+
+[build-dependencies]
+multiemu-wgsl-bindgen = { workspace = true }
+multiemu-macros = { workspace = true }
+cfg_aliases = { workspace = true }
+
+[features]
+default = ["jit", "vulkan", "opengl"]
+jit = [
+    "dep:cranelift",
+    "multiemu-config/jit",
+    "multiemu-machine/jit",
+    "multiemu-definition-chip8/jit",
+]
+vulkan = [
+    "dep:vulkano",
+    "multiemu-config/vulkan",
+    "multiemu-machine/vulkan",
+    "multiemu-definition-chip8/vulkan",
+]
+opengl = [
+    "dep:glutin",
+    "dep:glium",
+    "multiemu-config/opengl",
+    "multiemu-machine/opengl",
+    "multiemu-definition-chip8/opengl",
+]
+
+[package.metadata.deb]
+maintainer = "Kay <lambdadeltacommunism@gmail.com>"

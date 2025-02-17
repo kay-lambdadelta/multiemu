@@ -1,0 +1,31 @@
+[package]
+name = "multiemu-definition-misc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-config = { workspace = true }
+multiemu-machine = { workspace = true }
+rangemap = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+rayon = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
+memmap2 = { workspace = true }
+
+[build-dependencies]
+multiemu-macros = { workspace = true }
+cfg_aliases = { workspace = true }
+
+[[bench]]
+name = "read"
+harness = false
+
+[[bench]]
+name = "write"
+harness = false

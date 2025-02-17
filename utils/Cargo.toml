@@ -1,0 +1,36 @@
+[package]
+name = "multiemu-utils"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+authors = ["Kay <lambdadeltacommunism@gmail.com>"]
+description = "A command line utility interface for multiemu, but has tools generically useful for rom organization"
+
+[dependencies]
+multiemu-config = { workspace = true }
+multiemu-rom = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rayon = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+redb = { workspace = true }
+isolang = { workspace = true }
+scc = { workspace = true }
+quick-xml = { version = "0.37", features = ["serialize"] }
+zip = { version = "2.2", features = [
+    "zstd",
+    "bzip2",
+    "deflate64",
+    "deflate",
+    "lzma",
+    "xz",
+] }
+strsim = "0.11"
+nod = "1.4"
+tempfile = "3.17"
+dyn-clone = "1.0"
+
+[package.metadata.deb]
+maintainer = "Kay <lambdadeltacommunism@gmail.com>"

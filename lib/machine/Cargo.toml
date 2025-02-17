@@ -1,0 +1,49 @@
+[package]
+name = "multiemu-machine"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-input = { workspace = true }
+multiemu-config = { workspace = true }
+multiemu-macros = { workspace = true }
+rangemap = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+serde-inline-default = { workspace = true }
+thiserror = { workspace = true }
+bitvec = { workspace = true }
+arrayvec = { workspace = true }
+crossbeam = { workspace = true }
+redb = { workspace = true }
+strum = { workspace = true }
+enumflags2 = { workspace = true }
+num = { workspace = true }
+downcast-rs = { workspace = true }
+nalgebra = { workspace = true }
+palette = { workspace = true }
+scc = { workspace = true }
+versions = { workspace = true }
+indexmap = { workspace = true }
+itertools ={ workspace = true }
+fxhash = "0.2"
+
+[build-dependencies]
+multiemu-macros = { workspace = true }
+cfg_aliases = { workspace = true }
+
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
+vulkano = { workspace = true, optional = true }
+glium = { workspace = true, optional = true }
+glutin = { version = "0.32", optional = true }
+
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64", target_arch = "s390x")))'.dependencies]
+cranelift = { workspace = true, optional = true }
+
+[features]
+jit = ["dep:cranelift"]
+vulkan = ["dep:vulkano", "multiemu-config/vulkan"]
+opengl = ["dep:glutin", "dep:glium", "multiemu-config/opengl"]

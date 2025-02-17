@@ -1,0 +1,34 @@
+[package]
+name = "multiemu-definition-nes"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-config = { workspace = true }
+multiemu-machine = { workspace = true }
+multiemu-input = { workspace = true }
+multiemu-definition-misc = { workspace = true }
+multiemu-definition-m6502 = { workspace = true }
+rangemap = { workspace = true }
+[build-dependencies]
+multiemu-wgsl-bindgen = { workspace = true }
+multiemu-macros = { workspace = true }
+cfg_aliases = { workspace = true }
+
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
+vulkano = { workspace = true, optional = true }
+glium = { workspace = true, optional = true }
+
+[features]
+jit = ["multiemu-machine/jit", "multiemu-config/jit", "multiemu-definition-m6502/jit"]
+vulkan = [
+    "dep:vulkano",
+    "multiemu-machine/vulkan",
+    "multiemu-config/vulkan",
+]
+opengl = [
+    "dep:glium",
+    "multiemu-machine/opengl",
+    "multiemu-config/opengl",
+]

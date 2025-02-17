@@ -1,0 +1,89 @@
+use super::{
+    memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
+    AddressSpaceId,
+};
+use rangemap::RangeMap;
+
+pub trait ReadMemory: Send + Sync + 'static {
+    fn read_memory(
+        &self,
+        address: usize,
+        buffer: &mut [u8],
+        address_space: AddressSpaceId,
+        errors: &mut RangeMap<usize, ReadMemoryRecord>,
+    );
+}
+
+impl<
+        F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeMap<usize, ReadMemoryRecord>)
+            + Send
+            + Sync
+            + 'static,
+    > ReadMemory for F
+{
+    fn read_memory(
+        &self,
+        address: usize,
+        buffer: &mut [u8],
+        address_space: AddressSpaceId,
+        errors: &mut RangeMap<usize, ReadMemoryRecord>,
+    ) {
+        self(address, buffer, address_space, errors);
+    }
+}
+
+pub trait WriteMemory: Send + Sync + 'static {
+    fn write_memory(
+        &self,
+        address: usize,
+        buffer: &[u8],
+        address_space: AddressSpaceId,
+        errors: &mut RangeMap<usize, WriteMemoryRecord>,
+    );
+}
+
+impl<
+        F: Fn(usize, &[u8], AddressSpaceId, &mut RangeMap<usize, WriteMemoryRecord>)
+            + Send
+            + Sync
+            + 'static,
+    > WriteMemory for F
+{
+    fn write_memory(
+        &self,
+        address: usize,
+        buffer: &[u8],
+        address_space: AddressSpaceId,
+        errors: &mut RangeMap<usize, WriteMemoryRecord>,
+    ) {
+        self(address, buffer, address_space, errors);
+    }
+}
+
+pub trait PreviewMemory: Send + Sync + 'static {
+    fn preview_memory(
+        &self,
+        address: usize,
+        buffer: &mut [u8],
+        address_space: AddressSpaceId,
+        errors: &mut RangeMap<usize, PreviewMemoryRecord>,
+    );
+}
+
+impl<
+        F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeMap<usize, PreviewMemoryRecord>)
+            + Send
+            + Sync
+            + 'static,
+    > PreviewMemory for F
+{
+    fn preview_memory(
+        &self,
+        address: usize,
+        buffer: &mut [u8],
+        address_space: AddressSpaceId,
+        errors: &mut RangeMap<usize, PreviewMemoryRecord>,
+    ) {
+        self(address, buffer, address_space, errors);
+    }
+}

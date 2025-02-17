@@ -1,5 +1,72 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["gui", "utils", "lib/*", "definition/*"]
 
 [workspace.dependencies]
+multiemu-machine = { path = "lib/machine" }
+multiemu-rom = { path = "lib/rom" }
+multiemu-config = { path = "lib/config" }
+multiemu-input = { path = "lib/input" }
+multiemu-wgsl-bindgen = { path = "lib/wgsl-bindgen" }
+multiemu-macros = { path = "lib/macros" }
+
+multiemu-definition-misc = { path = "definition/misc" }
+multiemu-definition-m6502 = { path = "definition/m6502" }
+multiemu-definition-chip8 = { path = "definition/chip8" }
+multiemu-definition-nes = { path = "definition/nes" }
+multiemu-definition-i8080 = { path = "definition/i8080" }
+
+# External dependencies
+naga = "24.0"
+strum = { version = "0.27", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+rangemap = { version = "1.5", features = ["serde1"] }
+redb = { version = "2.4", features = ["logging"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_with = "3.12"
+serde-inline-default = "0.2"
+rayon = "1.10"
+nalgebra = { version = "0.33", features = [
+    "serde-serialize",
+    "convert-bytemuck",
+    "rayon",
+] }
+bytemuck = { version = "1.21", features = ["derive"] }
+encase = { version = "0.10", features = ["nalgebra"] }
+num = { version = "0.4", features = ["serde"] }
+arrayvec = { version = "0.7", features = ["serde"] }
+thiserror = "2.0"
+bitvec = "1.0"
+cranelift = { version = "0.116", features = ["jit", "native", "module"] }
+vulkano = { version = "0.35", default-features = false }
+glium = "0.36"
+crossbeam = "0.8"
+scc = "2.3"
+bincode = { version = "2.0.0-rc.3", features = ["serde"] }
+enumflags2 = "0.7"
+downcast-rs = "2.0"
+rand = "0.9"
+palette = { version = "0.7", features = ["bytemuck", "serializing"] }
+memmap2 = "0.9"
+dasp = "0.11"
+clap = { version = "4.5", features = ["derive"] }
+indexmap = { version = "2.7", features = ["serde"] }
+versions = "6.3"
+isolang = { version = "2.4", features = ["serde"] }
+syn = { version = "2.0", features = ["full"] }
+proc-macro2 = "1.0"
+quote = "1.0"
+cfg_aliases = "0.2"
+itertools = "0.14"
+criterion = "0.5"
+
+# 3DS stuff
+ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
+
+[profile.bench]
+debug = true
+
+# TODO: remove on release
+[profile.release]
+debug = true

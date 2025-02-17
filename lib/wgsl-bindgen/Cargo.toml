@@ -1,0 +1,19 @@
+[package]
+name = "multiemu-wgsl-bindgen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+naga = { workspace = true, features = [
+    "wgsl-in",
+    "glsl-out",
+    "hlsl-out",
+    "spv-out",
+    "msl-out",
+] }
+strum = { workspace = true }
+syn = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+versions = { workspace = true }
+itertools = { workspace = true }
