@@ -10,7 +10,7 @@ This is a prototype of a multisystem hardware emulator, designed for fast, porta
 | --------  | -------                  |
 | Debian    | libbz2-dev               |
 
-`multiemu`
+`multiemu-gui`
 
 | Distro    | Development Package Name                                    |
 | --------  | -------                                                     |
