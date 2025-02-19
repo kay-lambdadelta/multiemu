@@ -25,11 +25,11 @@ impl ShaderCrossCompiler for GlslCrossCompiler {
 
         naga::back::glsl::Writer::new(
             &mut vertex_output_string,
-            &module,
-            &module_info,
+            module,
+            module_info,
             &Options {
                 version: naga::back::glsl::Version::Desktop(
-                    format!("{}{:02}", version.major, version.minor)
+                    format!("{}{}{}", version.major, version.minor, version.patch)
                         .parse()
                         .unwrap(),
                 ),
@@ -56,11 +56,11 @@ impl ShaderCrossCompiler for GlslCrossCompiler {
 
         naga::back::glsl::Writer::new(
             &mut fragment_output_string,
-            &module,
-            &module_info,
+            module,
+            module_info,
             &Options {
                 version: naga::back::glsl::Version::Desktop(
-                    format!("{}{:02}", version.major, version.minor)
+                    format!("{}{}{}", version.major, version.minor, version.patch)
                         .parse()
                         .unwrap(),
                 ),
@@ -78,10 +78,10 @@ impl ShaderCrossCompiler for GlslCrossCompiler {
 
         Ok((
             syn::parse_quote! {
-                const VERTEX_SHADER: &str = #vertex_output_string;
+                pub const VERTEX_SHADER: &str = #vertex_output_string;
             },
             syn::parse_quote! {
-                const FRAGMENT_SHADER: &str = #fragment_output_string;
+                pub const FRAGMENT_SHADER: &str = #fragment_output_string;
             },
         ))
     }

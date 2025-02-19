@@ -101,7 +101,11 @@ impl Component for M6502 {}
 impl FromConfig for M6502 {
     type Config = M6502Config;
 
-    fn from_config(component_builder: ComponentBuilder<Self>, config: Self::Config) {
+    fn from_config(
+        component_builder: ComponentBuilder<Self>,
+        _essentials: Arc<RuntimeEssentials>,
+        config: Self::Config,
+    ) {
         let frequency = config.frequency;
 
         component_builder

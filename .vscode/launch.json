@@ -1,0 +1,332 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'multiemu-gui'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=multiemu-gui",
+                    "--package=multiemu-gui"
+                ],
+                "filter": {
+                    "name": "multiemu-gui",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "run-external",
+                "roms/octojam2title.ch8"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'multiemu-gui'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=multiemu-gui",
+                    "--package=multiemu-gui"
+                ],
+                "filter": {
+                    "name": "multiemu-gui",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_config'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-config"
+                ],
+                "filter": {
+                    "name": "multiemu_config",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_input'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-input"
+                ],
+                "filter": {
+                    "name": "multiemu_input",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_rom'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-rom"
+                ],
+                "filter": {
+                    "name": "multiemu_rom",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_chip8'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-chip8"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_chip8",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'instruction_decode'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=instruction_decode",
+                    "--package=multiemu-definition-chip8"
+                ],
+                "filter": {
+                    "name": "instruction_decode",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_misc'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-misc"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_misc",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'read'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=read",
+                    "--package=multiemu-definition-misc"
+                ],
+                "filter": {
+                    "name": "read",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'write'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=write",
+                    "--package=multiemu-definition-misc"
+                ],
+                "filter": {
+                    "name": "write",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_machine'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-machine"
+                ],
+                "filter": {
+                    "name": "multiemu_machine",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_wgsl_bindgen'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-wgsl-bindgen"
+                ],
+                "filter": {
+                    "name": "multiemu_wgsl_bindgen",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'multiemu-utils'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=multiemu-utils",
+                    "--package=multiemu-utils"
+                ],
+                "filter": {
+                    "name": "multiemu-utils",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'multiemu-utils'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=multiemu-utils",
+                    "--package=multiemu-utils"
+                ],
+                "filter": {
+                    "name": "multiemu-utils",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_i8080'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-i8080"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_i8080",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_m6502'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-m6502"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_m6502",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_nes'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-nes"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_nes",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

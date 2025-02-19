@@ -1,6 +1,6 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig},
+    component::{Component, FromConfig, RuntimeEssentials},
     memory::{
         callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
@@ -27,7 +27,11 @@ impl Component for MirrorMemory {}
 impl FromConfig for MirrorMemory {
     type Config = MirrorMemoryConfig;
 
-    fn from_config(mut component_builder: ComponentBuilder<Self>, config: Self::Config) {
+    fn from_config(
+        mut component_builder: ComponentBuilder<Self>,
+        _essentials: Arc<RuntimeEssentials>,
+        config: Self::Config,
+    ) {
         let assigned_address_space = config.assigned_address_space;
         let assigned_ranges = config.assigned_ranges.clone();
 
@@ -132,9 +136,10 @@ mod test {
         StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
     };
     use multiemu_config::Environment;
+    use multiemu_machine::builder::MachineBuilder;
+    use multiemu_machine::display::software::SoftwareRendering;
     use multiemu_machine::memory::AddressSpaceId;
-    use multiemu_machine::{display::software::SoftwareRendering, Machine};
-    use multiemu_rom::{manager::RomManager, system::GameSystem};
+    use multiemu_rom::manager::RomManager;
     use rangemap::RangeMap;
     use std::sync::{Arc, RwLock};
 
@@ -144,7 +149,7 @@ mod test {
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = Machine::build(GameSystem::Unknown, rom_manager, environment)
+        let machine = MachineBuilder::new(rom_manager, environment)
             .insert_bus(ADDRESS_SPACE, 64)
             .insert_component::<StandardMemory>(StandardMemoryConfig {
                 max_word_size: 8,
@@ -176,7 +181,7 @@ mod test {
     fn basic_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = Machine::build(GameSystem::Unknown, rom_manager, environment)
+        let machine = MachineBuilder::new(rom_manager, environment)
             .insert_bus(ADDRESS_SPACE, 64)
             .insert_component::<StandardMemory>(StandardMemoryConfig {
                 max_word_size: 8,

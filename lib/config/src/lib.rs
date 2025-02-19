@@ -87,14 +87,20 @@ impl Environment {
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         create_dir_all(STORAGE_DIRECTORY.deref())?;
         let config_file = File::create(CONFIG_LOCATION.deref())?;
-        ron::ser::to_writer_pretty(config_file, self, PrettyConfig::default())?;
+        ron::ser::to_writer_pretty(
+            config_file,
+            self,
+            PrettyConfig::default()
+                .new_line("\n".to_owned())
+                .struct_names(false),
+        )?;
 
         Ok(())
     }
 
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         if !CONFIG_LOCATION.exists() {
-            Self::default().save()?
+            Self::default().save()?;
         }
 
         let config_file = File::open(CONFIG_LOCATION.deref())?;

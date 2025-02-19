@@ -3,11 +3,9 @@ use multiemu_definition_misc::memory::mirror::{MirrorMemory, MirrorMemoryConfig}
 use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_machine::Machine;
 use multiemu_machine::{builder::MachineBuilder, memory::AddressSpaceId};
 use multiemu_rom::id::RomId;
 use multiemu_rom::manager::RomManager;
-use multiemu_rom::system::{GameSystem, NintendoSystem};
 use ppu::NesPPU;
 use rangemap::RangeMap;
 use std::sync::{Arc, RwLock};
@@ -23,14 +21,9 @@ pub fn build_machine(
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
 ) -> MachineBuilder {
-    let machine = Machine::build(
-        GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem),
-        rom_manager,
-        environment,
-    );
-    // TODO: This is guesswork
-    let machine = machine.insert_bus(NES_CPU_ADDRESS_SPACE_ID, 16);
-    let machine = machine.insert_bus(NES_PPU_ADDRESS_SPACE_ID, 16);
+    let machine = MachineBuilder::new(rom_manager, environment)
+        .insert_bus(NES_CPU_ADDRESS_SPACE_ID, 16)
+        .insert_bus(NES_PPU_ADDRESS_SPACE_ID, 16);
 
     // Set up the NES workram
     let (machine, _) = machine.insert_component::<StandardMemory>(StandardMemoryConfig {

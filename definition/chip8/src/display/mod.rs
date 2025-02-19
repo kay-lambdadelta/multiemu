@@ -2,16 +2,15 @@ use super::Chip8Kind;
 use bitvec::{order::Msb0, view::BitView};
 use downcast_rs::Downcast;
 use multiemu_machine::builder::ComponentBuilder;
-use multiemu_machine::component::{Component, FromConfig};
+use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use multiemu_machine::display::software::SoftwareRendering;
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
 use palette::Srgba;
 use serde::{Deserialize, Serialize};
-use software::SoftwareState;
 use std::cell::{OnceCell, RefCell};
 use std::ops::Deref;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[cfg(all(feature = "opengl", platform_desktop))]
 mod opengl;
@@ -51,6 +50,7 @@ impl Chip8Display {
     pub fn clear_display(&self) {
         tracing::trace!("Clearing display");
 
+        *self.modified.borrow_mut() = true;
         self.state.get().unwrap().clear_display();
     }
 }
@@ -69,29 +69,23 @@ pub struct Chip8DisplayConfig {
 impl FromConfig for Chip8Display {
     type Config = Chip8DisplayConfig;
 
-    fn from_config(component_builder: ComponentBuilder<Self>, config: Self::Config) {
+    fn from_config(
+        component_builder: ComponentBuilder<Self>,
+        _essentials: Arc<RuntimeEssentials>,
+        config: Self::Config,
+    ) {
         let component_builder = component_builder
             .insert_task(
                 Ratio::from_integer(60),
                 |display: &Chip8Display, _period| {
                     // Only update it once and if the thing is actually updated
-                    if !display.modified.borrow().deref() {
+                    if *display.modified.borrow().deref() {
                         display.state.get().unwrap().commit_display();
                         *display.modified.borrow_mut() = false;
                     }
                 },
             )
-            .set_display_config::<SoftwareRendering>(None, None, |display, _| {
-                let staging_buffer = DMatrix::from_element(64, 32, Srgba::new(0, 0, 0, 255));
-                let render_image = Rc::new(RefCell::new(staging_buffer.clone()));
-
-                let _ = display.state.set(Box::new(SoftwareState {
-                    render_image: render_image.clone(),
-                    staging_buffer: RefCell::new(staging_buffer),
-                }));
-
-                render_image
-            });
+            .set_display_config::<SoftwareRendering>(None, None, software::set_display_data);
 
         #[cfg(all(feature = "vulkan", platform_desktop))]
         let component_builder = {
@@ -116,7 +110,7 @@ impl FromConfig for Chip8Display {
         component_builder.build(Chip8Display {
             config,
             state: OnceCell::default(),
-            modified: RefCell::new(false),
+            modified: RefCell::new(true),
         });
     }
 }

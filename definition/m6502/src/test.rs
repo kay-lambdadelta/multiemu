@@ -4,10 +4,10 @@ use multiemu_config::Environment;
 use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
 };
+use multiemu_machine::builder::MachineBuilder;
 use multiemu_machine::display::software::SoftwareRendering;
 use multiemu_machine::memory::AddressSpaceId;
-use multiemu_machine::Machine;
-use multiemu_rom::{manager::RomManager, system::GameSystem};
+use multiemu_rom::manager::RomManager;
 use std::hash::RandomState;
 use std::sync::{Arc, RwLock};
 use std::{borrow::Cow, collections::HashMap};
@@ -313,24 +313,21 @@ fn m6502_instruction_decode() {
     ]);
 
     for (instruction_binary, (decoded_instruction, decoded_instruction_size)) in map {
-        let machine = Machine::build(
-            GameSystem::Unknown,
-            rom_manager.clone(),
-            environment.clone(),
-        )
-        .insert_component::<StandardMemory>(StandardMemoryConfig {
-            max_word_size: 8,
-            readable: true,
-            writable: true,
-            assigned_range: 0..0x4,
-            assigned_address_space: ADDRESS_SPACE,
-            initial_contents: StandardMemoryInitialContents::Array {
-                value: Cow::Borrowed(instruction_binary),
-                offset: 0,
-            },
-        })
-        .0
-        .build::<SoftwareRendering>(Default::default());
+        let machine = MachineBuilder::new(rom_manager.clone(), environment.clone())
+            .insert_bus(ADDRESS_SPACE, 64)
+            .insert_component::<StandardMemory>(StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..0x4,
+                assigned_address_space: ADDRESS_SPACE,
+                initial_contents: StandardMemoryInitialContents::Array {
+                    value: Cow::Borrowed(instruction_binary),
+                    offset: 0,
+                },
+            })
+            .0
+            .build::<SoftwareRendering>(Default::default());
 
         let (decoded_instruction_result, decoded_instruction_result_size) =
             decode_instruction(0x0, ADDRESS_SPACE, &machine.memory_translation_table()).unwrap();

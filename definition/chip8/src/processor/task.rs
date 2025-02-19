@@ -20,10 +20,10 @@ pub(crate) struct Chip8ProcessorTask {
     /// parts of the cpu that actually change over execution
     pub state: Arc<RwLock<ProcessorState>>,
     /// Instruction cache
-    pub instruction_cache: InstructionCache<Chip8InstructionDecoder>,
+    pub instruction_decoder: Chip8InstructionDecoder,
     /// Keypad virtual gamepad
     pub virtual_gamepad: Option<Arc<VirtualGamepad>>,
-    /// Stored components
+    /// Essential stuff the runtime provides
     pub essentials: Arc<RuntimeEssentials>,
     #[cfg(jit)]
     pub jit: Option<
@@ -41,10 +41,10 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
             match &state.execution_state {
                 ExecutionState::Normal => {
                     let (decompiled_instruction, decompiled_instruction_length) = self
-                        .instruction_cache
+                        .instruction_decoder
                         .decode(
                             state.registers.program as usize,
-                            &self.essentials.memory_translation_table(),
+                            self.essentials.memory_translation_table(),
                         )
                         .expect("Failed to decode instruction");
 

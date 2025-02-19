@@ -8,3 +8,4 @@ license = "GPL-3.0-or-later"
 serde = { workspace = true }
 strum = { workspace = true }
 nalgebra = { workspace = true }
+scc = { workspace = true }

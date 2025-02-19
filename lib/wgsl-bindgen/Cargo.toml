@@ -17,3 +17,4 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 versions = { workspace = true }
 itertools = { workspace = true }
+prettyplease = "0.2"

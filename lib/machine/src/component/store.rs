@@ -54,26 +54,31 @@ impl ComponentStore {
         });
 
         self.component_location
-            .insert(component_id, ComponentLocation::Task(TaskId::Main));
+            .insert(component_id, ComponentLocation::Task(TaskId::Main))
+            .unwrap();
     }
 
     pub(crate) fn insert_component_global(
-        &mut self,
+        &self,
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
         self.component_location
-            .insert(component_id, ComponentLocation::Global(Arc::new(component)));
+            .insert(component_id, ComponentLocation::Global(Arc::new(component)))
+            .unwrap();
     }
 
     #[inline]
+    // Interacts with a component wherever it may be
     pub(crate) fn interact_dyn(
         &self,
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) + Send,
     ) {
-        if let Some(location) = self.component_location.get(&component_id) {
-            match location.get() {
+        tracing::trace!("Interacting with component {:?}", component_id);
+
+        self.component_location
+            .read(&component_id, |_, location| match location {
                 ComponentLocation::Task(TaskId::Main) => {
                     MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
                         let thread_component_store = thread_component_store.get().unwrap().borrow();
@@ -84,11 +89,36 @@ impl ComponentStore {
                 ComponentLocation::Global(component) => {
                     callback(component.as_ref());
                 }
-                ComponentLocation::Task(TaskId::Worker(worker_id)) => {
+                ComponentLocation::Task(TaskId::Worker(_)) => {
                     todo!()
                 }
-            }
-        }
+            });
+    }
+
+    #[inline]
+    // Interacts with a component but restricted to the local instance, mostly for graphics initialization
+    pub(crate) fn interact_dyn_local(
+        &self,
+        component_id: ComponentId,
+        callback: impl FnOnce(&dyn Component),
+    ) {
+        tracing::trace!("Interacting with component {:?}", component_id);
+        self.component_location
+            .read(&component_id, |_, location| match location {
+                ComponentLocation::Task(TaskId::Main) => {
+                    MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
+                        let thread_component_store = thread_component_store.get().unwrap().borrow();
+                        let component = thread_component_store.get(&component_id).unwrap();
+                        callback(component.as_ref());
+                    });
+                }
+                ComponentLocation::Global(component) => {
+                    callback(component.as_ref());
+                }
+                ComponentLocation::Task(TaskId::Worker(_)) => {
+                    panic!("Cannot iteract with a worker thread from this function");
+                }
+            });
     }
 
     #[inline]
@@ -103,7 +133,7 @@ impl ComponentStore {
         });
     }
 
-    pub fn get_compoonent<C: Component>(
+    pub fn get<C: Component>(
         self: &Arc<Self>,
         component_id: ComponentId,
     ) -> Option<ComponentRef<C>> {

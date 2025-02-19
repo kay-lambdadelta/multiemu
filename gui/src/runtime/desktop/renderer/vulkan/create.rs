@@ -23,7 +23,8 @@ pub fn create_vulkan_instance(
     library: Arc<VulkanLibrary>,
 ) -> Arc<Instance> {
     let required_extensions = Surface::required_extensions(&display_api_handle).unwrap();
-    let instance = Instance::new(
+    
+    Instance::new(
         library,
         InstanceCreateInfo {
             flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
@@ -31,8 +32,7 @@ pub fn create_vulkan_instance(
             ..Default::default()
         },
     )
-    .unwrap();
-    instance
+    .unwrap()
 }
 
 pub fn select_vulkan_device(
@@ -45,7 +45,10 @@ pub fn select_vulkan_device(
         .enumerate_physical_devices()
         .unwrap()
         // Make sure whatever device has all of our required extensions
-        .filter(|p| p.supported_extensions().contains(&required_extensions))
+        .filter(|p| {
+            p.supported_extensions()
+                .contains(&required_extensions.union(&UNIVERSALLY_REQUIRED_EXTENSIONS))
+        })
         // Grab one with a graphics queue
         .filter_map(|p| {
             p.queue_family_properties()
@@ -59,32 +62,37 @@ pub fn select_vulkan_device(
         })
         // Sort by the device power
         .sorted_by_key(|(p, _)| match p.properties().device_type {
-            PhysicalDeviceType::DiscreteGpu => 5,
-            PhysicalDeviceType::IntegratedGpu => 4,
-            PhysicalDeviceType::VirtualGpu => 3,
-            PhysicalDeviceType::Cpu => 2,
-            PhysicalDeviceType::Other => 1,
-            _ => 0,
+            PhysicalDeviceType::DiscreteGpu => 0,
+            PhysicalDeviceType::IntegratedGpu => 1,
+            PhysicalDeviceType::VirtualGpu => 2,
+            PhysicalDeviceType::Cpu => 3,
+            PhysicalDeviceType::Other => 4,
+            _ => 5,
         })
         .collect();
+
+    assert!(
+        !possible_canidates.is_empty(),
+        "No suitable vulkan device found"
+    );
 
     possible_canidates
         .iter()
         .find_map(|(p, i)| {
-            if p.supported_extensions().contains(&preferred_extensions) {
+            if p.supported_extensions().contains(preferred_extensions) {
                 Some((p.clone(), *i))
             } else {
                 None
             }
         })
         // Just grab a random one if we can't find something that meets all of our requirements
-        .or_else(|| possible_canidates.get(0).cloned())
+        .or_else(|| possible_canidates.first().cloned())
         .map(|(p, i)| {
-            (
-                p.clone(),
-                p.supported_extensions().intersection(preferred_extensions),
-                i,
-            )
+            let extensions = required_extensions
+                .union(&UNIVERSALLY_REQUIRED_EXTENSIONS)
+                .union(&p.supported_extensions().intersection(preferred_extensions));
+
+            (p.clone(), extensions, i)
         })
 }
 

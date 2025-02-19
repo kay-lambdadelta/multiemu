@@ -3,8 +3,9 @@ use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_devi
 use multiemu_config::Environment;
 use multiemu_machine::component::ComponentId;
 use multiemu_machine::display::vulkan::VulkanComponentInitializationData;
-use multiemu_machine::display::RenderBackend;
 use multiemu_machine::display::vulkan::VulkanRendering;
+use multiemu_machine::display::RenderBackend;
+use multiemu_machine::Machine;
 use nalgebra::Vector2;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -47,8 +48,8 @@ pub struct VulkanRenderingRuntime {
     swapchain_images: Vec<Arc<Image>>,
     recreate_swapchain: bool,
     display_api_handle: Arc<Window>,
-    component_framebuffers: HashMap<ComponentId, Arc<Image>>,
     environment: Arc<RwLock<Environment>>,
+    previously_seen_frames: HashMap<ComponentId, Arc<Image>>,
 }
 
 impl RenderingBackendState for VulkanRenderingRuntime {
@@ -178,15 +179,15 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             swapchain_images,
             recreate_swapchain: false,
             display_api_handle,
-            component_framebuffers: HashMap::default(),
             environment,
+            previously_seen_frames: HashMap::new(),
         })
     }
 
     fn component_initialization_data(
         &self,
-    ) -> Rc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData> {
-        Rc::new(VulkanComponentInitializationData {
+    ) -> Arc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData> {
+        Arc::new(VulkanComponentInitializationData {
             device: self.device.clone(),
             queues: self.queues_for_components.clone(),
             memory_allocator: self.memory_allocator.clone(),
@@ -194,7 +195,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         })
     }
 
-    fn redraw(&mut self) {
+    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>) {
         let window_dimensions = self.display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
 
@@ -202,18 +203,18 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
         // Check if vsync settings disagree
         if (self.swapchain.create_info().present_mode == PresentMode::Immediate)
-            ^ environment_guard.graphics_setting.vsync
+            == environment_guard.graphics_setting.vsync
         {
             self.recreate_swapchain = true;
         }
 
         // HACK: This only works with a single component
-        let component_framebuffer = self
-            .component_framebuffers
-            .values()
-            .next()
-            .cloned()
-            .unwrap();
+        for (component_id, framebuffer_receiver) in machine.framebuffer_receivers() {
+            if let Ok(framebuffer) = framebuffer_receiver.try_recv() {
+                self.previously_seen_frames
+                    .insert(*component_id, framebuffer);
+            }
+        }
 
         // Skip rendering if impossible window size
         if window_dimensions.min() == 0 {
@@ -271,14 +272,16 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         )
         .unwrap();
 
-        command_buffer
-            .blit_image(BlitImageInfo {
-                src_image_layout: ImageLayout::TransferSrcOptimal,
-                dst_image_layout: ImageLayout::TransferDstOptimal,
-                filter: Filter::Nearest,
-                ..BlitImageInfo::images(component_framebuffer, swapchain_image.clone())
-            })
-            .unwrap();
+        for (component_id, framebuffer) in self.previously_seen_frames.iter() {
+            command_buffer
+                .blit_image(BlitImageInfo {
+                    src_image_layout: ImageLayout::TransferSrcOptimal,
+                    dst_image_layout: ImageLayout::TransferDstOptimal,
+                    filter: Filter::Nearest,
+                    ..BlitImageInfo::images(framebuffer.clone(), swapchain_image.clone())
+                })
+                .unwrap();
+        }
 
         let command_buffer = command_buffer.build().unwrap();
 

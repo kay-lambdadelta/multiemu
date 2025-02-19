@@ -65,7 +65,7 @@ impl InstructionTranslator for Chip8InstructionTranslator {
                     );
                 }
                 Chip8InstructionSet::Chip8(InstructionSetChip8::Sys { .. }) => {}
-                Chip8InstructionSet::Chip8(InstructionSetChip8::Jump { address }) => {}
+                Chip8InstructionSet::Chip8(InstructionSetChip8::Jump { .. }) => {}
                 Chip8InstructionSet::Chip8(InstructionSetChip8::Call { .. }) => {}
                 Chip8InstructionSet::Chip8(InstructionSetChip8::Ske { .. }) => {}
                 Chip8InstructionSet::Chip8(InstructionSetChip8::Skne { .. }) => {}

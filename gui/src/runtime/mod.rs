@@ -2,8 +2,6 @@ use multiemu_rom::id::RomId;
 use multiemu_rom::manager::RomManager;
 use std::sync::{Arc, RwLock};
 
-mod main_loop;
-
 #[cfg(platform_desktop)]
 pub mod desktop;
 

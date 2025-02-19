@@ -1,6 +1,6 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig},
+    component::{Component, FromConfig, RuntimeEssentials},
     memory::{
         callbacks::{PreviewMemory, ReadMemory},
         memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord},
@@ -34,8 +34,12 @@ impl Component for RomMemory {
 impl FromConfig for RomMemory {
     type Config = RomMemoryConfig;
 
-    fn from_config(component_builder: ComponentBuilder<Self>, config: Self::Config) {
-        let rom_file = component_builder
+    fn from_config(
+        component_builder: ComponentBuilder<Self>,
+        essentials: Arc<RuntimeEssentials>,
+        config: Self::Config,
+    ) {
+        let rom_file = essentials
             .rom_manager()
             .open(config.rom, RomRequirement::Required)
             .unwrap();

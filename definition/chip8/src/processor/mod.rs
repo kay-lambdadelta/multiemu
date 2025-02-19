@@ -1,3 +1,5 @@
+use crate::Chip8InstructionDecoder;
+
 use super::Chip8Kind;
 use arrayvec::ArrayVec;
 use input::{default_bindings, present_inputs, Chip8KeyCode, CHIP8_KEYPAD_GAMEPAD_TYPE};
@@ -5,7 +7,7 @@ use instruction::Register;
 use multiemu_config::ProcessorExecutionMode;
 use multiemu_input::virtual_gamepad::VirtualGamepadMetadata;
 use multiemu_machine::builder::ComponentBuilder;
-use multiemu_machine::component::{Component, ComponentId, FromConfig};
+use multiemu_machine::component::{Component, ComponentId, FromConfig, RuntimeEssentials};
 use multiemu_machine::processor::cache::InstructionCache;
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
@@ -102,8 +104,11 @@ impl Component for Chip8Processor {
 impl FromConfig for Chip8Processor {
     type Config = Chip8ProcessorConfig;
 
-    fn from_config(component_builder: ComponentBuilder<Self>, config: Self::Config)
-    where
+    fn from_config(
+        component_builder: ComponentBuilder<Self>,
+        essentials: Arc<RuntimeEssentials>,
+        config: Self::Config,
+    ) where
         Self: Sized,
     {
         let frequency = config.frequency;
@@ -111,36 +116,40 @@ impl FromConfig for Chip8Processor {
 
         // Optionally initialize the jit engine
         #[cfg(jit)]
-        let jit = if component_builder
-            .environment()
-            .read()
-            .unwrap()
-            .processor_execution_mode
-            == ProcessorExecutionMode::Jit
-        {
-            Some(
-                multiemu_machine::processor::jit::InstructionJitExecutor::new(
-                    jit::Chip8InstructionTranslator::new(config.kind),
-                ),
-            )
-        } else {
-            None
-        };
+        let jit =
+            if essentials.environment().processor_execution_mode == ProcessorExecutionMode::Jit {
+                Some(
+                    multiemu_machine::processor::jit::InstructionJitExecutor::new(
+                        jit::Chip8InstructionTranslator::new(config.kind),
+                    ),
+                )
+            } else {
+                None
+            };
 
         component_builder
             .insert_task(
                 frequency,
                 Chip8ProcessorTask {
                     state: state.clone(),
-                    config,
-                    instruction_cache: InstructionCache::default(),
+                    instruction_decoder: Chip8InstructionDecoder,
                     #[cfg(jit)]
                     jit,
                     virtual_gamepad: Option::default(),
-                    essentials: todo!(),
-                    display_component: todo!(),
-                    timer_component: todo!(),
-                    audio_component: todo!(),
+                    display_component: essentials
+                        .component_store()
+                        .get(config.display_component_id)
+                        .unwrap(),
+                    timer_component: essentials
+                        .component_store()
+                        .get(config.timer_component_id)
+                        .unwrap(),
+                    audio_component: essentials
+                        .component_store()
+                        .get(config.audio_component_id)
+                        .unwrap(),
+                    essentials,
+                    config,
                 },
             )
             .insert_gamepads(

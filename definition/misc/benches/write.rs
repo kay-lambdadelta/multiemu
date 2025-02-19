@@ -3,8 +3,10 @@ use multiemu_config::Environment;
 use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_machine::{display::software::SoftwareRendering, memory::AddressSpaceId, Machine};
-use multiemu_rom::{manager::RomManager, system::GameSystem};
+use multiemu_machine::{
+    builder::MachineBuilder, display::software::SoftwareRendering, memory::AddressSpaceId,
+};
+use multiemu_rom::manager::RomManager;
 use std::{
     hint::black_box,
     sync::{Arc, RwLock},
@@ -15,7 +17,7 @@ const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
 fn criterion_benchmark(c: &mut Criterion) {
     let environment = Arc::new(RwLock::new(Environment::default()));
     let rom_manager = Arc::new(RomManager::new(None).unwrap());
-    let machine = Machine::build(GameSystem::Unknown, rom_manager, environment)
+    let machine = MachineBuilder::new(rom_manager, environment)
         .insert_bus(ADDRESS_SPACE, 64)
         .insert_component::<StandardMemory>(StandardMemoryConfig {
             max_word_size: 8,

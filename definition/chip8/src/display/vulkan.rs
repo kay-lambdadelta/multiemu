@@ -1,10 +1,10 @@
 use crate::display::{draw_sprite_common, Chip8Display, Chip8DisplayBackend};
+use crossbeam::channel::Sender;
 use multiemu_machine::display::vulkan::VulkanRendering;
 use multiemu_machine::display::RenderBackend;
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
 use palette::Srgba;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::{ops::DerefMut, sync::Arc};
 use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
 use vulkano::format::Format;
@@ -26,7 +26,8 @@ pub struct VulkanState {
     pub staging_buffer: Subbuffer<[Srgba<u8>]>,
     pub queue: Arc<Queue>,
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-    pub render_image: Rc<RefCell<Arc<Image>>>,
+    pub render_image: RefCell<Arc<Image>>,
+    pub frame_sender: Sender<Arc<Image>>,
 }
 
 impl Chip8DisplayBackend for VulkanState {
@@ -39,16 +40,19 @@ impl Chip8DisplayBackend for VulkanState {
 
     fn clear_display(&self) {
         let mut staging_buffer = self.staging_buffer.write().unwrap();
+
         staging_buffer.fill(Srgba::new(0, 0, 0, 255));
     }
 
     fn save_screen_contents(&self) -> DMatrix<Srgba<u8>> {
         let staging_buffer = self.staging_buffer.read().unwrap();
+
         DMatrix::from_vec(64, 32, staging_buffer.to_vec())
     }
 
     fn load_screen_contents(&self, buffer: DMatrix<Srgba<u8>>) {
         let mut staging_buffer = self.staging_buffer.write().unwrap();
+
         staging_buffer.copy_from_slice(buffer.as_slice());
     }
 
@@ -66,7 +70,7 @@ impl Chip8DisplayBackend for VulkanState {
             // Copy the staging buffer to the image
             .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
                 self.staging_buffer.clone(),
-                render_image,
+                render_image.clone(),
             ))
             .unwrap();
         command_buffer
@@ -78,13 +82,16 @@ impl Chip8DisplayBackend for VulkanState {
             .unwrap()
             .wait(None)
             .unwrap();
+
+        self.frame_sender.send(render_image).unwrap();
     }
 }
 
 pub fn set_display_data(
     display: &Chip8Display,
-    initialization_data: Rc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
-) -> Rc<RefCell<Arc<Image>>> {
+    initialization_data: Arc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
+    frame_sender: Sender<<VulkanRendering as RenderBackend>::ComponentFramebuffer>,
+) {
     let staging_buffer = Buffer::from_iter(
         initialization_data.memory_allocator.clone(),
         BufferCreateInfo {
@@ -99,7 +106,7 @@ pub fn set_display_data(
     )
     .unwrap();
 
-    let render_image = Rc::new(RefCell::new(
+    let render_image = RefCell::new(
         Image::new(
             initialization_data.memory_allocator.clone(),
             ImageCreateInfo {
@@ -112,14 +119,13 @@ pub fn set_display_data(
             AllocationCreateInfo::default(),
         )
         .unwrap(),
-    ));
+    );
 
     let _ = display.state.set(Box::new(VulkanState {
         queue: initialization_data.best_queue(),
         command_buffer_allocator: initialization_data.command_buffer_allocator.clone(),
         staging_buffer,
         render_image: render_image.clone(),
+        frame_sender,
     }));
-
-    render_image
 }

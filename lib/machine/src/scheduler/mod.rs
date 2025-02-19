@@ -135,9 +135,9 @@ impl Scheduler {
         let tick_real_time = Ratio::new(common_multiple, common_denominator).recip();
 
         tracing::debug!(
-            "Schedule ticks take {:?} and restarts at tick {}",
+            "Schedule ticks take {:?} and restarts at tick {}, a full cycle takes",
             Duration::from_secs_f64(tick_real_time.to_f64().unwrap()),
-            common_denominator
+            common_denominator,
         );
 
         Self {
@@ -145,7 +145,7 @@ impl Scheduler {
             rollover_tick: common_denominator,
             tick_real_time,
             schedule,
-            allotted_time: Duration::from_millis(16),
+            allotted_time: Duration::from_secs_f32(Ratio::new(1, 60).to_f32().unwrap()),
             component_store,
             tasks,
         }
@@ -153,38 +153,36 @@ impl Scheduler {
 
     pub fn run(&mut self) {
         // TODO: This should actually be calculating how much time is between frames minus draw time
-        let starting_tick = self.current_tick;
+        let mut ticks_this_pass: u64 = 0;
         let timestamp = Instant::now();
 
         // Ensure we don't overstep the framerate
         while self.allotted_time > timestamp.elapsed()
             // ensure we don't overstate the emulated timespace
-            && (self.current_tick.wrapping_sub(starting_tick) as f32
-                * self.tick_real_time.to_f32().unwrap())
+            && (Ratio::from_integer(ticks_this_pass)
+                * self.tick_real_time).to_f32().unwrap()
                 <  self.allotted_time.as_secs_f32()
         {
             if let Some((time_slice, component_ids)) =
                 self.schedule.get_key_value(&self.current_tick)
             {
+                let ticks = time_slice.clone().count() as u64;
+
                 for component_id in component_ids {
                     if let Some((_, task)) = self.tasks.get_mut(component_id) {
-                        /*
                         self.component_store
-                            .interact_dyn(*component_id, |component| {
-                                task(component, self.current_tick);
+                            .interact_dyn_local(*component_id, |component| {
+                                task(component, ticks);
                             });
-                            */
                     }
                 }
 
-                self.current_tick = self
-                    .current_tick
-                    .saturating_add(time_slice.clone().count() as u64);
+                self.current_tick = self.current_tick.wrapping_add(ticks) % self.rollover_tick;
+                ticks_this_pass = ticks_this_pass.saturating_add(ticks)
             } else {
-                self.current_tick = self.current_tick.saturating_add(1);
+                self.current_tick = self.current_tick.wrapping_add(1) % self.rollover_tick;
+                ticks_this_pass = ticks_this_pass.saturating_add(1);
             }
-
-            self.current_tick %= self.rollover_tick;
         }
     }
 

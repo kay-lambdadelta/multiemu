@@ -11,6 +11,7 @@ use strum::{EnumIter, IntoEnumIterator};
 mod file_browser;
 
 pub enum UiOutput {
+    Resume,
     OpenGame { path: PathBuf },
 }
 
@@ -47,7 +48,7 @@ pub struct MenuState {
 }
 
 impl MenuState {
-    pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
+    pub fn new(egui_context: egui::Context, environment: Arc<RwLock<Environment>>) -> Self {
         let environment_guard = environment.read().unwrap();
 
         Self {
@@ -57,7 +58,7 @@ impl MenuState {
                 drop(environment_guard);
                 environment
             },
-            egui_context: egui::Context::default(),
+            egui_context,
         }
     }
 
@@ -83,7 +84,11 @@ impl MenuState {
             ui.with_layout(
                 egui::Layout::top_down_justified(egui::Align::LEFT),
                 |ui| match self.open_menu_item {
-                    MenuItem::Main => if ui.button("Resume").clicked() {},
+                    MenuItem::Main => {
+                        if ui.button("Resume").clicked() {
+                            output = Some(UiOutput::Resume);
+                        }
+                    }
                     MenuItem::FileBrowser => {
                         let mut new_dir = None;
 

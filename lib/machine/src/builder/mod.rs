@@ -1,16 +1,17 @@
 use crate::{
-    component::{store::ComponentStore, Component, ComponentId, FromConfig},
+    component::{Component, ComponentId, FromConfig, RuntimeEssentials},
     display::RenderBackend,
     memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceId},
     scheduler::Scheduler,
     Machine,
 };
-use display::DisplayMetadata;
+use display::{BackendSpecificData, DisplayMetadata};
 use input::InputMetadata;
 use memory::MemoryMetadata;
 use multiemu_config::Environment;
-use multiemu_rom::{manager::RomManager, system::GameSystem};
+use multiemu_rom::manager::RomManager;
 use std::{
+    any::TypeId,
     collections::HashMap,
     sync::{Arc, RwLock},
 };
@@ -31,42 +32,33 @@ pub struct ComponentMetadata {
 }
 
 pub struct MachineBuilder {
-    rom_manager: Arc<RomManager>,
-    game_system: GameSystem,
-    component_store: ComponentStore,
+    essentials: Arc<RuntimeEssentials>,
     current_component_id: ComponentId,
-    environment: Arc<RwLock<Environment>>,
     pub component_metadata: HashMap<ComponentId, ComponentMetadata>,
     memory_busses: HashMap<AddressSpaceId, u8>,
 }
 
 impl MachineBuilder {
-    pub(crate) fn new(
-        game_system: GameSystem,
-        rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-    ) -> Self {
+    pub fn new(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>) -> Self {
         MachineBuilder {
-            rom_manager,
-            game_system,
-            component_store: ComponentStore::default(),
             current_component_id: ComponentId(0),
             component_metadata: HashMap::new(),
-            environment,
             memory_busses: HashMap::new(),
+            essentials: Arc::new(RuntimeEssentials::new(rom_manager, environment)),
         }
     }
 
     pub fn insert_component<C: FromConfig>(mut self, config: C::Config) -> (Self, ComponentId) {
         let component_id = ComponentId(self.current_component_id.0);
 
+        let essentials = self.essentials.clone();
         let component_builder = ComponentBuilder::<C> {
             machine_builder: &mut self,
             component_id,
             component_metadata: ComponentMetadata::default(),
             _phantom: PhantomData,
         };
-        C::from_config(component_builder, config);
+        C::from_config(component_builder, essentials, config);
 
         self.current_component_id.0 = self
             .current_component_id
@@ -92,16 +84,15 @@ impl MachineBuilder {
 
     pub fn build<R: RenderBackend>(
         mut self,
-        display_component_initialization_data: Rc<R::ComponentInitializationData>,
-    ) -> Machine {
-        let component_store = Arc::new(self.component_store);
+        display_component_initialization_data: Arc<R::ComponentInitializationData>,
+    ) -> Machine<R> {
         let mut memory_translation_table = MemoryTranslationTable::default();
 
         for (address_space_id, width) in self.memory_busses.drain() {
             memory_translation_table.insert_bus(address_space_id, width);
         }
 
-        for as_memory in self
+        for memory_metadata in self
             .component_metadata
             .iter_mut()
             .filter_map(|(_, metadata)| {
@@ -112,7 +103,7 @@ impl MachineBuilder {
                 }
             })
         {
-            for (address_space, (assigned_ranges, callback)) in as_memory.read.drain() {
+            for (address_space, (assigned_ranges, callback)) in memory_metadata.read.drain() {
                 memory_translation_table.insert_read_callback(
                     address_space,
                     assigned_ranges,
@@ -120,7 +111,7 @@ impl MachineBuilder {
                 );
             }
 
-            for (address_space, (assigned_ranges, callback)) in as_memory.write.drain() {
+            for (address_space, (assigned_ranges, callback)) in memory_metadata.write.drain() {
                 memory_translation_table.insert_write_callback(
                     address_space,
                     assigned_ranges,
@@ -128,7 +119,7 @@ impl MachineBuilder {
                 );
             }
 
-            for (address_space, (assigned_ranges, callback)) in as_memory.preview.drain() {
+            for (address_space, (assigned_ranges, callback)) in memory_metadata.preview.drain() {
                 memory_translation_table.insert_preview_callback(
                     address_space,
                     assigned_ranges,
@@ -137,11 +128,47 @@ impl MachineBuilder {
             }
         }
 
+        let mut component_framebuffers = HashMap::new();
+        let mut tasks = Vec::new();
+
+        for (component_id, component_metadata) in self.component_metadata.drain() {
+            if let Some(mut display_metadata) = component_metadata.display {
+                self.essentials
+                    .component_store()
+                    .interact_dyn_local(component_id, |component| {
+                        let (frame_sender, frame_receiver) = crossbeam::channel::bounded(1);
+
+                        (display_metadata
+                            .backend_specific_data
+                            .remove(&TypeId::of::<R>())
+                            .and_then(|item| item.downcast::<BackendSpecificData<R>>().ok())
+                            .expect("Component did not register display backend")
+                            .set_display_callback)(
+                            component,
+                            display_component_initialization_data.clone(),
+                            frame_sender,
+                        );
+
+                        component_framebuffers.insert(component_id, frame_receiver);
+                    });
+            }
+
+            if let Some(task_metadata) = component_metadata.task {
+                tasks.push((component_id, task_metadata.frequency, task_metadata.task));
+            }
+        }
+
         let memory_translation_table = Arc::new(memory_translation_table);
+        self.essentials
+            .set_memory_translation_table(memory_translation_table.clone());
+
+        let scheduler = Scheduler::new(self.essentials.component_store().clone(), tasks);
+
         Machine {
+            scheduler,
+            component_store: self.essentials.component_store().clone(),
             memory_translation_table,
-            scheduler: Scheduler::new(component_store.clone(), []),
-            component_store,
+            component_framebuffers,
         }
     }
 }
@@ -154,18 +181,11 @@ pub struct ComponentBuilder<'a, C: Component> {
 }
 
 impl<C: Component> ComponentBuilder<'_, C> {
-    pub fn rom_manager(&self) -> Arc<RomManager> {
-        self.machine_builder.rom_manager.clone()
-    }
-
-    pub fn environment(&self) -> Arc<RwLock<Environment>> {
-        self.machine_builder.environment.clone()
-    }
-
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
     pub fn build(self, component: C) {
         self.machine_builder
-            .component_store
+            .essentials
+            .component_store()
             .insert_component(self.component_id, component);
 
         self.machine_builder
@@ -179,7 +199,8 @@ impl<C: Component> ComponentBuilder<'_, C> {
         C: Send + Sync,
     {
         self.machine_builder
-            .component_store
+            .essentials
+            .component_store()
             .insert_component_global(self.component_id, component);
 
         self.machine_builder

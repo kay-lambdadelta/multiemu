@@ -63,10 +63,10 @@ impl ShaderCrossCompiler for SpirvShaderCrossCompiler {
 
         Ok((
             syn::parse_quote!(
-                const VERTEX_SHADER: &[u32] = &[#(#vertex_output),*];
+                pub const VERTEX_SHADER: &[u32] = &[#(#vertex_output),*];
             ),
             syn::parse_quote!(
-                const FRAGMENT_SHADER: &[u32] = &[#(#fragment_output),*];
+                pub const FRAGMENT_SHADER: &[u32] = &[#(#fragment_output),*];
             ),
         ))
     }

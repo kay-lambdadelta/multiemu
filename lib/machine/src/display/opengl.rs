@@ -18,7 +18,7 @@ impl ContextExtensionSpecification for OpenGlContextExtensionSpecification {
     }
 }
 
-pub type OpenGlComponentFramebuffer = Texture2d;
+pub type OpenGlComponentFramebuffer = Rc<Texture2d>;
 
 impl RenderBackend for OpenGlRendering {
     const GRAPHICS_API: GraphicsApi = GraphicsApi::OpenGl;

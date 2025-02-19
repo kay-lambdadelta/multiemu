@@ -1,8 +1,9 @@
 use enumflags2::bitflags;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig},
+    component::{Component, FromConfig, RuntimeEssentials},
 };
+use std::sync::Arc;
 
 // mod decode;
 // mod instruction;
@@ -91,7 +92,11 @@ impl I8080Config {
 impl FromConfig for I8080 {
     type Config = I8080Config;
 
-    fn from_config(component_builder: ComponentBuilder<Self>, config: Self::Config) {
+    fn from_config(
+        component_builder: ComponentBuilder<Self>,
+        _essentials: Arc<RuntimeEssentials>,
+        config: Self::Config,
+    ) {
         todo!()
     }
 }

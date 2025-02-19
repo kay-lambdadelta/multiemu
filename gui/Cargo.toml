@@ -25,7 +25,6 @@ serde-inline-default = { workspace = true }
 rayon = { workspace = true }
 nalgebra = { workspace = true }
 bytemuck = { workspace = true }
-encase = { workspace = true }
 num = { workspace = true }
 arrayvec = { workspace = true }
 thiserror = { workspace = true }
@@ -42,7 +41,6 @@ egui_extras = { version = "0.31", default-features = false, features = [
 image = { version = "0.25", default-features = false, features = ["webp"] }
 ringbuffer = "0.15"
 petgraph = "0.7"
-mini-moka = "0.10"
 itertools = "0.14"
 
 # Desktop type dependencies
@@ -70,6 +68,7 @@ vulkano = { workspace = true, optional = true }
 glium = { workspace = true, optional = true }
 glutin = { version = "0.32", optional = true }
 clap = { workspace = true }
+encase = { workspace = true }
 
 # Jit support
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64", target_arch = "s390x")))'.dependencies]

@@ -21,6 +21,7 @@ rangemap = { workspace = true }
 rand = { workspace = true }
 downcast-rs = { workspace = true }
 palette = { workspace = true }
+crossbeam = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

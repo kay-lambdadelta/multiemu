@@ -1,22 +1,28 @@
-use super::main_loop::Message;
 use crate::rendering_backend::RenderingBackendState;
 use crate::runtime::Runtime;
 use crossbeam::channel::Sender;
+use main_loop::Message;
 use multiemu_config::Environment;
 use multiemu_machine::display::RenderBackend;
 use multiemu_rom::id::RomId;
 use multiemu_rom::manager::RomManager;
 use multiemu_rom::system::GameSystem;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use winit::{event_loop::EventLoop, window::Window};
 
 mod gamepad;
+mod main_loop;
 pub mod renderer;
 mod windowing;
 
+struct WindowingContext<RS: RenderingBackendState> {
+    egui_winit: Arc<Mutex<egui_winit::State>>,
+    display_api_handle: RS::DisplayApiHandle,
+    runtime_channel: Sender<Message>,
+}
+
 pub struct PlatformRuntime<RS: RenderingBackendState> {
-    display_api_handle: Option<RS::DisplayApiHandle>,
-    runtime_channel: Option<Sender<Message>>,
+    windowing: Option<WindowingContext<RS>>,
     pending_machine: Option<(GameSystem, Vec<RomId>)>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
@@ -29,8 +35,7 @@ impl<
 {
     fn launch_gui(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>) {
         let mut me = Self {
-            display_api_handle: None,
-            runtime_channel: None,
+            windowing: None,
             pending_machine: None,
             rom_manager,
             environment,
@@ -47,8 +52,7 @@ impl<
         environment: Arc<RwLock<Environment>>,
     ) {
         let mut me = Self {
-            display_api_handle: None,
-            runtime_channel: None,
+            windowing: None,
             pending_machine: Some((game_system, user_specified_roms)),
             rom_manager,
             environment,

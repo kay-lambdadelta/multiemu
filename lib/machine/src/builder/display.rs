@@ -1,3 +1,5 @@
+use crossbeam::channel::Sender;
+
 use super::ComponentBuilder;
 use crate::{component::Component, display::RenderBackend};
 use std::{
@@ -5,6 +7,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     rc::Rc,
+    sync::Arc,
 };
 
 #[allow(clippy::type_complexity)]
@@ -14,9 +17,9 @@ pub struct BackendSpecificData<R: RenderBackend> {
     pub set_display_callback: Box<
         dyn FnOnce(
                 &dyn Component,
-                Rc<R::ComponentInitializationData>,
-            ) -> Rc<RefCell<R::ComponentFramebuffer>>
-            + Send,
+                Arc<R::ComponentInitializationData>,
+                Sender<R::ComponentFramebuffer>,
+            ) + Send,
     >,
 }
 
@@ -30,7 +33,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
         mut self,
         preferred_extensions: Option<R::ContextExtensionSpecification>,
         required_extensions: Option<R::ContextExtensionSpecification>,
-        set_display_callback: impl FnOnce(&C, Rc<R::ComponentInitializationData>) -> Rc<RefCell<R::ComponentFramebuffer>>
+        set_display_callback: impl FnOnce(&C, Arc<R::ComponentInitializationData>, Sender<R::ComponentFramebuffer>)
             + Send
             + 'static,
     ) -> Self {
@@ -45,10 +48,12 @@ impl<C: Component> ComponentBuilder<'_, C> {
             Box::new(BackendSpecificData::<R> {
                 preferred_extensions: preferred_extensions.unwrap_or_default(),
                 required_extensions: required_extensions.unwrap_or_default(),
-                set_display_callback: Box::new(move |component, initialization_data| {
-                    let component = component.as_any().downcast_ref::<C>().unwrap();
-                    set_display_callback(component, initialization_data)
-                }),
+                set_display_callback: Box::new(
+                    move |component, initialization_data, frame_channel| {
+                        let component = component.as_any().downcast_ref::<C>().unwrap();
+                        set_display_callback(component, initialization_data, frame_channel);
+                    },
+                ),
             }),
         );
 

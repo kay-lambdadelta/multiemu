@@ -3,6 +3,7 @@ use multiemu_config::graphics::GraphicsApi;
 use nalgebra::DMatrix;
 use palette::Srgba;
 
+/// Marker trait for software rendering, this should be the one used in tests and as a fallback
 pub struct SoftwareRendering;
 
 #[derive(Default, Clone)]

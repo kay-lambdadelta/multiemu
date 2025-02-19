@@ -4,6 +4,7 @@ use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use multiemu_machine::memory::AddressSpaceId;
 use std::cell::OnceCell;
 use std::ops::Range;
+use std::sync::Arc;
 
 #[cfg(all(feature = "opengl", platform_desktop))]
 mod opengl;
@@ -51,7 +52,11 @@ impl Component for NesPPU {
 impl FromConfig for NesPPU {
     type Config = ();
 
-    fn from_config(component_builder: ComponentBuilder<Self>, _config: Self::Config) {
+    fn from_config(
+        component_builder: ComponentBuilder<Self>,
+        _essentials: Arc<RuntimeEssentials>,
+        _config: Self::Config,
+    ) {
         component_builder.build(Self {
             essentials: OnceCell::default(),
         });

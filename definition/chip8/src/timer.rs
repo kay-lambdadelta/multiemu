@@ -1,5 +1,5 @@
 use multiemu_machine::builder::ComponentBuilder;
-use multiemu_machine::component::{Component, FromConfig};
+use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use num::rational::Ratio;
 use std::sync::{Arc, Mutex};
 
@@ -24,7 +24,11 @@ impl Component for Chip8Timer {}
 impl FromConfig for Chip8Timer {
     type Config = ();
 
-    fn from_config(component_builder: ComponentBuilder<Self>, _config: Self::Config) {
+    fn from_config(
+        component_builder: ComponentBuilder<Self>,
+        _essentials: Arc<RuntimeEssentials>,
+        _config: Self::Config,
+    ) {
         let delay_timer = Arc::new(Mutex::new(0u8));
 
         component_builder

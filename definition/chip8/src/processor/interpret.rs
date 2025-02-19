@@ -1,7 +1,8 @@
 use super::{
     input::Chip8KeyCode,
     instruction::{Chip8InstructionSet, InstructionSetChip8},
-    task::Chip8ProcessorTask, ExecutionState, ProcessorState,
+    task::Chip8ProcessorTask,
+    ExecutionState, ProcessorState,
 };
 use crate::{Chip8Kind, CHIP8_ADDRESS_SPACE_ID, CHIP8_FONT};
 use arrayvec::ArrayVec;

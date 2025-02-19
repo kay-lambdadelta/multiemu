@@ -13,16 +13,22 @@ pub struct TypeTranslator<'a> {
 
 impl<'a> TypeTranslator<'a> {
     pub fn new(module: &'a Module) -> Self {
-        Self {
+        let mut me = Self {
             naga2rust_cache: HashMap::default(),
             module,
             structs: Vec::default(),
+        };
+
+        for (handle, _) in module.types.iter() {
+            let _ = me.get(handle);
         }
+
+        me
     }
 
-    pub fn get(&mut self, type_handle: Handle<Type>) -> syn::Type {
+    pub fn get(&mut self, type_handle: Handle<Type>) -> Option<syn::Type> {
         if let Some(built) = self.naga2rust_cache.get(&type_handle) {
-            return built.clone();
+            return Some(built.clone());
         }
 
         let naga_type = self
@@ -30,12 +36,14 @@ impl<'a> TypeTranslator<'a> {
             .types
             .get_handle(type_handle)
             .expect("Could not resolve naga type");
-        let rust_type = self
-            .naga2rust(naga_type)
-            .expect("Could not translate naga type to a rust type");
-        self.naga2rust_cache.insert(type_handle, rust_type.clone());
 
-        rust_type
+        if let Some(rust_type) = self.naga2rust(naga_type) {
+            self.naga2rust_cache.insert(type_handle, rust_type.clone());
+
+            return Some(rust_type);
+        }
+
+        None
     }
 
     fn naga2rust(&mut self, naga_type: &Type) -> Option<syn::Type> {
@@ -101,7 +109,7 @@ impl<'a> TypeTranslator<'a> {
                     (Some(members), Some(struct_name)) => {
                         self.structs.push(syn::parse_quote! {
                             #[allow(unused)]
-                            #[derive(Debug, PartialEq, Clone, encase::ShaderType)]
+                            #[derive(Debug, PartialEq, Clone, Copy, encase::ShaderType)]
                             pub struct #struct_name {
                                 #(#members,)*
                             }
@@ -129,13 +137,7 @@ impl<'a> TypeTranslator<'a> {
 
                 Some(syn::parse_quote!(nalgebra::SMatrix<#scalar_type, #columns, #rows>))
             }
-            naga::TypeInner::Image {
-                dim,
-                arrayed,
-                class,
-            } => todo!(),
-            naga::TypeInner::Sampler { comparison } => todo!(),
-            _ => todo!(),
+            _ => None,
         }
     }
 }

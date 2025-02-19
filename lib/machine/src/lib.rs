@@ -1,11 +1,10 @@
-use crate::builder::MachineBuilder;
 use crate::component::store::ComponentStore;
+use component::ComponentId;
+use crossbeam::channel::Receiver;
+use display::RenderBackend;
 use memory::memory_translation_table::MemoryTranslationTable;
-use multiemu_config::Environment;
-use multiemu_rom::manager::RomManager;
-use multiemu_rom::system::GameSystem;
 use scheduler::Scheduler;
-use std::sync::{Arc, RwLock};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 pub mod builder;
 pub mod component;
@@ -16,26 +15,25 @@ pub mod message;
 pub mod processor;
 pub mod scheduler;
 
-pub struct Machine {
-    memory_translation_table: Arc<MemoryTranslationTable>,
+pub struct Machine<R: RenderBackend> {
+    pub scheduler: Scheduler,
     component_store: Arc<ComponentStore>,
-    scheduler: Scheduler,
+    memory_translation_table: Arc<MemoryTranslationTable>,
+    component_framebuffers: HashMap<ComponentId, Receiver<R::ComponentFramebuffer>>,
 }
 
-impl Machine {
-    pub fn build(
-        system: GameSystem,
-        rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-    ) -> MachineBuilder {
-        MachineBuilder::new(system, rom_manager, environment)
-    }
-
-    pub fn memory_translation_table(&self) -> Arc<MemoryTranslationTable> {
-        self.memory_translation_table.clone()
+impl<R: RenderBackend> Machine<R> {
+    pub fn memory_translation_table(&self) -> &Arc<MemoryTranslationTable> {
+        &self.memory_translation_table
     }
 
     pub fn component_store(&self) -> &Arc<ComponentStore> {
         &self.component_store
+    }
+
+    pub fn framebuffer_receivers(
+        &self,
+    ) -> &HashMap<ComponentId, Receiver<R::ComponentFramebuffer>> {
+        &self.component_framebuffers
     }
 }
