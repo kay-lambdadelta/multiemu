@@ -1,25 +1,28 @@
 use crate::build_machine::build_machine;
 use crate::gui::menu::UiOutput;
+use crate::runtime::desktop::keyboard::KEYBOARD_ID;
 use crate::timing_tracker::TimingTracker;
 use crate::{gui::menu::MenuState, rendering_backend::RenderingBackendState};
 use crossbeam::channel::{Receiver, TryRecvError};
 use multiemu_config::Environment;
-use multiemu_input::{Input, InputState};
+use multiemu_input::{GamepadId, Input, InputState};
+use multiemu_machine::Machine;
 use multiemu_machine::builder::display::BackendSpecificData;
 use multiemu_machine::display::{ContextExtensionSpecification, RenderBackend};
-use multiemu_machine::Machine;
+use multiemu_machine::input::VirtualGamepadId;
 use multiemu_rom::id::RomId;
-use multiemu_rom::manager::{LoadedRomLocation, RomManager, ROM_INFORMATION_TABLE};
+use multiemu_rom::manager::{LoadedRomLocation, ROM_INFORMATION_TABLE, RomManager};
 use multiemu_rom::system::GameSystem;
 use nalgebra::Vector2;
 use std::any::TypeId;
+use std::collections::HashMap;
 use std::fs::File;
 use std::sync::{Arc, Mutex, RwLock};
-use std::thread::{sleep, yield_now};
 use winit::window::Window;
 
 pub enum Message {
     Input {
+        id: GamepadId,
         input: Input,
         state: InputState,
     },
@@ -27,7 +30,6 @@ pub enum Message {
         game_system: GameSystem,
         user_specified_roms: Vec<RomId>,
     },
-    ForceRedraw,
 }
 
 enum RuntimeMode<R: RenderBackend> {
@@ -56,12 +58,11 @@ pub struct MainLoop<
     environment: Arc<RwLock<Environment>>,
     previously_seen_window_size: Vector2<u16>,
     timing_tracker: TimingTracker,
+    gamepad_mapping: HashMap<GamepadId, VirtualGamepadId>,
 }
 
-impl<
-        R: RenderBackend,
-        RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>,
-    > MainLoop<R, RS>
+impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>>
+    MainLoop<R, RS>
 {
     pub fn new(
         message_channel: Receiver<Message>,
@@ -94,6 +95,7 @@ impl<
             environment,
             display_api_handle,
             timing_tracker: TimingTracker::default(),
+            gamepad_mapping: HashMap::new(),
         }
     }
 
@@ -102,7 +104,32 @@ impl<
             loop {
                 match self.message_channel.try_recv() {
                     Ok(message) => match message {
-                        Message::Input { input, state } => todo!(),
+                        Message::Input { id, input, state } => {
+                            tracing::trace!("Input received: {:?}: {:?} {:?}", id, input, state);
+
+                            if let Some(virtual_id) = self.gamepad_mapping.get(&id) {
+                                let environment_guard = self.environment.read().unwrap();
+
+                                if let RuntimeMode::Running { machine } = &self.mode {
+                                    if let Some(virtual_gamepad) =
+                                        machine.virtual_gamepads().get(virtual_id)
+                                    {
+                                        if let Some(transformed_input) = environment_guard
+                                            .gamepad_configs
+                                            .get(&machine.game_system())
+                                            .and_then(|gamepad_types| {
+                                                gamepad_types.get(&virtual_gamepad.name())
+                                            })
+                                            .and_then(|gamepad_transformer| {
+                                                gamepad_transformer.get(&input)
+                                            })
+                                        {
+                                            virtual_gamepad.set(*transformed_input, state);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         Message::RunMachine {
                             game_system,
                             user_specified_roms,
@@ -112,7 +139,6 @@ impl<
                                 user_specified_roms,
                             };
                         }
-                        Message::ForceRedraw => break,
                     },
                     Err(TryRecvError::Empty) => break,
                     _ => {
@@ -148,6 +174,7 @@ impl<
                             .or(self.menu_state.run_menu(context, &self.rom_manager));
                     },
                 );
+                drop(egui_winit_guard);
 
                 match ui_output {
                     None => {}
@@ -178,11 +205,6 @@ impl<
                                 .insert(rom_id, LoadedRomLocation::External(path.clone()))
                                 .unwrap();
 
-                            /*
-                            // Make sure the system being run has a default mapping
-                            let mut environment_guard = self.environment.write().unwrap();
-                            */
-
                             self.mode = RuntimeMode::Pending {
                                 game_system,
                                 user_specified_roms: vec![rom_id],
@@ -200,14 +222,20 @@ impl<
                     unreachable!()
                 };
 
-                self.timing_tracker.frame_rendering_starting();
-
-                let average_frame_timings = self.timing_tracker.average_frame_timings();
-
+                self.timing_tracker.machine_main_cycle_starting();
                 machine.scheduler.run();
-                machine.scheduler.too_slow();
                 self.rendering_backend.redraw(machine);
-                self.timing_tracker.frame_rendering_ending();
+                let time_taken = self.timing_tracker.machine_main_cycle_ending();
+
+                match time_taken.cmp(&self.timing_tracker.average_timings()) {
+                    std::cmp::Ordering::Less => {
+                        machine.scheduler.speed_up();
+                    },
+                    std::cmp::Ordering::Greater => {
+                        machine.scheduler.slow_down();
+                    },
+                    std::cmp::Ordering::Equal => {},
+                }
             }
 
             if matches!(self.mode, RuntimeMode::Pending { .. }) {
@@ -246,10 +274,17 @@ impl<
                     }
                 }
 
-                self.mode = RuntimeMode::Running {
-                    machine: machine_builder
-                        .build::<R>(self.rendering_backend.component_initialization_data()),
-                };
+                let machine = machine_builder
+                    .build::<R>(self.rendering_backend.component_initialization_data());
+
+                // HACK: Map the keyboard to the first gamepad
+                self.gamepad_mapping.insert(
+                    KEYBOARD_ID,
+                    machine.virtual_gamepads().keys().next().copied().unwrap(),
+                );
+
+                self.mode = RuntimeMode::Running { machine };
+
                 self.menu_active = false;
             }
         }

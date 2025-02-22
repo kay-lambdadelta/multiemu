@@ -1,8 +1,8 @@
 use multiemu_config::Environment;
 use multiemu_rom::id::RomId;
-use multiemu_rom::manager::{RomManager, ROM_INFORMATION_TABLE};
-use scc::hash_cache::OccupiedEntry;
+use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use scc::HashCache;
+use scc::hash_cache::OccupiedEntry;
 use std::cell::LazyCell;
 use std::collections::VecDeque;
 use std::fmt::Display;

@@ -1,21 +1,21 @@
 use crate::{
+    Machine,
     component::{Component, ComponentId, FromConfig, RuntimeEssentials},
     display::RenderBackend,
-    memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceId},
+    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
-    Machine,
 };
 use display::{BackendSpecificData, DisplayMetadata};
 use input::InputMetadata;
 use memory::MemoryMetadata;
 use multiemu_config::Environment;
-use multiemu_rom::manager::RomManager;
+use multiemu_rom::{manager::RomManager, system::GameSystem};
+use std::marker::PhantomData;
 use std::{
     any::TypeId,
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-use std::{marker::PhantomData, rc::Rc};
 use task::TaskMetadata;
 
 pub mod display;
@@ -33,18 +33,26 @@ pub struct ComponentMetadata {
 
 pub struct MachineBuilder {
     essentials: Arc<RuntimeEssentials>,
+    environment: Arc<RwLock<Environment>>,
     current_component_id: ComponentId,
     pub component_metadata: HashMap<ComponentId, ComponentMetadata>,
     memory_busses: HashMap<AddressSpaceId, u8>,
+    game_system: GameSystem,
 }
 
 impl MachineBuilder {
-    pub fn new(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>) -> Self {
+    pub fn new(
+        game_system: GameSystem,
+        rom_manager: Arc<RomManager>,
+        environment: Arc<RwLock<Environment>>,
+    ) -> Self {
         MachineBuilder {
             current_component_id: ComponentId(0),
             component_metadata: HashMap::new(),
             memory_busses: HashMap::new(),
-            essentials: Arc::new(RuntimeEssentials::new(rom_manager, environment)),
+            essentials: Arc::new(RuntimeEssentials::new(rom_manager, environment.clone())),
+            environment,
+            game_system,
         }
     }
 
@@ -130,6 +138,7 @@ impl MachineBuilder {
 
         let mut component_framebuffers = HashMap::new();
         let mut tasks = Vec::new();
+        let mut all_gamepads = Vec::default();
 
         for (component_id, component_metadata) in self.component_metadata.drain() {
             if let Some(mut display_metadata) = component_metadata.display {
@@ -156,6 +165,28 @@ impl MachineBuilder {
             if let Some(task_metadata) = component_metadata.task {
                 tasks.push((component_id, task_metadata.frequency, task_metadata.task));
             }
+
+            if let Some(input_metadata) = component_metadata.input {
+                let mut environment_guard = self.environment.write().unwrap();
+
+                for gamepad in input_metadata.gamepads {
+                    // Update the environment with default gamepad bounds
+                    environment_guard
+                        .gamepad_configs
+                        .entry(self.game_system)
+                        .or_default()
+                        .entry(gamepad.name())
+                        .or_insert_with(|| {
+                            gamepad
+                                .metadata()
+                                .default_bindings
+                                .clone()
+                                .into_iter()
+                                .collect()
+                        });
+                    all_gamepads.push(gamepad);
+                }
+            }
         }
 
         let memory_translation_table = Arc::new(memory_translation_table);
@@ -169,6 +200,19 @@ impl MachineBuilder {
             component_store: self.essentials.component_store().clone(),
             memory_translation_table,
             component_framebuffers,
+            virtual_gamepads: all_gamepads
+                .into_iter()
+                .enumerate()
+                .map(|(index, gamepad)| {
+                    (
+                        index
+                            .try_into()
+                            .expect("How do you have this many gamepads"),
+                        gamepad,
+                    )
+                })
+                .collect(),
+            game_system: self.game_system,
         }
     }
 }

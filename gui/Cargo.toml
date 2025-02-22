@@ -1,7 +1,7 @@
 [package]
 name = "multiemu-gui"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0-or-later"
 authors = ["Kay <lambdadeltacommunism@gmail.com>"]
 description = "A multi system emulator"
@@ -34,6 +34,7 @@ tracing-subscriber = { workspace = true }
 indexmap = { workspace = true }
 crossbeam = { workspace = true }
 palette = { workspace = true }
+uuid = { workspace = true }
 egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
 egui_extras = { version = "0.31", default-features = false, features = [
     "image",

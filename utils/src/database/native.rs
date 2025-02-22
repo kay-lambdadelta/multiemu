@@ -1,6 +1,6 @@
 use clap::Subcommand;
 use multiemu_config::Environment;
-use multiemu_rom::manager::{RomManager, ROM_INFORMATION_TABLE};
+use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use redb::ReadableTable;
 use std::collections::HashMap;
@@ -46,7 +46,7 @@ pub fn database_native_fuzzy_search(search: String, similarity: f64) -> Result<(
     {
         let calculated_similarity = strsim::jaro_winkler(&search, &rom_info.name.to_lowercase());
 
-        if calculated_similarity > similarity {
+        if calculated_similarity >= similarity {
             found_games
                 .entry(rom_info.system)
                 .or_default()

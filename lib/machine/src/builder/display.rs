@@ -4,9 +4,7 @@ use super::ComponentBuilder;
 use crate::{component::Component, display::RenderBackend};
 use std::{
     any::{Any, TypeId},
-    cell::RefCell,
     collections::HashMap,
-    rc::Rc,
     sync::Arc,
 };
 
@@ -33,9 +31,12 @@ impl<C: Component> ComponentBuilder<'_, C> {
         mut self,
         preferred_extensions: Option<R::ContextExtensionSpecification>,
         required_extensions: Option<R::ContextExtensionSpecification>,
-        set_display_callback: impl FnOnce(&C, Arc<R::ComponentInitializationData>, Sender<R::ComponentFramebuffer>)
-            + Send
-            + 'static,
+        set_display_callback: impl FnOnce(
+            &C,
+            Arc<R::ComponentInitializationData>,
+            Sender<R::ComponentFramebuffer>,
+        ) + Send
+        + 'static,
     ) -> Self {
         let backend_specific_data = &mut self
             .component_metadata

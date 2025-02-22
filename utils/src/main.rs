@@ -1,6 +1,6 @@
+use crate::database::DatabaseAction;
 use crate::database::logiqx::LogiqxAction;
 use crate::database::native::NativeAction;
-use crate::database::DatabaseAction;
 use crate::rom::RomAction;
 use clap::Parser;
 

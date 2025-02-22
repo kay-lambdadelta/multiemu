@@ -8,6 +8,7 @@ use multiemu_machine::builder::MachineBuilder;
 use multiemu_machine::memory::AddressSpaceId;
 use multiemu_rom::id::RomId;
 use multiemu_rom::manager::RomManager;
+use multiemu_rom::system::{GameSystem, OtherSystem};
 use num::rational::Ratio;
 use processor::{Chip8Processor, Chip8ProcessorConfig};
 use std::borrow::Cow;
@@ -153,7 +154,11 @@ pub fn build_machine(
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
 ) -> MachineBuilder {
-    let machine = MachineBuilder::new(rom_manager, environment);
+    let machine = MachineBuilder::new(
+        GameSystem::Other(OtherSystem::Chip8),
+        rom_manager,
+        environment,
+    );
     let machine = machine.insert_bus(CHIP8_ADDRESS_SPACE_ID, 12);
 
     let (machine, display_component_id) =
@@ -164,7 +169,7 @@ pub fn build_machine(
     let (machine, audio_component_id) = machine.insert_default_component::<Chip8Audio>();
 
     let (machine, _) = machine.insert_component::<Chip8Processor>(Chip8ProcessorConfig {
-        frequency: Ratio::from_integer(700),
+        frequency: Ratio::from_integer(1000),
         kind: Chip8Kind::Chip8,
         display_component_id,
         timer_component_id,

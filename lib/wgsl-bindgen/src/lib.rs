@@ -1,7 +1,6 @@
+use cross_compile::ShaderCrossCompiler;
 use cross_compile::glsl::GlslCrossCompiler;
 use cross_compile::spirv::SpirvShaderCrossCompiler;
-use cross_compile::ShaderCrossCompiler;
-use itertools::Itertools;
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};

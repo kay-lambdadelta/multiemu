@@ -1,9 +1,6 @@
-use std::rc::Rc;
 use std::sync::Arc;
-use nalgebra::Vector2;
-use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
 use vulkano::image::Image;
-use vulkano::memory::allocator::{AllocationCreateInfo, MemoryAllocator, MemoryTypeFilter, StandardMemoryAllocator};
+use vulkano::memory::allocator::StandardMemoryAllocator;
 
 include!(concat!(env!("OUT_DIR"), "/egui.rs"));
 

@@ -38,7 +38,7 @@ num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
 bitvec = "1.0"
-cranelift = { version = "0.116", features = ["jit", "native", "module"] }
+cranelift = { version = "0.117", features = ["jit", "native", "module"] }
 vulkano = { version = "0.35", default-features = false }
 glium = "0.36"
 crossbeam = "0.8"
@@ -61,6 +61,7 @@ quote = "1.0"
 cfg_aliases = "0.2"
 itertools = "0.14"
 criterion = "0.5"
+uuid = { version = "1.13", features = ["v4", "serde"] }
 
 # 3DS stuff
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }

@@ -4,7 +4,7 @@ use bitvec::{
     prelude::{BitSlice, Msb0},
     view::BitView,
 };
-use multiemu_machine::memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceId};
+use multiemu_machine::memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable};
 use std::ops::Range;
 use strum::FromRepr;
 

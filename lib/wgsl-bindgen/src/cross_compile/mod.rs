@@ -1,4 +1,4 @@
-use naga::{valid::ModuleInfo, Module};
+use naga::{Module, valid::ModuleInfo};
 use proc_macro2::TokenStream;
 use versions::SemVer;
 

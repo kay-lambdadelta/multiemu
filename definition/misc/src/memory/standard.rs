@@ -2,9 +2,9 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
     memory::{
+        AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
         callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
-        AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
     },
 };
 use multiemu_rom::manager::RomManager;
@@ -348,6 +348,7 @@ mod test {
 
     use multiemu_config::Environment;
     use multiemu_machine::{builder::MachineBuilder, display::software::SoftwareRendering};
+    use multiemu_rom::system::GameSystem;
 
     use super::*;
 
@@ -357,18 +358,22 @@ mod test {
     fn initialization() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(rom_manager.clone(), environment.clone())
-            .insert_bus(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..4,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
-            })
-            .0
-            .build::<SoftwareRendering>(Default::default());
+        let machine = MachineBuilder::new(
+            GameSystem::Unknown,
+            rom_manager.clone(),
+            environment.clone(),
+        )
+        .insert_bus(ADDRESS_SPACE, 64)
+        .insert_component::<StandardMemory>(StandardMemoryConfig {
+            max_word_size: 8,
+            readable: true,
+            writable: true,
+            assigned_range: 0..4,
+            assigned_address_space: ADDRESS_SPACE,
+            initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
+        })
+        .0
+        .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 4];
 
         machine
@@ -377,7 +382,7 @@ mod test {
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
-        let machine = MachineBuilder::new(rom_manager.clone(), environment)
+        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager.clone(), environment)
             .insert_bus(ADDRESS_SPACE, 64)
             .insert_component::<StandardMemory>(StandardMemoryConfig {
                 max_word_size: 8,
@@ -405,7 +410,7 @@ mod test {
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(rom_manager, environment)
+        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
             .insert_bus(ADDRESS_SPACE, 64)
             .insert_component::<StandardMemory>(StandardMemoryConfig {
                 max_word_size: 8,
@@ -430,7 +435,7 @@ mod test {
     fn basic_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(rom_manager, environment)
+        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
             .insert_bus(ADDRESS_SPACE, 64)
             .insert_component::<StandardMemory>(StandardMemoryConfig {
                 max_word_size: 8,
@@ -454,7 +459,7 @@ mod test {
     fn basic_read_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(rom_manager, environment)
+        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
             .insert_bus(ADDRESS_SPACE, 64)
             .insert_component::<StandardMemory>(StandardMemoryConfig {
                 max_word_size: 8,
@@ -484,7 +489,7 @@ mod test {
     fn extensive() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(rom_manager, environment)
+        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
             .insert_bus(ADDRESS_SPACE, 64)
             .insert_component::<StandardMemory>(StandardMemoryConfig {
                 max_word_size: 8,

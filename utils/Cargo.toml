@@ -1,7 +1,7 @@
 [package]
 name = "multiemu-utils"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0-or-later"
 authors = ["Kay <lambdadeltacommunism@gmail.com>"]
 description = "A command line utility interface for multiemu, but has tools generically useful for rom organization"
@@ -30,7 +30,6 @@ zip = { version = "2.2", features = [
 strsim = "0.11"
 nod = "1.4"
 tempfile = "3.17"
-dyn-clone = "1.0"
 
 [package.metadata.deb]
 maintainer = "Kay <lambdadeltacommunism@gmail.com>"

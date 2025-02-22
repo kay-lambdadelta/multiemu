@@ -1,8 +1,9 @@
-use super::callbacks::{PreviewMemory, ReadMemory, WriteMemory};
 use super::AddressSpaceId;
+use super::callbacks::{PreviewMemory, ReadMemory, WriteMemory};
 use crate::memory::{MEMORY_ACCESS_SIZE, VALID_MEMORY_ACCESS_SIZES};
 use arrayvec::ArrayVec;
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
+use fxhash::FxBuildHasher;
 use rangemap::RangeMap;
 use std::fmt::{Debug, Formatter};
 use std::ops::Range;
@@ -104,7 +105,7 @@ impl<T: ?Sized + Sync> Debug for MemoryOperatorWrapper<T> {
 
 #[derive(Default, Debug)]
 pub struct MemoryTranslationTable {
-    bus_info: HashMap<AddressSpaceId, BusInfo>,
+    bus_info: HashMap<AddressSpaceId, BusInfo, FxBuildHasher>,
     dirty_pages: Vec<AtomicBool>,
 }
 

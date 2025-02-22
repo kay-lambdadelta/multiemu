@@ -1,7 +1,7 @@
-use super::{draw_sprite_common, Chip8Display, Chip8DisplayBackend};
+use super::{Chip8Display, Chip8DisplayBackend, draw_sprite_common};
 use crossbeam::channel::Sender;
-use multiemu_machine::display::software::SoftwareRendering;
 use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::software::SoftwareRendering;
 use nalgebra::{DMatrix, Point2};
 use palette::Srgba;
 use std::cell::RefCell;
@@ -39,6 +39,10 @@ impl Chip8DisplayBackend for SoftwareState {
     }
 
     fn commit_display(&self) {
+        if self.frame_sender.is_full() {
+            return;
+        }
+
         let staging_buffer = self.staging_buffer.borrow();
 
         let _ = self.frame_sender.try_send(staging_buffer.clone());

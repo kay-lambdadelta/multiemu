@@ -1,16 +1,10 @@
-use encase::{internal::WriteInto, ShaderSize};
+use encase::ShaderSize;
 use glium::{
-    backend::Context,
-    uniforms::{EmptyUniforms, UniformBuffer, UniformsStorage},
-    BackfaceCullingMode, Blend, Display, DrawParameters, Frame, Program, Surface,
+    BackfaceCullingMode, Blend, DrawParameters, Frame, Program, Surface, backend::Context,
 };
-use glutin::surface::WindowSurface;
-use nalgebra::{Point2, Vector2};
-use palette::{
-    named::{BLACK, BLUE, RED},
-    Srgba, WithAlpha,
-};
-use std::{cell::LazyCell, rc::Rc, sync::LazyLock};
+use nalgebra::Vector2;
+use palette::{WithAlpha, named::BLACK};
+use std::rc::Rc;
 
 include!(concat!(env!("OUT_DIR"), "/egui.rs"));
 
@@ -70,6 +64,5 @@ impl OpenglEguiRenderer {
         let mut screen_size_buffer =
             encase::UniformBuffer::new([0; shader::types::ScreenSize::SHADER_SIZE.get() as usize]);
         screen_size_buffer.write(&screen_size).unwrap();
-
     }
 }

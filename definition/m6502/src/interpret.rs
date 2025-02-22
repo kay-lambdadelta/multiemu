@@ -1,6 +1,6 @@
 use super::{
+    FlagRegister, M6502, ProcessorState,
     instruction::{M6502InstructionSet, M6502InstructionSetSpecifier},
-    FlagRegister, ProcessorState, M6502,
 };
 use crate::instruction::AddressingMode;
 use bitvec::{order::Lsb0, view::BitView};

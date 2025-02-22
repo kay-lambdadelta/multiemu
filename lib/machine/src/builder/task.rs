@@ -1,7 +1,7 @@
 use super::ComponentBuilder;
 use crate::{
     component::Component,
-    scheduler::{task::Task, StoredTask},
+    scheduler::{StoredTask, task::Task},
 };
 use num::rational::Ratio;
 

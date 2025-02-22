@@ -1,9 +1,9 @@
 use egui::FullOutput;
 use egui::TextureId;
-use nalgebra::{stack, DMatrix, DMatrixViewMut, Matrix2x3, Point2, Vector2, Vector3, Vector4};
-use palette::{blend::Compose, LinSrgba, Srgba};
+use nalgebra::{DMatrix, DMatrixViewMut, Matrix2x3, Point2, Vector2, Vector3, Vector4, stack};
+use palette::{LinSrgba, Srgba, blend::Compose};
+use rayon::iter::IndexedParallelIterator;
 use rayon::iter::ParallelIterator;
-use rayon::{iter::IndexedParallelIterator, prelude::IntoParallelIterator};
 use std::collections::HashMap;
 
 // FIXME: This is unbearably slow, spending a ton of time in `perp`
@@ -74,7 +74,7 @@ impl SoftwareEguiRenderer {
                     let converted_image = font_image
                         .pixels
                         .clone()
-                        .into_par_iter()
+                        .into_iter()
                         .map(|coverage| LinSrgba::new(coverage, coverage, coverage, coverage))
                         .collect();
 

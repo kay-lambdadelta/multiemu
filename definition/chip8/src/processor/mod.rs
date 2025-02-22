@@ -2,13 +2,12 @@ use crate::Chip8InstructionDecoder;
 
 use super::Chip8Kind;
 use arrayvec::ArrayVec;
-use input::{default_bindings, present_inputs, Chip8KeyCode, CHIP8_KEYPAD_GAMEPAD_TYPE};
+use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu_config::ProcessorExecutionMode;
-use multiemu_input::virtual_gamepad::VirtualGamepadMetadata;
 use multiemu_machine::builder::ComponentBuilder;
 use multiemu_machine::component::{Component, ComponentId, FromConfig, RuntimeEssentials};
-use multiemu_machine::processor::cache::InstructionCache;
+use multiemu_machine::input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata};
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -127,7 +126,16 @@ impl FromConfig for Chip8Processor {
                 None
             };
 
+        let virtual_gamepad = Arc::new(VirtualGamepad::new(
+            CHIP8_KEYPAD_GAMEPAD_TYPE,
+            VirtualGamepadMetadata {
+                present_inputs: present_inputs(),
+                default_bindings: default_bindings(),
+            },
+        ));
+
         component_builder
+            .insert_gamepads([virtual_gamepad.clone()])
             .insert_task(
                 frequency,
                 Chip8ProcessorTask {
@@ -135,7 +143,7 @@ impl FromConfig for Chip8Processor {
                     instruction_decoder: Chip8InstructionDecoder,
                     #[cfg(jit)]
                     jit,
-                    virtual_gamepad: Option::default(),
+                    virtual_gamepad,
                     display_component: essentials
                         .component_store()
                         .get(config.display_component_id)
@@ -151,16 +159,6 @@ impl FromConfig for Chip8Processor {
                     essentials,
                     config,
                 },
-            )
-            .insert_gamepads(
-                [(
-                    CHIP8_KEYPAD_GAMEPAD_TYPE,
-                    VirtualGamepadMetadata {
-                        present_inputs: present_inputs(),
-                        default_bindings: default_bindings(),
-                    },
-                )],
-                [CHIP8_KEYPAD_GAMEPAD_TYPE],
             )
             .build_global(Self {
                 processor_state: state.clone(),

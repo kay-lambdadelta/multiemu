@@ -1,21 +1,19 @@
+use super::keyboard::{KEYBOARD_ID, winit2key};
 use super::main_loop::Message;
 use super::{PlatformRuntime, WindowingContext};
 use crate::rendering_backend::RenderingBackendState;
+use crate::runtime::desktop::gamepad::gamepad_task;
 use crate::runtime::desktop::main_loop::MainLoop;
 use egui::ViewportId;
-use multiemu_input::GamepadId;
+use multiemu_input::InputState;
 use multiemu_machine::display::RenderBackend;
 use std::sync::{Arc, Mutex};
 use winit::event::WindowEvent;
 use winit::window::WindowId;
 use winit::{application::ApplicationHandler, event_loop::ActiveEventLoop, window::Window};
 
-const KEYBOARD_GAMEPAD_ID: GamepadId = 0;
-
-impl<
-        R: RenderBackend,
-        RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>,
-    > ApplicationHandler for PlatformRuntime<RS>
+impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>>
+    ApplicationHandler for PlatformRuntime<RS>
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // HACK: This will cause frequent crashes on mobile platforms
@@ -42,22 +40,40 @@ impl<
             let egui_context = egui_context.clone();
             let egui_winit = egui_winit.clone();
 
-            std::thread::spawn(|| {
-                tracing::debug!("Starting up runtime thread");
+            std::thread::Builder::new()
+                .name("main_loop".to_string())
+                .spawn(move || {
+                    tracing::debug!("Starting up runtime thread");
 
-                let mut runtime = MainLoop::<R, RS>::new(
-                    message_channel_receiver,
-                    display_api_handle,
-                    rom_manager,
-                    environment,
-                    egui_context,
-                    egui_winit,
-                );
+                    let mut runtime = MainLoop::<R, RS>::new(
+                        message_channel_receiver,
+                        display_api_handle,
+                        rom_manager,
+                        environment,
+                        egui_context,
+                        egui_winit,
+                    );
 
-                runtime.run();
+                    runtime.run();
 
-                tracing::debug!("Shutting down runtime thread");
-            });
+                    tracing::debug!("Shutting down runtime thread");
+                })
+                .unwrap();
+        }
+
+        {
+            let message_channel_sender = message_channel_sender.clone();
+
+            std::thread::Builder::new()
+                .name("gamepad".to_string())
+                .spawn(move || {
+                    tracing::debug!("Starting up gamepad thread");
+
+                    gamepad_task(message_channel_sender);
+
+                    tracing::debug!("Shutting down gamepad thread");
+                })
+                .unwrap();
         }
 
         if let Some((game_system, user_specified_roms)) = self.pending_machine.take() {
@@ -85,11 +101,8 @@ impl<
         let windowing = self.windowing.as_ref().unwrap();
 
         let mut egui_winit_guard = windowing.egui_winit.lock().unwrap();
-        let integration_result =
-            egui_winit_guard.on_window_event(&windowing.display_api_handle, &event);
-        if integration_result.consumed {
-            return;
-        }
+        // We ignore the "consumed" event so we can process keys, the main loop knows itself when to send things to egui or not
+        let _ = egui_winit_guard.on_window_event(&windowing.display_api_handle, &event);
 
         drop(egui_winit_guard);
 
@@ -114,12 +127,19 @@ impl<
                 if is_synthetic {
                     return;
                 }
-            }
-            WindowEvent::RedrawRequested => {
-                windowing
-                    .runtime_channel
-                    .send(Message::ForceRedraw)
-                    .unwrap();
+
+                if let Some(key) = winit2key(event.physical_key) {
+                    let state = InputState::Digital(event.state.is_pressed());
+
+                    windowing
+                        .runtime_channel
+                        .send(Message::Input {
+                            id: KEYBOARD_ID,
+                            input: key,
+                            state,
+                        })
+                        .unwrap();
+                }
             }
             _ => {}
         }

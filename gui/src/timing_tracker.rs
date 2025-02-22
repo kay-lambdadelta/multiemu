@@ -21,21 +21,24 @@ impl TimingTracker {
         self.recent_frame_timings.clear();
     }
 
-    pub fn frame_rendering_starting(&mut self) {
+    pub fn machine_main_cycle_starting(&mut self) {
         self.last_starting_frame = Some(Instant::now());
     }
 
-    pub fn frame_rendering_ending(&mut self) {
+    pub fn machine_main_cycle_ending(&mut self) -> Duration {
         let now = Instant::now();
+        
         let time_taken = now.saturating_duration_since(
             self.last_starting_frame
                 .take()
                 .expect("Frame ending called before the frame started"),
         );
         self.recent_frame_timings.push(time_taken);
+
+        time_taken
     }
 
-    pub fn average_frame_timings(&self) -> Duration {
+    pub fn average_timings(&self) -> Duration {
         self.recent_frame_timings
             .iter()
             .sum::<Duration>()

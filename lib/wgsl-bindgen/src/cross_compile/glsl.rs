@@ -1,7 +1,7 @@
 use super::ShaderCrossCompiler;
 use naga::{
-    back::glsl::{Options, PipelineOptions, WriterFlags},
     ShaderStage,
+    back::glsl::{Options, PipelineOptions, WriterFlags},
 };
 use proc_macro2::TokenStream;
 use versions::SemVer;

@@ -1,11 +1,12 @@
 use gamepad::GamepadInput;
 use keyboard::KeyboardInput;
 use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, fmt::Display};
 use strum::IntoEnumIterator;
+use uuid::Uuid;
 
 pub mod gamepad;
 pub mod keyboard;
-pub mod virtual_gamepad;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Input {
@@ -60,5 +61,42 @@ impl InputState {
     }
 }
 
-/// Id of a gamepad currently recognized by the emulator
-pub type GamepadId = u8;
+#[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct VirtualGamepadName(Cow<'static, str>);
+
+impl VirtualGamepadName {
+    pub const fn new(id: &'static str) -> Self {
+        Self(Cow::Borrowed(id))
+    }
+}
+
+impl AsRef<str> for VirtualGamepadName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Display for VirtualGamepadName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct GamepadId(Uuid);
+
+impl GamepadId {
+    pub const PLATFORM_RESERVED: GamepadId = GamepadId(Uuid::from_u128(0));
+
+    pub const fn new(id: Uuid) -> Self {
+        assert!(!id.is_nil(), "Gamepad ID 0 is reserved");
+
+        Self(id)
+    }
+}
+
+impl Display for GamepadId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}

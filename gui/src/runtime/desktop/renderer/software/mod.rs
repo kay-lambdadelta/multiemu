@@ -1,10 +1,10 @@
 use crate::gui::software_rendering::SoftwareEguiRenderer;
 use crate::rendering_backend::RenderingBackendState;
 use multiemu_config::Environment;
-use multiemu_machine::component::ComponentId;
-use multiemu_machine::display::software::SoftwareRendering;
-use multiemu_machine::display::RenderBackend;
 use multiemu_machine::Machine;
+use multiemu_machine::component::ComponentId;
+use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::software::SoftwareRendering;
 use nalgebra::{DMatrix, DMatrixViewMut, Vector2};
 use palette::Srgba;
 use softbuffer::{Context, Surface};

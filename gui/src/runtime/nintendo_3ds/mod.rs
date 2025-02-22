@@ -23,15 +23,12 @@ impl Default for PlatformRuntime {
 }
 
 impl Runtime for PlatformRuntime {
-    fn launch_gui(&mut self) {
-        todo!()
-    }
-
+    fn launch_gui(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>) {}
     fn launch_game(
-        &mut self,
+        game_system: GameSystem,
         user_specified_roms: Vec<RomId>,
-        forced_game_system: Option<GameSystem>,
+        rom_manager: Arc<RomManager>,
+        environment: Arc<RwLock<Environment>>,
     ) {
-        todo!()
     }
 }

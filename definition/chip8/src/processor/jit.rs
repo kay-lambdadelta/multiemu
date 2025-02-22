@@ -1,7 +1,7 @@
 use super::instruction::{Chip8InstructionSet, InstructionSetChip8, Register};
-use crate::processor::ProcessorState;
 use crate::Chip8Kind;
-use cranelift::prelude::{types, Block, FunctionBuilder, InstBuilder, MemFlags, Value};
+use crate::processor::ProcessorState;
+use cranelift::prelude::{Block, FunctionBuilder, InstBuilder, MemFlags, Value, types};
 use multiemu_machine::processor::jit::InstructionTranslator;
 use rangemap::RangeMap;
 use std::mem::offset_of;

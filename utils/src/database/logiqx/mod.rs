@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use multiemu_config::Environment;
 use multiemu_rom::info::RomInfo;
-use multiemu_rom::manager::{RomManager, ROM_INFORMATION_TABLE};
+use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use name::NameMetadataExtractor;
 use parser::Datafile;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};

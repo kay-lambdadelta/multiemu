@@ -1,12 +1,12 @@
 use super::{
-    decoder::Chip8InstructionDecoder, Chip8KeyCode, Chip8Processor, Chip8ProcessorConfig,
-    ExecutionState, ProcessorState,
+    Chip8KeyCode, Chip8Processor, Chip8ProcessorConfig, ExecutionState, ProcessorState,
+    decoder::Chip8InstructionDecoder,
 };
 use crate::{audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer};
-use multiemu_input::virtual_gamepad::VirtualGamepad;
 use multiemu_machine::{
-    component::{component_ref::ComponentRef, RuntimeEssentials},
-    processor::{cache::InstructionCache, decoder::InstructionDecoder},
+    component::{RuntimeEssentials, component_ref::ComponentRef},
+    input::virtual_gamepad::VirtualGamepad,
+    processor::decoder::InstructionDecoder,
     scheduler::task::Task,
 };
 use std::sync::{Arc, RwLock};
@@ -22,7 +22,7 @@ pub(crate) struct Chip8ProcessorTask {
     /// Instruction cache
     pub instruction_decoder: Chip8InstructionDecoder,
     /// Keypad virtual gamepad
-    pub virtual_gamepad: Option<Arc<VirtualGamepad>>,
+    pub virtual_gamepad: Arc<VirtualGamepad>,
     /// Essential stuff the runtime provides
     pub essentials: Arc<RuntimeEssentials>,
     #[cfg(jit)]
@@ -60,13 +60,16 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
                 ExecutionState::AwaitingKeyPress { register } => {
                     // FIXME: A allocation every cycle isn't a good idea
                     let mut pressed = Vec::new();
-                    let gamepad = self.virtual_gamepad.as_ref().unwrap();
 
                     // Go through every chip8 key
                     for key in 0x0..0xf {
                         let keycode = Chip8KeyCode(key);
 
-                        if gamepad.get(keycode.try_into().unwrap()).as_digital(None) {
+                        if self
+                            .virtual_gamepad
+                            .get(keycode.try_into().unwrap())
+                            .as_digital(None)
+                        {
                             pressed.push(keycode);
                         }
                     }
@@ -79,10 +82,9 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
                     }
                 }
                 ExecutionState::AwaitingKeyRelease { register, keys } => {
-                    let gamepad = self.virtual_gamepad.as_ref().unwrap();
-
                     for key_code in keys {
-                        if !gamepad
+                        if !self
+                            .virtual_gamepad
                             .get((*key_code).try_into().unwrap())
                             .as_digital(None)
                         {

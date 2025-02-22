@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use winit::{event_loop::EventLoop, window::Window};
 
 mod gamepad;
+mod keyboard;
 mod main_loop;
 pub mod renderer;
 mod windowing;
@@ -28,10 +29,8 @@ pub struct PlatformRuntime<RS: RenderingBackendState> {
     environment: Arc<RwLock<Environment>>,
 }
 
-impl<
-        R: RenderBackend,
-        RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>,
-    > Runtime<R> for PlatformRuntime<RS>
+impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>>
+    Runtime<R> for PlatformRuntime<RS>
 {
     fn launch_gui(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>) {
         let mut me = Self {

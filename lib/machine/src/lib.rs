@@ -2,9 +2,11 @@ use crate::component::store::ComponentStore;
 use component::ComponentId;
 use crossbeam::channel::Receiver;
 use display::RenderBackend;
+use input::{VirtualGamepadId, virtual_gamepad::VirtualGamepad};
 use memory::memory_translation_table::MemoryTranslationTable;
+use multiemu_rom::system::GameSystem;
 use scheduler::Scheduler;
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 pub mod builder;
 pub mod component;
@@ -20,6 +22,8 @@ pub struct Machine<R: RenderBackend> {
     component_store: Arc<ComponentStore>,
     memory_translation_table: Arc<MemoryTranslationTable>,
     component_framebuffers: HashMap<ComponentId, Receiver<R::ComponentFramebuffer>>,
+    virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>>,
+    game_system: GameSystem,
 }
 
 impl<R: RenderBackend> Machine<R> {
@@ -35,5 +39,13 @@ impl<R: RenderBackend> Machine<R> {
         &self,
     ) -> &HashMap<ComponentId, Receiver<R::ComponentFramebuffer>> {
         &self.component_framebuffers
+    }
+
+    pub fn virtual_gamepads(&self) -> &HashMap<VirtualGamepadId, Arc<VirtualGamepad>> {
+        &self.virtual_gamepads
+    }
+
+    pub fn game_system(&self) -> GameSystem {
+        self.game_system
     }
 }

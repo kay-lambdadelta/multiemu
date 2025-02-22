@@ -1,10 +1,10 @@
-use crate::display::{draw_sprite_common, Chip8Display, Chip8DisplayBackend};
+use crate::display::{Chip8Display, Chip8DisplayBackend, draw_sprite_common};
 use crossbeam::channel::Sender;
+use glium::Texture2d;
 use glium::buffer::{Buffer, BufferMode, BufferType};
 use glium::texture::{ClientFormat, RawImage2d};
-use glium::Texture2d;
-use multiemu_machine::display::opengl::OpenGlRendering;
 use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::opengl::OpenGlRendering;
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
 use palette::Srgba;
 use std::borrow::Cow;
@@ -51,6 +51,10 @@ impl Chip8DisplayBackend for OpenGlState {
     }
 
     fn commit_display(&self) {
+        if self.frame_sender.is_full() {
+            return;
+        }
+
         // Borrow the staging buffer
         let mut staging_buffer = self.staging_buffer.borrow_mut();
         let staging_buffer = staging_buffer.map();

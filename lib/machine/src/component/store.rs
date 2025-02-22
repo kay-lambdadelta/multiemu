@@ -1,5 +1,6 @@
-use super::{component_ref::ComponentRef, Component, ComponentId};
+use super::{Component, ComponentId, component_ref::ComponentRef};
 use crossbeam::channel::Sender;
+use fxhash::FxBuildHasher;
 use std::{
     cell::{OnceCell, RefCell},
     collections::HashMap,
@@ -40,7 +41,7 @@ pub struct ComponentStore
 where
     Self: Send + Sync,
 {
-    component_location: scc::HashMap<ComponentId, ComponentLocation>,
+    component_location: scc::HashMap<ComponentId, ComponentLocation, FxBuildHasher>,
     external_executors: scc::HashMap<u8, Sender<Box<dyn FnOnce(&dyn Component) + Send>>>,
 }
 

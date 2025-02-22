@@ -1,5 +1,5 @@
 use multiemu_machine::{
-    memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceId},
+    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
     processor::instruction::{InstructionSet, InstructionTextRepresentation},
 };
 use std::borrow::Cow;

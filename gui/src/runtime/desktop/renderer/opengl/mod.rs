@@ -1,14 +1,14 @@
 use crate::rendering_backend::RenderingBackendState;
 use egui::FullOutput;
-use glium::backend::{Context, Facade};
 use glium::Display;
+use glium::backend::{Context, Facade};
 use glutin::prelude::{GlConfig, GlDisplay, NotCurrentGlContext};
 use glutin::surface::WindowSurface;
 use gui::OpenglEguiRenderer;
 use multiemu_config::Environment;
-use multiemu_machine::display::opengl::{OpenGlComponentInitializationData, OpenGlRendering};
-use multiemu_machine::display::RenderBackend;
 use multiemu_machine::Machine;
+use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::opengl::{OpenGlComponentInitializationData, OpenGlRendering};
 use nalgebra::Vector2;
 use std::error::Error;
 use std::rc::Rc;
@@ -32,9 +32,9 @@ impl RenderingBackendState for OpenGlRenderingRuntime {
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
-        preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
-        required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
-        environment: Arc<RwLock<Environment>>,
+        _preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
+        _required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
+        _environment: Arc<RwLock<Environment>>,
     ) -> Result<Self, Box<dyn Error>> {
         let window_size = display_api_handle.inner_size();
         let window_size = Vector2::new(window_size.width, window_size.height);

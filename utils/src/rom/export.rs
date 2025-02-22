@@ -1,6 +1,6 @@
 use super::ExportStyle;
 use multiemu_config::Environment;
-use multiemu_rom::manager::{RomManager, ROM_INFORMATION_TABLE};
+use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use redb::ReadableTable;
 use std::error::Error;
 use std::fs;

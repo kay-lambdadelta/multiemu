@@ -1,4 +1,4 @@
-use super::{store::ComponentStore, Component, ComponentId};
+use super::{Component, ComponentId, store::ComponentStore};
 use std::{any::TypeId, sync::Arc};
 
 enum ComponentLocation {

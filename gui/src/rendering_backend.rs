@@ -1,8 +1,7 @@
 use egui::FullOutput;
 use multiemu_config::Environment;
-use multiemu_machine::display::RenderBackend;
 use multiemu_machine::Machine;
-use std::rc::Rc;
+use multiemu_machine::display::RenderBackend;
 use std::sync::{Arc, RwLock};
 
 pub trait RenderingBackendState: Sized {

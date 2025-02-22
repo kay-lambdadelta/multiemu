@@ -3,7 +3,7 @@ use crate::memory::memory_translation_table::MemoryTranslationTable;
 use cranelift::{
     jit::{JITBuilder, JITModule},
     module::default_libcall_names,
-    prelude::{settings::Flags, Block, Configurable, FunctionBuilder, Value},
+    prelude::{Block, Configurable, FunctionBuilder, Value, settings::Flags},
 };
 use processor_state::ProcessorState;
 use rangemap::RangeMap;

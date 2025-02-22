@@ -2,14 +2,14 @@ use itertools::Itertools;
 use nalgebra::Vector2;
 use std::sync::Arc;
 use vulkano::{
+    VulkanLibrary,
     device::{
-        physical::{PhysicalDevice, PhysicalDeviceType},
         Device, DeviceExtensions, QueueFlags,
+        physical::{PhysicalDevice, PhysicalDeviceType},
     },
     image::{Image, ImageUsage},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     swapchain::{PresentMode, Surface, Swapchain, SwapchainCreateInfo},
-    VulkanLibrary,
 };
 use winit::window::Window;
 
@@ -23,7 +23,7 @@ pub fn create_vulkan_instance(
     library: Arc<VulkanLibrary>,
 ) -> Arc<Instance> {
     let required_extensions = Surface::required_extensions(&display_api_handle).unwrap();
-    
+
     Instance::new(
         library,
         InstanceCreateInfo {

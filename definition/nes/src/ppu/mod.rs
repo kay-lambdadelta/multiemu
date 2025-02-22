@@ -40,25 +40,19 @@ struct State {
 }
 
 pub struct NesPPU {
-    essentials: OnceCell<RuntimeEssentials>,
+    essentials: Arc<RuntimeEssentials>,
 }
 
-impl Component for NesPPU {
-    fn set_essentials(&mut self, essentials: RuntimeEssentials) {
-        self.essentials.set(essentials).unwrap();
-    }
-}
+impl Component for NesPPU {}
 
 impl FromConfig for NesPPU {
     type Config = ();
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
-        _essentials: Arc<RuntimeEssentials>,
+        essentials: Arc<RuntimeEssentials>,
         _config: Self::Config,
     ) {
-        component_builder.build(Self {
-            essentials: OnceCell::default(),
-        });
+        component_builder.build(Self { essentials });
     }
 }

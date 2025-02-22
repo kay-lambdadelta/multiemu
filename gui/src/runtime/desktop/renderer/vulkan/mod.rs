@@ -1,32 +1,31 @@
 use crate::rendering_backend::RenderingBackendState;
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use multiemu_config::Environment;
+use multiemu_machine::Machine;
 use multiemu_machine::component::ComponentId;
+use multiemu_machine::display::RenderBackend;
 use multiemu_machine::display::vulkan::VulkanComponentInitializationData;
 use multiemu_machine::display::vulkan::VulkanRendering;
-use multiemu_machine::display::RenderBackend;
-use multiemu_machine::Machine;
 use nalgebra::Vector2;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use vulkano::{
+    Validated, VulkanError, VulkanLibrary,
     command_buffer::{
-        allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, BlitImageInfo,
-        CommandBufferUsage,
+        AutoCommandBufferBuilder, BlitImageInfo, CommandBufferUsage,
+        allocator::StandardCommandBufferAllocator,
     },
     device::{Device, DeviceCreateInfo, Queue, QueueCreateInfo},
-    image::{sampler::Filter, view::ImageView, Image, ImageLayout},
+    image::{Image, ImageLayout, sampler::Filter, view::ImageView},
     instance::Instance,
     memory::allocator::StandardMemoryAllocator,
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
     single_pass_renderpass,
     swapchain::{
-        acquire_next_image, PresentMode, Surface, Swapchain, SwapchainCreateInfo,
-        SwapchainPresentInfo,
+        PresentMode, Surface, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo,
+        acquire_next_image,
     },
     sync::GpuFuture,
-    Validated, VulkanError, VulkanLibrary,
 };
 use winit::window::Window;
 

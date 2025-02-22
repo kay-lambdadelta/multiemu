@@ -2,9 +2,9 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
     memory::{
+        AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
         callbacks::{PreviewMemory, ReadMemory},
         memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord},
-        AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
     },
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};

@@ -1,8 +1,8 @@
-use enumflags2::{bitflags, BitFlags};
+use enumflags2::{BitFlags, bitflags};
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
-    memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceId},
+    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
 };
 use num::rational::Ratio;
 use std::{

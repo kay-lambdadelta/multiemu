@@ -1,8 +1,8 @@
 use egui::{CentralPanel, ComboBox, Context, ScrollArea, SidePanel};
 use file_browser::{FileBrowserSortingMethod, FileBrowserState};
-use multiemu_config::graphics::GraphicsApi;
 use multiemu_config::Environment;
-use multiemu_rom::manager::{RomManager, ROM_INFORMATION_TABLE};
+use multiemu_config::graphics::GraphicsApi;
+use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};

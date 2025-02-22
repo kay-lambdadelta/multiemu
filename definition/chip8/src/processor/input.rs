@@ -1,10 +1,9 @@
-use multiemu_input::keyboard::KeyboardInput;
-use multiemu_input::virtual_gamepad::VirtualGamepadId;
 use multiemu_input::Input;
+use multiemu_input::{VirtualGamepadName, keyboard::KeyboardInput};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-pub const CHIP8_KEYPAD_GAMEPAD_TYPE: VirtualGamepadId = VirtualGamepadId::new("Chip8 Keypad");
+pub const CHIP8_KEYPAD_GAMEPAD_TYPE: VirtualGamepadName = VirtualGamepadName::new("Chip8 Keypad");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub(super) struct Chip8KeyCode(pub u8);

@@ -1,7 +1,7 @@
-use crate::display::{draw_sprite_common, Chip8Display, Chip8DisplayBackend};
+use crate::display::{Chip8Display, Chip8DisplayBackend, draw_sprite_common};
 use crossbeam::channel::Sender;
-use multiemu_machine::display::vulkan::VulkanRendering;
 use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::vulkan::VulkanRendering;
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
 use palette::Srgba;
 use std::cell::RefCell;
@@ -13,8 +13,8 @@ use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter};
 use vulkano::{
     buffer::Subbuffer,
     command_buffer::{
-        allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
-        CopyBufferToImageInfo, PrimaryCommandBufferAbstract,
+        AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferToImageInfo,
+        PrimaryCommandBufferAbstract, allocator::StandardCommandBufferAllocator,
     },
     device::Queue,
     image::Image,
@@ -57,6 +57,10 @@ impl Chip8DisplayBackend for VulkanState {
     }
 
     fn commit_display(&self) {
+        if self.frame_sender.is_full() {
+            return
+        }
+
         let render_image = self.render_image.borrow().clone();
 
         let mut command_buffer = AutoCommandBufferBuilder::primary(
@@ -83,7 +87,7 @@ impl Chip8DisplayBackend for VulkanState {
             .wait(None)
             .unwrap();
 
-        self.frame_sender.send(render_image).unwrap();
+        let _ = self.frame_sender.try_send(render_image);
     }
 }
 

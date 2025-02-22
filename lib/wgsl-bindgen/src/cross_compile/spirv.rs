@@ -1,7 +1,7 @@
 use super::ShaderCrossCompiler;
 use naga::{
-    back::spv::{Options, PipelineOptions},
     ShaderStage,
+    back::spv::{Options, PipelineOptions},
 };
 
 pub struct SpirvShaderCrossCompiler;

@@ -1,6 +1,6 @@
 use crate::display::{ContextExtensionSpecification, RenderBackend};
-use glium::backend::Context;
 use glium::Texture2d;
+use glium::backend::Context;
 use multiemu_config::graphics::GraphicsApi;
 use std::rc::Rc;
 

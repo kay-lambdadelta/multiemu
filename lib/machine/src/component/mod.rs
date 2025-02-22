@@ -1,6 +1,6 @@
+use crate::ComponentStore;
 use crate::builder::ComponentBuilder;
 use crate::memory::memory_translation_table::MemoryTranslationTable;
-use crate::ComponentStore;
 use downcast_rs::Downcast;
 use multiemu_config::Environment;
 use multiemu_rom::manager::RomManager;
@@ -18,16 +18,16 @@ pub struct RuntimeEssentials {
     memory_translation_table: OnceLock<Arc<MemoryTranslationTable>>,
     component_store: Arc<ComponentStore>,
     rom_manager: Arc<RomManager>,
-    enviroment: Arc<RwLock<Environment>>,
+    environment: Arc<RwLock<Environment>>,
 }
 
 impl RuntimeEssentials {
-    pub(crate) fn new(rom_manager: Arc<RomManager>, enviroment: Arc<RwLock<Environment>>) -> Self {
+    pub(crate) fn new(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>) -> Self {
         Self {
             memory_translation_table: OnceLock::new(),
             component_store: Arc::new(ComponentStore::default()),
             rom_manager,
-            enviroment,
+            environment,
         }
     }
 
@@ -56,14 +56,13 @@ impl RuntimeEssentials {
     }
 
     pub fn environment(&self) -> RwLockReadGuard<'_, Environment> {
-        self.enviroment.read().unwrap()
+        self.environment.read().unwrap()
     }
 }
 
 // Basic supertrait for all components
 pub trait Component: Any + Downcast {
     fn reset(&self) {}
-    fn set_essentials(&mut self, _essentials: RuntimeEssentials) {}
 }
 
 // An initializable component

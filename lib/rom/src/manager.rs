@@ -1,9 +1,9 @@
 use crate::{id::RomId, info::RomInfo};
-use redb::{backends::InMemoryBackend, Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableTable, TableDefinition, backends::InMemoryBackend};
 use std::{
     error::Error,
     fmt::Debug,
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     path::{Path, PathBuf},
 };
 

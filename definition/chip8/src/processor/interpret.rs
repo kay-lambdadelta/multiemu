@@ -1,10 +1,10 @@
 use super::{
+    ExecutionState, ProcessorState,
     input::Chip8KeyCode,
     instruction::{Chip8InstructionSet, InstructionSetChip8},
     task::Chip8ProcessorTask,
-    ExecutionState, ProcessorState,
 };
-use crate::{Chip8Kind, CHIP8_ADDRESS_SPACE_ID, CHIP8_FONT};
+use crate::{CHIP8_ADDRESS_SPACE_ID, CHIP8_FONT, Chip8Kind};
 use arrayvec::ArrayVec;
 use bitvec::field::BitField;
 use bitvec::prelude::{Lsb0, Msb0};
@@ -259,20 +259,18 @@ impl Chip8ProcessorTask {
                 });
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Skpr { key }) => {
-                let gamepad = self.virtual_gamepad.as_ref().unwrap();
                 let key = Chip8KeyCode(state.registers.work_registers[key as usize]);
 
-                let key_value = gamepad.get(key.try_into().unwrap());
+                let key_value = self.virtual_gamepad.get(key.try_into().unwrap());
 
                 if key_value.as_digital(None) {
                     state.registers.program = state.registers.program.wrapping_add(2);
                 }
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Skup { key }) => {
-                let gamepad = self.virtual_gamepad.as_ref().unwrap();
                 let key = Chip8KeyCode(state.registers.work_registers[key as usize]);
 
-                let key_value = gamepad.get(key.try_into().unwrap());
+                let key_value = self.virtual_gamepad.get(key.try_into().unwrap());
 
                 if !key_value.as_digital(None) {
                     state.registers.program = state.registers.program.wrapping_add(2);

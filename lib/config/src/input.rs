@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
+use multiemu_input::Input;
 use multiemu_input::gamepad::GamepadInput;
 use multiemu_input::keyboard::KeyboardInput;
-use multiemu_input::Input;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::sync::LazyLock;

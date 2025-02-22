@@ -3,7 +3,7 @@ use crate::component::{Component, ComponentId};
 use fxhash::FxBuildHasher;
 use itertools::Itertools;
 use num::ToPrimitive;
-use num::{integer::lcm, rational::Ratio, Integer};
+use num::{Integer, integer::lcm, rational::Ratio};
 use rangemap::RangeMap;
 use std::sync::Arc;
 use std::{
@@ -156,13 +156,15 @@ impl Scheduler {
         let mut ticks_this_pass: u64 = 0;
         let timestamp = Instant::now();
 
-        // Ensure we don't overstep the framerate
-        while self.allotted_time > timestamp.elapsed()
-            // ensure we don't overstate the emulated timespace
-            && (Ratio::from_integer(ticks_this_pass)
-                * self.tick_real_time).to_f32().unwrap()
-                <  self.allotted_time.as_secs_f32()
-        {
+        loop {
+            let did_overstep_real_time = self.allotted_time < timestamp.elapsed();
+            let did_overstep_virtual_time = self.allotted_time.as_secs_f32()
+                < (ticks_this_pass as f32 * self.tick_real_time.to_f32().unwrap());
+
+            if did_overstep_virtual_time || did_overstep_real_time {
+                break;
+            }
+
             if let Some((time_slice, component_ids)) =
                 self.schedule.get_key_value(&self.current_tick)
             {
@@ -186,7 +188,7 @@ impl Scheduler {
         }
     }
 
-    pub fn too_slow(&mut self) {
+    pub fn slow_down(&mut self) {
         // Set our allotted time to lower but not lower than one tick
         self.allotted_time = self
             .allotted_time
@@ -201,7 +203,7 @@ impl Scheduler {
         );
     }
 
-    pub fn too_fast(&mut self) {
+    pub fn speed_up(&mut self) {
         // Set our allotted time higher but not higher than what one period takes
         self.allotted_time = self
             .allotted_time

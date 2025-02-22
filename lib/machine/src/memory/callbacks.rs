@@ -1,6 +1,6 @@
 use super::{
-    memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
     AddressSpaceId,
+    memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
 };
 use rangemap::RangeMap;
 
@@ -15,11 +15,11 @@ pub trait ReadMemory: Send + Sync + 'static {
 }
 
 impl<
-        F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeMap<usize, ReadMemoryRecord>)
-            + Send
-            + Sync
-            + 'static,
-    > ReadMemory for F
+    F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeMap<usize, ReadMemoryRecord>)
+        + Send
+        + Sync
+        + 'static,
+> ReadMemory for F
 {
     fn read_memory(
         &self,
@@ -43,11 +43,11 @@ pub trait WriteMemory: Send + Sync + 'static {
 }
 
 impl<
-        F: Fn(usize, &[u8], AddressSpaceId, &mut RangeMap<usize, WriteMemoryRecord>)
-            + Send
-            + Sync
-            + 'static,
-    > WriteMemory for F
+    F: Fn(usize, &[u8], AddressSpaceId, &mut RangeMap<usize, WriteMemoryRecord>)
+        + Send
+        + Sync
+        + 'static,
+> WriteMemory for F
 {
     fn write_memory(
         &self,
@@ -71,11 +71,11 @@ pub trait PreviewMemory: Send + Sync + 'static {
 }
 
 impl<
-        F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeMap<usize, PreviewMemoryRecord>)
-            + Send
-            + Sync
-            + 'static,
-    > PreviewMemory for F
+    F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeMap<usize, PreviewMemoryRecord>)
+        + Send
+        + Sync
+        + 'static,
+> PreviewMemory for F
 {
     fn preview_memory(
         &self,

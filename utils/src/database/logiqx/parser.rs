@@ -1,8 +1,8 @@
 use multiemu_rom::id::RomId;
 use multiemu_rom::system::GameSystem;
 use serde::Deserialize;
-use serde_with::serde_as;
 use serde_with::DisplayFromStr;
+use serde_with::serde_as;
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]

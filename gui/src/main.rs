@@ -1,11 +1,12 @@
+#![allow(clippy::arc_with_non_send_sync)]
 //! A multisystem hardware emulator
 
 use crate::runtime::{PlatformRuntime, Runtime, SoftwareRenderingRuntime};
-use multiemu_config::graphics::GraphicsApi;
 use multiemu_config::Environment;
+use multiemu_config::graphics::GraphicsApi;
 use multiemu_rom::{
     id::RomId,
-    manager::{LoadedRomLocation, RomManager, ROM_INFORMATION_TABLE},
+    manager::{LoadedRomLocation, ROM_INFORMATION_TABLE, RomManager},
     system::GameSystem,
 };
 use std::{

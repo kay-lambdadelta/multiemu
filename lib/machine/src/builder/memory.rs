@@ -1,7 +1,7 @@
 use crate::builder::ComponentBuilder;
 use crate::component::Component;
-use crate::memory::callbacks::{PreviewMemory, ReadMemory, WriteMemory};
 use crate::memory::AddressSpaceId;
+use crate::memory::callbacks::{PreviewMemory, ReadMemory, WriteMemory};
 use rangemap::RangeSet;
 use std::collections::HashMap;
 use std::ops::Range;
