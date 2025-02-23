@@ -1,6 +1,9 @@
 use egui::FullOutput;
 use egui::TextureId;
+use nalgebra::Scalar;
 use nalgebra::{DMatrix, DMatrixViewMut, Matrix2x3, Point2, Vector2, Vector3, Vector4, stack};
+use palette::cast::ComponentOrder;
+use palette::cast::Packed;
 use palette::{LinSrgba, Srgba, blend::Compose};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::ParallelIterator;
@@ -8,11 +11,11 @@ use std::collections::HashMap;
 
 // FIXME: This is unbearably slow, spending a ton of time in `perp`
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 struct Vertex {
     pos: Point2<f32>,
     uv: Point2<f32>,
-    color: Srgba<u8>,
+    color: LinSrgba<f32>,
 }
 
 impl From<egui::epaint::Vertex> for Vertex {
@@ -20,7 +23,7 @@ impl From<egui::epaint::Vertex> for Vertex {
         Vertex {
             pos: Point2::new(vertex.pos.x, vertex.pos.y),
             uv: Point2::new(vertex.uv.x, vertex.uv.y),
-            color: Srgba::from_components(vertex.color.to_tuple()),
+            color: Srgba::from_components(vertex.color.to_tuple()).into_linear(),
         }
     }
 }
@@ -32,10 +35,10 @@ pub struct SoftwareEguiRenderer {
 
 impl SoftwareEguiRenderer {
     #[allow(clippy::toplevel_ref_arg)]
-    pub fn render(
+    pub fn render<P: ComponentOrder<Srgba<u8>, [u8; 4]> + Scalar + Send + Sync>(
         &mut self,
         context: &egui::Context,
-        mut render_buffer: DMatrixViewMut<Srgba<u8>>,
+        mut render_buffer: DMatrixViewMut<Packed<P, u32>>,
         full_output: FullOutput,
     ) {
         for remove_texture_id in full_output.textures_delta.free {
@@ -94,7 +97,7 @@ impl SoftwareEguiRenderer {
             destination_texture_view.copy_from(&source_texture_view);
         }
 
-        render_buffer.fill(Srgba::new(0, 0, 0, 0xff));
+        render_buffer.fill(Packed::pack(Srgba::new(0, 0, 0, 0xff)));
 
         let render_buffer_dimensions =
             Vector2::new(render_buffer.nrows(), render_buffer.ncols()).cast::<f32>();
@@ -103,6 +106,9 @@ impl SoftwareEguiRenderer {
             match shape.primitive {
                 egui::epaint::Primitive::Mesh(mesh) => {
                     let texture = self.textures.get(&mesh.texture_id).unwrap();
+
+                    let texture_dimensions =
+                        Vector2::new(texture.nrows() as f32, texture.ncols() as f32);
 
                     for vertex_indexes in mesh.indices.chunks(3) {
                         let [v0, v1, v2]: [Vertex; 3] = [
@@ -115,22 +121,20 @@ impl SoftwareEguiRenderer {
                             Vector3::new(v0.pos.x, v1.pos.x, v2.pos.x)
                                 .max()
                                 .min(render_buffer_dimensions.x - 1.0)
-                                .round() as usize,
+                                as usize,
                             Vector3::new(v0.pos.y, v1.pos.y, v2.pos.y)
                                 .max()
                                 .min(render_buffer_dimensions.y - 1.0)
-                                .round() as usize,
+                                as usize,
                         );
 
                         let min = Vector2::new(
                             Vector4::new(v0.pos.x, v1.pos.x, v2.pos.x, max.x as f32)
                                 .min()
-                                .max(0.0)
-                                .round() as usize,
+                                .max(0.0) as usize,
                             Vector4::new(v0.pos.y, v1.pos.y, v2.pos.y, max.y as f32)
                                 .min()
-                                .max(0.0)
-                                .round() as usize,
+                                .max(0.0) as usize,
                         );
 
                         let points = stack![v0.pos.coords, v1.pos.coords, v2.pos.coords];
@@ -158,30 +162,38 @@ impl SoftwareEguiRenderer {
                                         let barycentric =
                                             barycentric_coordinates(pixel_center, points, &edges);
 
-                                        let interpolated_color = v0.color.into_linear()
-                                            * barycentric.x
-                                            + v1.color.into_linear() * barycentric.y
-                                            + v2.color.into_linear() * barycentric.z;
+                                        let interpolated_color = v0.color * barycentric.x
+                                            + v1.color * barycentric.y
+                                            + v2.color * barycentric.z;
 
                                         let interpolated_uv = v0.uv.coords * barycentric.x
                                             + v1.uv.coords * barycentric.y
                                             + v2.uv.coords * barycentric.z;
 
                                         let pixel_coords = Point2::new(
-                                            (texture.nrows() as f32 * interpolated_uv.x) as usize,
-                                            (texture.ncols() as f32 * interpolated_uv.y) as usize,
+                                            (texture_dimensions.x * interpolated_uv.x) as usize,
+                                            (texture_dimensions.y * interpolated_uv.y) as usize,
                                         );
 
                                         // Inaccuraries that lead outside the texture we will read off with black
                                         let pixel = texture
                                             .get((pixel_coords.x, pixel_coords.y))
-                                            .copied()
-                                            .unwrap_or_else(|| LinSrgba::new(0.0, 0.0, 0.0, 1.0));
+                                            .unwrap_or(
+                                                &const { LinSrgba::new(0.0, 0.0, 0.0, 1.0) },
+                                            );
 
-                                        row[x - min.x] = Srgba::from_linear(
-                                            (interpolated_color * pixel)
-                                                .over(row[x - min.x].into_linear()),
-                                        );
+                                        let destination_pixel = &mut row[x - min.x];
+                                        let source_pixel = interpolated_color * *pixel;
+
+                                        if source_pixel.alpha == 1.0 {
+                                            *destination_pixel =
+                                                Packed::pack(Srgba::from_linear(source_pixel));
+                                        } else {
+                                            *destination_pixel = Packed::pack(Srgba::from_linear(
+                                                source_pixel
+                                                    .over(destination_pixel.unpack().into_linear()),
+                                            ));
+                                        }
                                     }
                                 }
                             });
@@ -196,16 +208,18 @@ impl SoftwareEguiRenderer {
 }
 
 #[inline]
+#[allow(clippy::toplevel_ref_arg)]
 fn triangle_area(v: Matrix2x3<f32>) -> f32 {
-    let edges = Matrix2x3::from_columns(&[
+    let edges = stack![
         v.column(1) - v.column(0),
         v.column(2) - v.column(1),
-        v.column(0) - v.column(2),
-    ]);
+        v.column(0) - v.column(2)
+    ];
 
     edges.column(0).perp(&(v.column(2) - v.column(0))).abs()
 }
 
+#[inline]
 #[allow(clippy::toplevel_ref_arg)]
 fn barycentric_coordinates(
     point: Point2<f32>,
@@ -220,6 +234,7 @@ fn barycentric_coordinates(
     Vector3::new(area1, area2, area3) / area
 }
 
+#[inline]
 #[allow(clippy::toplevel_ref_arg)]
 fn is_point_in_triangle(point: Point2<f32>, v: Matrix2x3<f32>, edges: &Matrix2x3<f32>) -> bool {
     let to_p = stack![point.coords, point.coords, point.coords] - v;

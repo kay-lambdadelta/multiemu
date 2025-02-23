@@ -7,6 +7,7 @@ use multiemu_machine::display::RenderBackend;
 use multiemu_machine::display::software::SoftwareRendering;
 use nalgebra::{DMatrix, DMatrixViewMut, Vector2};
 use palette::Srgba;
+use palette::rgb::channels::Argb;
 use softbuffer::{Context, Surface};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -190,7 +191,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         );
 
         self.egui_renderer
-            .render(egui_context, surface_buffer_view, full_output);
+            .render::<Argb>(egui_context, surface_buffer_view, full_output);
 
         surface_buffer.present().unwrap();
     }
