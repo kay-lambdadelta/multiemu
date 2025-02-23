@@ -7,6 +7,7 @@ use multiemu_machine::display::RenderBackend;
 use multiemu_machine::display::software::SoftwareRendering;
 use nalgebra::{DMatrix, DMatrixViewMut, Vector2};
 use palette::Srgba;
+use palette::cast::Packed;
 use palette::rgb::channels::Argb;
 use softbuffer::{Context, Surface};
 use std::collections::HashMap;
@@ -70,7 +71,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             self.previously_recorded_size.x as usize,
             self.previously_recorded_size.y as usize,
         );
-        surface_buffer_view.fill(Srgba::<u8>::new(0, 0, 0, 0xff));
+        surface_buffer_view.fill(Packed::<Argb, u32>::pack(Srgba::new(0, 0, 0, 0xff)));
 
         for (component_id, framebuffer_receiver) in machine.framebuffer_receivers() {
             if let Ok(framebuffer) = framebuffer_receiver.try_recv() {
@@ -120,7 +121,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                             (dest_end.x - dest_start.x, dest_end.y - dest_start.y),
                         );
 
-                        destination_pixels.fill(source_pixel);
+                        destination_pixels.fill(Packed::pack(source_pixel));
                     }
                 }
             }
@@ -169,7 +170,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                             (dest_end.x - dest_start.x, dest_end.y - dest_start.y),
                         );
 
-                        destination_pixels.fill(source_pixel);
+                        destination_pixels.fill(Packed::pack(source_pixel));
                     }
                 }
             }
