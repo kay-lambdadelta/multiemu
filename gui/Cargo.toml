@@ -71,6 +71,9 @@ glutin = { version = "0.32", optional = true }
 clap = { workspace = true }
 encase = { workspace = true }
 
+[dev-dependencies]
+criterion = { workspace = true }
+
 # Jit support
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64", target_arch = "s390x")))'.dependencies]
 cranelift = { workspace = true, optional = true }
@@ -82,6 +85,7 @@ ctru-rs = { workspace = true }
 multiemu-wgsl-bindgen = { workspace = true }
 multiemu-macros = { workspace = true }
 cfg_aliases = { workspace = true }
+
 
 [features]
 default = ["jit", "vulkan", "opengl"]
@@ -107,3 +111,7 @@ opengl = [
 
 [package.metadata.deb]
 maintainer = "Kay <lambdadeltacommunism@gmail.com>"
+
+[[bench]]
+name = "gui"
+harness = false

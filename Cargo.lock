@@ -2680,7 +2680,6 @@ dependencies = [
  "rangemap",
  "rayon",
  "ringbuffer",
- "scc",
  "serde",
  "serde-inline-default",
  "serde_with",
