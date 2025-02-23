@@ -38,7 +38,7 @@ impl Chip8Display {
         );
 
         let position = match self.config.kind {
-            Chip8Kind::Chip8 | Chip8Kind::Chip48 => Point2::new(position.x % 63, position.y % 31),
+            Chip8Kind::Chip8 | Chip8Kind::Chip48 => Point2::new(position.x % 64, position.y % 32),
             Chip8Kind::SuperChip8 => todo!(),
             _ => todo!(),
         };
@@ -128,25 +128,30 @@ fn draw_sprite_common(
     sprite: &[u8],
     mut framebuffer: DMatrixViewMut<'_, Srgba<u8>>,
 ) -> bool {
-    let mut collided = false;
-    let position = position.cast();
+    let mut position = position.cast();
+    let dimensions = Vector2::new(8, sprite.len());
 
+    if dimensions.min() == 0 {
+        return false;
+    }
+    
+    let mut collided = false;
     for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(8).enumerate() {
         for (x, sprite_pixel) in sprite_row.iter().enumerate() {
-            let coord = position + Vector2::new(x, y);
+            let position = position + Vector2::new(x, y);
 
-            if coord.x >= 64 || coord.y >= 32 {
+            if position.x >= 64 || position.y >= 32 {
                 continue;
             }
 
             let old_sprite_pixel =
-                framebuffer[(coord.x, coord.y)] == Srgba::new(255, 255, 255, 255);
+                framebuffer[(position.x, position.y)] == Srgba::new(255, 255, 255, 255);
 
             if *sprite_pixel && old_sprite_pixel {
                 collided = true;
             }
 
-            framebuffer[(coord.x, coord.y)] = if *sprite_pixel ^ old_sprite_pixel {
+            framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel {
                 Srgba::new(255, 255, 255, 255)
             } else {
                 Srgba::new(0, 0, 0, 255)
