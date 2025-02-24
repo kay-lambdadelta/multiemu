@@ -1,19 +1,21 @@
 use egui::FullOutput;
 use egui::TextureId;
 use nalgebra::Scalar;
-use nalgebra::{DMatrix, DMatrixViewMut, Matrix2x3, Point2, Vector2, Vector3, Vector4, stack};
+use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2, Vector3, Vector4};
 use palette::cast::ComponentOrder;
 use palette::cast::Packed;
-use palette::{LinSrgba, Srgba, blend::Compose};
+use palette::{LinSrgba, Srgba};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::collections::HashMap;
+
+mod render_pixel;
 
 // FIXME: This is unbearably slow, spending a ton of time in `perp`
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 struct Vertex {
-    pos: Point2<f32>,
+    position: Point2<f32>,
     uv: Point2<f32>,
     color: LinSrgba<f32>,
 }
@@ -21,9 +23,37 @@ struct Vertex {
 impl From<egui::epaint::Vertex> for Vertex {
     fn from(vertex: egui::epaint::Vertex) -> Self {
         Vertex {
-            pos: Point2::new(vertex.pos.x, vertex.pos.y),
+            position: Point2::new(vertex.pos.x, vertex.pos.y),
             uv: Point2::new(vertex.uv.x, vertex.uv.y),
             color: Srgba::from_components(vertex.color.to_tuple()).into_linear(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+struct Triangle {
+    v0: Vertex,
+    v1: Vertex,
+    v2: Vertex,
+    edge0: Vector2<f32>,
+    edge1: Vector2<f32>,
+    edge2: Vector2<f32>,
+    area: f32,
+}
+
+impl Triangle {
+    pub fn new(v0: Vertex, v1: Vertex, v2: Vertex) -> Self {
+        let edge0 = v0.position - v1.position;
+        let area = edge0.perp(&(v2.position - v0.position)).abs() / 2.0;
+
+        Triangle {
+            v0,
+            v1,
+            v2,
+            edge0,
+            edge1: v1.position - v2.position,
+            edge2: v2.position - v0.position,
+            area,
         }
     }
 }
@@ -35,7 +65,7 @@ pub struct SoftwareEguiRenderer {
 
 impl SoftwareEguiRenderer {
     #[allow(clippy::toplevel_ref_arg)]
-    pub fn render<P: ComponentOrder<Srgba<u8>, [u8; 4]> + Scalar + Send + Sync>(
+    pub fn render<P: ComponentOrder<Srgba<u8>, u32> + Scalar + Send + Sync>(
         &mut self,
         context: &egui::Context,
         mut render_buffer: DMatrixViewMut<Packed<P, u32>>,
@@ -110,7 +140,7 @@ impl SoftwareEguiRenderer {
                     let texture_dimensions =
                         Vector2::new(texture.nrows() as f32, texture.ncols() as f32);
 
-                    for vertex_indexes in mesh.indices.chunks(3) {
+                    for vertex_indexes in mesh.indices.chunks_exact(3) {
                         let [v0, v1, v2]: [Vertex; 3] = [
                             mesh.vertices[vertex_indexes[0] as usize].into(),
                             mesh.vertices[vertex_indexes[1] as usize].into(),
@@ -118,33 +148,26 @@ impl SoftwareEguiRenderer {
                         ];
 
                         let max = Vector2::new(
-                            Vector3::new(v0.pos.x, v1.pos.x, v2.pos.x)
+                            Vector3::new(v0.position.x, v1.position.x, v2.position.x)
                                 .max()
                                 .min(render_buffer_dimensions.x - 1.0)
                                 as usize,
-                            Vector3::new(v0.pos.y, v1.pos.y, v2.pos.y)
+                            Vector3::new(v0.position.y, v1.position.y, v2.position.y)
                                 .max()
                                 .min(render_buffer_dimensions.y - 1.0)
                                 as usize,
                         );
 
                         let min = Vector2::new(
-                            Vector4::new(v0.pos.x, v1.pos.x, v2.pos.x, max.x as f32)
+                            Vector4::new(v0.position.x, v1.position.x, v2.position.x, max.x as f32)
                                 .min()
                                 .max(0.0) as usize,
-                            Vector4::new(v0.pos.y, v1.pos.y, v2.pos.y, max.y as f32)
+                            Vector4::new(v0.position.y, v1.position.y, v2.position.y, max.y as f32)
                                 .min()
                                 .max(0.0) as usize,
                         );
 
-                        let points = stack![v0.pos.coords, v1.pos.coords, v2.pos.coords];
-
-                        // Precompute edges for the triangle
-                        let edges = stack![
-                            v1.pos.coords - v0.pos.coords,
-                            v2.pos.coords - v1.pos.coords,
-                            v0.pos.coords - v2.pos.coords
-                        ];
+                        let triangle = Triangle::new(v0, v1, v2);
 
                         let mut bounding_box =
                             render_buffer.view_range_mut(min.x..=max.x, min.y..=max.y);
@@ -155,46 +178,13 @@ impl SoftwareEguiRenderer {
                             .map(|(y, row)| (y + min.y, row))
                             .for_each(|(y, mut row)| {
                                 for x in min.x..=max.x {
-                                    let pixel_center = Point2::new(x as f32 + 0.5, y as f32 + 0.5);
-
-                                    if is_point_in_triangle(pixel_center, points, &edges) {
-                                        // Interpolate colors based on barycentric coordinates
-                                        let barycentric =
-                                            barycentric_coordinates(pixel_center, points, &edges);
-
-                                        let interpolated_color = v0.color * barycentric.x
-                                            + v1.color * barycentric.y
-                                            + v2.color * barycentric.z;
-
-                                        let interpolated_uv = v0.uv.coords * barycentric.x
-                                            + v1.uv.coords * barycentric.y
-                                            + v2.uv.coords * barycentric.z;
-
-                                        let pixel_coords = Point2::new(
-                                            (texture_dimensions.x * interpolated_uv.x) as usize,
-                                            (texture_dimensions.y * interpolated_uv.y) as usize,
-                                        );
-
-                                        // Inaccuraries that lead outside the texture we will read off with black
-                                        let pixel = texture
-                                            .get((pixel_coords.x, pixel_coords.y))
-                                            .unwrap_or(
-                                                &const { LinSrgba::new(0.0, 0.0, 0.0, 1.0) },
-                                            );
-
-                                        let destination_pixel = &mut row[x - min.x];
-                                        let source_pixel = interpolated_color * *pixel;
-
-                                        if source_pixel.alpha == 1.0 {
-                                            *destination_pixel =
-                                                Packed::pack(Srgba::from_linear(source_pixel));
-                                        } else {
-                                            *destination_pixel = Packed::pack(Srgba::from_linear(
-                                                source_pixel
-                                                    .over(destination_pixel.unpack().into_linear()),
-                                            ));
-                                        }
-                                    }
+                                    render_pixel::render_pixel(
+                                        Point2::new(x as f32, y as f32),
+                                        &triangle,
+                                        texture,
+                                        texture_dimensions,
+                                        &mut row[x - min.x],
+                                    );
                                 }
                             });
                     }
@@ -205,45 +195,4 @@ impl SoftwareEguiRenderer {
             }
         }
     }
-}
-
-#[inline]
-#[allow(clippy::toplevel_ref_arg)]
-fn triangle_area(v: Matrix2x3<f32>) -> f32 {
-    let edges = stack![
-        v.column(1) - v.column(0),
-        v.column(2) - v.column(1),
-        v.column(0) - v.column(2)
-    ];
-
-    edges.column(0).perp(&(v.column(2) - v.column(0))).abs()
-}
-
-#[inline]
-#[allow(clippy::toplevel_ref_arg)]
-fn barycentric_coordinates(
-    point: Point2<f32>,
-    v: Matrix2x3<f32>,
-    edges: &Matrix2x3<f32>,
-) -> Vector3<f32> {
-    let area = edges.column(0).perp(&(v.column(2) - v.column(0))).abs();
-    let area1 = triangle_area(stack![point.coords, v.column(1), v.column(2)]);
-    let area2 = triangle_area(stack![v.column(0), point.coords, v.column(2)]);
-    let area3 = triangle_area(stack![v.column(0), v.column(1), point.coords]);
-
-    Vector3::new(area1, area2, area3) / area
-}
-
-#[inline]
-#[allow(clippy::toplevel_ref_arg)]
-fn is_point_in_triangle(point: Point2<f32>, v: Matrix2x3<f32>, edges: &Matrix2x3<f32>) -> bool {
-    let to_p = stack![point.coords, point.coords, point.coords] - v;
-
-    let b = Vector3::new(
-        edges.column(0).perp(&to_p.column(0)),
-        edges.column(1).perp(&to_p.column(1)),
-        edges.column(2).perp(&to_p.column(2)),
-    );
-
-    b.into_iter().all(|&val| val >= 0.0) || b.into_iter().all(|&val| val <= 0.0)
 }
