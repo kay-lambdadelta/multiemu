@@ -11,6 +11,12 @@ multiemu-input = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-m6502 = { workspace = true }
 rangemap = { workspace = true }
+tracing = { workspace = true }
+enumflags2 = { workspace = true }
+bitvec = { workspace = true }
+strum = { workspace = true }
+thiserror = { workspace = true }
+
 [build-dependencies]
 multiemu-wgsl-bindgen = { workspace = true }
 multiemu-macros = { workspace = true }
@@ -20,15 +26,18 @@ cfg_aliases = { workspace = true }
 vulkano = { workspace = true, optional = true }
 glium = { workspace = true, optional = true }
 
+[dev-dependencies]
+criterion = { workspace = true }
+
 [features]
-jit = ["multiemu-machine/jit", "multiemu-config/jit", "multiemu-definition-m6502/jit"]
-vulkan = [
-    "dep:vulkano",
-    "multiemu-machine/vulkan",
-    "multiemu-config/vulkan",
+jit = [
+    "multiemu-machine/jit",
+    "multiemu-config/jit",
+    "multiemu-definition-m6502/jit",
 ]
-opengl = [
-    "dep:glium",
-    "multiemu-machine/opengl",
-    "multiemu-config/opengl",
-]
+vulkan = ["dep:vulkano", "multiemu-machine/vulkan", "multiemu-config/vulkan"]
+opengl = ["dep:glium", "multiemu-machine/opengl", "multiemu-config/opengl"]
+
+[[bench]]
+name = "rom_parse"
+harness = false

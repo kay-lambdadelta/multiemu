@@ -230,11 +230,11 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                 match time_taken.cmp(&self.timing_tracker.average_timings()) {
                     std::cmp::Ordering::Less => {
                         machine.scheduler.speed_up();
-                    },
+                    }
                     std::cmp::Ordering::Greater => {
                         machine.scheduler.slow_down();
-                    },
-                    std::cmp::Ordering::Equal => {},
+                    }
+                    std::cmp::Ordering::Equal => {}
                 }
             }
 
@@ -278,10 +278,11 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                     .build::<R>(self.rendering_backend.component_initialization_data());
 
                 // HACK: Map the keyboard to the first gamepad
-                self.gamepad_mapping.insert(
-                    KEYBOARD_ID,
-                    machine.virtual_gamepads().keys().next().copied().unwrap(),
-                );
+
+                if let Some(virtual_gamepad_id) = machine.virtual_gamepads().keys().next().copied()
+                {
+                    self.gamepad_mapping.insert(KEYBOARD_ID, virtual_gamepad_id);
+                }
 
                 self.mode = RuntimeMode::Running { machine };
 

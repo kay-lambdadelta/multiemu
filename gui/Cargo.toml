@@ -16,6 +16,7 @@ multiemu-machine = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-macros = { workspace = true }
 multiemu-definition-chip8 = { workspace = true }
+multiemu-definition-nes = { workspace = true }
 naga = { workspace = true }
 tracing = { workspace = true }
 strum = { workspace = true }

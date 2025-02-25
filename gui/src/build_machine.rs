@@ -1,5 +1,6 @@
 use multiemu_config::Environment;
 use multiemu_machine::builder::MachineBuilder;
+use multiemu_rom::system::NintendoSystem;
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
@@ -14,15 +15,12 @@ pub fn build_machine(
     environment: Arc<RwLock<Environment>>,
 ) -> MachineBuilder {
     match game_system {
-        GameSystem::Nintendo(system) => {
-            todo!()
+        GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem) => {
+            multiemu_definition_nes::build_machine(user_specified_roms, rom_manager, environment)
         }
-        GameSystem::Sega(sega_system) => todo!(),
-        GameSystem::Sony(sony_system) => todo!(),
-        GameSystem::Atari(atari_system) => todo!(),
         GameSystem::Other(OtherSystem::Chip8) => {
             multiemu_definition_chip8::build_machine(user_specified_roms, rom_manager, environment)
         }
-        GameSystem::Unknown => todo!(),
+        _ => unimplemented!(),
     }
 }

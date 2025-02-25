@@ -53,7 +53,7 @@ memmap2 = "0.9"
 dasp = "0.11"
 clap = { version = "4.5", features = ["derive"] }
 indexmap = { version = "2.7", features = ["serde"] }
-versions = "6.3"
+versions = "7.0"
 isolang = { version = "2.4", features = ["serde"] }
 syn = { version = "2.0", features = ["full"] }
 proc-macro2 = "1.0"

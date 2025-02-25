@@ -1,3 +1,4 @@
+use cartidge::{NesCartidge, NesCartidgeConfig};
 use multiemu_config::Environment;
 use multiemu_definition_misc::memory::mirror::{MirrorMemory, MirrorMemoryConfig};
 use multiemu_definition_misc::memory::standard::{
@@ -17,6 +18,13 @@ const NES_PPU_ADDRESS_SPACE_ID: AddressSpaceId = AddressSpaceId::new(1);
 mod cartidge;
 mod ppu;
 
+pub use cartidge::ines::INes;
+
+enum Region {
+    Ntsc,
+    Pal,
+}
+
 pub fn build_machine(
     user_specified_roms: Vec<RomId>,
     rom_manager: Arc<RomManager>,
@@ -29,6 +37,10 @@ pub fn build_machine(
     )
     .insert_bus(NES_CPU_ADDRESS_SPACE_ID, 16)
     .insert_bus(NES_PPU_ADDRESS_SPACE_ID, 16);
+
+    let (machine, _) = machine.insert_component::<NesCartidge>(NesCartidgeConfig {
+        rom: user_specified_roms[0],
+    });
 
     // Set up the NES workram
     let (machine, _) = machine.insert_component::<StandardMemory>(StandardMemoryConfig {
