@@ -9,7 +9,6 @@ use processor::Chip8Processor;
 pub use processor::decoder::Chip8InstructionDecoder;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use strum::FromRepr;
 use timer::Chip8Timer;
 
 mod audio;
@@ -17,8 +16,7 @@ mod display;
 mod processor;
 mod timer;
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, FromRepr, Clone, Copy, Debug)]
-#[repr(u8)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Chip8Kind {
     Chip8,
     Chip8x,

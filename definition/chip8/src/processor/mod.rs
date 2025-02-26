@@ -3,6 +3,7 @@ use crate::display::Chip8Display;
 
 use super::Chip8Kind;
 use arrayvec::ArrayVec;
+use crossbeam::atomic::AtomicCell;
 use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu_config::ProcessorExecutionMode;
@@ -11,7 +12,6 @@ use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use multiemu_machine::input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata};
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::AtomicU8;
 use std::sync::{Arc, RwLock};
 use task::Chip8ProcessorTask;
 
@@ -61,7 +61,7 @@ impl Default for Chip8ProcessorRegisters {
 pub struct Chip8ProcessorQuirks {
     pub frequency: Ratio<u64>,
     pub force_mode: Option<Chip8Kind>,
-    pub always_shift_register_in_place: bool,
+    pub always_shr_in_place: bool,
 }
 
 impl Default for Chip8ProcessorQuirks {
@@ -69,7 +69,7 @@ impl Default for Chip8ProcessorQuirks {
         Self {
             frequency: Ratio::from_integer(700),
             force_mode: None,
-            always_shift_register_in_place: false,
+            always_shr_in_place: false,
         }
     }
 }
@@ -124,8 +124,8 @@ impl FromConfig for Chip8Processor {
         Self: Sized,
     {
         let quirks = Arc::new(quirks);
-        let mode = Arc::new(AtomicU8::new(
-            quirks.force_mode.unwrap_or(Chip8Kind::Chip8) as u8
+        let mode = Arc::new(AtomicCell::new(
+            quirks.force_mode.unwrap_or(Chip8Kind::Chip8),
         ));
         let frequency = quirks.frequency;
         let state = Arc::new(RwLock::new(ProcessorState::default()));

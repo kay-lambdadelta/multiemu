@@ -2,7 +2,8 @@ use super::{
     Chip8KeyCode, Chip8Processor, Chip8ProcessorQuirks, ExecutionState, ProcessorState,
     decoder::Chip8InstructionDecoder,
 };
-use crate::{audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer};
+use crate::{Chip8Kind, audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer};
+use crossbeam::atomic::AtomicCell;
 use multiemu_machine::{
     component::{RuntimeEssentials, component_ref::ComponentRef},
     input::virtual_gamepad::VirtualGamepad,
@@ -11,7 +12,7 @@ use multiemu_machine::{
 };
 use std::sync::{
     Arc, RwLock,
-    atomic::{AtomicBool, AtomicU8, Ordering},
+    atomic::{AtomicBool, Ordering},
 };
 
 pub(crate) struct Chip8ProcessorTask {
@@ -26,7 +27,7 @@ pub(crate) struct Chip8ProcessorTask {
     /// Quirks
     pub quirks: Arc<Chip8ProcessorQuirks>,
     // What chip8 mode we are currently in
-    pub mode: Arc<AtomicU8>,
+    pub mode: Arc<AtomicCell<Chip8Kind>>,
     pub vsync_occurred: Arc<AtomicBool>,
     pub display_component: ComponentRef<Chip8Display>,
     pub timer_component: ComponentRef<Chip8Timer>,

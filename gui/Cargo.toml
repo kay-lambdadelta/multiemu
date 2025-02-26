@@ -112,7 +112,3 @@ opengl = [
 
 [package.metadata.deb]
 maintainer = "Kay <lambdadeltacommunism@gmail.com>"
-
-[[bench]]
-name = "gui"
-harness = false
