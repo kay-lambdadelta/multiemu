@@ -8,6 +8,7 @@ multiemu-rom = { workspace = true }
 multiemu-config = { workspace = true }
 multiemu-machine = { workspace = true }
 multiemu-input = { workspace = true }
+multiemu-macros = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 num = { workspace = true }
 bytemuck = { workspace = true }

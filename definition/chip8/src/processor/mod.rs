@@ -1,4 +1,5 @@
 use crate::Chip8InstructionDecoder;
+use crate::display::Chip8Display;
 
 use super::Chip8Kind;
 use arrayvec::ArrayVec;
@@ -6,10 +7,11 @@ use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_i
 use instruction::Register;
 use multiemu_config::ProcessorExecutionMode;
 use multiemu_machine::builder::ComponentBuilder;
-use multiemu_machine::component::{Component, ComponentId, FromConfig, RuntimeEssentials};
+use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use multiemu_machine::input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata};
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::AtomicU8;
 use std::sync::{Arc, RwLock};
 use task::Chip8ProcessorTask;
 
@@ -32,6 +34,7 @@ enum ExecutionState {
         register: Register,
         keys: Vec<Chip8KeyCode>,
     },
+    AwaitingVsync,
 }
 
 // This is extremely complex because the chip8 cpu has a lot of non cpu machinery
@@ -54,13 +57,21 @@ impl Default for Chip8ProcessorRegisters {
     }
 }
 
-#[derive(Debug)]
-pub struct Chip8ProcessorConfig {
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct Chip8ProcessorQuirks {
     pub frequency: Ratio<u64>,
-    pub kind: Chip8Kind,
-    pub display_component_id: ComponentId,
-    pub timer_component_id: ComponentId,
-    pub audio_component_id: ComponentId,
+    pub force_mode: Option<Chip8Kind>,
+    pub always_shift_register_in_place: bool,
+}
+
+impl Default for Chip8ProcessorQuirks {
+    fn default() -> Self {
+        Self {
+            frequency: Ratio::from_integer(700),
+            force_mode: None,
+            always_shift_register_in_place: false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -101,16 +112,22 @@ impl Component for Chip8Processor {
 }
 
 impl FromConfig for Chip8Processor {
-    type Config = Chip8ProcessorConfig;
+    type Config = ();
+    type Quirks = Chip8ProcessorQuirks;
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
+        _config: Self::Config,
+        quirks: Self::Quirks,
     ) where
         Self: Sized,
     {
-        let frequency = config.frequency;
+        let quirks = Arc::new(quirks);
+        let mode = Arc::new(AtomicU8::new(
+            quirks.force_mode.unwrap_or(Chip8Kind::Chip8) as u8
+        ));
+        let frequency = quirks.frequency;
         let state = Arc::new(RwLock::new(ProcessorState::default()));
 
         // Optionally initialize the jit engine
@@ -119,7 +136,7 @@ impl FromConfig for Chip8Processor {
             if essentials.environment().processor_execution_mode == ProcessorExecutionMode::Jit {
                 Some(
                     multiemu_machine::processor::jit::InstructionJitExecutor::new(
-                        jit::Chip8InstructionTranslator::new(config.kind),
+                        jit::Chip8InstructionTranslator::new(mode.clone()),
                     ),
                 )
             } else {
@@ -134,6 +151,13 @@ impl FromConfig for Chip8Processor {
             },
         ));
 
+        let display_component = essentials.component_store().get("display").unwrap();
+
+        let mut vsync = None;
+        display_component.interact(|component: &Chip8Display| {
+            vsync = Some(component.vsync_occurred.clone());
+        });
+
         component_builder
             .insert_gamepads([virtual_gamepad.clone()])
             .insert_task(
@@ -144,20 +168,13 @@ impl FromConfig for Chip8Processor {
                     #[cfg(jit)]
                     jit,
                     virtual_gamepad,
-                    display_component: essentials
-                        .component_store()
-                        .get(config.display_component_id)
-                        .unwrap(),
-                    timer_component: essentials
-                        .component_store()
-                        .get(config.timer_component_id)
-                        .unwrap(),
-                    audio_component: essentials
-                        .component_store()
-                        .get(config.audio_component_id)
-                        .unwrap(),
+                    vsync_occurred: vsync.unwrap(),
+                    display_component,
+                    timer_component: essentials.component_store().get("timer").unwrap(),
+                    audio_component: essentials.component_store().get("audio").unwrap(),
                     essentials,
-                    config,
+                    quirks,
+                    mode,
                 },
             )
             .build_global(Self {

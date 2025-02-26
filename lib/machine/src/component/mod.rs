@@ -67,13 +67,17 @@ pub trait Component: Any + Downcast {
 
 // An initializable component
 pub trait FromConfig: Component + Sized {
+    /// Paramters to create this component
     type Config: Debug + Send + Sync;
+    /// ROM specific behavior changes this component should apply
+    type Quirks: Default + Debug + Send + Sync;
 
     /// Make a new component from the config
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
+        quirks: Self::Quirks,
     );
 }
 

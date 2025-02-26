@@ -33,11 +33,13 @@ impl Component for RomMemory {
 
 impl FromConfig for RomMemory {
     type Config = RomMemoryConfig;
+    type Quirks = ();
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
+        _quirks: Self::Quirks,
     ) {
         let rom_file = essentials
             .rom_manager()

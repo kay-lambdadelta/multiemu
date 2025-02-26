@@ -19,11 +19,13 @@ impl Component for Chip8Audio {}
 
 impl FromConfig for Chip8Audio {
     type Config = ();
+    type Quirks = ();
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         _essentials: Arc<RuntimeEssentials>,
         _config: Self::Config,
+        _quirks: Self::Quirks,
     ) {
         let sound_timer = Arc::new(Mutex::new(0u8));
 

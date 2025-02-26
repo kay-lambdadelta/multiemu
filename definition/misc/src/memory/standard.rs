@@ -51,7 +51,7 @@ pub struct StandardMemoryConfig {
     /// Address space this exists on
     pub assigned_address_space: AddressSpaceId,
     // Initial contents
-    pub initial_contents: StandardMemoryInitialContents,
+    pub initial_contents: Vec<StandardMemoryInitialContents>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -72,11 +72,13 @@ impl Component for StandardMemory {
 
 impl FromConfig for StandardMemory {
     type Config = StandardMemoryConfig;
+    type Quirks = ();
 
     fn from_config(
         mut component_builder: ComponentBuilder<Self>,
         essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
+        _quirks: Self::Quirks,
     ) {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&config.max_word_size),
@@ -298,44 +300,46 @@ impl MemoryCallbacks {
         let internal_buffer_size = self.config.assigned_range.len();
 
         // HACK: This overfills the buffer for ease of programming, but its ok because the actual mmu doesn't allow accesses out at runtime
-        match &self.config.initial_contents {
-            StandardMemoryInitialContents::Value { value } => {
-                self.buffer
-                    .par_iter()
-                    .for_each(|chunk| chunk.lock().unwrap().fill(*value));
-            }
-            StandardMemoryInitialContents::Random => {
-                self.buffer
-                    .par_iter()
-                    .for_each(|chunk| rand::rng().fill_bytes(chunk.lock().unwrap().as_mut_slice()));
-            }
-            StandardMemoryInitialContents::Array { value, offset } => {
-                self.write_internal(*offset, value);
-            }
-            StandardMemoryInitialContents::Rom { rom_id, offset } => {
-                let mut rom_file = self
-                    .rom_manager
-                    .open(*rom_id, RomRequirement::Required)
-                    .unwrap();
+        for operation in &self.config.initial_contents {
+            match operation {
+                StandardMemoryInitialContents::Value { value } => {
+                    self.buffer
+                        .par_iter()
+                        .for_each(|chunk| chunk.lock().unwrap().fill(*value));
+                }
+                StandardMemoryInitialContents::Random => {
+                    self.buffer.par_iter().for_each(|chunk| {
+                        rand::rng().fill_bytes(chunk.lock().unwrap().as_mut_slice())
+                    });
+                }
+                StandardMemoryInitialContents::Array { value, offset } => {
+                    self.write_internal(*offset, value);
+                }
+                StandardMemoryInitialContents::Rom { rom_id, offset } => {
+                    let mut rom_file = self
+                        .rom_manager
+                        .open(*rom_id, RomRequirement::Required)
+                        .unwrap();
 
-                let mut total_read = 0;
-                let mut buffer = [0; 4096];
+                    let mut total_read = 0;
+                    let mut buffer = [0; 4096];
 
-                while total_read < internal_buffer_size {
-                    let remaining_space = internal_buffer_size - total_read;
-                    let amount_to_read = remaining_space.min(buffer.len());
-                    let amount = rom_file
-                        .read(&mut buffer[..amount_to_read])
-                        .expect("Could not read rom");
+                    while total_read < internal_buffer_size {
+                        let remaining_space = internal_buffer_size - total_read;
+                        let amount_to_read = remaining_space.min(buffer.len());
+                        let amount = rom_file
+                            .read(&mut buffer[..amount_to_read])
+                            .expect("Could not read rom");
 
-                    if amount == 0 {
-                        break;
+                        if amount == 0 {
+                            break;
+                        }
+
+                        total_read += amount;
+
+                        let write_size = remaining_space.min(amount);
+                        self.write_internal(*offset + total_read - amount, &buffer[..write_size]);
                     }
-
-                    total_read += amount;
-
-                    let write_size = remaining_space.min(amount);
-                    self.write_internal(*offset + total_read - amount, &buffer[..write_size]);
                 }
             }
         }
@@ -363,16 +367,18 @@ mod test {
             rom_manager.clone(),
             environment.clone(),
         )
-        .insert_bus(ADDRESS_SPACE, 64)
-        .insert_component::<StandardMemory>(StandardMemoryConfig {
-            max_word_size: 8,
-            readable: true,
-            writable: true,
-            assigned_range: 0..4,
-            assigned_address_space: ADDRESS_SPACE,
-            initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
-        })
-        .0
+        .insert_address_space(ADDRESS_SPACE, 64)
+        .insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..4,
+                assigned_address_space: ADDRESS_SPACE,
+                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+            },
+        )
         .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 4];
 
@@ -383,19 +389,21 @@ mod test {
         assert_eq!(buffer, [0xff; 4]);
 
         let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager.clone(), environment)
-            .insert_bus(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..4,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: StandardMemoryInitialContents::Array {
-                    value: Cow::Borrowed(&[0xff; 4]),
-                    offset: 0,
+            .insert_address_space(ADDRESS_SPACE, 64)
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..4,
+                    assigned_address_space: ADDRESS_SPACE,
+                    initial_contents: vec![StandardMemoryInitialContents::Array {
+                        value: Cow::Borrowed(&[0xff; 4]),
+                        offset: 0,
+                    }],
                 },
-            })
-            .0
+            )
             .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 4];
 
@@ -411,16 +419,18 @@ mod test {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
         let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_bus(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..0x10000,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
-            })
-            .0
+            .insert_address_space(ADDRESS_SPACE, 64)
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..0x10000,
+                    assigned_address_space: ADDRESS_SPACE,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
             .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 8];
 
@@ -436,16 +446,18 @@ mod test {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
         let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_bus(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..0x10000,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
-            })
-            .0
+            .insert_address_space(ADDRESS_SPACE, 64)
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..0x10000,
+                    assigned_address_space: ADDRESS_SPACE,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
             .build::<SoftwareRendering>(Default::default());
         let buffer = [0; 8];
 
@@ -460,16 +472,18 @@ mod test {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
         let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_bus(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..0x10000,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
-            })
-            .0
+            .insert_address_space(ADDRESS_SPACE, 64)
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..0x10000,
+                    assigned_address_space: ADDRESS_SPACE,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
             .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0xff; 8];
 
@@ -490,16 +504,18 @@ mod test {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
         let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_bus(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..0x10000,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
-            })
-            .0
+            .insert_address_space(ADDRESS_SPACE, 64)
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..0x10000,
+                    assigned_address_space: ADDRESS_SPACE,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
             .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0xff; 1];
 

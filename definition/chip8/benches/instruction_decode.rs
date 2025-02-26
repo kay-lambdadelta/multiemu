@@ -25,16 +25,18 @@ fn criterion_benchmark(c: &mut Criterion) {
         rom_manager.clone(),
         environment.clone(),
     )
-    .insert_bus(ADDRESS_SPACE, 64)
-    .insert_component::<StandardMemory>(StandardMemoryConfig {
-        max_word_size: 8,
-        readable: true,
-        writable: true,
-        assigned_range: 0..0x10000,
-        assigned_address_space: ADDRESS_SPACE,
-        initial_contents: StandardMemoryInitialContents::Random,
-    })
-    .0
+    .insert_address_space(ADDRESS_SPACE, 64)
+    .insert_component::<StandardMemory>(
+        "workram",
+        StandardMemoryConfig {
+            max_word_size: 8,
+            readable: true,
+            writable: true,
+            assigned_range: 0..0x10000,
+            assigned_address_space: ADDRESS_SPACE,
+            initial_contents: vec![StandardMemoryInitialContents::Random],
+        },
+    )
     .build::<SoftwareRendering>(Default::default());
     let decoder = Chip8InstructionDecoder;
 

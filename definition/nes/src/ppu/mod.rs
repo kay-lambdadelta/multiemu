@@ -1,8 +1,7 @@
-use super::NES_CPU_ADDRESS_SPACE_ID;
+use super::CPU_ADDRESS_SPACE;
 use multiemu_machine::builder::ComponentBuilder;
 use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use multiemu_machine::memory::AddressSpaceId;
-use std::cell::OnceCell;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -13,8 +12,8 @@ mod software;
 mod vulkan;
 
 const ASSIGNED_AREAS: [(AddressSpaceId, Range<usize>); 2] = [
-    (NES_CPU_ADDRESS_SPACE_ID, 0x2000..0x2008),
-    (NES_CPU_ADDRESS_SPACE_ID, 0x4014..0x4015),
+    (CPU_ADDRESS_SPACE, 0x2000..0x2008),
+    (CPU_ADDRESS_SPACE, 0x4014..0x4015),
 ];
 
 // We store ppu state registers in normal struct sizes for easier gpu access
@@ -39,19 +38,22 @@ struct State {
     oamdata: u8,
 }
 
-pub struct NesPPU {
+pub struct NesPpu {
     essentials: Arc<RuntimeEssentials>,
 }
 
-impl Component for NesPPU {}
+impl Component for NesPpu {}
 
-impl FromConfig for NesPPU {
+impl FromConfig for NesPpu {
     type Config = ();
+
+    type Quirks = ();
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         essentials: Arc<RuntimeEssentials>,
         _config: Self::Config,
+        _quirks: Self::Quirks,
     ) {
         component_builder.build(Self { essentials });
     }

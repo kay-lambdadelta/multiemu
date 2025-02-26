@@ -58,7 +58,7 @@ impl Chip8DisplayBackend for VulkanState {
 
     fn commit_display(&self) {
         if self.frame_sender.is_full() {
-            return
+            return;
         }
 
         let render_image = self.render_image.borrow().clone();

@@ -10,7 +10,8 @@ use palette::Srgba;
 use serde::{Deserialize, Serialize};
 use std::cell::{OnceCell, RefCell};
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 #[cfg(all(feature = "opengl", platform_desktop))]
 mod opengl;
@@ -24,9 +25,10 @@ pub struct Chip8DisplaySnapshot {
 }
 
 pub struct Chip8Display {
-    config: Chip8DisplayConfig,
     state: OnceCell<Box<dyn Chip8DisplayBackend>>,
     modified: RefCell<bool>,
+    mode: Arc<Mutex<Chip8Kind>>,
+    pub vsync_occurred: Arc<AtomicBool>,
 }
 
 impl Chip8Display {
@@ -37,7 +39,9 @@ impl Chip8Display {
             sprite.len()
         );
 
-        let position = match self.config.kind {
+        let mode = self.mode.lock().unwrap();
+
+        let position = match mode.deref() {
             Chip8Kind::Chip8 | Chip8Kind::Chip48 => Point2::new(position.x % 64, position.y % 32),
             Chip8Kind::SuperChip8 => todo!(),
             _ => todo!(),
@@ -61,30 +65,38 @@ impl Component for Chip8Display {
     }
 }
 
-#[derive(Debug)]
-pub struct Chip8DisplayConfig {
-    pub kind: Chip8Kind,
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
+pub struct Chip8DisplayQuirks {
+    pub force_mode: Option<Chip8Kind>,
 }
 
 impl FromConfig for Chip8Display {
-    type Config = Chip8DisplayConfig;
+    type Config = ();
+    type Quirks = Chip8DisplayQuirks;
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         _essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
+        _config: Self::Config,
+        quirks: Self::Quirks,
     ) {
+        let mode = Arc::new(Mutex::new(quirks.force_mode.unwrap_or(Chip8Kind::Chip8)));
+        let vsync = Arc::new(AtomicBool::new(false));
+
         let component_builder = component_builder
-            .insert_task(
-                Ratio::from_integer(60),
-                |display: &Chip8Display, _period| {
+            .insert_task(Ratio::from_integer(60), {
+                let vsync = vsync.clone();
+
+                move |display: &Chip8Display, _period| {
                     // Only update it once and if the thing is actually updated
                     if *display.modified.borrow().deref() {
                         display.state.get().unwrap().commit_display();
                         *display.modified.borrow_mut() = false;
                     }
-                },
-            )
+
+                    vsync.store(true, Ordering::Relaxed);
+                }
+            })
             .set_display_config::<SoftwareRendering>(None, None, software::set_display_data);
 
         #[cfg(all(feature = "vulkan", platform_desktop))]
@@ -108,9 +120,10 @@ impl FromConfig for Chip8Display {
         };
 
         component_builder.build(Chip8Display {
-            config,
             state: OnceCell::default(),
             modified: RefCell::new(true),
+            mode,
+            vsync_occurred: vsync,
         });
     }
 }
@@ -128,13 +141,13 @@ fn draw_sprite_common(
     sprite: &[u8],
     mut framebuffer: DMatrixViewMut<'_, Srgba<u8>>,
 ) -> bool {
-    let mut position = position.cast();
+    let position = position.cast();
     let dimensions = Vector2::new(8, sprite.len());
 
     if dimensions.min() == 0 {
         return false;
     }
-    
+
     let mut collided = false;
     for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(8).enumerate() {
         for (x, sprite_pixel) in sprite_row.iter().enumerate() {
@@ -145,7 +158,7 @@ fn draw_sprite_common(
             }
 
             let old_sprite_pixel =
-                framebuffer[(position.x, position.y)] == Srgba::new(255, 255, 255, 255);
+                framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
 
             if *sprite_pixel && old_sprite_pixel {
                 collided = true;

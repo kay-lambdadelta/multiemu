@@ -23,11 +23,13 @@ impl Component for Chip8Timer {}
 
 impl FromConfig for Chip8Timer {
     type Config = ();
+    type Quirks = ();
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         _essentials: Arc<RuntimeEssentials>,
         _config: Self::Config,
+        _quirks: Self::Quirks,
     ) {
         let delay_timer = Arc::new(Mutex::new(0u8));
 

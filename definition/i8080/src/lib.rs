@@ -91,11 +91,13 @@ impl I8080Config {
 
 impl FromConfig for I8080 {
     type Config = I8080Config;
+    type Quirks = ();
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         _essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
+        _quirks: Self::Quirks,
     ) {
         todo!()
     }

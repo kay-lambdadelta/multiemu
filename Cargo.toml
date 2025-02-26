@@ -45,7 +45,7 @@ crossbeam = "0.8"
 scc = "2.3"
 bincode = { version = "2.0.0-rc.3", features = ["serde"] }
 enumflags2 = "0.7"
-# Remove this when trait upcasting is stable
+# TODO: Remove this when trait upcasting is stable
 downcast-rs = "2.0"
 rand = "0.9"
 palette = { version = "0.7", features = ["bytemuck", "serializing", "wide"] }
@@ -61,14 +61,10 @@ quote = "1.0"
 cfg_aliases = "0.2"
 itertools = "0.14"
 criterion = "0.5"
-uuid = { version = "1.13", features = ["v4", "serde"] }
+uuid = { version = "1.15", features = ["v4", "serde"] }
 
 # 3DS stuff
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
-debug = true
-
-# TODO: remove on release
-[profile.release]
 debug = true

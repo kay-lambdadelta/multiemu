@@ -56,7 +56,16 @@ impl MachineBuilder {
         }
     }
 
-    pub fn insert_component<C: FromConfig>(mut self, config: C::Config) -> (Self, ComponentId) {
+    pub fn insert_component<C: FromConfig>(
+        mut self,
+        manifest_name: &'static str,
+        config: C::Config,
+    ) -> Self {
+        assert!(
+            manifest_name.chars().all(|c| !c.is_whitespace()),
+            "Invalid manifest name"
+        );
+
         let component_id = ComponentId(self.current_component_id.0);
 
         let essentials = self.essentials.clone();
@@ -64,9 +73,10 @@ impl MachineBuilder {
             machine_builder: &mut self,
             component_id,
             component_metadata: ComponentMetadata::default(),
+            manifest_name,
             _phantom: PhantomData,
         };
-        C::from_config(component_builder, essentials, config);
+        C::from_config(component_builder, essentials, config, C::Quirks::default());
 
         self.current_component_id.0 = self
             .current_component_id
@@ -74,20 +84,20 @@ impl MachineBuilder {
             .checked_add(1)
             .expect("Too many components");
 
-        (self, component_id)
-    }
-
-    pub fn insert_bus(mut self, address_space_id: AddressSpaceId, width: u8) -> Self {
-        self.memory_busses.insert(address_space_id, width);
         self
     }
 
-    pub fn insert_default_component<C: FromConfig>(self) -> (Self, ComponentId)
+    pub fn insert_default_component<C: FromConfig>(self, manifest_name: &'static str) -> Self
     where
         C::Config: Default,
     {
         let config = C::Config::default();
-        self.insert_component::<C>(config)
+        self.insert_component::<C>(manifest_name, config)
+    }
+
+    pub fn insert_address_space(mut self, address_space_id: AddressSpaceId, width: u8) -> Self {
+        self.memory_busses.insert(address_space_id, width);
+        self
     }
 
     pub fn build<R: RenderBackend>(
@@ -221,6 +231,7 @@ pub struct ComponentBuilder<'a, C: Component> {
     machine_builder: &'a mut MachineBuilder,
     component_id: ComponentId,
     component_metadata: ComponentMetadata,
+    manifest_name: &'static str,
     _phantom: PhantomData<C>,
 }
 
@@ -230,7 +241,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
         self.machine_builder
             .essentials
             .component_store()
-            .insert_component(self.component_id, component);
+            .insert_component(self.manifest_name, self.component_id, component);
 
         self.machine_builder
             .component_metadata
@@ -245,7 +256,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
         self.machine_builder
             .essentials
             .component_store()
-            .insert_component_global(self.component_id, component);
+            .insert_component_global(self.manifest_name, self.component_id, component);
 
         self.machine_builder
             .component_metadata

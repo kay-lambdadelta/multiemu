@@ -6,8 +6,8 @@ use thiserror::Error;
 
 pub mod expansion_device;
 
-const PRG_BANK_SIZE: usize = 16 * 1024;
-const CHR_BANK_SIZE: usize = 8 * 1024;
+pub const PRG_BANK_SIZE: usize = 16 * 1024;
+pub const CHR_BANK_SIZE: usize = 8 * 1024;
 
 #[derive(Error, Debug)]
 pub enum ParsingError {
@@ -310,11 +310,21 @@ impl INes {
             roms,
         })
     }
+
+    pub fn prg_bank_count(&self) -> usize {
+        self.roms
+            .get(&RomType::Prg)
+            .map(|rom| rom.len() / PRG_BANK_SIZE)
+            .unwrap_or(1)
+    }
+
+    pub fn chr_bank_count(&self) -> usize {
+        self.roms
+            .get(&RomType::Chr)
+            .map(|rom| rom.len() / CHR_BANK_SIZE)
+            .unwrap_or(1)
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    
-}
+mod tests {}

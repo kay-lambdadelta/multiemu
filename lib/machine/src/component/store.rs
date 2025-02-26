@@ -2,6 +2,7 @@ use super::{Component, ComponentId, component_ref::ComponentRef};
 use crossbeam::channel::Sender;
 use fxhash::FxBuildHasher;
 use std::{
+    borrow::Cow,
     cell::{OnceCell, RefCell},
     collections::HashMap,
     fmt::Debug,
@@ -41,18 +42,28 @@ pub struct ComponentStore
 where
     Self: Send + Sync,
 {
+    component_ids: scc::HashMap<Cow<'static, str>, ComponentId, FxBuildHasher>,
     component_location: scc::HashMap<ComponentId, ComponentLocation, FxBuildHasher>,
     external_executors: scc::HashMap<u8, Sender<Box<dyn FnOnce(&dyn Component) + Send>>>,
 }
 
 impl ComponentStore {
-    pub(crate) fn insert_component(&self, component_id: ComponentId, component: impl Component) {
+    pub(crate) fn insert_component(
+        &self,
+        manifest_name: &'static str,
+        component_id: ComponentId,
+        component: impl Component,
+    ) {
         MAIN_THREAD_COMPONENT_STORE.with(|task_component_store| {
             let mut task_component_store = task_component_store
                 .get_or_init(RefCell::default)
                 .borrow_mut();
             task_component_store.insert(component_id, Arc::new(component));
         });
+
+        self.component_ids
+            .insert(Cow::Borrowed(manifest_name), component_id)
+            .unwrap();
 
         self.component_location
             .insert(component_id, ComponentLocation::Task(TaskId::Main))
@@ -61,9 +72,14 @@ impl ComponentStore {
 
     pub(crate) fn insert_component_global(
         &self,
+        manifest_name: &'static str,
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
+        self.component_ids
+            .insert(Cow::Borrowed(manifest_name), component_id)
+            .unwrap();
+
         self.component_location
             .insert(component_id, ComponentLocation::Global(Arc::new(component)))
             .unwrap();
@@ -134,10 +150,9 @@ impl ComponentStore {
         });
     }
 
-    pub fn get<C: Component>(
-        self: &Arc<Self>,
-        component_id: ComponentId,
-    ) -> Option<ComponentRef<C>> {
+    pub fn get<C: Component>(self: &Arc<Self>, manifest_name: &str) -> Option<ComponentRef<C>> {
+        let component_id = *self.component_ids.get(manifest_name).unwrap().get();
+
         let component = if let ComponentLocation::Global(component) =
             self.component_location.get(&component_id)?.get()
         {
@@ -147,10 +162,5 @@ impl ComponentStore {
         };
 
         Some(ComponentRef::new(component_id, component, self.clone()))
-    }
-
-    pub fn execute_task(&self, callback: impl FnOnce(Box<dyn FnOnce() + Send>)) {
-        let local_task_id = WORKER_TASK_ID
-            .with(|local_task_id| *local_task_id.get().expect("Task was not assigned an id"));
     }
 }

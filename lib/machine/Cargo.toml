@@ -29,6 +29,7 @@ scc = { workspace = true }
 versions = { workspace = true }
 indexmap = { workspace = true }
 itertools ={ workspace = true }
+dasp = { workspace = true }
 fxhash = "0.2"
 
 [build-dependencies]

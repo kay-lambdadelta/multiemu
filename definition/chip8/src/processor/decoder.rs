@@ -1,5 +1,6 @@
+use crate::ADDRESS_SPACE_ID;
+
 use super::instruction::{Chip8InstructionSet, InstructionSetChip8, Register};
-use crate::CHIP8_ADDRESS_SPACE_ID;
 use bitvec::field::BitField;
 use bitvec::prelude::Msb0;
 use bitvec::view::BitView;
@@ -20,7 +21,7 @@ impl InstructionDecoder for Chip8InstructionDecoder {
     ) -> Option<(Chip8InstructionSet, u8)> {
         let mut instruction = [0; 2];
         memory_translation_table
-            .read(cursor, CHIP8_ADDRESS_SPACE_ID, &mut instruction)
+            .read(cursor, ADDRESS_SPACE_ID, &mut instruction)
             .unwrap();
 
         decode_instruction(instruction).map(|i| (i, 2))

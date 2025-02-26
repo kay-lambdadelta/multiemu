@@ -26,11 +26,13 @@ impl Component for MirrorMemory {}
 
 impl FromConfig for MirrorMemory {
     type Config = MirrorMemoryConfig;
+    type Quirks = ();
 
     fn from_config(
         mut component_builder: ComponentBuilder<Self>,
         _essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
+        _quirks: Self::Quirks,
     ) {
         let assigned_address_space = config.assigned_address_space;
         let assigned_ranges = config.assigned_ranges.clone();
@@ -151,23 +153,27 @@ mod test {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
         let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_bus(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..0x10000,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
-            })
-            .0
-            .insert_component::<MirrorMemory>(MirrorMemoryConfig {
-                readable: true,
-                writable: true,
-                assigned_ranges: RangeMap::from_iter([(0x10000..0x20000, 0x0000)]),
-                assigned_address_space: ADDRESS_SPACE,
-            })
-            .0
+            .insert_address_space(ADDRESS_SPACE, 64)
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..0x10000,
+                    assigned_address_space: ADDRESS_SPACE,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .insert_component::<MirrorMemory>(
+                "workram-mirror",
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    assigned_ranges: RangeMap::from_iter([(0x10000..0x20000, 0x0000)]),
+                    assigned_address_space: ADDRESS_SPACE,
+                },
+            )
             .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 8];
 
@@ -183,23 +189,27 @@ mod test {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
         let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_bus(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..0x10000,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: StandardMemoryInitialContents::Value { value: 0xff },
-            })
-            .0
-            .insert_component::<MirrorMemory>(MirrorMemoryConfig {
-                readable: true,
-                writable: true,
-                assigned_ranges: RangeMap::from_iter([(0x10000..0x20000, 0x0000)]),
-                assigned_address_space: ADDRESS_SPACE,
-            })
-            .0
+            .insert_address_space(ADDRESS_SPACE, 64)
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..0x10000,
+                    assigned_address_space: ADDRESS_SPACE,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .insert_component::<MirrorMemory>(
+                "workram-mirror",
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    assigned_ranges: RangeMap::from_iter([(0x10000..0x20000, 0x0000)]),
+                    assigned_address_space: ADDRESS_SPACE,
+                },
+            )
             .build::<SoftwareRendering>(Default::default());
         let buffer = [0; 8];
 

@@ -27,7 +27,7 @@ impl TimingTracker {
 
     pub fn machine_main_cycle_ending(&mut self) -> Duration {
         let now = Instant::now();
-        
+
         let time_taken = now.saturating_duration_since(
             self.last_starting_frame
                 .take()

@@ -16,10 +16,10 @@ pub fn build_machine(
 ) -> MachineBuilder {
     match game_system {
         GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem) => {
-            multiemu_definition_nes::build_machine(user_specified_roms, rom_manager, environment)
+            multiemu_definition_nes::manifest(user_specified_roms, rom_manager, environment)
         }
         GameSystem::Other(OtherSystem::Chip8) => {
-            multiemu_definition_chip8::build_machine(user_specified_roms, rom_manager, environment)
+            multiemu_definition_chip8::manifest(user_specified_roms, rom_manager, environment)
         }
         _ => unimplemented!(),
     }

@@ -319,19 +319,21 @@ fn m6502_instruction_decode() {
             rom_manager.clone(),
             environment.clone(),
         )
-        .insert_bus(ADDRESS_SPACE, 64)
-        .insert_component::<StandardMemory>(StandardMemoryConfig {
-            max_word_size: 8,
-            readable: true,
-            writable: true,
-            assigned_range: 0..0x4,
-            assigned_address_space: ADDRESS_SPACE,
-            initial_contents: StandardMemoryInitialContents::Array {
-                value: Cow::Borrowed(instruction_binary),
-                offset: 0,
+        .insert_address_space(ADDRESS_SPACE, 64)
+        .insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..0x4,
+                assigned_address_space: ADDRESS_SPACE,
+                initial_contents: vec![StandardMemoryInitialContents::Array {
+                    value: Cow::Borrowed(instruction_binary),
+                    offset: 0,
+                }],
             },
-        })
-        .0
+        )
         .build::<SoftwareRendering>(Default::default());
 
         let (decoded_instruction_result, decoded_instruction_result_size) =

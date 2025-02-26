@@ -1,5 +1,5 @@
 use super::{
-    Chip8KeyCode, Chip8Processor, Chip8ProcessorConfig, ExecutionState, ProcessorState,
+    Chip8KeyCode, Chip8Processor, Chip8ProcessorQuirks, ExecutionState, ProcessorState,
     decoder::Chip8InstructionDecoder,
 };
 use crate::{audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer};
@@ -9,14 +9,12 @@ use multiemu_machine::{
     processor::decoder::InstructionDecoder,
     scheduler::task::Task,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicBool, AtomicU8, Ordering},
+};
 
 pub(crate) struct Chip8ProcessorTask {
-    /// Configuration this processor was created with
-    pub config: Chip8ProcessorConfig,
-    pub display_component: ComponentRef<Chip8Display>,
-    pub timer_component: ComponentRef<Chip8Timer>,
-    pub audio_component: ComponentRef<Chip8Audio>,
     /// parts of the cpu that actually change over execution
     pub state: Arc<RwLock<ProcessorState>>,
     /// Instruction cache
@@ -25,6 +23,14 @@ pub(crate) struct Chip8ProcessorTask {
     pub virtual_gamepad: Arc<VirtualGamepad>,
     /// Essential stuff the runtime provides
     pub essentials: Arc<RuntimeEssentials>,
+    /// Quirks
+    pub quirks: Arc<Chip8ProcessorQuirks>,
+    // What chip8 mode we are currently in
+    pub mode: Arc<AtomicU8>,
+    pub vsync_occurred: Arc<AtomicBool>,
+    pub display_component: ComponentRef<Chip8Display>,
+    pub timer_component: ComponentRef<Chip8Timer>,
+    pub audio_component: ComponentRef<Chip8Audio>,
     #[cfg(jit)]
     pub jit: Option<
         multiemu_machine::processor::jit::InstructionJitExecutor<
@@ -39,24 +45,7 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
 
         for _ in 0..period {
             match &state.execution_state {
-                ExecutionState::Normal => {
-                    let (decompiled_instruction, decompiled_instruction_length) = self
-                        .instruction_decoder
-                        .decode(
-                            state.registers.program as usize,
-                            self.essentials.memory_translation_table(),
-                        )
-                        .expect("Failed to decode instruction");
-
-                    state.registers.program = state
-                        .registers
-                        .program
-                        .wrapping_add(decompiled_instruction_length as u16);
-
-                    tracing::trace!("Decoded instruction {:?}", decompiled_instruction);
-
-                    self.interpret_instruction(&mut state, decompiled_instruction);
-                }
+                ExecutionState::Normal => {}
                 ExecutionState::AwaitingKeyPress { register } => {
                     // FIXME: A allocation every cycle isn't a good idea
                     let mut pressed = Vec::new();
@@ -95,6 +84,30 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
                         }
                     }
                 }
+                ExecutionState::AwaitingVsync => {
+                    if self.vsync_occurred.swap(false, Ordering::Relaxed) {
+                        state.execution_state = ExecutionState::Normal;
+                    }
+                }
+            }
+
+            if state.execution_state == ExecutionState::Normal {
+                let (decompiled_instruction, decompiled_instruction_length) = self
+                    .instruction_decoder
+                    .decode(
+                        state.registers.program as usize,
+                        self.essentials.memory_translation_table(),
+                    )
+                    .expect("Failed to decode instruction");
+
+                state.registers.program = state
+                    .registers
+                    .program
+                    .wrapping_add(decompiled_instruction_length as u16);
+
+                tracing::trace!("Decoded instruction {:?}", decompiled_instruction);
+
+                self.interpret_instruction(&mut state, decompiled_instruction);
             }
         }
     }

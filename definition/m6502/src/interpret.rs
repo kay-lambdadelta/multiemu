@@ -111,16 +111,16 @@ macro_rules! load_m6502_addressing_modes {
 
     (@handler ZeroPageIndirectYIndexed, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
         let mut value: u8 = 0;
-        let mut indirection_address: u8= 0;
+        let mut indirection_address: u8 = 0;
 
         let _ = $memory_translation_table
-            .read($argument as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut indirection_address));
+            .read($argument as usize, $assigned_address_space, std::array::from_mut(&mut indirection_address));
 
         let indirection_address = (indirection_address as u16)
             .wrapping_add($register_store.index_registers[1] as u16);
 
         let _ = $memory_translation_table
-            .read(indirection_address as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut value));
+            .read(indirection_address as usize, $assigned_address_space, std::array::from_mut(&mut value));
 
         value
     }};

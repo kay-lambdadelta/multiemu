@@ -1,10 +1,12 @@
+use std::sync::atomic::Ordering;
+
 use super::{
     ExecutionState, ProcessorState,
     input::Chip8KeyCode,
     instruction::{Chip8InstructionSet, InstructionSetChip8},
     task::Chip8ProcessorTask,
 };
-use crate::{CHIP8_ADDRESS_SPACE_ID, CHIP8_FONT, Chip8Kind};
+use crate::{ADDRESS_SPACE_ID, CHIP8_FONT, Chip8Kind};
 use arrayvec::ArrayVec;
 use bitvec::field::BitField;
 use bitvec::prelude::{Lsb0, Msb0};
@@ -18,11 +20,13 @@ impl Chip8ProcessorTask {
         state: &mut ProcessorState,
         instruction: Chip8InstructionSet,
     ) {
+        let mode = Chip8Kind::from_repr(self.mode.load(Ordering::Relaxed)).unwrap();
+
         match instruction {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Sys { syscall }) => match syscall {
                 0x0e0 => {
-                    self.display_component.interact(|display_component| {
-                        display_component.clear_display();
+                    self.display_component.interact(|component| {
+                        component.clear_display();
                     });
                 }
                 0x0ee => {
@@ -107,7 +111,7 @@ impl Chip8ProcessorTask {
                 state.registers.work_registers[destination as usize] |=
                     state.registers.work_registers[source as usize];
 
-                if self.config.kind == Chip8Kind::Chip8 {
+                if mode == Chip8Kind::Chip8 {
                     state.registers.work_registers[0xf] = 0;
                 }
             }
@@ -118,7 +122,7 @@ impl Chip8ProcessorTask {
                 state.registers.work_registers[destination as usize] &=
                     state.registers.work_registers[source as usize];
 
-                if self.config.kind == Chip8Kind::Chip8 {
+                if mode == Chip8Kind::Chip8 {
                     state.registers.work_registers[0xf] = 0;
                 }
             }
@@ -129,7 +133,7 @@ impl Chip8ProcessorTask {
                 state.registers.work_registers[destination as usize] ^=
                     state.registers.work_registers[source as usize];
 
-                if self.config.kind == Chip8Kind::Chip8 {
+                if mode == Chip8Kind::Chip8 {
                     state.registers.work_registers[0xf] = 0;
                 }
             }
@@ -160,7 +164,7 @@ impl Chip8ProcessorTask {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Shr { register, value }) => {
                 let mut destination_value = state.registers.work_registers[register as usize];
 
-                if self.config.kind == Chip8Kind::Chip8 {
+                if mode == Chip8Kind::Chip8 {
                     destination_value = state.registers.work_registers[value as usize];
                 }
 
@@ -184,7 +188,7 @@ impl Chip8ProcessorTask {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Shl { register, value }) => {
                 let mut destination_value = state.registers.work_registers[register as usize];
 
-                if self.config.kind == Chip8Kind::Chip8 {
+                if mode == Chip8Kind::Chip8 {
                     destination_value = state.registers.work_registers[value as usize];
                 }
 
@@ -210,7 +214,7 @@ impl Chip8ProcessorTask {
                 state.registers.index = value;
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Jumpi { address }) => {
-                let address = if self.config.kind == Chip8Kind::Chip8 {
+                let address = if mode == Chip8Kind::Chip8 {
                     address.wrapping_add(state.registers.work_registers[0x0] as u16)
                 } else {
                     let register = address.view_bits::<Msb0>()[4..8].load::<u8>();
@@ -240,23 +244,24 @@ impl Chip8ProcessorTask {
                         .memory_translation_table()
                         .read(
                             state.registers.index as usize + cursor,
-                            CHIP8_ADDRESS_SPACE_ID,
+                            ADDRESS_SPACE_ID,
                             buffer_section,
                         )
                         .unwrap();
                     cursor += buffer_section.len();
                 }
 
-                let actual_coords = Point2::new(
+                let position = Point2::new(
                     state.registers.work_registers[coordinate_registers.x as usize],
                     state.registers.work_registers[coordinate_registers.y as usize],
                 );
 
                 self.display_component.interact(|display_component| {
-                    // Sets VF to 1 if any pixel turned off otherwise set on
                     state.registers.work_registers[0xf] =
-                        display_component.draw_sprite(actual_coords, &buffer) as u8;
+                        display_component.draw_sprite(position, &buffer) as u8;
                 });
+                state.execution_state = ExecutionState::AwaitingVsync;
+                self.vsync_occurred.store(false, Ordering::Relaxed);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Skpr { key }) => {
                 let key = Chip8KeyCode(state.registers.work_registers[key as usize]);
@@ -320,21 +325,21 @@ impl Chip8ProcessorTask {
                 memory_translation_table
                     .write(
                         state.registers.index as usize,
-                        CHIP8_ADDRESS_SPACE_ID,
+                        ADDRESS_SPACE_ID,
                         bytemuck::bytes_of(&hundreds),
                     )
                     .unwrap();
                 memory_translation_table
                     .write(
                         state.registers.index as usize + 1,
-                        CHIP8_ADDRESS_SPACE_ID,
+                        ADDRESS_SPACE_ID,
                         bytemuck::bytes_of(&tens),
                     )
                     .unwrap();
                 memory_translation_table
                     .write(
                         state.registers.index as usize + 2,
-                        CHIP8_ADDRESS_SPACE_ID,
+                        ADDRESS_SPACE_ID,
                         bytemuck::bytes_of(&ones),
                     )
                     .unwrap();
@@ -346,14 +351,14 @@ impl Chip8ProcessorTask {
                     memory_translation_table
                         .write(
                             state.registers.index as usize + i as usize,
-                            CHIP8_ADDRESS_SPACE_ID,
+                            ADDRESS_SPACE_ID,
                             &state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();
                 }
 
                 // Only the original chip8 modifies the index register for this operation
-                if self.config.kind == Chip8Kind::Chip8 {
+                if mode == Chip8Kind::Chip8 {
                     state.registers.index = state.registers.index.wrapping_add(count as u16 + 1);
                 }
             }
@@ -364,14 +369,14 @@ impl Chip8ProcessorTask {
                     memory_translation_table
                         .read(
                             state.registers.index as usize + i as usize,
-                            CHIP8_ADDRESS_SPACE_ID,
+                            ADDRESS_SPACE_ID,
                             &mut state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();
                 }
 
                 // Only the original chip8 modifies the index register for this operation
-                if self.config.kind == Chip8Kind::Chip8 {
+                if mode == Chip8Kind::Chip8 {
                     state.registers.index = state.registers.index.wrapping_add(count as u16 + 1);
                 }
             }

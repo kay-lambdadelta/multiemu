@@ -4,7 +4,13 @@ use crate::processor::ProcessorState;
 use cranelift::prelude::{Block, FunctionBuilder, InstBuilder, MemFlags, Value, types};
 use multiemu_machine::processor::jit::InstructionTranslator;
 use rangemap::RangeMap;
-use std::mem::offset_of;
+use std::{
+    mem::offset_of,
+    sync::{
+        Arc,
+        atomic::{AtomicU8, Ordering},
+    },
+};
 
 impl ProcessorState {
     #[inline]
@@ -15,12 +21,12 @@ impl ProcessorState {
 
 #[derive(Debug)]
 pub struct Chip8InstructionTranslator {
-    kind: Chip8Kind,
+    pub mode: Arc<AtomicU8>,
 }
 
 impl Chip8InstructionTranslator {
-    pub fn new(kind: Chip8Kind) -> Chip8InstructionTranslator {
-        Chip8InstructionTranslator { kind }
+    pub fn new(mode: Arc<AtomicU8>) -> Chip8InstructionTranslator {
+        Chip8InstructionTranslator { mode }
     }
 }
 
@@ -34,6 +40,8 @@ impl InstructionTranslator for Chip8InstructionTranslator {
         instructions: RangeMap<usize, Self::InstructionSet>,
         blocks: &mut RangeMap<usize, Block>,
     ) {
+        let mode = Chip8Kind::from_repr(self.mode.load(Ordering::Relaxed)).unwrap();
+
         for (cursor, instruction) in instructions {
             let current_block = function_builder.create_block();
             blocks.insert(cursor, current_block);
@@ -102,7 +110,7 @@ impl InstructionTranslator for Chip8InstructionTranslator {
                         destination_location,
                     );
 
-                    if self.kind == Chip8Kind::Chip8 {
+                    if mode == Chip8Kind::Chip8 {
                         let zero = function_builder.ins().iconst(types::I16, 0);
 
                         function_builder.ins().store(
@@ -143,7 +151,7 @@ impl InstructionTranslator for Chip8InstructionTranslator {
                         destination_location,
                     );
 
-                    if self.kind == Chip8Kind::Chip8 {
+                    if mode == Chip8Kind::Chip8 {
                         let zero = function_builder.ins().iconst(types::I16, 0);
 
                         function_builder.ins().store(
@@ -184,7 +192,7 @@ impl InstructionTranslator for Chip8InstructionTranslator {
                         destination_location,
                     );
 
-                    if self.kind == Chip8Kind::Chip8 {
+                    if mode == Chip8Kind::Chip8 {
                         let zero = function_builder.ins().iconst(types::I16, 0);
 
                         function_builder.ins().store(

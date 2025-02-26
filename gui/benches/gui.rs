@@ -4,7 +4,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use egui::{Context, RawInput, Rect, SidePanel, ViewportId};
 use multiemu_gui::SoftwareEguiRenderer;
 use nalgebra::{DMatrix, Vector2};
-use palette::{cast::Packed, rgb::channels::Argb, Srgba};
+use palette::{Srgba, cast::Packed, rgb::channels::Argb};
 
 const RESOLUTIONS: &[Vector2<usize>] = &[
     Vector2::new(640, 480),

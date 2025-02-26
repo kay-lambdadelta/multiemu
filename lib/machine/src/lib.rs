@@ -16,6 +16,7 @@ pub mod memory;
 pub mod message;
 pub mod processor;
 pub mod scheduler;
+pub mod audio;
 
 pub struct Machine<R: RenderBackend> {
     pub scheduler: Scheduler,
