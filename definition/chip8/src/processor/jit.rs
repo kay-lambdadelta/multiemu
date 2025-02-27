@@ -4,7 +4,7 @@ use crate::processor::ProcessorState;
 use cranelift::prelude::{Block, FunctionBuilder, InstBuilder, MemFlags, Value, types};
 use crossbeam::atomic::AtomicCell;
 use multiemu_machine::processor::jit::InstructionTranslator;
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 use std::{mem::offset_of, sync::Arc};
 
 impl ProcessorState {
@@ -32,8 +32,8 @@ impl InstructionTranslator for Chip8InstructionTranslator {
         &self,
         processor_state: Value,
         function_builder: &mut FunctionBuilder,
-        instructions: RangeMap<usize, Self::InstructionSet>,
-        blocks: &mut RangeMap<usize, Block>,
+        instructions: RangeInclusiveMap<usize, Self::InstructionSet>,
+        blocks: &mut RangeInclusiveMap<usize, Block>,
     ) {
         for (cursor, instruction) in instructions {
             let current_block = function_builder.create_block();

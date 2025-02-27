@@ -1,12 +1,12 @@
 use super::AddressSpaceId;
 use super::callbacks::{PreviewMemory, ReadMemory, WriteMemory};
-use crate::memory::{MEMORY_ACCESS_SIZE, VALID_MEMORY_ACCESS_SIZES};
+use crate::memory::{MAX_MEMORY_ACCESS_SIZE, VALID_MEMORY_ACCESS_SIZES};
 use arrayvec::ArrayVec;
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use fxhash::FxBuildHasher;
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 use std::fmt::{Debug, Formatter};
-use std::ops::Range;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::{collections::HashMap, sync::atomic::AtomicBool};
 use thiserror::Error;
@@ -19,7 +19,7 @@ pub enum ReadMemoryOperationErrorFailureType {
 
 #[derive(Error, Debug)]
 #[error("Read operation failed: {0:#?}")]
-pub struct ReadMemoryOperationError(RangeMap<usize, ReadMemoryOperationErrorFailureType>);
+pub struct ReadMemoryOperationError(RangeInclusiveMap<usize, ReadMemoryOperationErrorFailureType>);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum WriteMemoryOperationErrorFailureType {
@@ -29,7 +29,9 @@ pub enum WriteMemoryOperationErrorFailureType {
 
 #[derive(Error, Debug)]
 #[error("Write operation failed: {0:#?}")]
-pub struct WriteMemoryOperationError(RangeMap<usize, WriteMemoryOperationErrorFailureType>);
+pub struct WriteMemoryOperationError(
+    RangeInclusiveMap<usize, WriteMemoryOperationErrorFailureType>,
+);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PreviewMemoryOperationErrorFailureType {
@@ -40,7 +42,9 @@ pub enum PreviewMemoryOperationErrorFailureType {
 
 #[derive(Error, Debug)]
 #[error("Preview operation failed (this really shouldn't be thrown): {0:#?}")]
-pub struct PreviewMemoryOperationError(RangeMap<usize, PreviewMemoryOperationErrorFailureType>);
+pub struct PreviewMemoryOperationError(
+    RangeInclusiveMap<usize, PreviewMemoryOperationErrorFailureType>,
+);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadMemoryRecord {
@@ -72,9 +76,9 @@ pub enum PreviewMemoryRecord {
 
 #[derive(Debug)]
 struct BusInfo {
-    read: RangeMap<usize, MemoryOperatorWrapper<dyn ReadMemory>>,
-    write: RangeMap<usize, MemoryOperatorWrapper<dyn WriteMemory>>,
-    preview: RangeMap<usize, MemoryOperatorWrapper<dyn PreviewMemory>>,
+    read: RangeInclusiveMap<usize, MemoryOperatorWrapper<dyn ReadMemory>>,
+    write: RangeInclusiveMap<usize, MemoryOperatorWrapper<dyn WriteMemory>>,
+    preview: RangeInclusiveMap<usize, MemoryOperatorWrapper<dyn PreviewMemory>>,
     width: u8,
 }
 
@@ -115,9 +119,9 @@ impl MemoryTranslationTable {
             address_space_id,
             BusInfo {
                 width: bus_width,
-                read: RangeMap::default(),
-                write: RangeMap::default(),
-                preview: RangeMap::default(),
+                read: RangeInclusiveMap::default(),
+                write: RangeInclusiveMap::default(),
+                preview: RangeInclusiveMap::default(),
             },
         );
     }
@@ -125,7 +129,7 @@ impl MemoryTranslationTable {
     pub fn insert_read_callback(
         &mut self,
         address_space: AddressSpaceId,
-        mappings: impl IntoIterator<Item = Range<usize>>,
+        mappings: impl IntoIterator<Item = RangeInclusive<usize>>,
         read_callback: Arc<dyn ReadMemory>,
     ) {
         self.bus_info
@@ -142,7 +146,7 @@ impl MemoryTranslationTable {
     pub fn insert_write_callback(
         &mut self,
         address_space: AddressSpaceId,
-        mappings: impl IntoIterator<Item = Range<usize>>,
+        mappings: impl IntoIterator<Item = RangeInclusive<usize>>,
         write_callback: Arc<dyn WriteMemory>,
     ) {
         self.bus_info
@@ -159,7 +163,7 @@ impl MemoryTranslationTable {
     pub fn insert_preview_callback(
         &mut self,
         address_space: AddressSpaceId,
-        mappings: impl IntoIterator<Item = Range<usize>>,
+        mappings: impl IntoIterator<Item = RangeInclusive<usize>>,
         preview_callback: Arc<dyn PreviewMemory>,
     ) {
         self.bus_info
@@ -204,30 +208,32 @@ impl MemoryTranslationTable {
         // Cut off address
         let address = address.view_bits::<Lsb0>()[..bus_info.width as usize].load_le::<usize>();
 
-        let mut needed_accesses =
-            ArrayVec::<_, { MEMORY_ACCESS_SIZE.end }>::from_iter([(address, 0..buffer.len())]);
+        let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
+            address,
+            (0..=buffer.len() - 1),
+        )]);
 
         while let Some((address, buffer_subrange)) = needed_accesses.pop() {
             let accessing_range =
-                (buffer_subrange.start + address)..(buffer_subrange.end + address);
+                (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
 
             for (component_assignment_range, read_callback) in
                 bus_info.read.overlapping(accessing_range.clone())
             {
-                let mut errors = RangeMap::default();
+                let mut errors = RangeInclusiveMap::default();
 
-                let overlap_start = accessing_range.start.max(component_assignment_range.start);
-                let overlap_end = accessing_range.end.min(component_assignment_range.end);
-                let overlap = overlap_start..overlap_end;
+                let overlap_start = accessing_range
+                    .start()
+                    .max(component_assignment_range.start());
 
                 read_callback.0.read_memory(
-                    overlap.start,
+                    *overlap_start,
                     &mut buffer[buffer_subrange.clone()],
                     address_space,
                     &mut errors,
                 );
 
-                let mut detected_errors = RangeMap::default();
+                let mut detected_errors = RangeInclusiveMap::default();
 
                 for (range, error) in errors {
                     match error {
@@ -245,7 +251,7 @@ impl MemoryTranslationTable {
 
                             needed_accesses.push((
                                 redirect_address,
-                                (range.start - address)..(range.end - address),
+                                (range.start() - address)..=(range.end() - address),
                             ));
                         }
                     }
@@ -283,30 +289,32 @@ impl MemoryTranslationTable {
 
         let address = address.view_bits::<Lsb0>()[..bus_info.width as usize].load_le::<usize>();
 
-        let mut needed_accesses =
-            ArrayVec::<_, { MEMORY_ACCESS_SIZE.end }>::from_iter([(address, 0..buffer.len())]);
+        let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
+            address,
+            (0..=(buffer.len() - 1)),
+        )]);
 
         while let Some((address, buffer_subrange)) = needed_accesses.pop() {
             let accessing_range =
-                (buffer_subrange.start + address)..(buffer_subrange.end + address);
+                (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
 
             for (component_assignment_range, write_callback) in
                 bus_info.write.overlapping(accessing_range.clone())
             {
-                let mut errors = RangeMap::default();
+                let mut errors = RangeInclusiveMap::default();
 
-                let overlap_start = accessing_range.start.max(component_assignment_range.start);
-                let overlap_end = accessing_range.end.min(component_assignment_range.end);
-                let overlap = overlap_start..overlap_end;
+                let overlap_start = accessing_range
+                    .start()
+                    .max(component_assignment_range.start());
 
                 write_callback.0.write_memory(
-                    overlap.start,
+                    *overlap_start,
                     &buffer[buffer_subrange.clone()],
                     address_space,
                     &mut errors,
                 );
 
-                let mut detected_errors = RangeMap::default();
+                let mut detected_errors = RangeInclusiveMap::default();
 
                 for (range, error) in errors {
                     match error {
@@ -324,7 +332,7 @@ impl MemoryTranslationTable {
 
                             needed_accesses.push((
                                 redirect_address,
-                                (range.start - address)..(range.end - address),
+                                (range.start() - address)..=(range.end() - address),
                             ));
                         }
                     }
@@ -353,30 +361,32 @@ impl MemoryTranslationTable {
 
         let address = address.view_bits::<Lsb0>()[..bus_info.width as usize].load_le::<usize>();
 
-        let mut needed_accesses =
-            ArrayVec::<_, { MEMORY_ACCESS_SIZE.end }>::from_iter([(address, 0..buffer.len())]);
+        let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
+            address,
+            (0..=(buffer.len() - 1)),
+        )]);
 
         while let Some((address, buffer_subrange)) = needed_accesses.pop() {
             let accessing_range =
-                (buffer_subrange.start + address)..(buffer_subrange.end + address);
+                (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
 
             for (component_assignment_range, preview_callback) in
                 bus_info.preview.overlapping(accessing_range.clone())
             {
-                let mut errors = RangeMap::default();
+                let mut errors = RangeInclusiveMap::default();
 
-                let overlap_start = accessing_range.start.max(component_assignment_range.start);
-                let overlap_end = accessing_range.end.min(component_assignment_range.end);
-                let overlap = overlap_start..overlap_end;
+                let overlap_start = accessing_range
+                    .start()
+                    .max(component_assignment_range.start());
 
                 preview_callback.0.preview_memory(
-                    overlap.start,
+                    *overlap_start,
                     &mut buffer[buffer_subrange.clone()],
                     address_space,
                     &mut errors,
                 );
 
-                let mut detected_errors = RangeMap::default();
+                let mut detected_errors = RangeInclusiveMap::default();
 
                 for (range, error) in errors {
                     match error {
@@ -394,7 +404,7 @@ impl MemoryTranslationTable {
 
                             needed_accesses.push((
                                 redirect_address,
-                                (range.start - address)..(range.end - address),
+                                (range.start() - address)..=(range.end() - address),
                             ));
                         }
                         PreviewMemoryRecord::Impossible => {

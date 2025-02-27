@@ -8,7 +8,7 @@ use multiemu_machine::{
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
     },
 };
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 use std::sync::Arc;
 
 struct MemoryCallbacks {
@@ -21,7 +21,7 @@ impl ReadMemory for MemoryCallbacks {
         address: usize,
         buffer: &mut [u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, ReadMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
     }
 }
@@ -32,7 +32,7 @@ impl WriteMemory for MemoryCallbacks {
         address: usize,
         buffer: &[u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, WriteMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
         let original_data = buffer[0];
         let mut data = buffer[0];
@@ -64,8 +64,8 @@ pub fn construct_mapper(
     component_builder
         .insert_read_memory(
             CPU_ADDRESS_SPACE,
-            [0x8000..0x10000],
+            [0x8000..=0xffff],
             memory_callbacks.clone(),
         )
-        .insert_write_memory(CPU_ADDRESS_SPACE, [0x8000..0x10000], memory_callbacks)
+        .insert_write_memory(CPU_ADDRESS_SPACE, [0x8000..=0xffff], memory_callbacks)
 }

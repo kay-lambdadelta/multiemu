@@ -11,6 +11,7 @@ rangemap = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
 rayon = { workspace = true }
+crossbeam = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

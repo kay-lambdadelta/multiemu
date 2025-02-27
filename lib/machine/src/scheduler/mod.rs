@@ -4,7 +4,7 @@ use fxhash::FxBuildHasher;
 use itertools::Itertools;
 use num::ToPrimitive;
 use num::{Integer, integer::lcm, rational::Ratio};
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 use std::sync::Arc;
 use std::{
     collections::HashMap,
@@ -19,7 +19,7 @@ pub struct Scheduler {
     current_tick: u64,
     rollover_tick: u64,
     tick_real_time: Ratio<u64>,
-    schedule: RangeMap<u64, Vec<ComponentId>>,
+    schedule: RangeInclusiveMap<u64, Vec<ComponentId>>,
     allotted_time: Duration,
     component_store: Arc<ComponentStore>,
     tasks: HashMap<ComponentId, (Ratio<u64>, StoredTask), FxBuildHasher>,
@@ -69,7 +69,7 @@ impl Scheduler {
             .collect();
 
         // Fill out the schedule
-        let mut schedule = RangeMap::default();
+        let mut schedule = RangeInclusiveMap::default();
 
         let mut current_tick = 0;
         while current_tick < common_denominator {
@@ -85,7 +85,10 @@ impl Scheduler {
             if to_run.len() == 1 {
                 let (component_id, _, tick_rate) = to_run[0];
                 let time_slice = tick_rate;
-                schedule.insert(current_tick..current_tick + time_slice, vec![component_id]);
+                schedule.insert(
+                    current_tick..=(current_tick + time_slice - 1),
+                    vec![component_id],
+                );
                 current_tick += time_slice;
                 continue;
             }
@@ -106,7 +109,7 @@ impl Scheduler {
                     let (component_id, _, tick_rate) = to_run[0];
                     let normalized_batch_size = batch_size / tick_rate;
                     schedule.insert(
-                        current_tick..current_tick + normalized_batch_size,
+                        current_tick..=(current_tick + normalized_batch_size - 1),
                         vec![component_id],
                     );
                     current_tick += batch_size;
@@ -114,7 +117,7 @@ impl Scheduler {
                 // Conflicted components
                 _ => {
                     schedule.insert(
-                        current_tick..current_tick + 1,
+                        current_tick..=current_tick,
                         to_run
                             .into_iter()
                             .filter_map(|(component_id, run_indication, _)| {

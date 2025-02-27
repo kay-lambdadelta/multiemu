@@ -7,14 +7,14 @@ use multiemu_machine::{
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
     },
 };
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct MirrorMemoryConfig {
     pub readable: bool,
     pub writable: bool,
-    pub assigned_ranges: RangeMap<usize, usize>,
+    pub assigned_ranges: RangeInclusiveMap<usize, usize>,
     /// Address space this exists on
     pub assigned_address_space: AddressSpaceId,
 }
@@ -71,7 +71,7 @@ impl ReadMemory for MemoryCallbacks {
         address: usize,
         buffer: &mut [u8],
         _address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, ReadMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
@@ -79,15 +79,15 @@ impl ReadMemory for MemoryCallbacks {
             buffer.len()
         );
 
-        let affected_range = address..address + buffer.len();
+        let affected_range = address..=(address + buffer.len() - 1);
 
         let redirect_base_address = self
             .config
             .assigned_ranges
-            .get(&affected_range.start)
+            .get(affected_range.start())
             .unwrap();
         let adjusted_redirect_base_address =
-            redirect_base_address + (address - affected_range.start);
+            redirect_base_address + (address - affected_range.start());
 
         errors.insert(
             affected_range,
@@ -104,7 +104,7 @@ impl WriteMemory for MemoryCallbacks {
         address: usize,
         buffer: &[u8],
         _address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, WriteMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
@@ -112,15 +112,15 @@ impl WriteMemory for MemoryCallbacks {
             buffer.len()
         );
 
-        let affected_range = address..address + buffer.len();
+        let affected_range = address..=(address + buffer.len() - 1);
 
         let redirect_base_address = self
             .config
             .assigned_ranges
-            .get(&affected_range.start)
+            .get(affected_range.start())
             .unwrap();
         let adjusted_redirect_base_address =
-            redirect_base_address + (address - affected_range.start);
+            redirect_base_address + (address - affected_range.start());
 
         errors.insert(
             affected_range,
@@ -143,7 +143,7 @@ mod test {
     use multiemu_machine::memory::AddressSpaceId;
     use multiemu_rom::manager::RomManager;
     use multiemu_rom::system::GameSystem;
-    use rangemap::RangeMap;
+    use rangemap::RangeInclusiveMap;
     use std::sync::{Arc, RwLock};
 
     const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
@@ -160,7 +160,7 @@ mod test {
                     max_word_size: 8,
                     readable: true,
                     writable: true,
-                    assigned_range: 0..0x10000,
+                    assigned_range: 0..=0xffff,
                     assigned_address_space: ADDRESS_SPACE,
                     initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
                 },
@@ -170,7 +170,7 @@ mod test {
                 MirrorMemoryConfig {
                     readable: true,
                     writable: true,
-                    assigned_ranges: RangeMap::from_iter([(0x10000..0x20000, 0x0000)]),
+                    assigned_ranges: RangeInclusiveMap::from_iter([(0x10000..=0x1ffff, 0x0000)]),
                     assigned_address_space: ADDRESS_SPACE,
                 },
             )
@@ -196,7 +196,7 @@ mod test {
                     max_word_size: 8,
                     readable: true,
                     writable: true,
-                    assigned_range: 0..0x10000,
+                    assigned_range: 0..=0xffff,
                     assigned_address_space: ADDRESS_SPACE,
                     initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
                 },
@@ -206,7 +206,7 @@ mod test {
                 MirrorMemoryConfig {
                     readable: true,
                     writable: true,
-                    assigned_ranges: RangeMap::from_iter([(0x10000..0x20000, 0x0000)]),
+                    assigned_ranges: RangeInclusiveMap::from_iter([(0x10000..=0x1ffff, 0x0000)]),
                     assigned_address_space: ADDRESS_SPACE,
                 },
             )

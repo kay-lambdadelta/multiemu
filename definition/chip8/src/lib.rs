@@ -155,7 +155,7 @@ manifest! {
             readable: true,
             writable: true,
             max_word_size: 2,
-            assigned_range: 0x000..0x1000,
+            assigned_range: 0x000..=0xfff,
             assigned_address_space: ADDRESS_SPACE_ID,
             initial_contents: vec![
                 StandardMemoryInitialContents::Array {

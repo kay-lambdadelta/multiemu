@@ -8,8 +8,8 @@ use multiemu_machine::{
     },
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
-use rangemap::RangeMap;
-use std::{ops::Range, sync::Arc};
+use rangemap::RangeInclusiveMap;
+use std::{ops::RangeInclusive, sync::Arc};
 
 #[derive(Debug)]
 pub struct RomMemoryConfig {
@@ -17,7 +17,7 @@ pub struct RomMemoryConfig {
     /// The maximum word size
     pub max_word_size: u8,
     /// Memory region this buffer will be mapped to
-    pub assigned_range: Range<usize>,
+    pub assigned_range: RangeInclusive<usize>,
     /// Address space this exists on
     pub assigned_address_space: AddressSpaceId,
 }
@@ -87,7 +87,7 @@ impl ReadMemory for MemoryCallbacks {
         address: usize,
         buffer: &mut [u8],
         _address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, ReadMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
@@ -95,15 +95,15 @@ impl ReadMemory for MemoryCallbacks {
             buffer.len()
         );
 
-        let affected_range = address..address + buffer.len();
+        let affected_range = address..=(address + buffer.len() - 1);
 
         if buffer.len() > self.config.max_word_size as usize {
             errors.insert(affected_range.clone(), ReadMemoryRecord::Denied);
         }
 
-        let adjusted_offset = address - self.config.assigned_range.start;
+        let adjusted_offset = address - self.config.assigned_range.start();
         buffer.copy_from_slice(
-            &self.rom[adjusted_offset..(adjusted_offset + buffer.len()).min(self.rom.len())],
+            &self.rom[adjusted_offset..=(adjusted_offset + buffer.len()).min(self.rom.len()) - 1],
         );
     }
 }
@@ -114,11 +114,12 @@ impl PreviewMemory for MemoryCallbacks {
         address: usize,
         buffer: &mut [u8],
         _address_space: AddressSpaceId,
-        _errors: &mut RangeMap<usize, PreviewMemoryRecord>,
+        _errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
     ) {
-        let adjusted_offset = address - self.config.assigned_range.start;
+        let adjusted_offset = address - self.config.assigned_range.start();
+
         buffer.copy_from_slice(
-            &self.rom[adjusted_offset..(adjusted_offset + buffer.len()).min(self.rom.len())],
+            &self.rom[adjusted_offset..=(adjusted_offset + buffer.len()).min(self.rom.len()) - 1],
         );
     }
 }

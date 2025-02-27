@@ -6,7 +6,7 @@ use cranelift::{
     prelude::{Block, Configurable, FunctionBuilder, Value, settings::Flags},
 };
 use processor_state::ProcessorState;
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 
 pub mod processor_state;
 
@@ -19,14 +19,14 @@ pub trait InstructionTranslator: Send + Sync {
         &self,
         processor_state: Value,
         function_builder: &mut FunctionBuilder,
-        instructions: RangeMap<usize, Self::InstructionSet>,
-        blocks: &mut RangeMap<usize, Block>,
+        instructions: RangeInclusiveMap<usize, Self::InstructionSet>,
+        blocks: &mut RangeInclusiveMap<usize, Block>,
     );
 }
 
 pub struct InstructionJitExecutor<T: InstructionTranslator> {
     translator: T,
-    blocks: RangeMap<usize, Block>,
+    blocks: RangeInclusiveMap<usize, Block>,
     module: JITModule,
 }
 
@@ -49,7 +49,7 @@ impl<T: InstructionTranslator> InstructionJitExecutor<T> {
 
         Self {
             translator,
-            blocks: RangeMap::default(),
+            blocks: RangeInclusiveMap::default(),
             module,
         }
     }

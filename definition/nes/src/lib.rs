@@ -7,7 +7,7 @@ use multiemu_definition_misc::memory::standard::{
 use multiemu_macros::manifest;
 use multiemu_rom::system::{GameSystem, NintendoSystem};
 use ppu::NesPpu;
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 
 mod cartridge;
 mod ppu;
@@ -31,17 +31,17 @@ manifest! {
             readable: true,
             writable: true,
             max_word_size: 2,
-            assigned_range: 0x0000..0x0800,
+            assigned_range: 0x0000..=0x07ff,
             assigned_address_space: CPU_ADDRESS_SPACE,
             initial_contents: vec![StandardMemoryInitialContents::Random],
         },
         MirrorMemory("workram-mirror"): MirrorMemoryConfig {
             readable: true,
             writable: true,
-            assigned_ranges: RangeMap::from_iter([
-                (0x0800..0x1000, 0x0000),
-                (0x1000..0x1800, 0x0000),
-                (0x1800..0x2000, 0x0000),
+            assigned_ranges: RangeInclusiveMap::from_iter([
+                (0x0800..=0x0fff, 0x0000),
+                (0x1000..=0x17ff, 0x0000),
+                (0x1800..=0x1fff, 0x0000),
             ]),
             assigned_address_space: CPU_ADDRESS_SPACE,
         },

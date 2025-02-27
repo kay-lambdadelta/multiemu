@@ -10,14 +10,14 @@ use multiemu_machine::{
 use multiemu_rom::manager::RomManager;
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use rand::RngCore;
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     io::Read,
-    ops::Range,
-    sync::{Arc, Mutex},
+    ops::RangeInclusive,
+    sync::{Arc, RwLock},
 };
 
 const PAGE_SIZE: usize = 4096;
@@ -47,7 +47,7 @@ pub struct StandardMemoryConfig {
     // The maximum word size
     pub max_word_size: usize,
     // Memory region this buffer will be mapped to
-    pub assigned_range: Range<usize>,
+    pub assigned_range: RangeInclusive<usize>,
     /// Address space this exists on
     pub assigned_address_space: AddressSpaceId,
     // Initial contents
@@ -89,12 +89,12 @@ impl FromConfig for StandardMemory {
             "Memory assigned must be non-empty"
         );
 
-        let buffer_size = config.assigned_range.len();
+        let buffer_size = config.assigned_range.clone().count();
         let chunks_needed = buffer_size.div_ceil(PAGE_SIZE);
         let buffer = Vec::from_iter(
             std::iter::repeat([0; PAGE_SIZE])
                 .take(chunks_needed)
-                .map(Mutex::new),
+                .map(RwLock::new),
         );
         let assigned_range = config.assigned_range.clone();
         let assigned_address_space = config.assigned_address_space;
@@ -133,7 +133,7 @@ impl FromConfig for StandardMemory {
 #[derive(Debug)]
 struct MemoryCallbacks {
     config: StandardMemoryConfig,
-    buffer: Vec<Mutex<[u8; PAGE_SIZE]>>,
+    buffer: Vec<RwLock<[u8; PAGE_SIZE]>>,
     rom_manager: Arc<RomManager>,
 }
 
@@ -143,7 +143,7 @@ impl ReadMemory for MemoryCallbacks {
         address: usize,
         buffer: &mut [u8],
         _address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, ReadMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
@@ -151,58 +151,53 @@ impl ReadMemory for MemoryCallbacks {
             buffer.len()
         );
 
-        let requested_range = address - self.config.assigned_range.start
-            ..address - self.config.assigned_range.start + buffer.len();
-        let invalid_before_range = address..self.config.assigned_range.start;
-        let invalid_after_range = self.config.assigned_range.end..address + buffer.len();
+        if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
+            let invalid_before_range = address..=end_address;
 
-        if !invalid_after_range.is_empty() || !invalid_before_range.is_empty() {
-            errors.extend(
-                [invalid_after_range, invalid_before_range]
-                    .into_iter()
-                    .filter_map(|range| {
-                        if !range.is_empty() {
-                            Some((range, ReadMemoryRecord::Denied))
-                        } else {
-                            None
-                        }
-                    }),
-            );
+            if !invalid_before_range.is_empty() {
+                errors.insert(invalid_before_range, ReadMemoryRecord::Denied);
+            }
+        }
+
+        if let Some(start_address) = self.config.assigned_range.end().checked_add(1) {
+            let invalid_after_range = start_address..=address;
+
+            if !invalid_after_range.is_empty() {
+                errors.insert(invalid_after_range, ReadMemoryRecord::Denied);
+            }
         }
 
         if !errors.is_empty() {
             return;
         }
 
-        let start_chunk = requested_range.start / PAGE_SIZE;
-        let end_chunk = requested_range.end.div_ceil(PAGE_SIZE);
+        let requested_range = address - self.config.assigned_range.start()
+            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
+
+        let start_chunk = requested_range.start() / PAGE_SIZE;
+        let end_chunk = requested_range.end() / PAGE_SIZE;
 
         let mut buffer_offset = 0;
 
-        for chunk_index in start_chunk..end_chunk {
+        for chunk_index in start_chunk..=end_chunk {
             let chunk = &self.buffer[chunk_index];
 
             let chunk_start = if chunk_index == start_chunk {
-                requested_range.start % PAGE_SIZE
+                requested_range.start() % PAGE_SIZE
             } else {
                 0
             };
 
-            let chunk_end = if chunk_index == end_chunk - 1 {
-                // If we're in the last chunk, handle the exact range end
-                if requested_range.end % PAGE_SIZE == 0 && requested_range.end != 0 {
-                    PAGE_SIZE
-                } else {
-                    requested_range.end % PAGE_SIZE
-                }
+            let chunk_end = if chunk_index == end_chunk {
+                requested_range.end() % PAGE_SIZE
             } else {
                 PAGE_SIZE
             };
 
             // Lock the chunk and read the relevant part
-            let locked_chunk = chunk.lock().unwrap();
-            buffer[buffer_offset..buffer_offset + chunk_end - chunk_start]
-                .copy_from_slice(&locked_chunk[chunk_start..chunk_end]);
+            let locked_chunk = chunk.read().unwrap();
+            buffer[buffer_offset..=buffer_offset + chunk_end - chunk_start]
+                .copy_from_slice(&locked_chunk[chunk_start..=chunk_end]);
 
             buffer_offset += chunk_end - chunk_start;
 
@@ -219,7 +214,7 @@ impl WriteMemory for MemoryCallbacks {
         address: usize,
         buffer: &[u8],
         _address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, WriteMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
         debug_assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
@@ -227,21 +222,20 @@ impl WriteMemory for MemoryCallbacks {
             buffer.len()
         );
 
-        let invalid_before_range = address..self.config.assigned_range.start;
-        let invalid_after_range = self.config.assigned_range.end..address + buffer.len();
+        if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
+            let invalid_before_range = address..=end_address;
 
-        if !invalid_after_range.is_empty() || !invalid_before_range.is_empty() {
-            errors.extend(
-                [invalid_after_range, invalid_before_range]
-                    .into_iter()
-                    .filter_map(|range| {
-                        if !range.is_empty() {
-                            Some((range, WriteMemoryRecord::Denied))
-                        } else {
-                            None
-                        }
-                    }),
-            );
+            if !invalid_before_range.is_empty() {
+                errors.insert(invalid_before_range, WriteMemoryRecord::Denied);
+            }
+        }
+
+        if let Some(start_address) = self.config.assigned_range.end().checked_add(1) {
+            let invalid_after_range = start_address..=address;
+
+            if !invalid_after_range.is_empty() {
+                errors.insert(invalid_after_range, WriteMemoryRecord::Denied);
+            }
         }
 
         if !errors.is_empty() {
@@ -256,37 +250,33 @@ impl WriteMemory for MemoryCallbacks {
 impl MemoryCallbacks {
     /// Writes unchecked internally
     fn write_internal(&self, address: usize, buffer: &[u8]) {
-        let requested_range = address - self.config.assigned_range.start
-            ..address - self.config.assigned_range.start + buffer.len();
+        let requested_range = address - self.config.assigned_range.start()
+            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
-        let start_chunk = requested_range.start / PAGE_SIZE;
-        let end_chunk = requested_range.end.div_ceil(PAGE_SIZE);
+        let start_chunk = requested_range.start() / PAGE_SIZE;
+        let end_chunk = requested_range.end() / PAGE_SIZE;
 
         let mut buffer_offset = 0;
 
-        for chunk_index in start_chunk..end_chunk {
+        for chunk_index in start_chunk..=end_chunk {
             let chunk = &self.buffer[chunk_index];
 
             let chunk_start = if chunk_index == start_chunk {
-                requested_range.start % PAGE_SIZE
+                requested_range.start() % PAGE_SIZE
             } else {
                 0
             };
 
-            let chunk_end = if chunk_index == end_chunk - 1 {
-                // If we're in the last chunk, handle the exact range end
-                if requested_range.end % PAGE_SIZE == 0 && requested_range.end != 0 {
-                    PAGE_SIZE
-                } else {
-                    requested_range.end % PAGE_SIZE
-                }
+            let chunk_end = if chunk_index == end_chunk {
+                requested_range.end() % PAGE_SIZE
             } else {
                 PAGE_SIZE
             };
 
-            let mut locked_chunk = chunk.lock().unwrap();
-            locked_chunk[chunk_start..chunk_end]
-                .copy_from_slice(&buffer[buffer_offset..buffer_offset + chunk_end - chunk_start]);
+            // Lock the chunk and read the relevant part
+            let mut locked_chunk = chunk.write().unwrap();
+            locked_chunk[chunk_start..=chunk_end]
+                .copy_from_slice(&buffer[buffer_offset..=buffer_offset + chunk_end - chunk_start]);
 
             buffer_offset += chunk_end - chunk_start;
 
@@ -297,7 +287,7 @@ impl MemoryCallbacks {
     }
 
     fn initialize_buffer(&self) {
-        let internal_buffer_size = self.config.assigned_range.len();
+        let internal_buffer_size = self.config.assigned_range.clone().count();
 
         // HACK: This overfills the buffer for ease of programming, but its ok because the actual mmu doesn't allow accesses out at runtime
         for operation in &self.config.initial_contents {
@@ -305,11 +295,11 @@ impl MemoryCallbacks {
                 StandardMemoryInitialContents::Value { value } => {
                     self.buffer
                         .par_iter()
-                        .for_each(|chunk| chunk.lock().unwrap().fill(*value));
+                        .for_each(|chunk| chunk.write().unwrap().fill(*value));
                 }
                 StandardMemoryInitialContents::Random => {
                     self.buffer.par_iter().for_each(|chunk| {
-                        rand::rng().fill_bytes(chunk.lock().unwrap().as_mut_slice())
+                        rand::rng().fill_bytes(chunk.write().unwrap().as_mut_slice())
                     });
                 }
                 StandardMemoryInitialContents::Array { value, offset } => {
@@ -374,7 +364,7 @@ mod test {
                 max_word_size: 8,
                 readable: true,
                 writable: true,
-                assigned_range: 0..4,
+                assigned_range: 0..=3,
                 assigned_address_space: ADDRESS_SPACE,
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
@@ -396,7 +386,7 @@ mod test {
                     max_word_size: 8,
                     readable: true,
                     writable: true,
-                    assigned_range: 0..4,
+                    assigned_range: 0..=3,
                     assigned_address_space: ADDRESS_SPACE,
                     initial_contents: vec![StandardMemoryInitialContents::Array {
                         value: Cow::Borrowed(&[0xff; 4]),
@@ -426,7 +416,7 @@ mod test {
                     max_word_size: 8,
                     readable: true,
                     writable: true,
-                    assigned_range: 0..0x10000,
+                    assigned_range: 0..=7,
                     assigned_address_space: ADDRESS_SPACE,
                     initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
                 },
@@ -453,7 +443,7 @@ mod test {
                     max_word_size: 8,
                     readable: true,
                     writable: true,
-                    assigned_range: 0..0x10000,
+                    assigned_range: 0..=7,
                     assigned_address_space: ADDRESS_SPACE,
                     initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
                 },
@@ -479,7 +469,7 @@ mod test {
                     max_word_size: 8,
                     readable: true,
                     writable: true,
-                    assigned_range: 0..0x10000,
+                    assigned_range: 0..=7,
                     assigned_address_space: ADDRESS_SPACE,
                     initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
                 },
@@ -511,7 +501,7 @@ mod test {
                     max_word_size: 8,
                     readable: true,
                     writable: true,
-                    assigned_range: 0..0x10000,
+                    assigned_range: 0..=0xffff,
                     assigned_address_space: ADDRESS_SPACE,
                     initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
                 },
@@ -519,7 +509,7 @@ mod test {
             .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0xff; 1];
 
-        for i in 0..0x10000 {
+        for i in 0..=0xffff {
             machine
                 .memory_translation_table()
                 .write(i, ADDRESS_SPACE, &buffer)

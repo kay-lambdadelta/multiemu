@@ -2,7 +2,7 @@ use super::{
     AddressSpaceId,
     memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
 };
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 
 pub trait ReadMemory: Send + Sync + 'static {
     fn read_memory(
@@ -10,12 +10,12 @@ pub trait ReadMemory: Send + Sync + 'static {
         address: usize,
         buffer: &mut [u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, ReadMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     );
 }
 
 impl<
-    F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeMap<usize, ReadMemoryRecord>)
+    F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeInclusiveMap<usize, ReadMemoryRecord>)
         + Send
         + Sync
         + 'static,
@@ -26,7 +26,7 @@ impl<
         address: usize,
         buffer: &mut [u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, ReadMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
         self(address, buffer, address_space, errors);
     }
@@ -38,12 +38,12 @@ pub trait WriteMemory: Send + Sync + 'static {
         address: usize,
         buffer: &[u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, WriteMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     );
 }
 
 impl<
-    F: Fn(usize, &[u8], AddressSpaceId, &mut RangeMap<usize, WriteMemoryRecord>)
+    F: Fn(usize, &[u8], AddressSpaceId, &mut RangeInclusiveMap<usize, WriteMemoryRecord>)
         + Send
         + Sync
         + 'static,
@@ -54,7 +54,7 @@ impl<
         address: usize,
         buffer: &[u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, WriteMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
         self(address, buffer, address_space, errors);
     }
@@ -66,12 +66,12 @@ pub trait PreviewMemory: Send + Sync + 'static {
         address: usize,
         buffer: &mut [u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, PreviewMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
     );
 }
 
 impl<
-    F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeMap<usize, PreviewMemoryRecord>)
+    F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeInclusiveMap<usize, PreviewMemoryRecord>)
         + Send
         + Sync
         + 'static,
@@ -82,7 +82,7 @@ impl<
         address: usize,
         buffer: &mut [u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeMap<usize, PreviewMemoryRecord>,
+        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
     ) {
         self(address, buffer, address_space, errors);
     }

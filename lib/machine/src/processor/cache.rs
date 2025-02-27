@@ -1,12 +1,12 @@
 use super::decoder::InstructionDecoder;
 use crate::memory::memory_translation_table::MemoryTranslationTable;
-use rangemap::RangeMap;
+use rangemap::RangeInclusiveMap;
 use std::sync::Mutex;
 
 #[derive(Debug)]
 pub struct InstructionCache<ID: InstructionDecoder> {
     decoder: ID,
-    decode_cache: Mutex<RangeMap<usize, ID::InstructionSet>>,
+    decode_cache: Mutex<RangeInclusiveMap<usize, ID::InstructionSet>>,
 }
 
 impl<ID: InstructionDecoder> Default for InstructionCache<ID>
@@ -16,7 +16,7 @@ where
     fn default() -> Self {
         Self {
             decoder: ID::default(),
-            decode_cache: Mutex::new(RangeMap::default()),
+            decode_cache: Mutex::new(RangeInclusiveMap::default()),
         }
     }
 }
@@ -25,7 +25,7 @@ impl<ID: InstructionDecoder> InstructionCache<ID> {
     pub fn new(decoder: ID) -> Self {
         Self {
             decoder,
-            decode_cache: Mutex::new(RangeMap::default()),
+            decode_cache: Mutex::new(RangeInclusiveMap::default()),
         }
     }
 }
@@ -44,12 +44,12 @@ impl<ID: InstructionDecoder> InstructionDecoder for InstructionCache<ID> {
 
         if let Some((occupying_range, instruction)) = decode_cache_guard.get_key_value(&cursor) {
             // Unaligned instruction
-            if occupying_range.start != cursor {
+            if *occupying_range.start() != cursor {
                 should_remove = Some(occupying_range.clone());
             } else {
                 return Some((
                     instruction.clone(),
-                    occupying_range.len().try_into().unwrap(),
+                    occupying_range.clone().count().try_into().unwrap(),
                 ));
             }
         }
@@ -62,7 +62,7 @@ impl<ID: InstructionDecoder> InstructionDecoder for InstructionCache<ID> {
             self.decoder.decode(cursor, memory_translation_table)
         {
             decode_cache_guard.insert(
-                cursor..cursor + instruction_length as usize,
+                cursor..=(cursor + instruction_length as usize - 1),
                 instruction.clone(),
             );
 

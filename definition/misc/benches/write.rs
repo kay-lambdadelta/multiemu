@@ -25,7 +25,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 max_word_size: 8,
                 readable: true,
                 writable: true,
-                assigned_range: 0..0x10000,
+                assigned_range: 0..=0xffff,
                 assigned_address_space: ADDRESS_SPACE,
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
