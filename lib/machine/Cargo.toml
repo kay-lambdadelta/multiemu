@@ -28,8 +28,7 @@ palette = { workspace = true }
 scc = { workspace = true }
 versions = { workspace = true }
 indexmap = { workspace = true }
-itertools ={ workspace = true }
-dasp = { workspace = true }
+itertools = { workspace = true }
 fxhash = "0.2"
 
 [build-dependencies]
@@ -46,5 +45,5 @@ cranelift = { workspace = true, optional = true }
 
 [features]
 jit = ["dep:cranelift"]
-vulkan = ["dep:vulkano", "multiemu-config/vulkan"]
-opengl = ["dep:glutin", "dep:glium", "multiemu-config/opengl"]
+vulkan = ["dep:vulkano"]
+opengl = ["dep:glutin", "dep:glium"]

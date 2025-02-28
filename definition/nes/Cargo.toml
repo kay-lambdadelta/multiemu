@@ -32,13 +32,9 @@ glium = { workspace = true, optional = true }
 criterion = { workspace = true }
 
 [features]
-jit = [
-    "multiemu-machine/jit",
-    "multiemu-config/jit",
-    "multiemu-definition-m6502/jit",
-]
-vulkan = ["dep:vulkano", "multiemu-machine/vulkan", "multiemu-config/vulkan"]
-opengl = ["dep:glium", "multiemu-machine/opengl", "multiemu-config/opengl"]
+jit = ["multiemu-machine/jit", "multiemu-definition-m6502/jit"]
+vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
+opengl = ["dep:glium", "multiemu-machine/opengl"]
 
 [[bench]]
 name = "rom_parse"

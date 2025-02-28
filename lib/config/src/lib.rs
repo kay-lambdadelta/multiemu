@@ -1,5 +1,6 @@
 use crate::graphics::GraphicsSettings;
 use crate::input::{DEFAULT_HOTKEYS, Hotkey};
+use audio::AudioSettings;
 use indexmap::IndexMap;
 use multiemu_input::{Input, VirtualGamepadName};
 use multiemu_rom::system::GameSystem;
@@ -15,6 +16,7 @@ use std::{
 };
 use strum::{Display, EnumIter};
 
+pub mod audio;
 pub mod graphics;
 pub mod input;
 
@@ -34,7 +36,6 @@ pub static CONFIG_LOCATION: LazyLock<PathBuf> =
 pub enum ProcessorExecutionMode {
     #[cfg_attr(not(jit), default)]
     Interpret,
-    #[cfg(jit)]
     #[cfg_attr(jit, default)]
     Jit,
 }
@@ -49,6 +50,8 @@ pub struct Environment {
     pub hotkeys: IndexMap<BTreeSet<Input>, Hotkey>,
     #[serde(default)]
     pub graphics_setting: GraphicsSettings,
+    #[serde(default)]
+    pub audio_settings: AudioSettings,
     #[serde(default)]
     pub processor_execution_mode: ProcessorExecutionMode,
     #[serde_inline_default(STORAGE_DIRECTORY.clone())]
@@ -71,6 +74,7 @@ impl Default for Environment {
             gamepad_configs: Default::default(),
             hotkeys: DEFAULT_HOTKEYS.clone(),
             graphics_setting: GraphicsSettings::default(),
+            audio_settings: AudioSettings::default(),
             file_browser_home: STORAGE_DIRECTORY.clone(),
             log_location: STORAGE_DIRECTORY.join("log"),
             database_file: STORAGE_DIRECTORY.join("database.redb"),

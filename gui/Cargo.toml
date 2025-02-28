@@ -41,7 +41,6 @@ egui_extras = { version = "0.31", default-features = false, features = [
     "image",
 ] }
 image = { version = "0.25", default-features = false, features = ["webp"] }
-ringbuffer = "0.15"
 petgraph = "0.7"
 itertools = "0.14"
 
@@ -90,22 +89,15 @@ cfg_aliases = { workspace = true }
 
 [features]
 default = ["jit", "vulkan", "opengl"]
-jit = [
-    "dep:cranelift",
-    "multiemu-config/jit",
-    "multiemu-machine/jit",
-    "multiemu-definition-chip8/jit",
-]
+jit = ["dep:cranelift", "multiemu-machine/jit", "multiemu-definition-chip8/jit"]
 vulkan = [
     "dep:vulkano",
-    "multiemu-config/vulkan",
     "multiemu-machine/vulkan",
     "multiemu-definition-chip8/vulkan",
 ]
 opengl = [
     "dep:glutin",
     "dep:glium",
-    "multiemu-config/opengl",
     "multiemu-machine/opengl",
     "multiemu-definition-chip8/opengl",
 ]

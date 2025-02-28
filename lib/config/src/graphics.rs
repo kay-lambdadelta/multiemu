@@ -4,11 +4,10 @@ use strum::{Display, EnumIter};
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, EnumIter, Display, PartialEq, Eq, Default)]
 pub enum GraphicsApi {
     // TODO: Once the ui rendering backend for any hwacceled api is done, enable it here
-    #[default]
+    #[cfg_attr(not(platform_desktop), default)]
     Software,
-    #[cfg(all(feature = "vulkan", platform_desktop))]
+    #[cfg_attr(platform_desktop, default)]
     Vulkan,
-    #[cfg(all(feature = "opengl", platform_desktop))]
     OpenGl,
 }
 

@@ -20,8 +20,3 @@ dirs = "6.0"
 [build-dependencies]
 multiemu-macros = { workspace = true }
 cfg_aliases = { workspace = true }
-
-[features]
-vulkan = []
-opengl = []
-jit = []

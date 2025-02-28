@@ -22,4 +22,4 @@ multiemu-macros = { workspace = true }
 cfg_aliases = { workspace = true }
 
 [features]
-jit = ["dep:cranelift", "multiemu-machine/jit", "multiemu-config/jit"]
+jit = ["dep:cranelift", "multiemu-machine/jit"]

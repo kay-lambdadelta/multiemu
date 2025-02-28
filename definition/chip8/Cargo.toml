@@ -39,17 +39,9 @@ multiemu-macros = { workspace = true }
 cfg_aliases = { workspace = true }
 
 [features]
-jit = ["dep:cranelift", "multiemu-machine/jit", "multiemu-config/jit"]
-vulkan = [
-    "dep:vulkano",
-    "multiemu-machine/vulkan",
-    "multiemu-config/vulkan",
-]
-opengl = [
-    "dep:glium",
-    "multiemu-machine/opengl",
-    "multiemu-config/opengl",
-]
+jit = ["dep:cranelift", "multiemu-machine/jit"]
+vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
+opengl = ["dep:glium", "multiemu-machine/opengl"]
 
 [[bench]]
 name = "instruction_decode"
