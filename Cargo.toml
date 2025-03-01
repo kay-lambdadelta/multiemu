@@ -9,6 +9,7 @@ multiemu-config = { path = "lib/config" }
 multiemu-input = { path = "lib/input" }
 multiemu-wgsl-bindgen = { path = "lib/wgsl-bindgen" }
 multiemu-macros = { path = "lib/macros" }
+multiemu-audio = { path = "lib/audio" }
 
 multiemu-definition-misc = { path = "definition/misc" }
 multiemu-definition-m6502 = { path = "definition/m6502" }
@@ -50,7 +51,6 @@ downcast-rs = "2.0"
 rand = "0.9"
 palette = { version = "0.7", features = ["bytemuck", "serializing", "wide"] }
 memmap2 = "0.9"
-dasp = "0.11"
 clap = { version = "4.5", features = ["derive"] }
 indexmap = { version = "2.7", features = ["serde"] }
 versions = "7.0"
@@ -62,6 +62,7 @@ cfg_aliases = "0.2"
 itertools = "0.14"
 criterion = "0.5"
 uuid = { version = "1.15", features = ["v4", "serde"] }
+ringbuffer = "0.15"
 
 # 3DS stuff
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }

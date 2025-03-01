@@ -8,7 +8,7 @@ use serde_with::serde_as;
 pub enum Interpolation {
     Linear,
     #[default]
-    Sinc,
+    Cubic,
 }
 
 #[serde_as]

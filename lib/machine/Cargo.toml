@@ -9,6 +9,7 @@ multiemu-rom = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-config = { workspace = true }
 multiemu-macros = { workspace = true }
+multiemu-audio = { workspace = true }
 rangemap = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
@@ -29,6 +30,7 @@ scc = { workspace = true }
 versions = { workspace = true }
 indexmap = { workspace = true }
 itertools = { workspace = true }
+ringbuffer = { workspace = true }
 fxhash = "0.2"
 
 [build-dependencies]

@@ -1,5 +1,6 @@
 use crate::rendering_backend::RenderingBackendState;
 use crate::runtime::Runtime;
+use audio::CpalAudio;
 use crossbeam::channel::Sender;
 use main_loop::Message;
 use multiemu_config::Environment;
@@ -10,6 +11,7 @@ use multiemu_rom::system::GameSystem;
 use std::sync::{Arc, Mutex, RwLock};
 use winit::{event_loop::EventLoop, window::Window};
 
+mod audio;
 mod gamepad;
 mod keyboard;
 mod main_loop;
@@ -27,6 +29,7 @@ pub struct PlatformRuntime<RS: RenderingBackendState> {
     pending_machine: Option<(GameSystem, Vec<RomId>)>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
+    audio: CpalAudio,
 }
 
 impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>>
@@ -38,6 +41,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             pending_machine: None,
             rom_manager,
             environment,
+            audio: CpalAudio::default(),
         };
 
         let event_loop = EventLoop::new().unwrap();
@@ -55,6 +59,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             pending_machine: Some((game_system, user_specified_roms)),
             rom_manager,
             environment,
+            audio: CpalAudio::default(),
         };
 
         let event_loop = EventLoop::new().unwrap();
