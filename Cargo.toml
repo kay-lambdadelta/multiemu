@@ -69,3 +69,8 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
 debug = true
+
+[profile.release]
+codegen-units = 1
+opt-level = 3
+lto = "fat"

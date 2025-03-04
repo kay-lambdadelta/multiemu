@@ -108,7 +108,6 @@ impl<'a> TypeTranslator<'a> {
                 match (members, struct_name) {
                     (Some(members), Some(struct_name)) => {
                         self.structs.push(syn::parse_quote! {
-                            #[allow(unused)]
                             #[derive(Debug, PartialEq, Clone, Copy, encase::ShaderType)]
                             pub struct #struct_name {
                                 #(#members,)*

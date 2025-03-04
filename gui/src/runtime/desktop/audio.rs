@@ -1,6 +1,6 @@
 use bytemuck::Pod;
 use cpal::{
-    Device, Host, StreamConfig,
+    Device, Host, Stream, StreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use multiemu_audio::sample::{Sample, conversion::FromSample};
@@ -13,6 +13,7 @@ pub struct CpalAudio {
     host: Host,
     device: Device,
     queue: Arc<AudioQueue>,
+    _stream: Stream,
 }
 
 impl Default for CpalAudio {
@@ -35,44 +36,45 @@ impl Default for CpalAudio {
 
         let queue = Arc::new(AudioQueue::new(Ratio::from_integer(config.sample_rate().0)));
 
-        match config.sample_format() {
+        let stream = match config.sample_format() {
             cpal::SampleFormat::I8 => {
-                build_output_stream::<i8>(queue.clone(), &device, config.into());
+                build_output_stream::<i8>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::I16 => {
-                build_output_stream::<i16>(queue.clone(), &device, config.into());
+                build_output_stream::<i16>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::I32 => {
-                build_output_stream::<i32>(queue.clone(), &device, config.into());
+                build_output_stream::<i32>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::I64 => {
-                build_output_stream::<i64>(queue.clone(), &device, config.into());
+                build_output_stream::<i64>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::U8 => {
-                build_output_stream::<u8>(queue.clone(), &device, config.into());
+                build_output_stream::<u8>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::U16 => {
-                build_output_stream::<u16>(queue.clone(), &device, config.into());
+                build_output_stream::<u16>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::U32 => {
-                build_output_stream::<u32>(queue.clone(), &device, config.into());
+                build_output_stream::<u32>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::U64 => {
-                build_output_stream::<u64>(queue.clone(), &device, config.into());
+                build_output_stream::<u64>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::F32 => {
-                build_output_stream::<f32>(queue.clone(), &device, config.into());
+                build_output_stream::<f32>(queue.clone(), &device, config.into())
             }
             cpal::SampleFormat::F64 => {
-                build_output_stream::<f64>(queue.clone(), &device, config.into());
+                build_output_stream::<f64>(queue.clone(), &device, config.into())
             }
             _ => unimplemented!(),
-        }
+        };
 
         Self {
             host,
             device,
             queue,
+            _stream: stream,
         }
     }
 }
@@ -81,7 +83,7 @@ pub fn build_output_stream<S: Sample + FromSample<i16> + Pod + cpal::SizedSample
     queue: Arc<AudioQueue>,
     device: &Device,
     config: StreamConfig,
-) {
+) -> Stream {
     let stream = device
         .build_output_stream(
             &config,
@@ -108,4 +110,6 @@ pub fn build_output_stream<S: Sample + FromSample<i16> + Pod + cpal::SizedSample
         .unwrap();
 
     stream.play().unwrap();
+
+    stream
 }

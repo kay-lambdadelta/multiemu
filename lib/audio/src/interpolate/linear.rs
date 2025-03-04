@@ -72,14 +72,14 @@ where
         }
     }
 
-    let shape = held_samples[0].data.shape();
-
-    for _ in 0..(2 - held_samples.len()) {
-        held_samples.push(OVector::from_element_generic(
-            shape.0,
-            shape.1,
-            F::equilibrium(),
-        ));
+    if let Some(shape) = held_samples.get(0).map(|s| s.data.shape()) {
+        for _ in 0..(2 - held_samples.len()) {
+            held_samples.push(OVector::from_element_generic(
+                shape.0,
+                shape.1,
+                F::equilibrium(),
+            ));
+        }
     }
 
     LinearIterator::<F, CHANNELS, _> {
@@ -128,7 +128,9 @@ where
         }
 
         // Exit if we've reached the end
-        if self.input_exhausted && self.input_index <= input_target_index {
+        if (self.input_exhausted && self.input_index <= input_target_index)
+            || self.held_samples.len() < 2
+        {
             return None;
         }
 

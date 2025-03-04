@@ -70,14 +70,14 @@ where
         }
     }
 
-    let shape = held_samples[0].data.shape();
-
-    for _ in 0..(4 - held_samples.len()) {
-        held_samples.push(OVector::from_element_generic(
-            shape.0,
-            shape.1,
-            F::equilibrium(),
-        ));
+    if let Some(shape) = held_samples.get(0).map(|s| s.data.shape()) {
+        for _ in 0..(4 - held_samples.len()) {
+            held_samples.push(OVector::from_element_generic(
+                shape.0,
+                shape.1,
+                F::equilibrium(),
+            ));
+        }
     }
 
     CubicIterator::<F, CHANNELS, _> {
@@ -125,7 +125,9 @@ where
             self.input_index += F::one();
         }
 
-        if self.input_exhausted && self.input_index <= input_target_index {
+        if (self.input_exhausted && self.input_index <= input_target_index)
+            || self.held_samples.len() < 4
+        {
             return None;
         }
 

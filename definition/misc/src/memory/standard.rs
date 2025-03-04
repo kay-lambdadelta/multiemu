@@ -373,7 +373,7 @@ mod test {
         let mut buffer = [0; 4];
 
         machine
-            .memory_translation_table()
+            .memory_translation_table
             .read(0, ADDRESS_SPACE, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
@@ -398,7 +398,7 @@ mod test {
         let mut buffer = [0; 4];
 
         machine
-            .memory_translation_table()
+            .memory_translation_table
             .read(0, ADDRESS_SPACE, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
@@ -425,7 +425,7 @@ mod test {
         let mut buffer = [0; 8];
 
         machine
-            .memory_translation_table()
+            .memory_translation_table
             .read(0, ADDRESS_SPACE, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
@@ -452,7 +452,7 @@ mod test {
         let buffer = [0; 8];
 
         machine
-            .memory_translation_table()
+            .memory_translation_table
             .write(0, ADDRESS_SPACE, &buffer)
             .unwrap();
     }
@@ -478,12 +478,12 @@ mod test {
         let mut buffer = [0xff; 8];
 
         machine
-            .memory_translation_table()
+            .memory_translation_table
             .write(0, ADDRESS_SPACE, &buffer)
             .unwrap();
         buffer.fill(0);
         machine
-            .memory_translation_table()
+            .memory_translation_table
             .read(0, ADDRESS_SPACE, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
@@ -511,12 +511,12 @@ mod test {
 
         for i in 0..=0xffff {
             machine
-                .memory_translation_table()
+                .memory_translation_table
                 .write(i, ADDRESS_SPACE, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
-                .memory_translation_table()
+                .memory_translation_table
                 .read(i, ADDRESS_SPACE, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 1]);

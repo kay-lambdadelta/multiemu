@@ -173,7 +173,12 @@ impl MachineBuilder {
             }
 
             if let Some(task_metadata) = component_metadata.task {
-                tasks.push((component_id, task_metadata.frequency, task_metadata.task));
+                tasks.extend(
+                    task_metadata
+                        .tasks
+                        .into_iter()
+                        .map(|(frequency, callback)| (component_id, frequency, callback)),
+                );
             }
 
             if let Some(input_metadata) = component_metadata.input {

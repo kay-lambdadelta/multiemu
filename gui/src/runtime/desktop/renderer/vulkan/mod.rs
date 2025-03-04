@@ -208,7 +208,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         }
 
         // HACK: This only works with a single component
-        for (component_id, framebuffer_receiver) in machine.framebuffer_receivers() {
+        for (component_id, framebuffer_receiver) in &machine.component_framebuffers {
             if let Ok(framebuffer) = framebuffer_receiver.try_recv() {
                 self.previously_seen_frames
                     .insert(*component_id, framebuffer);
@@ -284,7 +284,8 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
         let command_buffer = command_buffer.build().unwrap();
 
-        // Swap that swapchain very painfully
+        self.display_api_handle.pre_present_notify();
+        // Swap that swapchain
         match self
             .previous_frame_future
             .take()

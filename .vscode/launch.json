@@ -19,10 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": [
-                "run-external",
-                "roms/octojam2title.ch8"
-            ],
+            "args": [],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -218,6 +215,82 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_audio'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-audio"
+                ],
+                "filter": {
+                    "name": "multiemu_audio",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_nes'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-nes"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_nes",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'rom_parse'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=rom_parse",
+                    "--package=multiemu-definition-nes"
+                ],
+                "filter": {
+                    "name": "rom_parse",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_m6502'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-m6502"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_m6502",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'multiemu_wgsl_bindgen'",
             "cargo": {
                 "args": [
@@ -284,44 +357,6 @@
                 ],
                 "filter": {
                     "name": "multiemu_definition_i8080",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_definition_m6502'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=multiemu-definition-m6502"
-                ],
-                "filter": {
-                    "name": "multiemu_definition_m6502",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_definition_nes'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=multiemu-definition-nes"
-                ],
-                "filter": {
-                    "name": "multiemu_definition_nes",
                     "kind": "lib"
                 }
             },

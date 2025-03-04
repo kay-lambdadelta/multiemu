@@ -178,7 +178,7 @@ mod test {
         let mut buffer = [0; 8];
 
         machine
-            .memory_translation_table()
+            .memory_translation_table
             .read(0x10000, ADDRESS_SPACE, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
@@ -214,7 +214,7 @@ mod test {
         let buffer = [0; 8];
 
         machine
-            .memory_translation_table()
+            .memory_translation_table
             .write(0x10000, ADDRESS_SPACE, &buffer)
             .unwrap();
     }

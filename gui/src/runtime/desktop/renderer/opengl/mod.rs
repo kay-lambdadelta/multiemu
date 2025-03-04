@@ -50,6 +50,15 @@ impl RenderingBackendState for OpenGlRenderingRuntime {
             )
         }?;
 
+        #[cfg(target_os = "windows")]
+        let display = unsafe {
+            glutin::display::Display::new(
+                #[allow(deprecated)]
+                display_api_handle.raw_display_handle()?,
+                glutin::display::DisplayApiPreference::Wgl(display_api_handle.raw_window_handle()?),
+            )
+        }?;
+
         let potential_configs: Vec<_> =
             unsafe { display.find_configs(glutin::config::ConfigTemplateBuilder::new().build()) }?
                 .filter(|config| {
@@ -128,6 +137,7 @@ impl RenderingBackendState for OpenGlRenderingRuntime {
         self.gui_renderer
             .render(egui_context, &mut render_buffer, full_output);
 
+        self.display_api_handle.pre_present_notify();
         render_buffer.finish().unwrap();
     }
 

@@ -337,7 +337,7 @@ fn m6502_instruction_decode() {
         .build::<SoftwareRendering>(Default::default());
 
         let (decoded_instruction_result, decoded_instruction_result_size) =
-            decode_instruction(0x0, ADDRESS_SPACE, machine.memory_translation_table()).unwrap();
+            decode_instruction(0x0, ADDRESS_SPACE, &machine.memory_translation_table).unwrap();
 
         assert_eq!(
             (decoded_instruction, decoded_instruction_size),

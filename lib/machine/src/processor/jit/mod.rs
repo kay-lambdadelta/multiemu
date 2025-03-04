@@ -24,7 +24,10 @@ pub trait InstructionTranslator: Send + Sync {
     );
 }
 
-pub struct InstructionJitExecutor<T: InstructionTranslator> {
+pub struct InstructionJitExecutor<T: InstructionTranslator>
+where
+    Self: Send,
+{
     translator: T,
     blocks: RangeInclusiveMap<usize, Block>,
     module: JITModule,

@@ -20,33 +20,9 @@ pub mod scheduler;
 
 pub struct Machine<R: RenderBackend> {
     pub scheduler: Scheduler,
-    component_store: Arc<ComponentStore>,
-    memory_translation_table: Arc<MemoryTranslationTable>,
-    component_framebuffers: HashMap<ComponentId, Receiver<R::ComponentFramebuffer>>,
-    virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>>,
-    game_system: GameSystem,
-}
-
-impl<R: RenderBackend> Machine<R> {
-    pub fn memory_translation_table(&self) -> &Arc<MemoryTranslationTable> {
-        &self.memory_translation_table
-    }
-
-    pub fn component_store(&self) -> &Arc<ComponentStore> {
-        &self.component_store
-    }
-
-    pub fn framebuffer_receivers(
-        &self,
-    ) -> &HashMap<ComponentId, Receiver<R::ComponentFramebuffer>> {
-        &self.component_framebuffers
-    }
-
-    pub fn virtual_gamepads(&self) -> &HashMap<VirtualGamepadId, Arc<VirtualGamepad>> {
-        &self.virtual_gamepads
-    }
-
-    pub fn game_system(&self) -> GameSystem {
-        self.game_system
-    }
+    pub component_store: Arc<ComponentStore>,
+    pub memory_translation_table: Arc<MemoryTranslationTable>,
+    pub component_framebuffers: HashMap<ComponentId, Receiver<R::ComponentFramebuffer>>,
+    pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>>,
+    pub game_system: GameSystem,
 }

@@ -44,7 +44,7 @@ pub struct MenuState {
     open_menu_item: MenuItem,
     file_browser_state: FileBrowserState,
     environment: Arc<RwLock<Environment>>,
-    pub egui_context: egui::Context,
+    egui_context: egui::Context,
 }
 
 impl MenuState {

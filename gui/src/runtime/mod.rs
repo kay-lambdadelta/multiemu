@@ -5,9 +5,11 @@ use multiemu_rom::manager::RomManager;
 use multiemu_rom::system::GameSystem;
 use std::sync::{Arc, RwLock};
 
+#[cfg(target_os = "linux")]
+pub mod linux;
+
 #[cfg(platform_desktop)]
 pub mod desktop;
-
 #[cfg(platform_desktop)]
 pub use desktop::PlatformRuntime;
 #[cfg(platform_desktop)]

@@ -22,8 +22,8 @@ impl ShaderCrossCompiler for SpirvShaderCrossCompiler {
             .clone();
 
         let vertex_output = naga::back::spv::write_vec(
-            &module,
-            &module_info,
+            module,
+            module_info,
             &Options {
                 lang_version: (
                     version.major.try_into().unwrap(),
@@ -46,8 +46,8 @@ impl ShaderCrossCompiler for SpirvShaderCrossCompiler {
             .clone();
 
         let fragment_output = naga::back::spv::write_vec(
-            &module,
-            &module_info,
+            module,
+            module_info,
             &Options {
                 lang_version: (
                     version.major.try_into().unwrap(),

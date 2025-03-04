@@ -1,42 +1,33 @@
 use super::{Component, ComponentId, component_ref::ComponentRef};
-use crossbeam::channel::Sender;
 use fxhash::FxBuildHasher;
 use std::{
     borrow::Cow,
-    cell::{OnceCell, RefCell},
+    cell::{LazyCell, RefCell},
     collections::HashMap,
     fmt::Debug,
     sync::Arc,
 };
-use strum::Display;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
-pub enum TaskId {
-    Main,
-    Worker(u8),
-}
 
 enum ComponentLocation {
+    MainThread,
     Global(Arc<dyn Component + Send + Sync>),
-    Task(TaskId),
 }
 
 impl Debug for ComponentLocation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ComponentLocation::Global { .. } => write!(f, "Global"),
-            ComponentLocation::Task(task_id) => write!(f, "Task({task_id})"),
+            ComponentLocation::MainThread => f.write_str("MainThread"),
+            ComponentLocation::Global(_) => f.write_str("Global"),
         }
     }
 }
 
 thread_local! {
-    static WORKER_TASK_ID: OnceCell<TaskId> = const { OnceCell::new() };
-    static MAIN_THREAD_COMPONENT_STORE: OnceCell<RefCell<HashMap<ComponentId, Arc<dyn Component>>>> =
-        OnceCell::new();
+    static IS_MAIN_THREAD: RefCell<bool> = RefCell::new(false);
+    static LOCAL_COMPONENT_STORE: LazyCell<RefCell<HashMap<ComponentId, Arc<dyn Component>>>> = const { LazyCell::new(RefCell::default) };
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ComponentStore
 // This absolutely has to be thread-safe
 where
@@ -44,7 +35,6 @@ where
 {
     component_ids: scc::HashMap<Cow<'static, str>, ComponentId, FxBuildHasher>,
     component_location: scc::HashMap<ComponentId, ComponentLocation, FxBuildHasher>,
-    external_executors: scc::HashMap<u8, Sender<Box<dyn FnOnce(&dyn Component) + Send>>>,
 }
 
 impl ComponentStore {
@@ -54,10 +44,12 @@ impl ComponentStore {
         component_id: ComponentId,
         component: impl Component,
     ) {
-        MAIN_THREAD_COMPONENT_STORE.with(|task_component_store| {
-            let mut task_component_store = task_component_store
-                .get_or_init(RefCell::default)
-                .borrow_mut();
+        IS_MAIN_THREAD.with(|is_main_thread| {
+            assert!(*is_main_thread.borrow());
+        });
+
+        LOCAL_COMPONENT_STORE.with(|task_component_store| {
+            let mut task_component_store = task_component_store.borrow_mut();
             task_component_store.insert(component_id, Arc::new(component));
         });
 
@@ -66,7 +58,7 @@ impl ComponentStore {
             .unwrap();
 
         self.component_location
-            .insert(component_id, ComponentLocation::Task(TaskId::Main))
+            .insert(component_id, ComponentLocation::MainThread)
             .unwrap();
     }
 
@@ -76,6 +68,10 @@ impl ComponentStore {
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
+        IS_MAIN_THREAD.with(|is_main_thread| {
+            assert!(*is_main_thread.borrow());
+        });
+
         self.component_ids
             .insert(Cow::Borrowed(manifest_name), component_id)
             .unwrap();
@@ -93,23 +89,26 @@ impl ComponentStore {
         callback: impl FnOnce(&dyn Component) + Send,
     ) {
         tracing::trace!("Interacting with component {:?}", component_id);
+        let is_main_thread = IS_MAIN_THREAD.with(|is_main_thread| *is_main_thread.borrow());
 
         self.component_location
             .read(&component_id, |_, location| match location {
-                ComponentLocation::Task(TaskId::Main) => {
-                    MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
-                        let thread_component_store = thread_component_store.get().unwrap().borrow();
-                        let component = thread_component_store.get(&component_id).unwrap();
-                        callback(component.as_ref());
-                    });
+                ComponentLocation::MainThread => {
+                    if is_main_thread {
+                        LOCAL_COMPONENT_STORE.with(|thread_component_store| {
+                            let thread_component_store = thread_component_store.borrow();
+                            let component = thread_component_store.get(&component_id).unwrap();
+                            callback(component.as_ref());
+                        });
+                    } else {
+                        unimplemented!()
+                    }
                 }
                 ComponentLocation::Global(component) => {
                     callback(component.as_ref());
                 }
-                ComponentLocation::Task(TaskId::Worker(_)) => {
-                    todo!()
-                }
-            });
+            })
+            .expect("Could not locate component");
     }
 
     #[inline]
@@ -120,22 +119,26 @@ impl ComponentStore {
         callback: impl FnOnce(&dyn Component),
     ) {
         tracing::trace!("Interacting with component {:?}", component_id);
+        let is_main_thread = IS_MAIN_THREAD.with(|is_main_thread| *is_main_thread.borrow());
+
         self.component_location
             .read(&component_id, |_, location| match location {
-                ComponentLocation::Task(TaskId::Main) => {
-                    MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
-                        let thread_component_store = thread_component_store.get().unwrap().borrow();
-                        let component = thread_component_store.get(&component_id).unwrap();
-                        callback(component.as_ref());
-                    });
+                ComponentLocation::MainThread => {
+                    if is_main_thread {
+                        LOCAL_COMPONENT_STORE.with(|thread_component_store| {
+                            let thread_component_store = thread_component_store.borrow();
+                            let component = thread_component_store.get(&component_id).unwrap();
+                            callback(component.as_ref());
+                        });
+                    } else {
+                        panic!("Could not interact with component")
+                    }
                 }
                 ComponentLocation::Global(component) => {
                     callback(component.as_ref());
                 }
-                ComponentLocation::Task(TaskId::Worker(_)) => {
-                    panic!("Cannot iteract with a worker thread from this function");
-                }
-            });
+            })
+            .expect("Could not locate component");
     }
 
     #[inline]
@@ -162,5 +165,25 @@ impl ComponentStore {
         };
 
         Some(ComponentRef::new(component_id, component, self.clone()))
+    }
+
+    pub fn poll_accesses(&self) {}
+}
+
+impl Default for ComponentStore {
+    fn default() -> Self {
+        IS_MAIN_THREAD.with(|is_main_thread| {
+            *is_main_thread.borrow_mut() = true;
+        });
+
+        LOCAL_COMPONENT_STORE.with(|task_component_store| {
+            let mut task_component_store = task_component_store.borrow_mut();
+            task_component_store.clear();
+        });
+
+        Self {
+            component_ids: scc::HashMap::default(),
+            component_location: scc::HashMap::default(),
+        }
     }
 }

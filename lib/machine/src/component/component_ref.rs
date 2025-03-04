@@ -1,5 +1,8 @@
 use super::{Component, ComponentId, store::ComponentStore};
-use std::{any::TypeId, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+};
 
 enum ComponentLocation {
     Here(Arc<dyn Component + Send + Sync>),
@@ -23,8 +26,9 @@ impl<C: Component> ComponentRef<C> {
         component_store: Arc<ComponentStore>,
     ) -> Self {
         if let Some(component) = component {
-            assert!(
-                TypeId::of::<C>() == component.as_ref().type_id(),
+            assert_eq!(
+                TypeId::of::<C>(),
+                component.as_ref().type_id(),
                 "Component type mismatch"
             );
 
@@ -45,8 +49,8 @@ impl<C: Component> ComponentRef<C> {
     pub fn interact(&self, callback: impl FnOnce(&C) + Send) {
         match &self.location {
             ComponentLocation::Here(component) => {
-                // FIXME: I would like to skip the downcast but i dunno if its possible
-                let component = component.as_any().downcast_ref::<C>().unwrap();
+                // SAFETY: We know that the component is of type C, this is not constructable otherwise
+                let component = unsafe { &*(component.as_any() as *const dyn Any as *const C) };
                 callback(component);
             }
             ComponentLocation::Elsewhere(component_id) => {

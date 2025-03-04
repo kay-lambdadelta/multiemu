@@ -73,7 +73,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         );
         surface_buffer_view.fill(Packed::<Argb, u32>::pack(Srgba::new(0, 0, 0, 0xff)));
 
-        for (component_id, framebuffer_receiver) in machine.framebuffer_receivers() {
+        for (component_id, framebuffer_receiver) in &machine.component_framebuffers {
             if let Ok(framebuffer) = framebuffer_receiver.try_recv() {
                 self.previously_seen_frames
                     .insert(*component_id, framebuffer);
@@ -176,6 +176,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             }
         }
 
+        self.display_api_handle.pre_present_notify();
         surface_buffer.present().unwrap();
     }
 
@@ -194,6 +195,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         self.egui_renderer
             .render::<Argb>(egui_context, surface_buffer_view, full_output);
 
+        self.display_api_handle.pre_present_notify();
         surface_buffer.present().unwrap();
     }
 

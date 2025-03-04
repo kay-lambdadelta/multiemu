@@ -1,11 +1,13 @@
+use super::RuntimeMode;
 use crate::build_machine::build_machine;
 use crate::gui::menu::UiOutput;
 use crate::runtime::desktop::keyboard::KEYBOARD_ID;
+use crate::runtime::task::RuntimeBoundMessage;
 use crate::timing_tracker::TimingTracker;
 use crate::{gui::menu::MenuState, rendering_backend::RenderingBackendState};
 use crossbeam::channel::{Receiver, TryRecvError};
 use multiemu_config::Environment;
-use multiemu_input::{GamepadId, Input, InputState};
+use multiemu_input::GamepadId;
 use multiemu_machine::Machine;
 use multiemu_machine::builder::display::BackendSpecificData;
 use multiemu_machine::display::{ContextExtensionSpecification, RenderBackend};
@@ -20,52 +22,18 @@ use std::fs::File;
 use std::sync::{Arc, Mutex, RwLock};
 use winit::window::Window;
 
-pub enum Message {
-    Input {
-        id: GamepadId,
-        input: Input,
-        state: InputState,
-    },
-    RunMachine {
-        game_system: GameSystem,
-        user_specified_roms: Vec<RomId>,
-    },
-}
-
-enum RuntimeMode<R: RenderBackend> {
-    Idle,
-    Pending {
-        game_system: GameSystem,
-        user_specified_roms: Vec<RomId>,
-    },
-    Running {
-        machine: Machine<R>,
-    },
-}
-
-pub struct MainLoop<
-    R: RenderBackend,
-    RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>,
-> {
-    message_channel: Receiver<Message>,
-    display_api_handle: RS::DisplayApiHandle,
-    rendering_backend: RS,
-    menu_state: MenuState,
-    menu_active: bool,
-    mode: RuntimeMode<R>,
-    egui_winit: Arc<Mutex<egui_winit::State>>,
+pub struct MainLoop {
+    message_channel: Receiver<RuntimeBoundMessage>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
     previously_seen_window_size: Vector2<u16>,
-    timing_tracker: TimingTracker,
-    gamepad_mapping: HashMap<GamepadId, VirtualGamepadId>,
 }
 
 impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>>
     MainLoop<R, RS>
 {
     pub fn new(
-        message_channel: Receiver<Message>,
+        message_channel: Receiver<RuntimeBoundMessage>,
         display_api_handle: RS::DisplayApiHandle,
         rom_manager: Arc<RomManager>,
         environment: Arc<RwLock<Environment>>,
@@ -76,13 +44,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
 
         Self {
             message_channel,
-            rendering_backend: RS::new(
-                display_api_handle.clone(),
-                <R as RenderBackend>::ContextExtensionSpecification::default(),
-                <R as RenderBackend>::ContextExtensionSpecification::default(),
-                environment.clone(),
-            )
-            .unwrap(),
+            rendering_backend: ,
             egui_winit,
             previously_seen_window_size: {
                 let window_size = display_api_handle.inner_size();
@@ -104,7 +66,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             loop {
                 match self.message_channel.try_recv() {
                     Ok(message) => match message {
-                        Message::Input { id, input, state } => {
+                        RuntimeBoundMessage::Input { id, input, state } => {
                             tracing::trace!("Input received: {:?}: {:?} {:?}", id, input, state);
 
                             if let Some(virtual_id) = self.gamepad_mapping.get(&id) {
@@ -130,7 +92,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                                 }
                             }
                         }
-                        Message::RunMachine {
+                        RuntimeBoundMessage::RunMachine {
                             game_system,
                             user_specified_roms,
                         } => {
@@ -239,54 +201,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             }
 
             if matches!(self.mode, RuntimeMode::Pending { .. }) {
-                let RuntimeMode::Pending {
-                    game_system,
-                    user_specified_roms,
-                } = std::mem::replace(&mut self.mode, RuntimeMode::Idle)
-                else {
-                    unreachable!()
-                };
 
-                tracing::info!("Starting up machine for {}", game_system);
-
-                let machine_builder = build_machine(
-                    game_system,
-                    user_specified_roms,
-                    self.rom_manager.clone(),
-                    self.environment.clone(),
-                );
-
-                let mut preferred_extensions = R::ContextExtensionSpecification::default();
-                let mut required_extensions = R::ContextExtensionSpecification::default();
-
-                for (_component_id, component) in machine_builder.component_metadata.iter() {
-                    if let Some(display) = &component.display {
-                        let backend_specific_data = display
-                            .backend_specific_data
-                            .get(&TypeId::of::<R>())
-                            .and_then(|data| data.downcast_ref::<BackendSpecificData<R>>())
-                            .expect("Could not find display backend data for component");
-
-                        preferred_extensions = preferred_extensions
-                            .combine(backend_specific_data.preferred_extensions.clone());
-                        required_extensions = required_extensions
-                            .combine(backend_specific_data.required_extensions.clone());
-                    }
-                }
-
-                let machine = machine_builder
-                    .build::<R>(self.rendering_backend.component_initialization_data());
-
-                // HACK: Map the keyboard to the first gamepad
-
-                if let Some(virtual_gamepad_id) = machine.virtual_gamepads().keys().next().copied()
-                {
-                    self.gamepad_mapping.insert(KEYBOARD_ID, virtual_gamepad_id);
-                }
-
-                self.mode = RuntimeMode::Running { machine };
-
-                self.menu_active = false;
             }
         }
     }

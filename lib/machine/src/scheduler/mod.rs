@@ -5,55 +5,70 @@ use itertools::Itertools;
 use num::ToPrimitive;
 use num::{Integer, integer::lcm, rational::Ratio};
 use rangemap::RangeInclusiveMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
 
+type TaskId = u16;
+
 pub mod task;
 
-pub type StoredTask = Box<dyn FnMut(&dyn Component, u64) + 'static>;
+struct StoredTask {
+    pub component_id: ComponentId,
+    pub task: Mutex<Box<dyn FnMut(&dyn Component, u64) + Send + 'static>>,
+}
 
 pub struct Scheduler {
     current_tick: u64,
     rollover_tick: u64,
     tick_real_time: Ratio<u64>,
-    schedule: RangeInclusiveMap<u64, Vec<ComponentId>>,
     allotted_time: Duration,
     component_store: Arc<ComponentStore>,
-    tasks: HashMap<ComponentId, (Ratio<u64>, StoredTask), FxBuildHasher>,
+    schedule: RangeInclusiveMap<u64, Vec<TaskId>>,
+    tasks: HashMap<TaskId, StoredTask, FxBuildHasher>,
 }
 
 impl Scheduler {
     pub fn new(
         component_store: Arc<ComponentStore>,
-        tasks: impl IntoIterator<Item = (ComponentId, Ratio<u64>, StoredTask)>,
+        tasks: impl IntoIterator<
+            Item = (
+                ComponentId,
+                Ratio<u64>,
+                Box<dyn FnMut(&dyn Component, u64) + Send + 'static>,
+            ),
+        >,
     ) -> Self {
-        let tasks: HashMap<_, _, _> = tasks
+        let tasks: HashMap<_, _, FxBuildHasher> = tasks
             .into_iter()
-            .map(|(component_id, frequency, task)| (component_id, (frequency, task)))
+            .enumerate()
+            .map(|(task_id, (component_id, frequency, task))| {
+                (
+                    task_id.try_into().expect("Too many tasks"),
+                    (
+                        StoredTask {
+                            task: Mutex::new(task),
+                            component_id,
+                        },
+                        frequency,
+                    ),
+                )
+            })
             .collect();
-
-        for (component_id, (frequency, _)) in tasks.iter() {
-            tracing::debug!(
-                "Component {:?} will run {} times per second",
-                component_id,
-                frequency
-            );
-        }
 
         let common_denominator = tasks
             .values()
-            .map(|(frequency, _)| *frequency.recip().denom())
+            .map(|(_, frequency)| *frequency.recip().denom())
             .fold(1, |acc, denom| acc.lcm(&denom));
 
         // Adjust numerators to the common denominator
-        let adjusted_numerators: HashMap<_, _> = tasks
+        let adjusted_numerators: HashMap<_, _, FxBuildHasher> = tasks
             .iter()
-            .map(|(component_id, (frequency, _))| {
+            .map(|(task_id, (_, frequency))| {
                 let factor = common_denominator / frequency.denom();
-                (*component_id, frequency.numer() * factor)
+                (*task_id, frequency.numer() * factor)
             })
             .collect();
 
@@ -63,9 +78,9 @@ impl Scheduler {
             .reduce(lcm)
             .unwrap_or(1);
 
-        let ratios: HashMap<_, _> = adjusted_numerators
+        let ratios: HashMap<_, _, FxBuildHasher> = adjusted_numerators
             .iter()
-            .map(|(component_id, numerator)| (*component_id, common_multiple / numerator))
+            .map(|(task_id, numerator)| (*task_id, common_multiple / numerator))
             .collect();
 
         // Fill out the schedule
@@ -73,21 +88,19 @@ impl Scheduler {
 
         let mut current_tick = 0;
         while current_tick < common_denominator {
-            // This is (component_id, tick_rate, run_indication)
+            // This is (task_id, tick_rate, run_indication)
             let to_run: Vec<_> = ratios
                 .iter()
-                .map(|(component_id, tick_rate)| {
-                    (*component_id, current_tick % *tick_rate, *tick_rate)
-                })
+                .map(|(task_id, tick_rate)| (*task_id, current_tick % *tick_rate, *tick_rate))
                 .sorted_by_key(|(_, run_indication, _)| *run_indication)
                 .collect();
 
             if to_run.len() == 1 {
-                let (component_id, _, tick_rate) = to_run[0];
+                let (task_id, _, tick_rate) = to_run[0];
                 let time_slice = tick_rate;
                 schedule.insert(
                     current_tick..=(current_tick + time_slice - 1),
-                    vec![component_id],
+                    vec![task_id],
                 );
                 current_tick += time_slice;
                 continue;
@@ -106,11 +119,11 @@ impl Scheduler {
                 // Full efficient batching
                 1 => {
                     let batch_size = to_run[1].2 - to_run[1].1;
-                    let (component_id, _, tick_rate) = to_run[0];
+                    let (task_id, _, tick_rate) = to_run[0];
                     let normalized_batch_size = batch_size / tick_rate;
                     schedule.insert(
                         current_tick..=(current_tick + normalized_batch_size - 1),
-                        vec![component_id],
+                        vec![task_id],
                     );
                     current_tick += batch_size;
                 }
@@ -120,9 +133,9 @@ impl Scheduler {
                         current_tick..=current_tick,
                         to_run
                             .into_iter()
-                            .filter_map(|(component_id, run_indication, _)| {
+                            .filter_map(|(task_id, run_indication, _)| {
                                 if run_indication == 0 {
-                                    return Some(component_id);
+                                    return Some(task_id);
                                 }
 
                                 None
@@ -150,7 +163,10 @@ impl Scheduler {
             schedule,
             allotted_time: Duration::from_secs_f32(Ratio::new(1, 60).to_f32().unwrap()),
             component_store,
-            tasks,
+            tasks: tasks
+                .into_iter()
+                .map(|(id, (task, _))| (id, task))
+                .collect(),
         }
     }
 
@@ -168,15 +184,15 @@ impl Scheduler {
                 break;
             }
 
-            if let Some((time_slice, component_ids)) =
-                self.schedule.get_key_value(&self.current_tick)
-            {
+            if let Some((time_slice, task_ids)) = self.schedule.get_key_value(&self.current_tick) {
                 let ticks = time_slice.clone().count() as u64;
 
-                for component_id in component_ids {
-                    if let Some((_, task)) = self.tasks.get_mut(component_id) {
+                for task_id in task_ids {
+                    if let Some(task_info) = self.tasks.get(task_id) {
                         self.component_store
-                            .interact_dyn_local(*component_id, |component| {
+                            .interact_dyn(task_info.component_id, |component| {
+                                let mut task = task_info.task.lock().unwrap();
+
                                 task(component, ticks);
                             });
                     }

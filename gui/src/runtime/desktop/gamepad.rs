@@ -1,11 +1,12 @@
-use super::main_loop::Message;
-use crossbeam::channel::Sender;
 use gilrs::{Axis, Button, EventType, GilrsBuilder};
 use multiemu_input::{GamepadId, Input, InputState, gamepad::GamepadInput};
 use std::collections::HashMap;
 use uuid::Uuid;
+use winit::event_loop::EventLoopProxy;
 
-pub fn gamepad_task(sender: Sender<Message>) {
+use super::RuntimeBoundMessage;
+
+pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
     let mut gilrs_context = GilrsBuilder::new().build().unwrap();
     let mut non_stable_controller_identification = HashMap::new();
 
@@ -30,7 +31,7 @@ pub fn gamepad_task(sender: Sender<Message>) {
                 EventType::AxisChanged(axis, value, _) => {
                     if let Some((input, state)) = gilrs_axis2input(axis, value) {
                         if sender
-                            .send(Message::Input {
+                            .send_event(RuntimeBoundMessage::Input {
                                 id: gamepad_id,
                                 input,
                                 state,
@@ -44,7 +45,7 @@ pub fn gamepad_task(sender: Sender<Message>) {
                 EventType::ButtonChanged(button, value, _) => {
                     if let Some(input) = gilrs_button2input(button) {
                         if sender
-                            .send(Message::Input {
+                            .send_event(RuntimeBoundMessage::Input {
                                 id: gamepad_id,
                                 input,
                                 state: InputState::Analog(value),
