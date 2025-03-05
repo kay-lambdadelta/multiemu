@@ -144,7 +144,6 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                         let dest_start = Vector2::new(x, y)
                             .cast::<f32>()
                             .component_mul(&scaling)
-                            .map(f32::round)
                             .try_cast::<usize>()
                             .unwrap()
                             .zip_map(
@@ -156,7 +155,6 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                             .cast::<f32>()
                             .add_scalar(1.0)
                             .component_mul(&scaling)
-                            .map(f32::round)
                             .try_cast::<usize>()
                             .unwrap()
                             .zip_map(

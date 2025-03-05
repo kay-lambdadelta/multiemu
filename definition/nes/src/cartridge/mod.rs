@@ -11,7 +11,15 @@ use std::{io::Read, sync::Arc};
 pub mod ines;
 mod mapper;
 
-pub struct NesCartridge;
+pub struct NesCartridge {
+    rom: Arc<INes>,
+}
+
+impl NesCartridge {
+    pub fn rom(&self) -> Arc<INes> {
+        self.rom.clone()
+    }
+}
 
 impl Component for NesCartridge {}
 
@@ -44,9 +52,10 @@ impl FromConfig for NesCartridge {
         rom_file.read_to_end(&mut rom).unwrap();
 
         // Try parsing as a INES rom
-        let ines = INes::parse(&rom).unwrap();
-        let component_builder = construct_mapper(component_builder, ines);
+        let ines = Arc::new(INes::parse(&rom).unwrap());
+        tracing::debug!("Parsed ROM as {:#?}", ines);
 
-        component_builder.build_global(Self);
+        let component_builder = construct_mapper(component_builder, ines.clone());
+        component_builder.build_global(Self { rom: ines });
     }
 }

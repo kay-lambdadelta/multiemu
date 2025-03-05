@@ -1,5 +1,5 @@
 use super::decoder::InstructionDecoder;
-use crate::memory::memory_translation_table::MemoryTranslationTable;
+use crate::memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable};
 use rangemap::RangeInclusiveMap;
 use std::sync::Mutex;
 
@@ -36,6 +36,7 @@ impl<ID: InstructionDecoder> InstructionDecoder for InstructionCache<ID> {
     fn decode(
         &self,
         cursor: usize,
+        address_space: AddressSpaceId,
         memory_translation_table: &MemoryTranslationTable,
     ) -> Option<(Self::InstructionSet, u8)> {
         // TODO: Implement cache eviction
@@ -59,7 +60,8 @@ impl<ID: InstructionDecoder> InstructionDecoder for InstructionCache<ID> {
         }
 
         if let Some((instruction, instruction_length)) =
-            self.decoder.decode(cursor, memory_translation_table)
+            self.decoder
+                .decode(cursor, address_space, memory_translation_table)
         {
             decode_cache_guard.insert(
                 cursor..=(cursor + instruction_length as usize - 1),

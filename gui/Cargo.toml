@@ -18,6 +18,7 @@ multiemu-macros = { workspace = true }
 multiemu-audio = { workspace = true }
 multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
+multiemu-definition-atari2600 = { workspace = true }
 naga = { workspace = true }
 tracing = { workspace = true }
 strum = { workspace = true }
@@ -37,6 +38,7 @@ indexmap = { workspace = true }
 crossbeam = { workspace = true }
 palette = { workspace = true }
 uuid = { workspace = true }
+redb = { workspace = true }
 egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
 egui_extras = { version = "0.31", default-features = false, features = [
     "image",

@@ -24,6 +24,7 @@ pub enum AddressingMode {
 }
 
 impl AddressingMode {
+    #[inline]
     pub fn from_group1_addressing(
         cursor: u16,
         address_space: AddressSpaceId,
@@ -32,14 +33,163 @@ impl AddressingMode {
     ) -> (Self, u8) {
         match addressing_mode {
             0b000 => {
-                let mut indirect_byte = 0;
+                let mut indirect = 0;
                 let _ = memory_translation_table.read(
-                    cursor.wrapping_add(1) as usize,
+                    cursor as usize,
                     address_space,
-                    std::array::from_mut(&mut indirect_byte),
+                    std::array::from_mut(&mut indirect),
                 );
 
-                (AddressingMode::XIndexedZeroPageIndirect(indirect_byte), 1)
+                (AddressingMode::XIndexedZeroPageIndirect(indirect), 1)
+            }
+            0b001 => {
+                let mut indirect = 0;
+                let _ = memory_translation_table.read(
+                    cursor as usize,
+                    address_space,
+                    std::array::from_mut(&mut indirect),
+                );
+
+                (AddressingMode::ZeroPage(indirect), 1)
+            }
+            0b010 => {
+                let mut immediate = 0;
+                let _ = memory_translation_table.read(
+                    cursor as usize,
+                    address_space,
+                    std::array::from_mut(&mut immediate),
+                );
+
+                (AddressingMode::Immediate(immediate), 1)
+            }
+            0b011 => {
+                let mut indirect = [0; 2];
+                let _ =
+                    memory_translation_table.read(cursor as usize, address_space, &mut indirect);
+
+                (AddressingMode::Absolute(u16::from_le_bytes(indirect)), 2)
+            }
+            0b100 => {
+                let mut indirect = 0;
+                let _ = memory_translation_table.read(
+                    cursor as usize,
+                    address_space,
+                    std::array::from_mut(&mut indirect),
+                );
+
+                (AddressingMode::ZeroPageIndirectYIndexed(indirect), 1)
+            }
+            0b101 => {
+                let mut indirect = 0;
+                let _ = memory_translation_table.read(
+                    cursor as usize,
+                    address_space,
+                    std::array::from_mut(&mut indirect),
+                );
+
+                (AddressingMode::XIndexedZeroPage(indirect), 1)
+            }
+            0b110 => {
+                let mut absolute = [0; 2];
+                let _ =
+                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
+
+                (
+                    AddressingMode::YIndexedAbsolute(u16::from_le_bytes(absolute)),
+                    2,
+                )
+            }
+            0b111 => {
+                let mut absolute = [0; 2];
+                let _ =
+                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
+
+                (
+                    AddressingMode::XIndexedAbsolute(u16::from_le_bytes(absolute)),
+                    2,
+                )
+            }
+            _ => {
+                unreachable!()
+            }
+        }
+    }
+
+    #[inline]
+    pub fn from_group2_addressing(
+        cursor: u16,
+        address_space: AddressSpaceId,
+        memory_translation_table: &MemoryTranslationTable,
+        addressing_mode: u8,
+    ) -> (Self, u8) {
+        match addressing_mode {
+            0b000 => {
+                let mut indirect = 0;
+                let _ = memory_translation_table.read(
+                    cursor as usize,
+                    address_space,
+                    std::array::from_mut(&mut indirect),
+                );
+
+                (AddressingMode::XIndexedZeroPageIndirect(indirect), 1)
+            }
+            0b001 => {
+                let mut indirect = 0;
+                let _ = memory_translation_table.read(
+                    cursor as usize,
+                    address_space,
+                    std::array::from_mut(&mut indirect),
+                );
+
+                (AddressingMode::ZeroPage(indirect), 1)
+            }
+            0b010 => (AddressingMode::Accumulator, 0),
+            0b011 => {
+                let mut indirect = [0; 2];
+                let _ =
+                    memory_translation_table.read(cursor as usize, address_space, &mut indirect);
+
+                (AddressingMode::Absolute(u16::from_le_bytes(indirect)), 2)
+            }
+            0b100 => {
+                let mut indirect = 0;
+                let _ = memory_translation_table.read(
+                    cursor as usize,
+                    address_space,
+                    std::array::from_mut(&mut indirect),
+                );
+
+                (AddressingMode::ZeroPageIndirectYIndexed(indirect), 1)
+            }
+            0b101 => {
+                let mut indirect = 0;
+                let _ = memory_translation_table.read(
+                    cursor as usize,
+                    address_space,
+                    std::array::from_mut(&mut indirect),
+                );
+
+                (AddressingMode::XIndexedZeroPage(indirect), 1)
+            }
+            0b110 => {
+                let mut absolute = [0; 2];
+                let _ =
+                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
+
+                (
+                    AddressingMode::YIndexedAbsolute(u16::from_le_bytes(absolute)),
+                    2,
+                )
+            }
+            0b111 => {
+                let mut absolute = [0; 2];
+                let _ =
+                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
+
+                (
+                    AddressingMode::XIndexedAbsolute(u16::from_le_bytes(absolute)),
+                    2,
+                )
             }
             _ => {
                 unreachable!()

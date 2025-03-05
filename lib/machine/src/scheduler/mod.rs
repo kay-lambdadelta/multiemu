@@ -151,9 +151,10 @@ impl Scheduler {
         let tick_real_time = Ratio::new(common_multiple, common_denominator).recip();
 
         tracing::debug!(
-            "Schedule ticks take {:?} and restarts at tick {}, a full cycle takes",
+            "Schedule ticks take {:?} and restarts at tick {}, a full cycle takes {:?}",
             Duration::from_secs_f64(tick_real_time.to_f64().unwrap()),
             common_denominator,
+            Duration::from_secs_f64(tick_real_time.to_f64().unwrap() * common_denominator as f64)
         );
 
         Self {

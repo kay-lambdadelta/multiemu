@@ -1,8 +1,14 @@
 use egui::{CentralPanel, ComboBox, Context, ScrollArea, SidePanel};
+use egui_extras::{Column, TableBuilder};
 use file_browser::{FileBrowserSortingMethod, FileBrowserState};
 use multiemu_config::Environment;
 use multiemu_config::graphics::GraphicsApi;
+use multiemu_rom::id::RomId;
+use multiemu_rom::info::RomInfo;
 use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
+use redb::ReadOnlyTable;
+use redb::ReadableTable;
+use redb::ReadableTableMetadata;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -39,16 +45,17 @@ impl Display for MenuItem {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct MenuState {
     open_menu_item: MenuItem,
     file_browser_state: FileBrowserState,
     environment: Arc<RwLock<Environment>>,
-    egui_context: egui::Context,
+    rom_manager: Arc<RomManager>,
+    table: ReadOnlyTable<RomId, RomInfo>,
 }
 
 impl MenuState {
-    pub fn new(egui_context: egui::Context, environment: Arc<RwLock<Environment>>) -> Self {
+    pub fn new(environment: Arc<RwLock<Environment>>, rom_manager: Arc<RomManager>) -> Self {
         let environment_guard = environment.read().unwrap();
 
         Self {
@@ -58,12 +65,18 @@ impl MenuState {
                 drop(environment_guard);
                 environment
             },
-            egui_context,
+            table: rom_manager
+                .rom_information
+                .begin_read()
+                .unwrap()
+                .open_table(ROM_INFORMATION_TABLE)
+                .unwrap(),
+            rom_manager,
         }
     }
 
     /// TODO: barely does anything
-    pub fn run_menu(&mut self, ctx: &Context, rom_manager: &RomManager) -> Option<UiOutput> {
+    pub fn run_menu(&mut self, ctx: &Context) -> Option<UiOutput> {
         let mut output = None;
 
         SidePanel::left("options_panel")
@@ -179,11 +192,52 @@ impl MenuState {
                         ui.checkbox(&mut environment_guard.graphics_setting.vsync, "VSync");
                     }
                     MenuItem::Database => {
-                        let database_transaction =
-                            rom_manager.rom_information.begin_read().unwrap();
-                        let database_table = database_transaction
-                            .open_table(ROM_INFORMATION_TABLE)
-                            .unwrap();
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            TableBuilder::new(ui)
+                                .striped(true)
+                                .column(Column::auto().resizable(true))
+                                .column(Column::auto().resizable(true))
+                                .column(Column::auto().resizable(true))
+                                .header(24.0, |mut header| {
+                                    header.col(|ui| {
+                                        ui.label("Name");
+                                    });
+                                    header.col(|ui| {
+                                        ui.label("System");
+                                    });
+                                    header.col(|ui| {
+                                        ui.label("ID");
+                                    });
+                                })
+                                .body(|body| {
+                                    body.rows(
+                                        24.0,
+                                        self.table.len().unwrap() as usize,
+                                        |mut row| {
+                                            let (rom_id, rom_info) = self
+                                                .table
+                                                .iter()
+                                                .unwrap()
+                                                .nth(row.index())
+                                                .unwrap()
+                                                .unwrap();
+
+                                            let (rom_id, rom_info) =
+                                                (rom_id.value(), rom_info.value());
+
+                                            row.col(|ui| {
+                                                ui.label(rom_info.name.to_string());
+                                            });
+                                            row.col(|ui| {
+                                                ui.label(rom_info.system.to_string());
+                                            });
+                                            row.col(|ui| {
+                                                ui.label(rom_id.to_string());
+                                            });
+                                        },
+                                    );
+                                });
+                        });
                     }
                 },
             );

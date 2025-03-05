@@ -1,9 +1,5 @@
 use crate::{
-    Machine,
-    component::{Component, ComponentId, FromConfig, RuntimeEssentials},
-    display::RenderBackend,
-    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
-    scheduler::Scheduler,
+    component::{store::ComponentStore, Component, ComponentId, FromConfig, RuntimeEssentials}, display::RenderBackend, memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceId}, scheduler::Scheduler, Machine
 };
 use display::{BackendSpecificData, DisplayMetadata};
 use input::InputMetadata;
@@ -229,6 +225,10 @@ impl MachineBuilder {
                 .collect(),
             game_system: self.game_system,
         }
+    }
+
+    pub fn component_store(&self) -> &ComponentStore {
+        self.essentials.component_store()
     }
 }
 

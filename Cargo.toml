@@ -16,6 +16,7 @@ multiemu-definition-m6502 = { path = "definition/m6502" }
 multiemu-definition-chip8 = { path = "definition/chip8" }
 multiemu-definition-nes = { path = "definition/nes" }
 multiemu-definition-i8080 = { path = "definition/i8080" }
+multiemu-definition-atari2600 = { path = "definition/atari2600" }
 
 # External dependencies
 naga = "24.0"
@@ -33,7 +34,7 @@ nalgebra = { version = "0.33", features = [
     "convert-bytemuck",
     "rayon",
 ] }
-bytemuck = { version = "1.21", features = ["derive"] }
+bytemuck = { version = "1.22", features = ["derive"] }
 encase = { version = "0.10", features = ["nalgebra"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
@@ -69,8 +70,3 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
 debug = true
-
-[profile.release]
-codegen-units = 1
-opt-level = 3
-lto = "fat"

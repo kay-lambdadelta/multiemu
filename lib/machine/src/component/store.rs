@@ -23,7 +23,7 @@ impl Debug for ComponentLocation {
 }
 
 thread_local! {
-    static IS_MAIN_THREAD: RefCell<bool> = RefCell::new(false);
+    static IS_MAIN_THREAD: RefCell<bool> = const { RefCell::new(false) };
     static LOCAL_COMPONENT_STORE: LazyCell<RefCell<HashMap<ComponentId, Arc<dyn Component>>>> = const { LazyCell::new(RefCell::default) };
 }
 
@@ -142,7 +142,7 @@ impl ComponentStore {
     }
 
     #[inline]
-    pub(super) fn interact<C: Component>(
+    pub(crate) fn interact<C: Component>(
         &self,
         component_id: ComponentId,
         callback: impl FnOnce(&C) + Send,
@@ -151,6 +151,40 @@ impl ComponentStore {
             let component = component.as_any().downcast_ref::<C>().unwrap();
             callback(component);
         });
+    }
+
+    #[inline]
+    pub(crate) fn interact_local<C: Component>(
+        &self,
+        component_id: ComponentId,
+        callback: impl FnOnce(&C),
+    ) {
+        self.interact_dyn_local(component_id, |component| {
+            let component = component.as_any().downcast_ref::<C>().unwrap();
+            callback(component);
+        });
+    }
+
+    #[inline]
+    pub fn interact_by_name<C: Component>(
+        &self,
+        manifest_name: &str,
+        callback: impl FnOnce(&C) + Send,
+    ) {
+        let component_id = *self.component_ids.get(manifest_name).unwrap().get();
+
+        self.interact(component_id, callback);
+    }
+
+    #[inline]
+    pub fn interact_by_name_local<C: Component>(
+        &self,
+        manifest_name: &str,
+        callback: impl FnOnce(&C),
+    ) {
+        let component_id = *self.component_ids.get(manifest_name).unwrap().get();
+
+        self.interact_local(component_id, callback);
     }
 
     pub fn get<C: Component>(self: &Arc<Self>, manifest_name: &str) -> Option<ComponentRef<C>> {
@@ -166,8 +200,6 @@ impl ComponentStore {
 
         Some(ComponentRef::new(component_id, component, self.clone()))
     }
-
-    pub fn poll_accesses(&self) {}
 }
 
 impl Default for ComponentStore {

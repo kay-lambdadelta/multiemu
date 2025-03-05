@@ -159,9 +159,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                             .egui_winit
                             .take_egui_input(&windowing.display_api_handle),
                         |context| {
-                            ui_output = ui_output
-                                .take()
-                                .or(self.menu_state.run_menu(context, &self.rom_manager));
+                            ui_output = ui_output.take().or(self.menu_state.run_menu(context));
                         },
                     );
 

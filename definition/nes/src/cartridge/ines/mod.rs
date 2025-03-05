@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Read};
+use std::{collections::HashMap, fmt::Debug, io::Read};
 
 use bitvec::{field::BitField, prelude::Msb0, ptr::BitSpanError, view::BitView};
 use expansion_device::DefaultExpansionDevice;
@@ -64,7 +64,7 @@ pub enum RomType {
     Chr,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct INes {
     pub mapper: u16,
     pub alternative_nametables: bool,
@@ -73,6 +73,21 @@ pub struct INes {
     pub version: INesVersion,
     pub timing_mode: TimingMode,
     pub roms: HashMap<RomType, Vec<u8>>,
+}
+
+impl Debug for INes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("INes")
+            .field("mapper", &self.mapper)
+            .field("alternative_nametables", &self.alternative_nametables)
+            .field("non_volatile_memory", &self.non_volatile_memory)
+            .field("mirroring", &self.mirroring)
+            .field("version", &self.version)
+            .field("timing_mode",  &self.timing_mode)
+            // Omit the rom bytecode
+            .field("roms", &"..")
+            .finish()
+    }
 }
 
 impl INes {

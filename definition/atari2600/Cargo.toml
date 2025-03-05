@@ -1,5 +1,5 @@
 [package]
-name = "multiemu-definition-nes"
+name = "multiemu-definition-atari2600"
 version = "0.1.0"
 edition = "2024"
 
@@ -36,7 +36,3 @@ criterion = { workspace = true }
 jit = ["multiemu-machine/jit", "multiemu-definition-m6502/jit"]
 vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
 opengl = ["dep:glium", "multiemu-machine/opengl"]
-
-[[bench]]
-name = "rom_parse"
-harness = false

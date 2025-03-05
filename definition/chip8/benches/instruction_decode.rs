@@ -43,7 +43,11 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("decode", |b| {
         b.iter(|| {
             let address = rand::random_range(0..0x5000);
-            let _ = decoder.decode(address, black_box(&machine.memory_translation_table));
+            let _ = decoder.decode(
+                address,
+                ADDRESS_SPACE,
+                black_box(&machine.memory_translation_table),
+            );
         })
     });
 }

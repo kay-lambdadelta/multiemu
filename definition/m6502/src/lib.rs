@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-pub mod decode;
+pub mod decoder;
 pub mod instruction;
 pub mod interpret;
 
@@ -19,10 +19,7 @@ pub mod test;
 
 pub enum M6502Kind {
     /// Standard
-    M6502 {
-        /// Whether to emulated the broken ROR instruction
-        quirk_broken_ror: bool,
-    },
+    M6502,
     /// Slimmed down atari 2600 version
     M6507,
     /// NES version
@@ -98,9 +95,14 @@ pub struct M6502 {
 
 impl Component for M6502 {}
 
+#[derive(Debug, Default)]
+pub struct M6502Quirks {
+    pub broken_ror: bool,
+}
+
 impl FromConfig for M6502 {
     type Config = M6502Config;
-    type Quirks = ();
+    type Quirks = M6502Quirks;
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,

@@ -1,5 +1,6 @@
 use super::instruction::{AddressingMode, M6502InstructionSet, M6502InstructionSetSpecifier};
-use crate::decode::decode_instruction;
+use crate::decoder::M6502InstructionDecoder;
+use indexmap::IndexMap;
 use multiemu_config::Environment;
 use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
@@ -7,11 +8,12 @@ use multiemu_definition_misc::memory::standard::{
 use multiemu_machine::builder::MachineBuilder;
 use multiemu_machine::display::software::SoftwareRendering;
 use multiemu_machine::memory::AddressSpaceId;
+use multiemu_machine::processor::decoder::InstructionDecoder;
 use multiemu_rom::manager::RomManager;
 use multiemu_rom::system::GameSystem;
+use std::borrow::Cow;
 use std::hash::RandomState;
 use std::sync::{Arc, RwLock};
-use std::{borrow::Cow, collections::HashMap};
 
 const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
 
@@ -20,7 +22,7 @@ fn m6502_instruction_decode() {
     let environment = Arc::new(RwLock::new(Environment::load().unwrap()));
     let rom_manager = Arc::new(RomManager::new(None).unwrap());
 
-    let map: HashMap<_, _, RandomState> = HashMap::from_iter([
+    let map: IndexMap<_, _, RandomState> = IndexMap::from_iter([
         (
             [0x00].as_slice(),
             (
@@ -36,7 +38,7 @@ fn m6502_instruction_decode() {
             (
                 M6502InstructionSet {
                     specifier: M6502InstructionSetSpecifier::Ora,
-                    addressing_mode: Some(AddressingMode::Immediate(0xff)),
+                    addressing_mode: Some(AddressingMode::XIndexedZeroPageIndirect(0xff)),
                 },
                 2,
             ),
@@ -336,12 +338,16 @@ fn m6502_instruction_decode() {
         )
         .build::<SoftwareRendering>(Default::default());
 
-        let (decoded_instruction_result, decoded_instruction_result_size) =
-            decode_instruction(0x0, ADDRESS_SPACE, &machine.memory_translation_table).unwrap();
+        let instruction_decoder = M6502InstructionDecoder;
+        let (decoded_instruction_result, decoded_instruction_result_size) = instruction_decoder
+            .decode(0x0, ADDRESS_SPACE, &machine.memory_translation_table)
+            .unwrap();
 
         assert_eq!(
             (decoded_instruction, decoded_instruction_size),
-            (decoded_instruction_result, decoded_instruction_result_size)
+            (decoded_instruction_result, decoded_instruction_result_size),
+            "Instruction bytes was {:x?}",
+            instruction_binary
         );
     }
 }

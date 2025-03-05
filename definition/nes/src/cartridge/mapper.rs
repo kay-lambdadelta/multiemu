@@ -50,7 +50,7 @@ impl WriteMemory for MemoryCallbacks {
 
 pub fn construct_mapper(
     component_builder: ComponentBuilder<NesCartridge>,
-    ines: INes,
+    ines: Arc<INes>,
 ) -> ComponentBuilder<NesCartridge> {
     match ines.mapper {
         000 => {}

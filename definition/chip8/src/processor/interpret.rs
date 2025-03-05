@@ -4,7 +4,7 @@ use super::{
     instruction::{Chip8InstructionSet, InstructionSetChip8},
     task::Chip8ProcessorTask,
 };
-use crate::{ADDRESS_SPACE_ID, CHIP8_FONT, Chip8Kind};
+use crate::{CPU_ADDRESS_SPACE, CHIP8_FONT, Chip8Kind};
 use arrayvec::ArrayVec;
 use bitvec::field::BitField;
 use bitvec::prelude::{Lsb0, Msb0};
@@ -241,7 +241,7 @@ impl Chip8ProcessorTask {
                         .memory_translation_table()
                         .read(
                             state.registers.index as usize + cursor,
-                            ADDRESS_SPACE_ID,
+                            CPU_ADDRESS_SPACE,
                             buffer_section,
                         )
                         .unwrap();
@@ -322,21 +322,21 @@ impl Chip8ProcessorTask {
                 memory_translation_table
                     .write(
                         state.registers.index as usize,
-                        ADDRESS_SPACE_ID,
+                        CPU_ADDRESS_SPACE,
                         bytemuck::bytes_of(&hundreds),
                     )
                     .unwrap();
                 memory_translation_table
                     .write(
                         state.registers.index as usize + 1,
-                        ADDRESS_SPACE_ID,
+                        CPU_ADDRESS_SPACE,
                         bytemuck::bytes_of(&tens),
                     )
                     .unwrap();
                 memory_translation_table
                     .write(
                         state.registers.index as usize + 2,
-                        ADDRESS_SPACE_ID,
+                        CPU_ADDRESS_SPACE,
                         bytemuck::bytes_of(&ones),
                     )
                     .unwrap();
@@ -348,7 +348,7 @@ impl Chip8ProcessorTask {
                     memory_translation_table
                         .write(
                             state.registers.index as usize + i as usize,
-                            ADDRESS_SPACE_ID,
+                            CPU_ADDRESS_SPACE,
                             &state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();
@@ -366,7 +366,7 @@ impl Chip8ProcessorTask {
                     memory_translation_table
                         .read(
                             state.registers.index as usize + i as usize,
-                            ADDRESS_SPACE_ID,
+                            CPU_ADDRESS_SPACE,
                             &mut state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();

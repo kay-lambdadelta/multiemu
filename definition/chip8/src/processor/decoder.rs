@@ -1,9 +1,8 @@
-use crate::ADDRESS_SPACE_ID;
-
 use super::instruction::{Chip8InstructionSet, InstructionSetChip8, Register};
 use bitvec::field::BitField;
 use bitvec::prelude::Msb0;
 use bitvec::view::BitView;
+use multiemu_machine::memory::AddressSpaceId;
 use multiemu_machine::memory::memory_translation_table::MemoryTranslationTable;
 use multiemu_machine::processor::decoder::InstructionDecoder;
 use nalgebra::Point2;
@@ -17,11 +16,12 @@ impl InstructionDecoder for Chip8InstructionDecoder {
     fn decode(
         &self,
         cursor: usize,
+        address_space: AddressSpaceId,
         memory_translation_table: &MemoryTranslationTable,
     ) -> Option<(Chip8InstructionSet, u8)> {
         let mut instruction = [0; 2];
         memory_translation_table
-            .read(cursor, ADDRESS_SPACE_ID, &mut instruction)
+            .read(cursor, address_space, &mut instruction)
             .unwrap();
 
         decode_instruction(instruction).map(|i| (i, 2))

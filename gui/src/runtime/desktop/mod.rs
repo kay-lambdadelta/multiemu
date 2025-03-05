@@ -51,7 +51,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
 {
     fn launch_gui(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>) {
         let egui_context = egui::Context::default();
-        let menu_state = MenuState::new(egui_context.clone(), environment.clone());
+        let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
 
         let mut me = Self {
             windowing: None,
@@ -91,7 +91,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
         environment: Arc<RwLock<Environment>>,
     ) {
         let egui_context = egui::Context::default();
-        let menu_state = MenuState::new(egui_context.clone(), environment.clone());
+        let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
 
         let mut me = Self {
             windowing: None,
