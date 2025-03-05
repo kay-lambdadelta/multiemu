@@ -37,6 +37,8 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
         }
 
         let display_api_handle = setup_window(event_loop);
+
+        tracing::debug!("Scale factor: {}", display_api_handle.scale_factor());
         let egui_winit = egui_winit::State::new(
             self.egui_context.clone(),
             ViewportId::ROOT,
@@ -45,7 +47,6 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             None,
             None,
         );
-        let rom_manager = self.rom_manager.clone();
         let environment = self.environment.clone();
 
         let state = match std::mem::replace(&mut self.mode, RuntimeMode::Idle) {

@@ -1,12 +1,11 @@
 use std::{
     fs::read_dir,
-    ops::Deref,
     path::{Path, PathBuf},
 };
 use strum::EnumIter;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, EnumIter)]
-pub enum FileBrowserSortingMethod {
+pub enum SortingMethod {
     Name,
     Date,
 }
@@ -15,15 +14,15 @@ pub enum FileBrowserSortingMethod {
 pub struct FileBrowserState {
     path: PathBuf,
     directory_contents: Vec<PathBuf>,
-    sorting_method: FileBrowserSortingMethod,
+    sorting_method: SortingMethod,
 }
 
 impl FileBrowserState {
     pub fn new(home_directory: PathBuf) -> Self {
         let mut me = Self {
             path: PathBuf::default(),
-            directory_contents: Vec::default(),
-            sorting_method: FileBrowserSortingMethod::Name,
+            directory_contents: Vec::new(),
+            sorting_method: SortingMethod::Name,
         };
         me.change_directory(home_directory);
         me
@@ -33,15 +32,15 @@ impl FileBrowserState {
         &self.path
     }
 
-    pub fn directory_contents(&self) -> impl Iterator<Item = &Path> {
-        self.directory_contents.iter().map(Deref::deref)
+    pub fn directory_contents(&self) -> &[PathBuf] {
+        &self.directory_contents
     }
 
-    pub fn get_sorting_method(&self) -> FileBrowserSortingMethod {
+    pub fn get_sorting_method(&self) -> SortingMethod {
         self.sorting_method
     }
 
-    pub fn set_sorting_method(&mut self, sorting_method: FileBrowserSortingMethod) {
+    pub fn set_sorting_method(&mut self, sorting_method: SortingMethod) {
         if self.sorting_method == sorting_method {
             return;
         }
@@ -53,8 +52,8 @@ impl FileBrowserState {
     pub fn sort_contents(&mut self) {
         self.directory_contents
             .sort_by(|a, b| match self.sorting_method {
-                FileBrowserSortingMethod::Name => a.file_name().into_iter().cmp(b.file_name()),
-                FileBrowserSortingMethod::Date => a
+                SortingMethod::Name => a.file_name().into_iter().cmp(b.file_name()),
+                SortingMethod::Date => a
                     .metadata()
                     .and_then(|m| m.modified())
                     .into_iter()
@@ -67,7 +66,11 @@ impl FileBrowserState {
         assert!(path.is_dir());
 
         self.path = path.clone();
-        self.directory_contents = read_dir(path).unwrap().map(|x| x.unwrap().path()).collect();
+        self.directory_contents = read_dir(path)
+            .unwrap()
+            .map(|path| path.unwrap().path())
+            .collect();
+
         self.sort_contents();
     }
 

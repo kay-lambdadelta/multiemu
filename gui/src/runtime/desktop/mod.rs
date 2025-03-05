@@ -2,6 +2,7 @@ use crate::gui::menu::MenuState;
 use crate::runtime::Runtime;
 use crate::{rendering_backend::RenderingBackendState, timing_tracker::TimingTracker};
 use audio::CpalAudio;
+use egui::{FontFamily, TextStyle, TextWrapMode};
 use gamepad::gamepad_task;
 use multiemu_config::Environment;
 use multiemu_input::{GamepadId, Input, InputState};
@@ -53,6 +54,8 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
         let egui_context = egui::Context::default();
         let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
 
+        setup_theme(&egui_context);
+
         let mut me = Self {
             windowing: None,
             rom_manager,
@@ -93,6 +96,8 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
         let egui_context = egui::Context::default();
         let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
 
+        setup_theme(&egui_context);
+
         let mut me = Self {
             windowing: None,
             rom_manager,
@@ -126,6 +131,26 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
 
         event_loop.run_app(&mut me).unwrap();
     }
+}
+
+fn setup_theme(egui_context: &egui::Context) {
+    egui_context.style_mut(|style| {
+        // Wrapping breaks tables
+        style.wrap_mode = Some(TextWrapMode::Extend);
+
+        style.text_styles.insert(
+            TextStyle::Body,
+            egui::FontId::new(18.0, FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            TextStyle::Button,
+            egui::FontId::new(20.0, FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            TextStyle::Heading,
+            egui::FontId::new(24.0, FontFamily::Proportional),
+        );
+    });
 }
 
 pub enum RuntimeBoundMessage {
