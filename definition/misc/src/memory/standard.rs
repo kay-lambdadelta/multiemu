@@ -191,17 +191,19 @@ impl ReadMemory for MemoryCallbacks {
             let chunk_end = if chunk_index == end_chunk {
                 requested_range.end() % PAGE_SIZE
             } else {
-                PAGE_SIZE
+                PAGE_SIZE - 1
             };
 
             // Lock the chunk and read the relevant part
             let locked_chunk = chunk.read().unwrap();
-            buffer[buffer_offset..=buffer_offset + chunk_end - chunk_start]
-                .copy_from_slice(&locked_chunk[chunk_start..=chunk_end]);
+            let chunk_range = chunk_start..=chunk_end;
+            let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
 
-            buffer_offset += chunk_end - chunk_start;
+            buffer[buffer_range].copy_from_slice(&locked_chunk[chunk_range]);
 
-            if buffer_offset >= buffer.len() {
+            buffer_offset += chunk_end - chunk_start + 1;
+
+            if buffer_offset > buffer.len() {
                 break;
             }
         }
@@ -270,17 +272,19 @@ impl MemoryCallbacks {
             let chunk_end = if chunk_index == end_chunk {
                 requested_range.end() % PAGE_SIZE
             } else {
-                PAGE_SIZE
+                PAGE_SIZE - 1
             };
 
             // Lock the chunk and read the relevant part
             let mut locked_chunk = chunk.write().unwrap();
-            locked_chunk[chunk_start..=chunk_end]
-                .copy_from_slice(&buffer[buffer_offset..=buffer_offset + chunk_end - chunk_start]);
+            let chunk_range = chunk_start..=chunk_end;
+            let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
 
-            buffer_offset += chunk_end - chunk_start;
+            locked_chunk[chunk_range].copy_from_slice(&buffer[buffer_range]);
 
-            if buffer_offset >= buffer.len() {
+            buffer_offset += chunk_end - chunk_start + 1;
+
+            if buffer_offset > buffer.len() {
                 break;
             }
         }
@@ -507,9 +511,9 @@ mod test {
                 },
             )
             .build::<SoftwareRendering>(Default::default());
-        let mut buffer = [0xff; 1];
 
-        for i in 0..=0xffff {
+        for i in 0..=0x5000 {
+            let mut buffer = [0xff; 1];
             machine
                 .memory_translation_table
                 .write(i, ADDRESS_SPACE, &buffer)
@@ -520,6 +524,42 @@ mod test {
                 .read(i, ADDRESS_SPACE, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 1]);
+
+            let mut buffer = [0xff; 2];
+            machine
+                .memory_translation_table
+                .write(i, ADDRESS_SPACE, &buffer)
+                .unwrap();
+            buffer.fill(0x00);
+            machine
+                .memory_translation_table
+                .read(i, ADDRESS_SPACE, &mut buffer)
+                .unwrap();
+            assert_eq!(buffer, [0xff; 2]);
+
+            let mut buffer = [0xff; 4];
+            machine
+                .memory_translation_table
+                .write(i, ADDRESS_SPACE, &buffer)
+                .unwrap();
+            buffer.fill(0x00);
+            machine
+                .memory_translation_table
+                .read(i, ADDRESS_SPACE, &mut buffer)
+                .unwrap();
+            assert_eq!(buffer, [0xff; 4]);
+
+            let mut buffer = [0xff; 8];
+            machine
+                .memory_translation_table
+                .write(i, ADDRESS_SPACE, &buffer)
+                .unwrap();
+            buffer.fill(0x00);
+            machine
+                .memory_translation_table
+                .read(i, ADDRESS_SPACE, &mut buffer)
+                .unwrap();
+            assert_eq!(buffer, [0xff; 8]);
         }
     }
 }

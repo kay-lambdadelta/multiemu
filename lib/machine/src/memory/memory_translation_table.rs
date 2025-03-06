@@ -216,10 +216,12 @@ impl MemoryTranslationTable {
         while let Some((address, buffer_subrange)) = needed_accesses.pop() {
             let accessing_range =
                 (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
+            let mut did_handle = false;
 
             for (component_assignment_range, read_callback) in
                 bus_info.read.overlapping(accessing_range.clone())
             {
+                did_handle = true;
                 let mut errors = RangeInclusiveMap::default();
 
                 let overlap_start = accessing_range
@@ -261,6 +263,13 @@ impl MemoryTranslationTable {
                     return Err(ReadMemoryOperationError(detected_errors));
                 }
             }
+
+            if !did_handle {
+                return Err(ReadMemoryOperationError(RangeInclusiveMap::from_iter([(
+                    accessing_range,
+                    ReadMemoryOperationErrorFailureType::OutOfBus,
+                )])));
+            }
         }
 
         Ok(())
@@ -297,10 +306,12 @@ impl MemoryTranslationTable {
         while let Some((address, buffer_subrange)) = needed_accesses.pop() {
             let accessing_range =
                 (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
+            let mut did_handle = false;
 
             for (component_assignment_range, write_callback) in
                 bus_info.write.overlapping(accessing_range.clone())
             {
+                did_handle = true;
                 let mut errors = RangeInclusiveMap::default();
 
                 let overlap_start = accessing_range
@@ -342,6 +353,13 @@ impl MemoryTranslationTable {
                     return Err(WriteMemoryOperationError(detected_errors));
                 }
             }
+
+            if !did_handle {
+                return Err(WriteMemoryOperationError(RangeInclusiveMap::from_iter([(
+                    accessing_range,
+                    WriteMemoryOperationErrorFailureType::OutOfBus,
+                )])));
+            }
         }
 
         Ok(())
@@ -369,10 +387,12 @@ impl MemoryTranslationTable {
         while let Some((address, buffer_subrange)) = needed_accesses.pop() {
             let accessing_range =
                 (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
+            let mut did_handle = false;
 
             for (component_assignment_range, preview_callback) in
                 bus_info.preview.overlapping(accessing_range.clone())
             {
+                did_handle = true;
                 let mut errors = RangeInclusiveMap::default();
 
                 let overlap_start = accessing_range
@@ -417,6 +437,15 @@ impl MemoryTranslationTable {
                 if !detected_errors.is_empty() {
                     return Err(PreviewMemoryOperationError(detected_errors));
                 }
+            }
+
+            if !did_handle {
+                return Err(PreviewMemoryOperationError(RangeInclusiveMap::from_iter([
+                    (
+                        accessing_range,
+                        PreviewMemoryOperationErrorFailureType::OutOfBus,
+                    ),
+                ])));
             }
         }
 
