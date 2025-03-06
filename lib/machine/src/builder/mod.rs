@@ -1,5 +1,9 @@
 use crate::{
-    component::{store::ComponentStore, Component, ComponentId, FromConfig, RuntimeEssentials}, display::RenderBackend, memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceId}, scheduler::Scheduler, Machine
+    Machine,
+    component::{Component, ComponentId, FromConfig, RuntimeEssentials, store::ComponentStore},
+    display::RenderBackend,
+    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
+    scheduler::Scheduler,
 };
 use display::{BackendSpecificData, DisplayMetadata};
 use input::InputMetadata;

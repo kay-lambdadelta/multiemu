@@ -14,4 +14,5 @@ impl Display for InstructionTextRepresentation {
 
 pub trait InstructionSet: Debug + Eq + Clone + Send + Sync + 'static {
     fn to_text_representation(&self) -> InstructionTextRepresentation;
+    fn cycles_taken(&self) -> u8;
 }

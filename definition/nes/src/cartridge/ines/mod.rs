@@ -83,7 +83,7 @@ impl Debug for INes {
             .field("non_volatile_memory", &self.non_volatile_memory)
             .field("mirroring", &self.mirroring)
             .field("version", &self.version)
-            .field("timing_mode",  &self.timing_mode)
+            .field("timing_mode", &self.timing_mode)
             // Omit the rom bytecode
             .field("roms", &"..")
             .finish()

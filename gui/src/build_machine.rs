@@ -1,6 +1,6 @@
 use multiemu_config::Environment;
 use multiemu_machine::builder::MachineBuilder;
-use multiemu_rom::system::NintendoSystem;
+use multiemu_rom::system::{AtariSystem, NintendoSystem};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
@@ -15,6 +15,9 @@ pub fn build_machine(
     environment: Arc<RwLock<Environment>>,
 ) -> MachineBuilder {
     match game_system {
+        GameSystem::Atari(AtariSystem::Atari2600) => {
+            multiemu_definition_atari2600::manifest(user_specified_roms, rom_manager, environment)
+        }
         GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem) => {
             multiemu_definition_nes::manifest(user_specified_roms, rom_manager, environment)
         }

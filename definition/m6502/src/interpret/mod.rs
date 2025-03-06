@@ -1,138 +1,24 @@
 use super::{
-    FlagRegister, M6502, ProcessorState,
+    FlagRegister, ProcessorState,
     instruction::{M6502InstructionSet, M6502InstructionSetSpecifier},
 };
-use crate::instruction::AddressingMode;
-use bitvec::{order::Lsb0, view::BitView};
+use crate::{
+    instruction::AddressingMode, load_m6502_addressing_modes, store_m6502_addressing_modes,
+    task::M6502Task,
+};
+use bitvec::{prelude::Msb0, view::BitView};
 use enumflags2::BitFlag;
 
-// NOTE: The M6502 should ignore all memory errors
+mod load;
+mod store;
 
-macro_rules! load_m6502_addressing_modes {
-    ($instruction:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr, [$($modes:ident),*]) => {{
-        match $instruction.addressing_mode {
-            $(
-                Some(AddressingMode::$modes(argument)) => {
-                    load_m6502_addressing_modes!(@handler $modes, argument, $register_store, $memory_translation_table, $assigned_address_space)
-                },
-            )*
-            _ => unreachable!(),
-        }
-    }};
-
-    (@handler Immediate, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        $argument
-    }};
-
-    (@handler Absolute, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        let mut value = 0;
-
-        let _ = $memory_translation_table
-            .read($argument as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut value));
-
-        value
-    }};
-
-    (@handler XIndexedAbsolute, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        let mut value = 0;
-
-        let _ = $memory_translation_table
-            .read($argument as usize, $assigned_address_space, &mut [0]);
-
-
-        let actual_address = $argument.wrapping_add($register_store.index_registers[0] as u16);
-        let _ = $memory_translation_table
-            .read(actual_address as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut value));
-
-        value
-    }};
-
-    (@handler YIndexedAbsolute, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        let mut value: u8 = 0;
-
-        let _ = $memory_translation_table
-            .read($argument as usize, $assigned_address_space, &mut [0]);
-
-
-        let actual_address = $argument.wrapping_add($register_store.index_registers[1] as u16);
-        let _ = $memory_translation_table
-            .read(actual_address as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut value));
-
-        value
-    }};
-
-    (@handler ZeroPage, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        let mut value: u8 = 0;
-
-        let _ = $memory_translation_table
-            .read($argument as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut value));
-
-        value
-    }};
-
-    (@handler XIndexedZeroPage, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        let mut value: u8 = 0;
-
-        let actual_address = $argument.wrapping_add($register_store.index_registers[0]);
-
-        let _ = $memory_translation_table
-            .read(actual_address as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut value));
-
-        value
-    }};
-
-    (@handler YIndexedZeroPage, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        let mut value: u8 = 0;
-
-        let actual_address = $argument.wrapping_add($register_store.index_registers[1]);
-
-        let _ = $memory_translation_table
-            .read(actual_address as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut value));
-
-        value
-    }};
-
-    (@handler XIndexedZeroPageIndirect, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        let mut value: u8 = 0;
-
-        let indirection_address = $argument.wrapping_add($register_store.index_registers[0]);
-        let mut actual_address = [0; 2];
-
-        let _ = $memory_translation_table
-            .read(indirection_address as usize, $assigned_address_space, &mut actual_address);
-
-        let actual_address = u16::from_le_bytes(actual_address);
-
-        let _ = $memory_translation_table
-            .read(actual_address as usize, $assigned_address_space, bytemuck::bytes_of_mut(&mut value));
-
-        value
-    }};
-
-    (@handler ZeroPageIndirectYIndexed, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr) => {{
-        let mut value: u8 = 0;
-        let mut indirection_address: u8 = 0;
-
-        let _ = $memory_translation_table
-            .read($argument as usize, $assigned_address_space, std::array::from_mut(&mut indirection_address));
-
-        let indirection_address = (indirection_address as u16)
-            .wrapping_add($register_store.index_registers[1] as u16);
-
-        let _ = $memory_translation_table
-            .read(indirection_address as usize, $assigned_address_space, std::array::from_mut(&mut value));
-
-        value
-    }};
-}
-
-impl M6502 {
+impl M6502Task {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,
         instruction: M6502InstructionSet,
     ) {
-        let memory_translation_table = self.essentials.get().unwrap().memory_translation_table();
+        let memory_translation_table = self.essentials.memory_translation_table();
 
         match instruction.specifier {
             M6502InstructionSetSpecifier::Adc => {
@@ -153,38 +39,33 @@ impl M6502 {
                     ]
                 );
 
-                let carry_value = state.registers.flags.contains(FlagRegister::Carry) as u8;
+                if state.registers.flags.contains(FlagRegister::Decimal)
+                    && self.config.kind.supports_decimal()
+                {
+                } else {
+                    let carry = state.registers.flags.contains(FlagRegister::Carry) as u8;
 
-                let (first_operation_result, first_operation_overflow) =
-                    state.registers.accumulator.overflowing_add(value);
+                    let (first_operation_result, first_operation_overflow) =
+                        state.registers.accumulator.overflowing_add(value);
 
-                let (second_operation_result, second_operation_overflow) =
-                    first_operation_result.overflowing_add(carry_value);
+                    let (second_operation_result, second_operation_overflow) =
+                        first_operation_result.overflowing_add(carry);
 
-                state.registers.flags.set(
-                    FlagRegister::Overflow,
-                    // If it overflowed at any point this is set
-                    first_operation_overflow || second_operation_overflow,
-                );
+                    state.registers.flags.set(
+                        FlagRegister::Overflow,
+                        // If it overflowed at any point this is set
+                        first_operation_overflow || second_operation_overflow,
+                    );
 
-                state.registers.flags.set(
-                    FlagRegister::Carry,
-                    first_operation_overflow || second_operation_overflow,
-                );
+                    state.registers.flags.set(
+                        FlagRegister::Carry,
+                        first_operation_overflow || second_operation_overflow,
+                    );
 
-                state.registers.flags.set(
-                    FlagRegister::Negative,
-                    // Check would be sign value
-                    second_operation_result.view_bits::<Lsb0>()[7],
-                );
+                    state.registers.accumulator = second_operation_result;
+                }
 
-                state.registers.flags.set(
-                    FlagRegister::Zero,
-                    // Check would be carry value
-                    second_operation_result == 0,
-                );
-
-                state.registers.accumulator = second_operation_result;
+                state.set_accumulator_flags();
             }
             M6502InstructionSetSpecifier::Anc => {
                 let value = load_m6502_addressing_modes!(
@@ -195,24 +76,14 @@ impl M6502 {
                     [Immediate]
                 );
 
-                let new_value = state.registers.accumulator & value;
-
+                let result = state.registers.accumulator & value;
                 state
                     .registers
                     .flags
-                    .set(FlagRegister::Negative, new_value.view_bits::<Lsb0>()[7]);
+                    .set(FlagRegister::Carry, result.view_bits::<Msb0>()[0]);
 
-                state
-                    .registers
-                    .flags
-                    .set(FlagRegister::Carry, new_value.view_bits::<Lsb0>()[7]);
-
-                state
-                    .registers
-                    .flags
-                    .set(FlagRegister::Zero, new_value == 0);
-
-                state.registers.accumulator = new_value;
+                state.registers.accumulator = result;
+                state.set_accumulator_flags();
             }
             M6502InstructionSetSpecifier::And => {
                 let value = load_m6502_addressing_modes!(
@@ -232,21 +103,38 @@ impl M6502 {
                     ]
                 );
 
-                let new_value = state.registers.accumulator & value;
-
-                state
-                    .registers
-                    .flags
-                    .set(FlagRegister::Negative, new_value.view_bits::<Lsb0>()[7]);
-
-                state
-                    .registers
-                    .flags
-                    .set(FlagRegister::Zero, new_value == 0);
-
-                state.registers.accumulator = new_value;
+                state.registers.accumulator &= value;
+                state.set_accumulator_flags();
             }
-            M6502InstructionSetSpecifier::Arr => todo!(),
+            M6502InstructionSetSpecifier::Arr => {
+                let value = load_m6502_addressing_modes!(
+                    instruction,
+                    state.registers,
+                    memory_translation_table,
+                    self.config.assigned_address_space,
+                    [Immediate]
+                );
+
+                let result = state.registers.accumulator & value;
+
+                let carry = state.registers.flags.contains(FlagRegister::Carry);
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Carry, result.view_bits::<Msb0>()[0]);
+
+                let mut result = result >> 1;
+                result.view_bits_mut::<Msb0>().set(0, carry);
+                let result_bits = result.view_bits::<Msb0>();
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Overflow, result_bits[1] != result_bits[0]);
+
+                state.registers.accumulator = result;
+                state.set_accumulator_flags();
+            }
             M6502InstructionSetSpecifier::Asl => todo!(),
             M6502InstructionSetSpecifier::Asr => todo!(),
             M6502InstructionSetSpecifier::Bcc => {
@@ -372,7 +260,23 @@ impl M6502 {
             M6502InstructionSetSpecifier::Ldx => todo!(),
             M6502InstructionSetSpecifier::Ldy => todo!(),
             M6502InstructionSetSpecifier::Lsr => todo!(),
-            M6502InstructionSetSpecifier::Nop => todo!(),
+            M6502InstructionSetSpecifier::Nop => {
+                if instruction.addressing_mode.is_some() {
+                    let _ = load_m6502_addressing_modes!(
+                        instruction,
+                        state.registers,
+                        memory_translation_table,
+                        self.config.assigned_address_space,
+                        [
+                            Immediate,
+                            Absolute,
+                            XIndexedAbsolute,
+                            ZeroPage,
+                            XIndexedZeroPage
+                        ]
+                    );
+                }
+            }
             M6502InstructionSetSpecifier::Ora => {
                 let value = load_m6502_addressing_modes!(
                     instruction,
@@ -391,19 +295,8 @@ impl M6502 {
                     ]
                 );
 
-                let new_value = state.registers.accumulator | value;
-
-                state
-                    .registers
-                    .flags
-                    .set(FlagRegister::Negative, new_value.view_bits::<Lsb0>()[7]);
-
-                state
-                    .registers
-                    .flags
-                    .set(FlagRegister::Zero, new_value == 0);
-
-                state.registers.accumulator = new_value;
+                state.registers.accumulator |= value;
+                state.set_accumulator_flags();
             }
             M6502InstructionSetSpecifier::Pha => {
                 let _ = memory_translation_table.write(
@@ -415,15 +308,14 @@ impl M6502 {
                 state.registers.stack_pointer = state.registers.stack_pointer.wrapping_sub(1);
             }
             M6502InstructionSetSpecifier::Php => {
-                // https://www.nesdev.org/wiki/Status_flags
-
                 let mut flags = state.registers.flags;
+                // https://www.nesdev.org/wiki/Status_flags
                 flags.insert(FlagRegister::__Unused);
 
                 let _ = memory_translation_table.write(
                     state.registers.stack_pointer as usize,
                     self.config.assigned_address_space,
-                    &flags.bits().to_be_bytes(),
+                    &flags.bits().to_ne_bytes(),
                 );
 
                 state.registers.stack_pointer = state.registers.stack_pointer.wrapping_sub(1);
@@ -440,6 +332,7 @@ impl M6502 {
                 );
 
                 state.registers.accumulator = value;
+                state.set_accumulator_flags();
             }
             M6502InstructionSetSpecifier::Plp => {
                 state.registers.stack_pointer = state.registers.stack_pointer.wrapping_add(1);
@@ -460,7 +353,23 @@ impl M6502 {
             M6502InstructionSetSpecifier::Rra => todo!(),
             M6502InstructionSetSpecifier::Rti => todo!(),
             M6502InstructionSetSpecifier::Rts => todo!(),
-            M6502InstructionSetSpecifier::Sax => todo!(),
+            M6502InstructionSetSpecifier::Sax => {
+                let value = state.registers.accumulator & state.registers.index_registers[0];
+
+                store_m6502_addressing_modes!(
+                    instruction,
+                    state.registers,
+                    memory_translation_table,
+                    self.config.assigned_address_space,
+                    value,
+                    [
+                        Absolute,
+                        ZeroPage,
+                        YIndexedZeroPage,
+                        XIndexedZeroPageIndirect
+                    ]
+                );
+            }
             M6502InstructionSetSpecifier::Sbc => todo!(),
             M6502InstructionSetSpecifier::Sbx => todo!(),
             M6502InstructionSetSpecifier::Sec => {

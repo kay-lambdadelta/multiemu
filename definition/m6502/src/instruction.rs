@@ -1,10 +1,8 @@
-use multiemu_machine::{
-    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
-    processor::instruction::{InstructionSet, InstructionTextRepresentation},
-};
+use multiemu_machine::processor::instruction::{InstructionSet, InstructionTextRepresentation};
 use std::borrow::Cow;
 
 // https://www.pagetable.com/c64ref/6502/?tab=2
+
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AddressingMode {
@@ -17,185 +15,9 @@ pub enum AddressingMode {
     ZeroPage(u8),
     XIndexedZeroPage(u8),
     YIndexedZeroPage(u8),
-    ZeroPageYIndexed(u8),
     XIndexedZeroPageIndirect(u8),
     ZeroPageIndirectYIndexed(u8),
     Relative(i8),
-}
-
-impl AddressingMode {
-    #[inline]
-    pub fn from_group1_addressing(
-        cursor: u16,
-        address_space: AddressSpaceId,
-        memory_translation_table: &MemoryTranslationTable,
-        addressing_mode: u8,
-    ) -> (Self, u8) {
-        match addressing_mode {
-            0b000 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::XIndexedZeroPageIndirect(indirect), 1)
-            }
-            0b001 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::ZeroPage(indirect), 1)
-            }
-            0b010 => {
-                let mut immediate = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut immediate),
-                );
-
-                (AddressingMode::Immediate(immediate), 1)
-            }
-            0b011 => {
-                let mut indirect = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut indirect);
-
-                (AddressingMode::Absolute(u16::from_le_bytes(indirect)), 2)
-            }
-            0b100 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::ZeroPageIndirectYIndexed(indirect), 1)
-            }
-            0b101 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::XIndexedZeroPage(indirect), 1)
-            }
-            0b110 => {
-                let mut absolute = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
-
-                (
-                    AddressingMode::YIndexedAbsolute(u16::from_le_bytes(absolute)),
-                    2,
-                )
-            }
-            0b111 => {
-                let mut absolute = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
-
-                (
-                    AddressingMode::XIndexedAbsolute(u16::from_le_bytes(absolute)),
-                    2,
-                )
-            }
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-
-    #[inline]
-    pub fn from_group2_addressing(
-        cursor: u16,
-        address_space: AddressSpaceId,
-        memory_translation_table: &MemoryTranslationTable,
-        addressing_mode: u8,
-    ) -> (Self, u8) {
-        match addressing_mode {
-            0b000 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::XIndexedZeroPageIndirect(indirect), 1)
-            }
-            0b001 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::ZeroPage(indirect), 1)
-            }
-            0b010 => (AddressingMode::Accumulator, 0),
-            0b011 => {
-                let mut indirect = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut indirect);
-
-                (AddressingMode::Absolute(u16::from_le_bytes(indirect)), 2)
-            }
-            0b100 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::ZeroPageIndirectYIndexed(indirect), 1)
-            }
-            0b101 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::XIndexedZeroPage(indirect), 1)
-            }
-            0b110 => {
-                let mut absolute = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
-
-                (
-                    AddressingMode::YIndexedAbsolute(u16::from_le_bytes(absolute)),
-                    2,
-                )
-            }
-            0b111 => {
-                let mut absolute = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
-
-                (
-                    AddressingMode::XIndexedAbsolute(u16::from_le_bytes(absolute)),
-                    2,
-                )
-            }
-            _ => {
-                unreachable!()
-            }
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -283,6 +105,88 @@ pub struct M6502InstructionSet {
     pub addressing_mode: Option<AddressingMode>,
 }
 
+impl M6502InstructionSet {
+    pub fn is_addressing_mode_valid(&self) -> bool {
+        match self.specifier {
+            M6502InstructionSetSpecifier::Adc => todo!(),
+            M6502InstructionSetSpecifier::Anc => todo!(),
+            M6502InstructionSetSpecifier::And => todo!(),
+            M6502InstructionSetSpecifier::Arr => todo!(),
+            M6502InstructionSetSpecifier::Asl => todo!(),
+            M6502InstructionSetSpecifier::Asr => todo!(),
+            M6502InstructionSetSpecifier::Bcc => todo!(),
+            M6502InstructionSetSpecifier::Bcs => todo!(),
+            M6502InstructionSetSpecifier::Beq => todo!(),
+            M6502InstructionSetSpecifier::Bit => todo!(),
+            M6502InstructionSetSpecifier::Bmi => todo!(),
+            M6502InstructionSetSpecifier::Bne => todo!(),
+            M6502InstructionSetSpecifier::Bpl => todo!(),
+            M6502InstructionSetSpecifier::Brk => todo!(),
+            M6502InstructionSetSpecifier::Bvc => todo!(),
+            M6502InstructionSetSpecifier::Bvs => todo!(),
+            M6502InstructionSetSpecifier::Clc => todo!(),
+            M6502InstructionSetSpecifier::Cld => todo!(),
+            M6502InstructionSetSpecifier::Cli => todo!(),
+            M6502InstructionSetSpecifier::Clv => todo!(),
+            M6502InstructionSetSpecifier::Cmp => todo!(),
+            M6502InstructionSetSpecifier::Cpx => todo!(),
+            M6502InstructionSetSpecifier::Cpy => todo!(),
+            M6502InstructionSetSpecifier::Dcp => todo!(),
+            M6502InstructionSetSpecifier::Dec => todo!(),
+            M6502InstructionSetSpecifier::Dex => todo!(),
+            M6502InstructionSetSpecifier::Dey => todo!(),
+            M6502InstructionSetSpecifier::Eor => todo!(),
+            M6502InstructionSetSpecifier::Inc => todo!(),
+            M6502InstructionSetSpecifier::Inx => todo!(),
+            M6502InstructionSetSpecifier::Iny => todo!(),
+            M6502InstructionSetSpecifier::Isc => todo!(),
+            M6502InstructionSetSpecifier::Jam => todo!(),
+            M6502InstructionSetSpecifier::Jmp => todo!(),
+            M6502InstructionSetSpecifier::Jsr => todo!(),
+            M6502InstructionSetSpecifier::Las => todo!(),
+            M6502InstructionSetSpecifier::Lax => todo!(),
+            M6502InstructionSetSpecifier::Lda => todo!(),
+            M6502InstructionSetSpecifier::Ldx => todo!(),
+            M6502InstructionSetSpecifier::Ldy => todo!(),
+            M6502InstructionSetSpecifier::Lsr => todo!(),
+            M6502InstructionSetSpecifier::Nop => todo!(),
+            M6502InstructionSetSpecifier::Ora => todo!(),
+            M6502InstructionSetSpecifier::Pha => todo!(),
+            M6502InstructionSetSpecifier::Php => todo!(),
+            M6502InstructionSetSpecifier::Pla => todo!(),
+            M6502InstructionSetSpecifier::Plp => todo!(),
+            M6502InstructionSetSpecifier::Rla => todo!(),
+            M6502InstructionSetSpecifier::Rol => todo!(),
+            M6502InstructionSetSpecifier::Ror => todo!(),
+            M6502InstructionSetSpecifier::Rra => todo!(),
+            M6502InstructionSetSpecifier::Rti => todo!(),
+            M6502InstructionSetSpecifier::Rts => todo!(),
+            M6502InstructionSetSpecifier::Sax => todo!(),
+            M6502InstructionSetSpecifier::Sbc => todo!(),
+            M6502InstructionSetSpecifier::Sbx => todo!(),
+            M6502InstructionSetSpecifier::Sec => todo!(),
+            M6502InstructionSetSpecifier::Sed => todo!(),
+            M6502InstructionSetSpecifier::Sei => todo!(),
+            M6502InstructionSetSpecifier::Sha => todo!(),
+            M6502InstructionSetSpecifier::Shs => todo!(),
+            M6502InstructionSetSpecifier::Shx => todo!(),
+            M6502InstructionSetSpecifier::Shy => todo!(),
+            M6502InstructionSetSpecifier::Slo => todo!(),
+            M6502InstructionSetSpecifier::Sre => todo!(),
+            M6502InstructionSetSpecifier::Sta => todo!(),
+            M6502InstructionSetSpecifier::Stx => todo!(),
+            M6502InstructionSetSpecifier::Sty => todo!(),
+            M6502InstructionSetSpecifier::Tax => todo!(),
+            M6502InstructionSetSpecifier::Tay => todo!(),
+            M6502InstructionSetSpecifier::Tsx => todo!(),
+            M6502InstructionSetSpecifier::Txa => todo!(),
+            M6502InstructionSetSpecifier::Txs => todo!(),
+            M6502InstructionSetSpecifier::Tya => todo!(),
+            M6502InstructionSetSpecifier::Xaa => todo!(),
+        }
+    }
+}
+
 impl InstructionSet for M6502InstructionSet {
     fn to_text_representation(&self) -> InstructionTextRepresentation {
         InstructionTextRepresentation {
@@ -363,6 +267,202 @@ impl InstructionSet for M6502InstructionSet {
                 M6502InstructionSetSpecifier::Tya => "TYA",
                 M6502InstructionSetSpecifier::Xaa => "XAA",
             }),
+        }
+    }
+
+    fn cycles_taken(&self) -> u8 {
+        match self.specifier {
+            M6502InstructionSetSpecifier::Adc
+            | M6502InstructionSetSpecifier::And
+            | M6502InstructionSetSpecifier::Cmp
+            | M6502InstructionSetSpecifier::Lax
+            | M6502InstructionSetSpecifier::Lda
+            | M6502InstructionSetSpecifier::Ora
+            | M6502InstructionSetSpecifier::Sbc
+            | M6502InstructionSetSpecifier::Eor
+            | M6502InstructionSetSpecifier::Ldx
+            | M6502InstructionSetSpecifier::Ldy => match self.addressing_mode {
+                Some(AddressingMode::Immediate(..)) => 2,
+                Some(AddressingMode::Absolute(..)) => 4,
+                Some(AddressingMode::XIndexedAbsolute(..)) => 4,
+                Some(AddressingMode::YIndexedAbsolute(..)) => 4,
+                Some(AddressingMode::ZeroPage(..)) => 3,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 4,
+                Some(AddressingMode::XIndexedZeroPageIndirect(..)) => 6,
+                Some(AddressingMode::ZeroPageIndirectYIndexed(..)) => 5,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Anc => 2,
+            M6502InstructionSetSpecifier::Arr => 2,
+            M6502InstructionSetSpecifier::Asl
+            | M6502InstructionSetSpecifier::Lsr
+            | M6502InstructionSetSpecifier::Rol
+            | M6502InstructionSetSpecifier::Ror => match self.addressing_mode {
+                Some(AddressingMode::Accumulator) => 2,
+                Some(AddressingMode::Absolute(..)) => 6,
+                Some(AddressingMode::XIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::ZeroPage(..)) => 5,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 6,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Asr => 2,
+            M6502InstructionSetSpecifier::Bcc => 2,
+            M6502InstructionSetSpecifier::Bcs => 2,
+            M6502InstructionSetSpecifier::Beq => 2,
+            M6502InstructionSetSpecifier::Bit => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 4,
+                Some(AddressingMode::ZeroPage(..)) => 3,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Bmi => 2,
+            M6502InstructionSetSpecifier::Bne => 2,
+            M6502InstructionSetSpecifier::Bpl => 2,
+            M6502InstructionSetSpecifier::Brk => 7,
+            M6502InstructionSetSpecifier::Bvc => 2,
+            M6502InstructionSetSpecifier::Bvs => 2,
+            M6502InstructionSetSpecifier::Clc => 2,
+            M6502InstructionSetSpecifier::Cld => 2,
+            M6502InstructionSetSpecifier::Cli => 2,
+            M6502InstructionSetSpecifier::Clv => 2,
+            M6502InstructionSetSpecifier::Cpx | M6502InstructionSetSpecifier::Cpy => {
+                match self.addressing_mode {
+                    Some(AddressingMode::Immediate(..)) => 2,
+                    Some(AddressingMode::Absolute(..)) => 4,
+                    Some(AddressingMode::ZeroPage(..)) => 3,
+                    _ => unreachable!(),
+                }
+            }
+            M6502InstructionSetSpecifier::Dcp => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 6,
+                Some(AddressingMode::XIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::YIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::ZeroPage(..)) => 5,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 6,
+                Some(AddressingMode::XIndexedZeroPageIndirect(..)) => 8,
+                Some(AddressingMode::ZeroPageIndirectYIndexed(..)) => 6,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Dec | M6502InstructionSetSpecifier::Inc => {
+                match self.addressing_mode {
+                    Some(AddressingMode::Absolute(..)) => 6,
+                    Some(AddressingMode::XIndexedAbsolute(..)) => 7,
+                    Some(AddressingMode::ZeroPage(..)) => 5,
+                    Some(AddressingMode::XIndexedZeroPage(..)) => 6,
+                    _ => unreachable!(),
+                }
+            }
+            M6502InstructionSetSpecifier::Dex | M6502InstructionSetSpecifier::Dey => 2,
+            M6502InstructionSetSpecifier::Inx | M6502InstructionSetSpecifier::Iny => 2,
+            M6502InstructionSetSpecifier::Isc => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 6,
+                Some(AddressingMode::XIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::YIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::ZeroPage(..)) => 5,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 6,
+                Some(AddressingMode::XIndexedZeroPageIndirect(..)) => 8,
+                Some(AddressingMode::ZeroPageIndirectYIndexed(..)) => 8,
+                _ => unreachable!(),
+            },
+            // This is actually infinite
+            M6502InstructionSetSpecifier::Jam => 2,
+            M6502InstructionSetSpecifier::Jmp => 1,
+            M6502InstructionSetSpecifier::Jsr => 6,
+            M6502InstructionSetSpecifier::Las => 4,
+            M6502InstructionSetSpecifier::Nop => match self.addressing_mode {
+                None => 2,
+                Some(AddressingMode::Immediate(..)) => 2,
+                Some(AddressingMode::Absolute(..)) => 4,
+                Some(AddressingMode::XIndexedAbsolute(..)) => 4,
+                Some(AddressingMode::ZeroPage(..)) => 3,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 4,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Pha => 3,
+            M6502InstructionSetSpecifier::Php => 3,
+            M6502InstructionSetSpecifier::Pla => 4,
+            M6502InstructionSetSpecifier::Plp => 4,
+            M6502InstructionSetSpecifier::Rla | M6502InstructionSetSpecifier::Rra => {
+                match self.addressing_mode {
+                    Some(AddressingMode::Absolute(..)) => 6,
+                    Some(AddressingMode::XIndexedAbsolute(..)) => 7,
+                    Some(AddressingMode::YIndexedAbsolute(..)) => 7,
+                    Some(AddressingMode::ZeroPage(..)) => 5,
+                    Some(AddressingMode::XIndexedZeroPage(..)) => 6,
+                    Some(AddressingMode::XIndexedZeroPageIndirect(..)) => 8,
+                    Some(AddressingMode::ZeroPageIndirectYIndexed(..)) => 8,
+                    _ => unreachable!(),
+                }
+            }
+            M6502InstructionSetSpecifier::Rti => 6,
+            M6502InstructionSetSpecifier::Rts => 6,
+            M6502InstructionSetSpecifier::Sax => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 4,
+                Some(AddressingMode::ZeroPage(..)) => 3,
+                Some(AddressingMode::YIndexedZeroPage(..)) => 4,
+                Some(AddressingMode::XIndexedZeroPageIndirect(..)) => 6,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Sbx => 2,
+            M6502InstructionSetSpecifier::Sec
+            | M6502InstructionSetSpecifier::Sed
+            | M6502InstructionSetSpecifier::Sei => 2,
+            M6502InstructionSetSpecifier::Sha => match self.addressing_mode {
+                Some(AddressingMode::YIndexedAbsolute(..)) => 5,
+                Some(AddressingMode::ZeroPageIndirectYIndexed(..)) => 6,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Shs => 5,
+            M6502InstructionSetSpecifier::Shx => 5,
+            M6502InstructionSetSpecifier::Shy => 5,
+            M6502InstructionSetSpecifier::Slo => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 6,
+                Some(AddressingMode::XIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::YIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::ZeroPage(..)) => 5,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 6,
+                Some(AddressingMode::XIndexedZeroPageIndirect(..)) => 8,
+                Some(AddressingMode::ZeroPageIndirectYIndexed(..)) => 8,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Sre => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 6,
+                Some(AddressingMode::XIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::YIndexedAbsolute(..)) => 7,
+                Some(AddressingMode::ZeroPage(..)) => 5,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 6,
+                Some(AddressingMode::XIndexedZeroPageIndirect(..)) => 8,
+                Some(AddressingMode::ZeroPageIndirectYIndexed(..)) => 8,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Sta => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 5,
+                Some(AddressingMode::XIndexedAbsolute(..)) => 6,
+                Some(AddressingMode::YIndexedAbsolute(..)) => 6,
+                Some(AddressingMode::ZeroPage(..)) => 3,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 4,
+                Some(AddressingMode::XIndexedZeroPageIndirect(..)) => 6,
+                Some(AddressingMode::ZeroPageIndirectYIndexed(..)) => 6,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Stx => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 4,
+                Some(AddressingMode::ZeroPage(..)) => 3,
+                Some(AddressingMode::YIndexedZeroPage(..)) => 4,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Sty => match self.addressing_mode {
+                Some(AddressingMode::Absolute(..)) => 4,
+                Some(AddressingMode::ZeroPage(..)) => 3,
+                Some(AddressingMode::XIndexedZeroPage(..)) => 4,
+                _ => unreachable!(),
+            },
+            M6502InstructionSetSpecifier::Tax => 2,
+            M6502InstructionSetSpecifier::Tay => 2,
+            M6502InstructionSetSpecifier::Tsx => 2,
+            M6502InstructionSetSpecifier::Txa => 2,
+            M6502InstructionSetSpecifier::Txs => 2,
+            M6502InstructionSetSpecifier::Tya => 2,
+            M6502InstructionSetSpecifier::Xaa => 2,
         }
     }
 }

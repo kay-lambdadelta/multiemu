@@ -177,4 +177,8 @@ impl InstructionSet for Chip8InstructionSet {
     fn to_text_representation(&self) -> InstructionTextRepresentation {
         todo!()
     }
+
+    fn cycles_taken(&self) -> u8 {
+        1
+    }
 }

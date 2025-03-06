@@ -17,9 +17,9 @@ pub fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
 ) {
     let pixel_center = Point2::new(position.x, position.y) + Vector2::from_element(0.5);
 
-    if is_point_in_triangle(pixel_center, &triangle) {
+    if is_point_in_triangle(pixel_center, triangle) {
         // Interpolate colors based on barycentric coordinates
-        let barycentric = barycentric_coordinates(pixel_center, &triangle);
+        let barycentric = barycentric_coordinates(pixel_center, triangle);
 
         let interpolated_color = triangle.v0.color * barycentric.x
             + triangle.v1.color * barycentric.y

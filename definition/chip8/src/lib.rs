@@ -167,7 +167,8 @@ pub fn manifest(
     let machine = machine.insert_default_component::<Chip8Audio>("audio");
     let machine = machine.insert_default_component::<Chip8Display>("display");
     let machine = machine.insert_default_component::<Chip8Processor>("cpu");
-    let machine = machine.insert_component::<StandardMemory>(
+
+    machine.insert_component::<StandardMemory>(
         "workram",
         StandardMemoryConfig {
             readable: true,
@@ -186,7 +187,5 @@ pub fn manifest(
                 },
             ],
         },
-    );
-
-    machine
+    )
 }

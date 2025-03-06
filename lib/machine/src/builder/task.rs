@@ -11,7 +11,7 @@ pub struct TaskMetadata {
 }
 
 impl<C: Component> ComponentBuilder<'_, C> {
-    pub fn insert_task(mut self, frequency: Ratio<u64>, mut callback: impl Task<C> + Send) -> Self {
+    pub fn insert_task(mut self, frequency: Ratio<u64>, mut callback: impl Task<C>) -> Self {
         let task_metatada = self.component_metadata.task.get_or_insert_default();
 
         task_metatada.tasks.push((

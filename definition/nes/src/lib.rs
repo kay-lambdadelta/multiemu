@@ -3,8 +3,9 @@ use std::sync::{Arc, RwLock};
 pub use cartridge::ines::INes;
 use cartridge::ines::TimingMode;
 use cartridge::{NesCartridge, NesCartridgeConfig};
+use enumflags2::BitFlag;
 use multiemu_config::Environment;
-use multiemu_definition_m6502::{M6502, M6502Config};
+use multiemu_definition_m6502::{FlagRegister, M6502, M6502Config, M6502Kind, M6502Registers};
 use multiemu_definition_misc::memory::mirror::{MirrorMemory, MirrorMemoryConfig};
 use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
@@ -18,6 +19,7 @@ use num::rational::Ratio;
 use ppu::NesPpu;
 use rangemap::RangeInclusiveMap;
 
+mod apu;
 mod cartridge;
 mod ppu;
 
@@ -60,15 +62,6 @@ pub fn manifest(
         TimingMode::Dendy => 1773448,
     });
 
-    
-    let machine = machine.insert_component::<M6502>(
-        "processor",
-        M6502Config {
-            frequency: processor_frequency,
-            assigned_address_space: CPU_ADDRESS_SPACE,
-        },
-    );
-
     let machine = machine.insert_component::<StandardMemory>(
         "workram",
         StandardMemoryConfig {
@@ -94,5 +87,18 @@ pub fn manifest(
         },
     );
 
-    machine.insert_default_component::<NesPpu>("ppu")
+    let machine = machine.insert_default_component::<NesPpu>("ppu");
+
+    machine.insert_component::<M6502>(
+        "processor",
+        M6502Config {
+            frequency: processor_frequency,
+            assigned_address_space: CPU_ADDRESS_SPACE,
+            kind: M6502Kind::R2A0x,
+            initial_state: M6502Registers {
+                stack_pointer: 0xfd,
+                ..Default::default()
+            },
+        },
+    )
 }

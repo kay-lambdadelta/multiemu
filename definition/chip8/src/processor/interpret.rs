@@ -4,7 +4,7 @@ use super::{
     instruction::{Chip8InstructionSet, InstructionSetChip8},
     task::Chip8ProcessorTask,
 };
-use crate::{CPU_ADDRESS_SPACE, CHIP8_FONT, Chip8Kind};
+use crate::{CHIP8_FONT, CPU_ADDRESS_SPACE, Chip8Kind};
 use arrayvec::ArrayVec;
 use bitvec::field::BitField;
 use bitvec::prelude::{Lsb0, Msb0};
@@ -323,21 +323,21 @@ impl Chip8ProcessorTask {
                     .write(
                         state.registers.index as usize,
                         CPU_ADDRESS_SPACE,
-                        bytemuck::bytes_of(&hundreds),
+                        std::array::from_ref(&hundreds),
                     )
                     .unwrap();
                 memory_translation_table
                     .write(
                         state.registers.index as usize + 1,
                         CPU_ADDRESS_SPACE,
-                        bytemuck::bytes_of(&tens),
+                        std::array::from_ref(&tens),
                     )
                     .unwrap();
                 memory_translation_table
                     .write(
                         state.registers.index as usize + 2,
                         CPU_ADDRESS_SPACE,
-                        bytemuck::bytes_of(&ones),
+                        std::array::from_ref(&ones),
                     )
                     .unwrap();
             }

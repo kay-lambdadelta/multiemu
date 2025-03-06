@@ -44,6 +44,63 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_audio'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-audio"
+                ],
+                "filter": {
+                    "name": "multiemu_audio",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'conversion'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=conversion",
+                    "--package=multiemu-audio"
+                ],
+                "filter": {
+                    "name": "conversion",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'resample'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=resample",
+                    "--package=multiemu-audio"
+                ],
+                "filter": {
+                    "name": "resample",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'multiemu_config'",
             "cargo": {
                 "args": [
@@ -101,16 +158,35 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_definition_chip8'",
+            "name": "Debug unit tests in library 'multiemu_definition_atari2600'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=multiemu-definition-chip8"
+                    "--package=multiemu-definition-atari2600"
                 ],
                 "filter": {
-                    "name": "multiemu_definition_chip8",
+                    "name": "multiemu_definition_atari2600",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_m6502'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-m6502"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_m6502",
                     "kind": "lib"
                 }
             },
@@ -126,7 +202,7 @@
                     "test",
                     "--no-run",
                     "--bench=instruction_decode",
-                    "--package=multiemu-definition-chip8"
+                    "--package=multiemu-definition-m6502"
                 ],
                 "filter": {
                     "name": "instruction_decode",
@@ -145,14 +221,16 @@
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=multiemu-definition-misc"
+                    "--package=multiemu-definition-misc",
                 ],
                 "filter": {
                     "name": "multiemu_definition_misc",
                     "kind": "lib"
                 }
             },
-            "args": [],
+            "args": [
+                "--test-threads=1"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -215,17 +293,55 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_audio'",
+            "name": "Debug unit tests in library 'multiemu_wgsl_bindgen'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=multiemu-audio"
+                    "--package=multiemu-wgsl-bindgen"
                 ],
                 "filter": {
-                    "name": "multiemu_audio",
+                    "name": "multiemu_wgsl_bindgen",
                     "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_chip8'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-chip8"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_chip8",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'instruction_decode'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=instruction_decode",
+                    "--package=multiemu-definition-chip8"
+                ],
+                "filter": {
+                    "name": "instruction_decode",
+                    "kind": "bench"
                 }
             },
             "args": [],
@@ -264,44 +380,6 @@
                 "filter": {
                     "name": "rom_parse",
                     "kind": "bench"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_definition_m6502'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=multiemu-definition-m6502"
-                ],
-                "filter": {
-                    "name": "multiemu_definition_m6502",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_wgsl_bindgen'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=multiemu-wgsl-bindgen"
-                ],
-                "filter": {
-                    "name": "multiemu_wgsl_bindgen",
-                    "kind": "lib"
                 }
             },
             "args": [],

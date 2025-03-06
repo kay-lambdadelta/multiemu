@@ -12,7 +12,7 @@ use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use multiemu_machine::input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata};
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 use task::Chip8ProcessorTask;
 
 pub mod decoder;
@@ -93,7 +93,7 @@ impl Default for ProcessorState {
 }
 
 pub struct Chip8Processor {
-    processor_state: Arc<RwLock<ProcessorState>>,
+    state: Mutex<ProcessorState>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -105,7 +105,7 @@ pub struct Chip8ProcessorSnapshot {
 
 impl Component for Chip8Processor {
     fn reset(&self) {
-        let mut state = self.processor_state.write().unwrap();
+        let mut state = self.state.lock().unwrap();
 
         *state = ProcessorState::default();
     }
@@ -128,7 +128,7 @@ impl FromConfig for Chip8Processor {
             quirks.force_mode.unwrap_or(Chip8Kind::Chip8),
         ));
         let frequency = quirks.frequency;
-        let state = Arc::new(RwLock::new(ProcessorState::default()));
+        let state = Mutex::new(ProcessorState::default());
 
         // Optionally initialize the jit engine
         #[cfg(jit)]
@@ -163,7 +163,6 @@ impl FromConfig for Chip8Processor {
             .insert_task(
                 frequency,
                 Chip8ProcessorTask {
-                    state: state.clone(),
                     instruction_decoder: Chip8InstructionDecoder,
                     #[cfg(jit)]
                     jit,
@@ -177,8 +176,6 @@ impl FromConfig for Chip8Processor {
                     mode,
                 },
             )
-            .build_global(Self {
-                processor_state: state.clone(),
-            });
+            .build_global(Self { state });
     }
 }

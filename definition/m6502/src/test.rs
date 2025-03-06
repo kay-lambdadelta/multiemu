@@ -18,6 +18,42 @@ use std::sync::{Arc, RwLock};
 const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
 
 #[test]
+/// The m6502 will decode even invalid instructions to nonsense, we should too, without crashing
+fn all_instructions_decode_to_something() {
+    let environment = Arc::new(RwLock::new(Environment::load().unwrap()));
+    let rom_manager = Arc::new(RomManager::new(None).unwrap());
+
+    for instruction in 0x00..=0xff {
+        let machine = MachineBuilder::new(
+            GameSystem::Unknown,
+            rom_manager.clone(),
+            environment.clone(),
+        )
+        .insert_address_space(ADDRESS_SPACE, 64)
+        .insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=3,
+                assigned_address_space: ADDRESS_SPACE,
+                initial_contents: vec![StandardMemoryInitialContents::Array {
+                    value: Cow::Owned(vec![instruction, 0x00, 0x00, 0x00]),
+                    offset: 0,
+                }],
+            },
+        )
+        .build::<SoftwareRendering>(Default::default());
+
+        let instruction_decoder = M6502InstructionDecoder;
+        let _ = instruction_decoder
+            .decode(0x0, ADDRESS_SPACE, &machine.memory_translation_table)
+            .unwrap();
+    }
+}
+
+#[test]
 fn m6502_instruction_decode() {
     let environment = Arc::new(RwLock::new(Environment::load().unwrap()));
     let rom_manager = Arc::new(RomManager::new(None).unwrap());
