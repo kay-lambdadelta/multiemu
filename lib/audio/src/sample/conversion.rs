@@ -1,5 +1,6 @@
 use super::Sample;
 
+/// Conversion trait to get from one sample format to another
 pub trait FromSample<T: Sample>: Sample {
     fn from_sample(sample: T) -> Self;
 }
@@ -10,6 +11,7 @@ impl<T: Sample> FromSample<T> for T {
     }
 }
 
+/// Reflexive version of [FromSample]
 pub trait IntoSample<T: Sample>: Sample {
     fn into_sample(self) -> T;
 }
@@ -20,6 +22,9 @@ impl<F: Sample, I: FromSample<F>> IntoSample<I> for F {
     }
 }
 
+/// Automatic conversion macro
+/// 
+/// This is pretty efficient and accurate but could be made more efficient
 macro_rules! conversion_impl {
     ($from:ty, $to:ty, $conversion_space:ty) => {
         impl FromSample<$from> for $to {

@@ -8,7 +8,7 @@ use std::{fmt::Display, io::Read, str::FromStr};
 #[derive(
     Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
-/// Sha-1 of rom
+/// Sha-1 of a ROM, serves as its identification within emulator
 pub struct RomId([u8; 20]);
 
 impl RomId {

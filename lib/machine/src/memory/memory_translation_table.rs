@@ -114,7 +114,7 @@ pub struct MemoryTranslationTable {
 }
 
 impl MemoryTranslationTable {
-    pub fn insert_bus(&mut self, address_space_id: AddressSpaceId, bus_width: u8) {
+    pub fn insert_address_space(&mut self, address_space_id: AddressSpaceId, bus_width: u8) {
         self.bus_info.insert(
             address_space_id,
             BusInfo {

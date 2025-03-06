@@ -7,6 +7,7 @@ use std::collections::HashSet;
 
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+/// Information about a ROM, for the database
 pub struct RomInfo {
     pub name: String,
     pub system: GameSystem,

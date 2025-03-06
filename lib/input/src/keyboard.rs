@@ -5,6 +5,7 @@ use strum::EnumIter;
 #[derive(
     Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
+/// Inputs that a keyboard could give
 pub enum KeyboardInput {
     Backquote,
     Backslash,

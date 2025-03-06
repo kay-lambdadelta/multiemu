@@ -9,15 +9,19 @@ use std::{
 };
 
 #[allow(clippy::type_complexity)]
+/// Holds the data that's needed per backend
 pub struct BackendSpecificData<R: RenderBackend> {
+    /// The preferred extensions for the context
     pub preferred_extensions: R::ContextExtensionSpecification,
+    /// The required extensions for the context
     pub required_extensions: R::ContextExtensionSpecification,
+    /// Callback for when display data is initialized per above specifications
     pub set_display_callback: Box<
         dyn FnOnce(
-                &dyn Component,
-                Arc<R::ComponentInitializationData>,
-                Sender<R::ComponentFramebuffer>,
-            ) + Send,
+            &dyn Component,
+            Arc<R::ComponentInitializationData>,
+            Sender<R::ComponentFramebuffer>,
+        ),
     >,
 }
 
@@ -27,6 +31,7 @@ pub struct DisplayMetadata {
 }
 
 impl<C: Component> ComponentBuilder<'_, C> {
+    // Set your config for a given render backend
     pub fn set_display_config<R: RenderBackend>(
         mut self,
         preferred_extensions: Option<R::ContextExtensionSpecification>,
@@ -35,8 +40,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
             &C,
             Arc<R::ComponentInitializationData>,
             Sender<R::ComponentFramebuffer>,
-        ) + Send
-        + 'static,
+        ) + 'static,
     ) -> Self {
         let backend_specific_data = &mut self
             .component_metadata

@@ -21,6 +21,7 @@ mod rendering_backend;
 mod runtime;
 mod timing_tracker;
 
+/// TODO: Give each platform a different main function
 fn main() {
     tracing_subscriber::fmt::init();
     tracing::info!("MultiEMU v{}", env!("CARGO_PKG_VERSION"));
@@ -38,6 +39,7 @@ fn main() {
 
         let cli = Cli::parse();
 
+        // TODO: Move this somewhere else
         if let Some(action) = cli.action {
             let (game_system, user_specified_roms) = match action {
                 CliAction::Run {

@@ -8,6 +8,7 @@ mod guess;
 #[derive(
     Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
+/// All possible game systems and more
 pub enum GameSystem {
     Nintendo(NintendoSystem),
     Sega(SegaSystem),
@@ -19,7 +20,8 @@ pub enum GameSystem {
 }
 
 impl GameSystem {
-    pub fn iter() -> impl Iterator<Item = GameSystem> {
+    /// Iterate over all possible game systems
+    pub fn iter() -> impl Iterator<Item = Self> {
         NintendoSystem::iter()
             .map(GameSystem::Nintendo)
             .chain(SegaSystem::iter().map(GameSystem::Sega))
@@ -29,6 +31,7 @@ impl GameSystem {
             .chain(once(GameSystem::Unknown))
     }
 
+    /// Get a well known file extension for the files this system supports
     pub fn extension(self) -> Option<&'static str> {
         extension::get_extension(self)
     }
@@ -41,6 +44,7 @@ impl GameSystem {
 #[derive(
     Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
+/// All Nintendo systems
 pub enum NintendoSystem {
     GameBoy,
     GameBoyColor,
@@ -58,6 +62,7 @@ pub enum NintendoSystem {
 #[derive(
     Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
+/// All Sega systems
 pub enum SegaSystem {
     MasterSystem,
     GameGear,
@@ -69,6 +74,7 @@ pub enum SegaSystem {
 #[derive(
     Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
+/// All Sony systems
 pub enum SonySystem {
     Playstation,
     Playstation2,
@@ -80,6 +86,7 @@ pub enum SonySystem {
 #[derive(
     Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
+/// Some random assorted other systems
 pub enum OtherSystem {
     Chip8,
 }
@@ -87,6 +94,7 @@ pub enum OtherSystem {
 #[derive(
     Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
+/// All Atari systems
 pub enum AtariSystem {
     Atari2600,
     Atari5200,
@@ -108,6 +116,8 @@ impl FromStr for GameSystem {
     }
 }
 
+
+/// Exports a well formed No-Intro style system name
 impl Display for GameSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

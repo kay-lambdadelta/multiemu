@@ -1,6 +1,8 @@
 use crate::system::{AtariSystem, GameSystem, NintendoSystem, OtherSystem, SegaSystem, SonySystem};
 
 // TODO: This should factor in rom format to handle the more tricky formats
+
+/// Get a well known file extension for the files this system supports
 pub fn get_extension(system: GameSystem) -> Option<&'static str> {
     Some(match system {
         GameSystem::Nintendo(NintendoSystem::GameBoy) => "gb",

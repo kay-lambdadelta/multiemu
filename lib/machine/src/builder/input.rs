@@ -8,6 +8,7 @@ pub struct InputMetadata {
 }
 
 impl<C: Component> ComponentBuilder<'_, C> {
+    /// Insert a virtual gamepad for the runtime to be aware of
     pub fn insert_gamepads(
         mut self,
         gamepads: impl IntoIterator<Item = Arc<VirtualGamepad>>,

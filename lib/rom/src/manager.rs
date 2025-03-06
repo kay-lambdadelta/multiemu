@@ -7,16 +7,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Definition of the rom information table
 pub const ROM_INFORMATION_TABLE: TableDefinition<RomId, RomInfo> =
     TableDefinition::new("rom_information");
 
 #[derive(Debug, Clone)]
 pub enum LoadedRomLocation {
+    /// The rom is in the emulators internal store named by its sha1
     Internal,
+    /// The rom is somewhere else on disk
     External(PathBuf),
 }
 
 #[derive(Debug)]
+/// The ROM manager which contains the database and information about the roms that were loaded
 pub struct RomManager {
     pub rom_information: Database,
     pub loaded_roms: scc::HashMap<RomId, LoadedRomLocation>,
@@ -45,6 +49,7 @@ impl RomManager {
         })
     }
 
+    /// Imports a arbitary database into the internal database
     pub fn load_database(
         &self,
         path: impl AsRef<Path>,

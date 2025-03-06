@@ -4,11 +4,15 @@ use crate::sample::{Sample, conversion::FromSample};
 use nalgebra::{DefaultAllocator, Dim, OVector, allocator::Allocator};
 use num::rational::Ratio;
 
+/// Helper iterator for operating on frames of samples
 pub trait FrameIterator<S: Sample, CHANNELS: Dim>: Iterator<Item = OVector<S, CHANNELS>>
 where
     DefaultAllocator: Allocator<CHANNELS>,
 {
+    /// Convert the samples in the iterator to another sample type
     fn convert_sample<S2: Sample + FromSample<S>>(self) -> impl FrameIterator<S2, CHANNELS>;
+
+    /// Use the specified [Interpolator] to resample the iterator
     fn resample<I: Interpolator<S, CHANNELS>>(
         self,
         source_rate: Ratio<u32>,

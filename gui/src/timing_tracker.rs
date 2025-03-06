@@ -2,6 +2,7 @@ use ringbuffer::{AllocRingBuffer, RingBuffer};
 use std::time::{Duration, Instant};
 
 #[derive(Clone)]
+/// Keeps track of the timing of the last few frames
 pub struct TimingTracker {
     last_starting_frame: Option<Instant>,
     recent_frame_timings: AllocRingBuffer<Duration>,

@@ -8,6 +8,7 @@ use std::sync::LazyLock;
 use strum::EnumIter;
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]
+/// Possible hotkeys this emulator could use
 pub enum Hotkey {
     ToggleMenu,
     FastForward,
@@ -15,6 +16,7 @@ pub enum Hotkey {
     SaveSnapshot,
 }
 
+/// Default hotkeys for the application
 pub static DEFAULT_HOTKEYS: LazyLock<IndexMap<BTreeSet<Input>, Hotkey>> = LazyLock::new(|| {
     [
         (

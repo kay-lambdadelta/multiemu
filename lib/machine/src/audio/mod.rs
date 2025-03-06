@@ -8,6 +8,7 @@ use nalgebra::{SVector, Vector2};
 use num::rational::Ratio;
 use std::sync::Arc;
 
+/// Queue to be shared with components that contains audio data
 pub struct AudioQueue
 where
     Self: Send + Sync,
@@ -17,6 +18,7 @@ where
 }
 
 impl AudioQueue {
+    /// Create a new audio queue
     pub fn new(sample_rate: Ratio<u32>) -> Self {
         Self {
             frames: Arc::new(ArrayQueue::new(sample_rate.to_integer() as usize)),
@@ -24,6 +26,7 @@ impl AudioQueue {
         }
     }
 
+    /// Fetch audio frames
     pub fn fetch_frames<S: Sample + FromSample<i16>>(
         &self,
         sample_rate: Ratio<u32>,
@@ -36,6 +39,7 @@ impl AudioQueue {
             .convert_sample()
     }
 
+    /// Push audio frames
     pub fn push_frames<S: Sample>(&self, frames: impl IntoIterator<Item = SVector<S, 2>>)
     where
         i16: FromSample<S>,

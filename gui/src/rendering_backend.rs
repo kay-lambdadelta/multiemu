@@ -4,6 +4,7 @@ use multiemu_machine::Machine;
 use multiemu_machine::display::RenderBackend;
 use std::sync::{Arc, RwLock};
 
+/// A backend for a given render backend
 pub trait RenderingBackendState: Sized {
     type RenderBackend: RenderBackend;
     type DisplayApiHandle: Send + Sync + Clone + 'static;

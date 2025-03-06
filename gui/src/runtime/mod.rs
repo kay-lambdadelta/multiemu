@@ -22,6 +22,7 @@ pub use nintendo_3ds::PlatformRuntime;
 #[cfg(platform_3ds)]
 pub use nintendo_3ds::renderer::software::SoftwareRenderingRuntime;
 
+/// A runtime for a given platform
 pub trait Runtime<R: RenderBackend> {
     fn launch_gui(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>);
     fn launch_game(

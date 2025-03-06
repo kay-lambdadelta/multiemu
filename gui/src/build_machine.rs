@@ -8,6 +8,7 @@ use multiemu_rom::{
 };
 use std::sync::{Arc, RwLock};
 
+/// Build a machine from a game system
 pub fn build_machine(
     game_system: GameSystem,
     user_specified_roms: Vec<RomId>,

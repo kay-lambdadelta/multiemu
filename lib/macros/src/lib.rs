@@ -2,6 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 
 #[proc_macro]
+/// Inserts the cfg_aliases macro invocation for proper platform aliases
 pub fn platform_aliases(_args: TokenStream) -> TokenStream {
     quote! {
         cfg_aliases::cfg_aliases! {

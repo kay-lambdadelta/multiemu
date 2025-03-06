@@ -12,6 +12,7 @@ struct MagicTableEntry {
     offset: usize,
 }
 
+/// Magic number table
 static MAGIC_TABLE: LazyLock<HashMap<GameSystem, Vec<MagicTableEntry>>> = LazyLock::new(|| {
     let mut table: HashMap<GameSystem, Vec<MagicTableEntry>> = HashMap::new();
 
@@ -29,7 +30,7 @@ static MAGIC_TABLE: LazyLock<HashMap<GameSystem, Vec<MagicTableEntry>>> = LazyLo
         ))
         .or_default()
         .extend([MagicTableEntry {
-            bytes: &[b'N', b'E', b'S', 0x1a],
+            bytes: b"NES\x1a",
             offset: 0x00,
         }]);
 
@@ -68,6 +69,7 @@ static MAGIC_TABLE: LazyLock<HashMap<GameSystem, Vec<MagicTableEntry>>> = LazyLo
     table
 });
 
+/// Guess a the system from a rom file on disk, using a variety of heuristics
 pub fn guess_system(rom_path: impl AsRef<Path>) -> Option<GameSystem> {
     let rom_path = rom_path.as_ref();
     let mut rom = File::open(rom_path).unwrap();
@@ -105,6 +107,7 @@ pub fn guess_system(rom_path: impl AsRef<Path>) -> Option<GameSystem> {
     None
 }
 
+/// Try to guess the system from the file extension
 fn guess_by_extension(rom: &Path) -> Option<GameSystem> {
     if let Some(file_extension) = rom
         .extension()

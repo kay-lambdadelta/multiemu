@@ -5,6 +5,7 @@ use num::rational::Ratio;
 pub mod cubic;
 pub mod linear;
 
+/// Trait for interpolators, generic over frame size and sample format
 pub trait Interpolator<S: Sample, CHANNELS: Dim>
 where
     DefaultAllocator: Allocator<CHANNELS>,

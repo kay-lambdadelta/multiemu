@@ -15,6 +15,7 @@ pub struct MemoryMetadata {
 }
 
 impl<C: Component> ComponentBuilder<'_, C> {
+    /// Insert a callback into the memory translation table for reading
     pub fn insert_read_memory(
         mut self,
         address_space: AddressSpaceId,
@@ -31,6 +32,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
         self
     }
 
+    /// Insert a callback into the memory translation table for writing
     pub fn insert_write_memory(
         mut self,
         address_space: AddressSpaceId,
@@ -47,6 +49,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
         self
     }
 
+    /// Insert a callback into the memory translation table for preview
     pub fn insert_preview_memory(
         mut self,
         address_space: AddressSpaceId,

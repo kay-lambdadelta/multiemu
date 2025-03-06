@@ -24,6 +24,7 @@ pub mod memory;
 pub mod task;
 
 #[derive(Default)]
+/// Overall data extracted from components needed for machine initialization
 pub struct ComponentMetadata {
     pub memory: Option<MemoryMetadata>,
     pub task: Option<TaskMetadata>,
@@ -31,6 +32,7 @@ pub struct ComponentMetadata {
     pub input: Option<InputMetadata>,
 }
 
+/// Builder to produce a machine, definition crates will want to use this
 pub struct MachineBuilder {
     essentials: Arc<RuntimeEssentials>,
     environment: Arc<RwLock<Environment>>,
@@ -56,6 +58,7 @@ impl MachineBuilder {
         }
     }
 
+    /// Insert a component into the machine
     pub fn insert_component<C: FromConfig>(
         mut self,
         manifest_name: &'static str,
@@ -87,6 +90,7 @@ impl MachineBuilder {
         self
     }
 
+    /// Insert a component with a default config
     pub fn insert_default_component<C: FromConfig>(self, manifest_name: &'static str) -> Self
     where
         C::Config: Default,
@@ -95,21 +99,25 @@ impl MachineBuilder {
         self.insert_component::<C>(manifest_name, config)
     }
 
+    /// Insert the required information to construct a address space
     pub fn insert_address_space(mut self, address_space_id: AddressSpaceId, width: u8) -> Self {
         self.memory_busses.insert(address_space_id, width);
         self
     }
 
+    /// Build the machine
     pub fn build<R: RenderBackend>(
         mut self,
         display_component_initialization_data: Arc<R::ComponentInitializationData>,
     ) -> Machine<R> {
         let mut memory_translation_table = MemoryTranslationTable::default();
 
+        // Populate the memory translation table with address spaces
         for (address_space_id, width) in self.memory_busses.drain() {
-            memory_translation_table.insert_bus(address_space_id, width);
+            memory_translation_table.insert_address_space(address_space_id, width);
         }
 
+        // Populate the memory translation table with callbacks
         for memory_metadata in self
             .component_metadata
             .iter_mut()
@@ -152,11 +160,13 @@ impl MachineBuilder {
 
         for (component_id, component_metadata) in self.component_metadata.drain() {
             if let Some(mut display_metadata) = component_metadata.display {
+                // Initialize all the display components
                 self.essentials
                     .component_store()
                     .interact_dyn_local(component_id, |component| {
                         let (frame_sender, frame_receiver) = crossbeam::channel::bounded(1);
 
+                        // Call the display callback
                         (display_metadata
                             .backend_specific_data
                             .remove(&TypeId::of::<R>())
@@ -172,6 +182,7 @@ impl MachineBuilder {
                     });
             }
 
+            // Gather the tasks
             if let Some(task_metadata) = component_metadata.task {
                 tasks.extend(
                     task_metadata
@@ -204,10 +215,12 @@ impl MachineBuilder {
             }
         }
 
+        // Finalize the memory translation table
         let memory_translation_table = Arc::new(memory_translation_table);
         self.essentials
             .set_memory_translation_table(memory_translation_table.clone());
 
+        // Create the scheduler
         let scheduler = Scheduler::new(self.essentials.component_store().clone(), tasks);
 
         Machine {
@@ -236,6 +249,8 @@ impl MachineBuilder {
     }
 }
 
+
+/// Struct passed into components for their initialization purposes
 pub struct ComponentBuilder<'a, C: Component> {
     machine_builder: &'a mut MachineBuilder,
     component_id: ComponentId,
@@ -258,6 +273,8 @@ impl<C: Component> ComponentBuilder<'_, C> {
     }
 
     /// Insert this component in the global store, ensuring quick access for all other components
+    /// 
+    /// Use this if unsure
     pub fn build_global(self, component: C)
     where
         C: Send + Sync,
