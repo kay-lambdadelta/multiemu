@@ -5,7 +5,7 @@ use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use name::NameMetadataExtractor;
 use parser::Datafile;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::str::FromStr;
 use std::{error::Error, fs::File, io::BufReader, path::PathBuf};
 
@@ -53,9 +53,12 @@ pub fn database_logiqx_import(files: Vec<PathBuf>) -> Result<(), Box<dyn std::er
             let database_transaction = rom_manager.rom_information.begin_write()?;
             let mut database_table = database_transaction.open_table(ROM_INFORMATION_TABLE)?;
 
-            for entry in data_file.machine {
-                for rom in entry.rom {
-                    let mut languages = HashSet::default();
+            for mut entry in data_file.machine {
+                let mut dependencies = BTreeSet::default();
+
+                // Extract dependency roms
+                for rom in entry.rom.drain(1..) {
+                    let mut languages = BTreeSet::default();
 
                     if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
                         languages.extend(name_metadata.languages);
@@ -65,12 +68,32 @@ pub fn database_logiqx_import(files: Vec<PathBuf>) -> Result<(), Box<dyn std::er
                         name: rom.name,
                         system: data_file.header.name,
                         languages,
+                        dependencies: BTreeSet::default(),
                     };
 
                     tracing::debug!("Full ROM info: {:#?}", info);
 
                     database_table.insert(rom.id, info)?;
+                    dependencies.insert(rom.id);
                 }
+
+                let rom = entry.rom.remove(0);
+                let mut languages = BTreeSet::default();
+
+                if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
+                    languages.extend(name_metadata.languages);
+                }
+
+                let info = RomInfo {
+                    name: rom.name,
+                    system: data_file.header.name,
+                    languages,
+                    dependencies,
+                };
+
+                tracing::debug!("Full ROM info: {:#?}", info);
+
+                database_table.insert(rom.id, info)?;
             }
 
             drop(database_table);
