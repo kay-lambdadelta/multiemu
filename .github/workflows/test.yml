@@ -1,0 +1,24 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install dependencies with apt
+      run: |
+        sudo apt update
+        sudo apt install -y libx11-dev libxkbcommon-dev libwayland-dev libasound2-dev libudev-dev pkg-config build-essential libgl-dev libvulkan-dev libbz2-dev libx11-dev
+    - uses: actions/checkout@v4
+    - name: Run tests
+      run: cargo test --verbose
