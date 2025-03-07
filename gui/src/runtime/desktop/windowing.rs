@@ -16,6 +16,7 @@ use multiemu_rom::system::GameSystem;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::BufReader;
 use std::sync::{Arc, RwLock};
 use winit::event::WindowEvent;
 use winit::window::WindowId;
@@ -131,23 +132,14 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                     if let Some(input) = winit2key(event.physical_key) {
                         let state = InputState::Digital(event.state.is_pressed());
 
-                        if let Some(virtual_id) = self.gamepad_mapping.get(&KEYBOARD_ID) {
-                            let environment_guard = self.environment.read().unwrap();
-
-                            if let Some(virtual_gamepad) = machine.virtual_gamepads.get(virtual_id)
-                            {
-                                if let Some(transformed_input) = environment_guard
-                                    .gamepad_configs
-                                    .get(&machine.game_system)
-                                    .and_then(|gamepad_types| {
-                                        gamepad_types.get(&virtual_gamepad.name())
-                                    })
-                                    .and_then(|gamepad_transformer| gamepad_transformer.get(&input))
-                                {
-                                    virtual_gamepad.set(*transformed_input, state);
-                                }
-                            }
-                        }
+                        insert_input(
+                            KEYBOARD_ID,
+                            input,
+                            state,
+                            machine,
+                            &self.gamepad_mapping,
+                            &self.environment,
+                        );
                     }
                 }
             }
@@ -172,7 +164,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                         Some(UiOutput::OpenGame { path }) => {
                             tracing::info!("Opening ROM at {}", path.display());
 
-                            let mut rom_file = File::open(&path).unwrap();
+                            let mut rom_file = BufReader::new(File::open(&path).unwrap());
                             let rom_id = RomId::from_read(&mut rom_file);
 
                             let database_transaction =
@@ -342,7 +334,7 @@ fn insert_input<R: RenderBackend>(
     id: GamepadId,
     input: Input,
     state: InputState,
-    machine: &mut Machine<R>,
+    machine: &Machine<R>,
     gamepad_mapping: &HashMap<GamepadId, VirtualGamepadId>,
     environment: &RwLock<Environment>,
 ) {

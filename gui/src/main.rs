@@ -13,6 +13,10 @@ use std::{
     fs::File,
     sync::{Arc, RwLock},
 };
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{
+    EnvFilter, Layer, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
+};
 
 mod build_machine;
 mod cli;
@@ -23,10 +27,26 @@ mod timing_tracker;
 
 /// TODO: Give each platform a different main function
 fn main() {
-    tracing_subscriber::fmt::init();
+    let environment = Environment::load().expect("Could not parse environment");
+
+    let file = File::create(&environment.log_location).expect("Failed to create log file");
+    let stderr_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .with_ansi(true)
+        .with_filter(create_filter());
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(Arc::new(file))
+        .with_ansi(false)
+        .with_filter(create_filter());
+
+    // Combine the layers and set the global subscriber
+    tracing_subscriber::registry()
+        .with(stderr_layer)
+        .with(file_layer)
+        .init();
+
     tracing::info!("MultiEMU v{}", env!("CARGO_PKG_VERSION"));
 
-    let environment = Environment::load().expect("Could not parse global config");
     let rom_manager = Arc::new(RomManager::new(Some(&environment.database_file)).unwrap());
     let graphics_api = environment.graphics_setting.api;
     let environment = Arc::new(RwLock::new(environment));
@@ -138,4 +158,11 @@ fn main() {
             PlatformRuntime::<OpenGlRenderingRuntime>::launch_gui(rom_manager, environment);
         }
     }
+}
+
+fn create_filter() -> EnvFilter {
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+    filter
 }
