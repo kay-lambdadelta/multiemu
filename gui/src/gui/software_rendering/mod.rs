@@ -2,9 +2,10 @@ use egui::FullOutput;
 use egui::TextureId;
 use nalgebra::Scalar;
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2, Vector3, Vector4};
+use palette::LinSrgba;
+use palette::Srgba;
 use palette::cast::ComponentOrder;
 use palette::cast::Packed;
-use palette::{LinSrgba, Srgba};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::collections::HashMap;
@@ -13,11 +14,13 @@ mod render_pixel;
 
 // FIXME: This is unbearably slow, spending a ton of time in `perp`
 
+// NOTE: https://github.com/emilk/egui/pull/2071
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 struct Vertex {
     position: Point2<f32>,
     uv: Point2<f32>,
-    color: LinSrgba<f32>,
+    color: Srgba<f32>,
 }
 
 impl From<egui::epaint::Vertex> for Vertex {
@@ -25,7 +28,7 @@ impl From<egui::epaint::Vertex> for Vertex {
         Vertex {
             position: Point2::new(vertex.pos.x, vertex.pos.y),
             uv: Point2::new(vertex.uv.x, vertex.uv.y),
-            color: Srgba::from_components(vertex.color.to_tuple()).into_linear(),
+            color: Srgba::from_components(vertex.color.to_tuple()).into_format(),
         }
     }
 }
@@ -60,7 +63,7 @@ impl Triangle {
 
 #[derive(Debug, Default)]
 pub struct SoftwareEguiRenderer {
-    textures: HashMap<TextureId, DMatrix<LinSrgba<f32>>>,
+    textures: HashMap<TextureId, DMatrix<Srgba<f32>>>,
 }
 
 impl SoftwareEguiRenderer {
@@ -88,7 +91,7 @@ impl SoftwareEguiRenderer {
                 DMatrix::from_element(
                     image_size[0],
                     image_size[1],
-                    LinSrgba::new(0.0, 0.0, 0.0, 255.0),
+                    Srgba::new(0.0, 0.0, 0.0, 255.0),
                 )
             });
 
@@ -98,7 +101,7 @@ impl SoftwareEguiRenderer {
                         .pixels
                         .clone()
                         .into_iter()
-                        .map(|pixel| Srgba::from_components(pixel.to_tuple()).into_linear())
+                        .map(|pixel| Srgba::from_components(pixel.to_tuple()).into_format())
                         .collect();
 
                     DMatrix::from_vec(image.size[0], image.size[1], converted_image)
@@ -108,7 +111,11 @@ impl SoftwareEguiRenderer {
                         .pixels
                         .clone()
                         .into_iter()
-                        .map(|coverage| LinSrgba::new(coverage, coverage, coverage, coverage))
+                        .map(|coverage| {
+                            Srgba::from_linear(LinSrgba::new(
+                                coverage, coverage, coverage, coverage,
+                            ))
+                        })
                         .collect();
 
                     DMatrix::from_vec(font_image.size[0], font_image.size[1], converted_image)

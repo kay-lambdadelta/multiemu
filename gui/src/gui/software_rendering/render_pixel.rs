@@ -1,7 +1,7 @@
 use super::Triangle;
 use nalgebra::{DMatrix, Point2, Scalar, Vector2, Vector3, stack};
 use palette::{
-    LinSrgba, Srgba,
+    Srgba,
     blend::Compose,
     cast::{ComponentOrder, Packed},
 };
@@ -11,7 +11,7 @@ use palette::{
 pub fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
     position: Point2<f32>,
     triangle: &Triangle,
-    texture: &DMatrix<LinSrgba<f32>>,
+    texture: &DMatrix<Srgba<f32>>,
     texture_dimensions: Vector2<f32>,
     destination_pixel: &mut Packed<P, u32>,
 ) {
@@ -37,15 +37,15 @@ pub fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
         // Inaccuraries that lead outside the texture we will read off with black
         let pixel = texture
             .get((pixel_coords.x, pixel_coords.y))
-            .unwrap_or(&const { LinSrgba::new(0.0, 0.0, 0.0, 1.0) });
+            .unwrap_or(&const { Srgba::new(0.0, 0.0, 0.0, 1.0) });
 
         let source_pixel = interpolated_color * *pixel;
 
         if source_pixel.alpha == 1.0 {
-            *destination_pixel = Packed::pack(Srgba::from_linear(source_pixel));
+            *destination_pixel = Packed::pack(Srgba::from_format(source_pixel));
         } else {
-            *destination_pixel = Packed::pack(Srgba::from_linear(
-                source_pixel.over(destination_pixel.unpack().into_linear()),
+            *destination_pixel = Packed::pack(Srgba::from_format(
+                source_pixel.over(destination_pixel.unpack().into_format()),
             ));
         }
     }
