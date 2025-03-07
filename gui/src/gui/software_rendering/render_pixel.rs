@@ -1,13 +1,12 @@
 use super::Triangle;
-use nalgebra::{DMatrix, Point2, Scalar, Vector2, Vector3, stack};
+use nalgebra::{DMatrix, Point2, Scalar, Vector2, Vector3};
 use palette::{
     Srgba,
     blend::Compose,
     cast::{ComponentOrder, Packed},
 };
 
-#[inline(always)]
-#[allow(clippy::too_many_arguments)]
+#[inline]
 pub fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
     position: Point2<f32>,
     triangle: &Triangle,
@@ -41,18 +40,13 @@ pub fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
 
         let source_pixel = interpolated_color * *pixel;
 
-        if source_pixel.alpha == 1.0 {
-            *destination_pixel = Packed::pack(Srgba::from_format(source_pixel));
-        } else {
-            *destination_pixel = Packed::pack(Srgba::from_format(
-                source_pixel.over(destination_pixel.unpack().into_format()),
-            ));
-        }
+        *destination_pixel = Packed::pack(Srgba::from_format(
+            source_pixel.over(destination_pixel.unpack().into_format()),
+        ));
     }
 }
 
 #[inline]
-#[allow(clippy::toplevel_ref_arg)]
 fn barycentric_coordinates(point: Point2<f32>, triangle: &Triangle) -> Vector3<f32> {
     let area1 = (triangle.v1.position - point)
         .perp(&(triangle.v2.position - point))
@@ -71,18 +65,15 @@ fn barycentric_coordinates(point: Point2<f32>, triangle: &Triangle) -> Vector3<f
 }
 
 #[inline]
-#[allow(clippy::toplevel_ref_arg)]
 fn is_point_in_triangle(point: Point2<f32>, triangle: &Triangle) -> bool {
-    let to_p = stack![
-        point - triangle.v0.position,
-        point - triangle.v1.position,
-        point - triangle.v2.position
-    ];
+    let to_p0 = point - triangle.v0.position;
+    let to_p1 = point - triangle.v1.position;
+    let to_p2 = point - triangle.v2.position;
 
     let b = Vector3::new(
-        triangle.edge0.perp(&to_p.column(0)),
-        triangle.edge1.perp(&to_p.column(1)),
-        triangle.edge2.perp(&to_p.column(2)),
+        triangle.edge0.perp(&to_p0),
+        triangle.edge1.perp(&to_p1),
+        triangle.edge2.perp(&to_p2),
     );
 
     b.into_iter().all(|&val| val >= 0.0) || b.into_iter().all(|&val| val <= 0.0)

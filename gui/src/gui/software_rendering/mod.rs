@@ -6,13 +6,9 @@ use palette::LinSrgba;
 use palette::Srgba;
 use palette::cast::ComponentOrder;
 use palette::cast::Packed;
-use rayon::iter::IndexedParallelIterator;
-use rayon::iter::ParallelIterator;
 use std::collections::HashMap;
 
 mod render_pixel;
-
-// FIXME: This is unbearably slow, spending a ton of time in `perp`
 
 // NOTE: https://github.com/emilk/egui/pull/2071
 
@@ -179,21 +175,21 @@ impl SoftwareEguiRenderer {
                         let mut bounding_box =
                             render_buffer.view_range_mut(min.x..=max.x, min.y..=max.y);
 
-                        bounding_box
-                            .par_column_iter_mut()
-                            .enumerate()
-                            .map(|(y, row)| (y + min.y, row))
-                            .for_each(|(y, mut row)| {
-                                for x in min.x..=max.x {
-                                    render_pixel::render_pixel(
-                                        Point2::new(x as f32, y as f32),
-                                        &triangle,
-                                        texture,
-                                        texture_dimensions,
-                                        &mut row[x - min.x],
-                                    );
-                                }
-                            });
+                        for x in min.x..=max.x {
+                            for y in min.y..=max.y {
+                                let destination_pixel = unsafe {
+                                    bounding_box.get_unchecked_mut((x - min.x, y - min.y))
+                                };
+
+                                render_pixel::render_pixel(
+                                    Point2::new(x as f32, y as f32),
+                                    &triangle,
+                                    texture,
+                                    texture_dimensions,
+                                    destination_pixel,
+                                );
+                            }
+                        }
                     }
                 }
                 egui::epaint::Primitive::Callback(_) => {

@@ -161,8 +161,7 @@ fn main() {
 }
 
 fn create_filter() -> EnvFilter {
-    let filter = EnvFilter::builder()
+    EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
-        .from_env_lossy();
-    filter
+        .from_env_lossy()
 }
