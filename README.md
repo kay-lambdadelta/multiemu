@@ -12,9 +12,9 @@ This is a prototype of a multisystem hardware emulator, designed for fast, porta
 
 `multiemu-gui`
 
-| Distro    | Development Package Name                                               |
-| --------  | -------                                                                |
-| Debian    | libx11-dev libxkbcommon-dev libwayland-dev libasound2-dev libudev-dev  |
+| Distro    | Development Package Name                                                                         |
+| --------  | -------                                                                                          |
+| Debian    | libx11-dev libxkbcommon-dev libwayland-dev libasound2-dev libudev-dev pkg-config build-essential |
 
 Feature specific dependencies (all features are enabled by default)
 
