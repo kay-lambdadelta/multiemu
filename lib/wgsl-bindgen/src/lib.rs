@@ -1,6 +1,7 @@
 use cross_compile::ShaderCrossCompiler;
 use cross_compile::glsl::GlslCrossCompiler;
 use cross_compile::spirv::SpirvShaderCrossCompiler;
+use naga::ShaderStage;
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -55,17 +56,41 @@ impl Builder {
         let mut validator = Validator::new(ValidationFlags::all(), Capabilities::all());
         let module_info = validator.validate(&module)?;
 
+        let vertex_entry = module
+            .entry_points
+            .iter()
+            .find(|e| e.stage == ShaderStage::Vertex)
+            .unwrap()
+            .name
+            .clone();
+
+        let fragment_entry = module
+            .entry_points
+            .iter()
+            .find(|e| e.stage == ShaderStage::Fragment)
+            .unwrap()
+            .name
+            .clone();
+
         let mut output = TokenStream::default();
 
         for (output_type, (vertex, fragment)) in
             self.shader_output.iter().map(|(output_type, version)| {
                 match output_type {
-                    ShaderOutputType::Glsl => {
-                        GlslCrossCompiler::compile(&module, &module_info, version.clone())
-                    }
-                    ShaderOutputType::Spirv => {
-                        SpirvShaderCrossCompiler::compile(&module, &module_info, version.clone())
-                    }
+                    ShaderOutputType::Glsl => GlslCrossCompiler::compile(
+                        &module,
+                        &module_info,
+                        version.clone(),
+                        &vertex_entry,
+                        &fragment_entry,
+                    ),
+                    ShaderOutputType::Spirv => SpirvShaderCrossCompiler::compile(
+                        &module,
+                        &module_info,
+                        version.clone(),
+                        &vertex_entry,
+                        &fragment_entry,
+                    ),
                 }
                 .map(|shaders| (output_type, shaders))
                 .expect("Could not cross compile shader")
@@ -75,7 +100,11 @@ impl Builder {
 
             output.extend(quote! {
                 pub mod #output_type_ident {
+                    pub const VERTEX_SHADER_ENTRY: &str = #vertex_entry;
+
                     #vertex
+
+                    pub const FRAGMENT_SHADER_ENTRY: &str = #fragment_entry;
 
                     #fragment
                 }

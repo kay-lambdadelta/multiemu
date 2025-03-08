@@ -11,16 +11,10 @@ impl ShaderCrossCompiler for SpirvShaderCrossCompiler {
         module: &naga::Module,
         module_info: &naga::valid::ModuleInfo,
         version: versions::SemVer,
+        vertex_entry: &str,
+        fragment_entry: &str,
     ) -> Result<(proc_macro2::TokenStream, proc_macro2::TokenStream), Box<dyn std::error::Error>>
     {
-        let vertex_shader_entry = module
-            .entry_points
-            .iter()
-            .find(|e| e.stage == ShaderStage::Vertex)
-            .unwrap()
-            .name
-            .clone();
-
         let vertex_output = naga::back::spv::write_vec(
             module,
             module_info,
@@ -33,17 +27,9 @@ impl ShaderCrossCompiler for SpirvShaderCrossCompiler {
             },
             Some(&PipelineOptions {
                 shader_stage: ShaderStage::Vertex,
-                entry_point: vertex_shader_entry,
+                entry_point: vertex_entry.to_string(),
             }),
         )?;
-
-        let fragment_shader_entry = module
-            .entry_points
-            .iter()
-            .find(|e| e.stage == ShaderStage::Fragment)
-            .unwrap()
-            .name
-            .clone();
 
         let fragment_output = naga::back::spv::write_vec(
             module,
@@ -57,7 +43,7 @@ impl ShaderCrossCompiler for SpirvShaderCrossCompiler {
             },
             Some(&PipelineOptions {
                 shader_stage: ShaderStage::Fragment,
-                entry_point: fragment_shader_entry,
+                entry_point: fragment_entry.to_string(),
             }),
         )?;
 

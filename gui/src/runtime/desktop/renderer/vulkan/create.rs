@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use nalgebra::Vector2;
 use std::sync::Arc;
 use vulkano::{
@@ -15,6 +14,12 @@ use winit::window::Window;
 
 pub const UNIVERSALLY_REQUIRED_EXTENSIONS: DeviceExtensions = DeviceExtensions {
     khr_swapchain: true,
+    ..DeviceExtensions::empty()
+};
+
+pub const UNIVERSALLY_PREFERRED_EXTENSIONS: DeviceExtensions = DeviceExtensions {
+    // Gui code is more efficient with this
+    khr_swapchain_mutable_format: true,
     ..DeviceExtensions::empty()
 };
 
@@ -41,59 +46,67 @@ pub fn select_vulkan_device(
     preferred_extensions: &DeviceExtensions,
     required_extensions: &DeviceExtensions,
 ) -> Option<(Arc<PhysicalDevice>, DeviceExtensions, u32)> {
-    let possible_canidates: Vec<_> = instance
+    let preferred_extensions = preferred_extensions.union(&UNIVERSALLY_PREFERRED_EXTENSIONS);
+    let required_extensions = required_extensions.union(&UNIVERSALLY_REQUIRED_EXTENSIONS);
+
+    let mut possible_candidates: Vec<_> = instance
         .enumerate_physical_devices()
-        .unwrap()
-        // Make sure whatever device has all of our required extensions
-        .filter(|p| {
-            p.supported_extensions()
-                .contains(&required_extensions.union(&UNIVERSALLY_REQUIRED_EXTENSIONS))
-        })
-        // Grab one with a graphics queue
+        .ok()?
+        .filter(|p| p.supported_extensions().contains(&required_extensions))
         .filter_map(|p| {
             p.queue_family_properties()
                 .iter()
                 .enumerate()
-                .position(|(i, q)| {
+                .find(|(i, q)| {
                     q.queue_flags.intersects(QueueFlags::GRAPHICS)
-                        && p.surface_support(i as u32, &surface).unwrap_or(false)
+                        && p.surface_support(*i as u32, &surface).unwrap_or(false)
                 })
-                .map(|i| (p, i as u32))
-        })
-        // Sort by the device power
-        .sorted_by_key(|(p, _)| match p.properties().device_type {
-            PhysicalDeviceType::DiscreteGpu => 0,
-            PhysicalDeviceType::IntegratedGpu => 1,
-            PhysicalDeviceType::VirtualGpu => 2,
-            PhysicalDeviceType::Cpu => 3,
-            PhysicalDeviceType::Other => 4,
-            _ => 5,
+                .map(|(i, _)| (p.clone(), i as u32))
         })
         .collect();
 
-    assert!(
-        !possible_canidates.is_empty(),
-        "No suitable vulkan device found"
-    );
+    possible_candidates.sort_by(|(p1, _), (p2, _)| {
+        let power1 = match p1.properties().device_type {
+            PhysicalDeviceType::DiscreteGpu => 5usize,
+            PhysicalDeviceType::IntegratedGpu => 4,
+            PhysicalDeviceType::VirtualGpu => 3,
+            PhysicalDeviceType::Cpu => 2,
+            PhysicalDeviceType::Other => 1,
+            _ => 0,
+        };
 
-    possible_canidates
-        .iter()
-        .find_map(|(p, i)| {
-            if p.supported_extensions().contains(preferred_extensions) {
-                Some((p.clone(), *i))
-            } else {
-                None
-            }
-        })
-        // Just grab a random one if we can't find something that meets all of our requirements
-        .or_else(|| possible_canidates.first().cloned())
-        .map(|(p, i)| {
-            let extensions = required_extensions
-                .union(&UNIVERSALLY_REQUIRED_EXTENSIONS)
-                .union(&p.supported_extensions().intersection(preferred_extensions));
+        let power2 = match p2.properties().device_type {
+            PhysicalDeviceType::DiscreteGpu => 5,
+            PhysicalDeviceType::IntegratedGpu => 4,
+            PhysicalDeviceType::VirtualGpu => 3,
+            PhysicalDeviceType::Cpu => 2,
+            PhysicalDeviceType::Other => 1,
+            _ => 0,
+        };
 
-            (p.clone(), extensions, i)
-        })
+        let extension_count1 = p1
+            .supported_extensions()
+            .intersection(&preferred_extensions)
+            .count();
+
+        let extension_count2 = p2
+            .supported_extensions()
+            .intersection(&preferred_extensions)
+            .count();
+
+        power2
+            // Sort power in descending order
+            .cmp(&power1)
+            // Sort preferred extensions in descending order
+            .then(extension_count2.cmp(&extension_count1))
+    });
+
+    possible_candidates.first().cloned().map(|(p, i)| {
+        let extensions = required_extensions
+            .union(&p.supported_extensions().intersection(&preferred_extensions));
+
+        (p.clone(), extensions, i)
+    })
 }
 
 pub fn create_vulkan_swapchain(

@@ -1,5 +1,6 @@
 use crate::rendering_backend::RenderingBackendState;
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
+use gui::VulkanEguiRenderer;
 use multiemu_config::Environment;
 use multiemu_machine::Machine;
 use multiemu_machine::component::ComponentId;
@@ -9,6 +10,8 @@ use multiemu_machine::display::vulkan::VulkanRendering;
 use nalgebra::Vector2;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
+use vulkano::swapchain::SwapchainAcquireFuture;
 use vulkano::{
     Validated, VulkanError, VulkanLibrary,
     command_buffer::{
@@ -41,6 +44,7 @@ pub struct VulkanRenderingRuntime {
     swapchain: Arc<Swapchain>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
+    descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     render_pass: Arc<RenderPass>,
     previous_frame_future: Option<Box<dyn GpuFuture>>,
     framebuffers: Vec<Arc<Framebuffer>>,
@@ -161,7 +165,20 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             })
             .collect();
 
+        let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
+            device.clone(),
+            Default::default(),
+        ));
+
         drop(environment_guard);
+
+        let gui_renderer = VulkanEguiRenderer::new(
+            device.clone(),
+            gui_queue.clone(),
+            memory_allocator.clone(),
+            command_buffer_allocator.clone(),
+            descriptor_set_allocator.clone(),
+        );
 
         Ok(Self {
             previous_frame_future: Some(vulkano::sync::now(device.clone()).boxed()),
@@ -173,6 +190,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             swapchain,
             memory_allocator,
             command_buffer_allocator,
+            descriptor_set_allocator,
             render_pass,
             framebuffers,
             swapchain_images,
@@ -198,15 +216,6 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         let window_dimensions = self.display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
 
-        let environment_guard = self.environment.read().unwrap();
-
-        // Check if vsync settings disagree
-        if (self.swapchain.create_info().present_mode == PresentMode::Immediate)
-            == environment_guard.graphics_setting.vsync
-        {
-            self.recreate_swapchain = true;
-        }
-
         // HACK: This only works with a single component
         for (component_id, framebuffer_receiver) in &machine.component_framebuffers {
             if let Ok(framebuffer) = framebuffer_receiver.try_recv() {
@@ -220,49 +229,8 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             return;
         }
 
-        if self.recreate_swapchain {
-            tracing::trace!("Recreating swapchain");
-
-            let (new_swapchain, new_images) = self
-                .swapchain
-                .recreate(SwapchainCreateInfo {
-                    image_extent: window_dimensions.into(),
-                    present_mode: if environment_guard.graphics_setting.vsync {
-                        PresentMode::Fifo
-                    } else {
-                        PresentMode::Immediate
-                    },
-                    ..self.swapchain.create_info()
-                })
-                .expect("Failed to recreate swapchain");
-
-            let new_framebuffers = new_images
-                .iter()
-                .map(|image| {
-                    let view = ImageView::new_default(image.clone()).unwrap();
-                    Framebuffer::new(
-                        self.render_pass.clone(),
-                        FramebufferCreateInfo {
-                            attachments: vec![view],
-                            ..Default::default()
-                        },
-                    )
-                    .unwrap()
-                })
-                .collect::<Vec<_>>();
-
-            self.swapchain = new_swapchain;
-            self.swapchain_images = new_images;
-            self.framebuffers = new_framebuffers;
-            self.recreate_swapchain = false;
-        }
-
-        let (image_index, recreate_swapchain, acquire_future) = {
-            acquire_next_image(self.swapchain.clone(), None).expect("Failed to acquire next image")
-        };
-        self.recreate_swapchain |= recreate_swapchain;
-
-        let swapchain_image = self.swapchain_images[image_index as usize].clone();
+        let (image_index, acquire_future, swapchain_image) =
+            self.swapchain_routines(window_dimensions);
 
         let mut command_buffer = AutoCommandBufferBuilder::primary(
             self.command_buffer_allocator.clone(),
@@ -316,9 +284,127 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             .cleanup_finished();
     }
 
-    fn redraw_menu(&mut self, _egui_context: &egui::Context, _full_output: egui::FullOutput) {}
+    fn redraw_menu(&mut self, egui_context: &egui::Context, full_output: egui::FullOutput) {
+        let window_dimensions = self.display_api_handle.inner_size();
+        let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
+
+        // Skip rendering if impossible window size
+        if window_dimensions.min() == 0 {
+            return;
+        }
+
+        let (image_index, acquire_future, swapchain_image) =
+            self.swapchain_routines(window_dimensions);
+
+        let swapchain_image_view = ImageView::new_default(swapchain_image.clone()).unwrap();
+
+        /*self.gui_renderer
+        .render(egui_context, swapchain_image_view, full_output); */
+
+        let command_buffer = AutoCommandBufferBuilder::primary(
+            self.command_buffer_allocator.clone(),
+            self.gui_queue.queue_family_index(),
+            CommandBufferUsage::OneTimeSubmit,
+        )
+        .unwrap();
+
+        let command_buffer = command_buffer.build().unwrap();
+
+        self.display_api_handle.pre_present_notify();
+        // Swap that swapchain
+        match self
+            .previous_frame_future
+            .take()
+            .unwrap()
+            .join(acquire_future)
+            .then_execute(self.gui_queue.clone(), command_buffer)
+            .unwrap()
+            .then_swapchain_present(
+                self.gui_queue.clone(),
+                SwapchainPresentInfo::swapchain_image_index(self.swapchain.clone(), image_index),
+            )
+            .then_signal_fence_and_flush()
+            .map_err(Validated::unwrap)
+        {
+            Ok(previous_frame_future) => {
+                self.previous_frame_future = Some(Box::new(previous_frame_future));
+            }
+            Err(VulkanError::OutOfDate) => {
+                self.recreate_swapchain = true;
+                self.previous_frame_future = Some(vulkano::sync::now(self.device.clone()).boxed());
+            }
+            Err(_) => panic!("Failed to present swapchain image"),
+        }
+
+        self.previous_frame_future
+            .as_mut()
+            .unwrap()
+            .cleanup_finished();
+    }
 
     fn surface_resized(&mut self) {
         self.recreate_swapchain = true;
+    }
+}
+
+impl VulkanRenderingRuntime {
+    fn swapchain_routines(
+        &mut self,
+        window_dimensions: Vector2<u32>,
+    ) -> (u32, SwapchainAcquireFuture, Arc<Image>) {
+        let environment_guard = self.environment.read().unwrap();
+
+        // Check if vsync settings disagree
+        if (self.swapchain.create_info().present_mode == PresentMode::Immediate)
+            == environment_guard.graphics_setting.vsync
+        {
+            self.recreate_swapchain = true;
+        }
+
+        if self.recreate_swapchain {
+            tracing::trace!("Recreating swapchain");
+
+            let (new_swapchain, new_images) = self
+                .swapchain
+                .recreate(SwapchainCreateInfo {
+                    image_extent: window_dimensions.into(),
+                    present_mode: if environment_guard.graphics_setting.vsync {
+                        PresentMode::Fifo
+                    } else {
+                        PresentMode::Immediate
+                    },
+                    ..self.swapchain.create_info()
+                })
+                .expect("Failed to recreate swapchain");
+
+            let new_framebuffers = new_images
+                .iter()
+                .map(|image| {
+                    let view = ImageView::new_default(image.clone()).unwrap();
+                    Framebuffer::new(
+                        self.render_pass.clone(),
+                        FramebufferCreateInfo {
+                            attachments: vec![view],
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap()
+                })
+                .collect::<Vec<_>>();
+
+            self.swapchain = new_swapchain;
+            self.swapchain_images = new_images;
+            self.framebuffers = new_framebuffers;
+            self.recreate_swapchain = false;
+        }
+
+        let (image_index, recreate_swapchain, acquire_future) = {
+            acquire_next_image(self.swapchain.clone(), None).expect("Failed to acquire next image")
+        };
+        self.recreate_swapchain |= recreate_swapchain;
+
+        let swapchain_image = self.swapchain_images[image_index as usize].clone();
+
+        (image_index, acquire_future, swapchain_image)
     }
 }

@@ -13,15 +13,10 @@ impl ShaderCrossCompiler for GlslCrossCompiler {
         module: &naga::Module,
         module_info: &naga::valid::ModuleInfo,
         version: SemVer,
+        vertex_entry: &str,
+        fragment_entry: &str,
     ) -> Result<(TokenStream, TokenStream), Box<dyn std::error::Error>> {
         let mut vertex_output_string = String::new();
-        let vertex_shader_entry = module
-            .entry_points
-            .iter()
-            .find(|e| e.stage == ShaderStage::Vertex)
-            .unwrap()
-            .name
-            .clone();
 
         naga::back::glsl::Writer::new(
             &mut vertex_output_string,
@@ -38,7 +33,7 @@ impl ShaderCrossCompiler for GlslCrossCompiler {
             },
             &PipelineOptions {
                 shader_stage: ShaderStage::Vertex,
-                entry_point: vertex_shader_entry,
+                entry_point: vertex_entry.to_string(),
                 multiview: None,
             },
             Default::default(),
@@ -46,13 +41,6 @@ impl ShaderCrossCompiler for GlslCrossCompiler {
         .write()?;
 
         let mut fragment_output_string = String::new();
-        let fragment_shader_entry = module
-            .entry_points
-            .iter()
-            .find(|e| e.stage == ShaderStage::Fragment)
-            .unwrap()
-            .name
-            .clone();
 
         naga::back::glsl::Writer::new(
             &mut fragment_output_string,
@@ -69,7 +57,7 @@ impl ShaderCrossCompiler for GlslCrossCompiler {
             },
             &PipelineOptions {
                 shader_stage: ShaderStage::Fragment,
-                entry_point: fragment_shader_entry,
+                entry_point: fragment_entry.to_string(),
                 multiview: None,
             },
             Default::default(),
