@@ -18,6 +18,7 @@ serde_with = { workspace = true }
 redb = { workspace = true }
 isolang = { workspace = true }
 scc = { workspace = true }
+strum = { workspace = true }
 quick-xml = { version = "0.37", features = ["serialize"] }
 zip = { version = "2.2", features = [
     "zstd",
@@ -29,7 +30,8 @@ zip = { version = "2.2", features = [
 ] }
 strsim = "0.11"
 nod = "1.4"
-tempfile = "3.17"
+tempfile = "3.18"
+ureq = { version = "3.0", features = ["socks-proxy", "charset"] }
 
 [package.metadata.deb]
 maintainer = "Kay <lambdadeltacommunism@gmail.com>"

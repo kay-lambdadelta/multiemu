@@ -4,7 +4,7 @@ use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use redb::ReadableTable;
 use std::collections::HashMap;
-use std::{error::Error, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum NativeAction {
@@ -19,19 +19,23 @@ pub enum NativeAction {
     },
 }
 
-pub fn database_native_import(paths: Vec<PathBuf>) -> Result<(), Box<dyn Error>> {
+pub fn database_native_import(
+    paths: Vec<PathBuf>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment = Environment::load()?;
     let rom_manager = RomManager::new(Some(&environment.database_file))?;
 
     paths
         .into_par_iter()
-        .try_for_each(|path| rom_manager.load_database(path))
-        .map_err(|err| err as Box<dyn Error>)?;
+        .try_for_each(|path| rom_manager.load_database(path))?;
 
     Ok(())
 }
 
-pub fn database_native_fuzzy_search(search: String, similarity: f64) -> Result<(), Box<dyn Error>> {
+pub fn database_native_fuzzy_search(
+    search: String,
+    similarity: f64,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let search = search.to_lowercase();
     let environment = Environment::load()?;
     let rom_manager = RomManager::new(Some(&environment.database_file))?;

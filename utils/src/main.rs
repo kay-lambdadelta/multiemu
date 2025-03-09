@@ -3,9 +3,12 @@ use crate::database::logiqx::LogiqxAction;
 use crate::database::native::NativeAction;
 use crate::rom::RomAction;
 use clap::Parser;
+use database::redump::RedumpAction;
+use multiemu_rom::system::GameSystem;
 
 mod convert;
 mod database;
+mod logiqx;
 mod rom;
 
 #[derive(Clone, Parser)]
@@ -34,6 +37,16 @@ fn main() {
             action: LogiqxAction::Import { paths },
         }) => {
             database::logiqx::database_logiqx_import(paths).unwrap();
+        }
+        Cli::Database(DatabaseAction::Redump {
+            action: RedumpAction::Download { systems },
+        }) => {
+            database::redump::database_redump_download(systems).unwrap();
+        }
+        Cli::Database(DatabaseAction::Redump {
+            action: RedumpAction::DownloadAll,
+        }) => {
+            database::redump::database_redump_download(GameSystem::iter()).unwrap();
         }
         Cli::Database(DatabaseAction::ScreenScraper {}) => {}
         Cli::Rom(RomAction::Import { paths, symlink }) => {

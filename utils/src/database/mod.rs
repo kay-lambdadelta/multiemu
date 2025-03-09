@@ -5,6 +5,7 @@ use native::NativeAction;
 pub mod logiqx;
 pub mod native;
 pub mod screenscraper;
+pub mod redump;
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum DatabaseAction {
@@ -17,6 +18,10 @@ pub enum DatabaseAction {
     Native {
         #[clap(subcommand)]
         action: NativeAction,
+    },
+    Redump {
+        #[clap(subcommand)]
+        action: redump::RedumpAction,
     },
     ScreenScraper {},
 }

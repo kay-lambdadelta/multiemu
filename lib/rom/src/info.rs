@@ -31,14 +31,16 @@ impl Value for RomInfo {
     where
         Self: 'a,
     {
-        rmp_serde::from_slice(data).unwrap()
+        bincode::serde::decode_from_slice(data, bincode::config::standard())
+            .unwrap()
+            .0
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
     where
         Self: 'b,
     {
-        rmp_serde::to_vec_named(value).unwrap()
+        bincode::serde::encode_to_vec(value, bincode::config::standard()).unwrap()
     }
 
     fn type_name() -> redb::TypeName {

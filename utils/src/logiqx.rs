@@ -1,0 +1,186 @@
+use isolang::Language;
+use multiemu_rom::id::RomId;
+use multiemu_rom::info::RomInfo;
+use multiemu_rom::manager::ROM_INFORMATION_TABLE;
+use multiemu_rom::manager::RomManager;
+use multiemu_rom::system::GameSystem;
+use serde::Deserialize;
+use serde_with::DisplayFromStr;
+use serde_with::serde_as;
+use std::collections::BTreeSet;
+use std::collections::HashSet;
+use std::error::Error;
+use std::io::BufRead;
+use std::str::FromStr;
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+pub struct Datafile {
+    pub header: Header,
+    #[serde(alias = "game")]
+    pub machine: Vec<Machine>,
+}
+
+#[allow(dead_code)]
+#[serde_as]
+#[derive(Debug, Deserialize)]
+pub struct Header {
+    #[serde_as(as = "DisplayFromStr")]
+    pub name: GameSystem,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+pub struct Machine {
+    #[serde(rename = "@name")]
+    pub name: String,
+    pub description: String,
+    pub rom: Vec<Rom>,
+}
+
+#[allow(dead_code)]
+#[serde_as]
+#[derive(Debug, Deserialize)]
+pub struct Rom {
+    #[serde(rename = "@name")]
+    pub name: String,
+    #[serde_as(as = "DisplayFromStr")]
+    #[serde(rename = "@sha1")]
+    pub id: RomId,
+    pub status: Option<String>,
+}
+
+fn get_data_in_parentheses(input: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut stack = Vec::new();
+
+    for (i, c) in input.chars().enumerate() {
+        match c {
+            '(' => {
+                stack.push(i);
+            }
+            ')' => {
+                if let Some(start) = stack.pop() {
+                    let substring = &input[start + 1..i];
+                    result.push(substring.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    result
+}
+
+struct NameMetadataExtractor {
+    pub languages: HashSet<Language>,
+}
+
+impl FromStr for NameMetadataExtractor {
+    type Err = Box<dyn std::error::Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut languages = HashSet::new();
+
+        // Split the string into parts based on parentheses
+        let parts = get_data_in_parentheses(s);
+
+        for part in parts {
+            let part = part.to_lowercase();
+            let part = part.trim().split(',');
+
+            for part in part {
+                if let Some(language) = Language::from_639_1(part) {
+                    languages.insert(language);
+                }
+
+                // Region to default locale
+                match part {
+                    "usa" => {
+                        languages.insert(Language::from_639_1("en").unwrap());
+                    }
+                    "united kingdom" => {
+                        languages.insert(Language::from_639_1("en").unwrap());
+                    }
+                    "japan" => {
+                        languages.insert(Language::from_639_1("ja").unwrap());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(NameMetadataExtractor { languages })
+    }
+}
+
+pub fn import(
+    rom_manager: &RomManager,
+    file: impl BufRead,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    // Parse XML based data file
+    let data_file: Datafile = match quick_xml::de::from_reader(file) {
+        Ok(file) => file,
+        Err(err) => {
+            tracing::error!("Failed to parse XML logiqx database: {}", err);
+            return Ok(());
+        }
+    };
+
+    tracing::info!(
+        "Found {} entries in XML logiqx database for the system {}",
+        data_file.machine.len(),
+        data_file.header.name
+    );
+
+    let database_transaction = rom_manager.rom_information.begin_write()?;
+    let mut database_table = database_transaction.open_table(ROM_INFORMATION_TABLE)?;
+
+    for mut entry in data_file.machine {
+        let mut dependencies = BTreeSet::default();
+
+        // Extract dependency roms
+        for rom in entry.rom.drain(1..) {
+            let mut languages = BTreeSet::default();
+
+            if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
+                languages.extend(name_metadata.languages);
+            }
+
+            let info = RomInfo {
+                name: rom.name,
+                system: data_file.header.name,
+                languages,
+                dependencies: BTreeSet::default(),
+            };
+
+            tracing::debug!("Full ROM info: {:#?}", info);
+
+            database_table.insert(rom.id, info)?;
+            dependencies.insert(rom.id);
+        }
+
+        let rom = entry.rom.remove(0);
+        let mut languages = BTreeSet::default();
+
+        if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
+            languages.extend(name_metadata.languages);
+        }
+
+        let info = RomInfo {
+            name: rom.name,
+            system: data_file.header.name,
+            languages,
+            dependencies,
+        };
+
+        tracing::debug!("Full ROM info: {:#?}", info);
+
+        database_table.insert(rom.id, info)?;
+    }
+
+    drop(database_table);
+    database_transaction.commit()?;
+
+    Ok(())
+}

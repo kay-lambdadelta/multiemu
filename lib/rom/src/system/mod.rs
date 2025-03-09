@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, iter::once, path::Path, str::FromStr};
+use std::{collections::HashMap, fmt::Display, iter::once, path::Path, str::FromStr};
 use strum::{EnumIter, IntoEnumIterator};
 
 mod extension;
@@ -59,6 +59,10 @@ pub enum NintendoSystem {
     PokemonMini,
 }
 
+impl NintendoSystem {
+    pub const NAME: &str = "Nintendo";
+}
+
 #[derive(
     Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
@@ -69,6 +73,10 @@ pub enum SegaSystem {
     Genesis,
     Sega32X,
     SegaCD,
+}
+
+impl SegaSystem {
+    pub const NAME: &str = "Sega";
 }
 
 #[derive(
@@ -83,12 +91,20 @@ pub enum SonySystem {
     PlaystationVita,
 }
 
+impl SonySystem {
+    pub const NAME: &str = "Sony";
+}
+
 #[derive(
     Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
 /// Some random assorted other systems
 pub enum OtherSystem {
     Chip8,
+}
+
+impl OtherSystem {
+    pub const NAME: &str = "Other";
 }
 
 #[derive(
@@ -103,19 +119,63 @@ pub enum AtariSystem {
     Jaguar,
 }
 
+impl AtariSystem {
+    pub const NAME: &str = "Atari";
+}
+
 impl FromStr for GameSystem {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = strip_brackets_and_parens(s).trim().to_lowercase();
+        let original_s = s;
 
-        GameSystem::iter()
-            // find variations on a system
-            .find(|system| s == system.to_string().to_lowercase())
-            .ok_or(format!("Unknown system: {}", s))
+        let s = strip_brackets_and_parens(s)
+            .trim()
+            .to_lowercase()
+            .replace(' ', "");
+
+        let systems: HashMap<String, GameSystem> = GameSystem::iter()
+            .map(|system| (system.to_string().to_lowercase().replace(' ', ""), system))
+            .collect();
+
+        if let Some(system) = systems.get(&s) {
+            return Ok(*system);
+        }
+
+        let company_names = [
+            NintendoSystem::NAME,
+            SegaSystem::NAME,
+            SonySystem::NAME,
+            AtariSystem::NAME,
+            OtherSystem::NAME,
+        ];
+
+        for company_name in company_names.map(|company_name| company_name.to_lowercase()) {
+            if let Some(index) = s.rfind(&company_name) {
+                let mut s_without_company = s.clone();
+                s_without_company.replace_range(index..index + company_name.len(), "");
+
+                if let Some(system) = systems.get(&s_without_company) {
+                    return Ok(*system);
+                }
+            }
+
+            for (system_string, system) in &systems {
+                if let Some(index) = system_string.rfind(&company_name) {
+                    let mut system_string_without_company = system_string.clone();
+                    system_string_without_company
+                        .replace_range(index..index + company_name.len(), "");
+
+                    if s == system_string_without_company {
+                        return Ok(*system);
+                    }
+                }
+            }
+        }
+
+        Err(format!("Unknown system: {}", original_s))
     }
 }
-
 
 /// Exports a well formed No-Intro style system name
 impl Display for GameSystem {

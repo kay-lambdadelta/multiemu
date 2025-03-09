@@ -106,7 +106,7 @@ impl Default for Environment {
 
 impl Environment {
     /// Saves the config to the disk
-    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         create_dir_all(STORAGE_DIRECTORY.deref())?;
         let config_file = File::create(CONFIG_LOCATION.deref())?;
         ron::ser::to_writer_pretty(
@@ -121,7 +121,7 @@ impl Environment {
     }
 
     /// Loads the config from the disk
-    pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         if !CONFIG_LOCATION.exists() {
             Self::default().save()?;
         }

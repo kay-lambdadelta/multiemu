@@ -1,7 +1,6 @@
 use crate::{id::RomId, info::RomInfo};
 use redb::{Database, ReadableTable, TableDefinition, backends::InMemoryBackend};
 use std::{
-    error::Error,
     fmt::Debug,
     fs::{File, create_dir_all},
     path::{Path, PathBuf},
@@ -28,7 +27,7 @@ pub struct RomManager {
 
 impl RomManager {
     /// Opens and loads the default database
-    pub fn new(database: Option<&Path>) -> Result<Self, Box<dyn Error>> {
+    pub fn new(database: Option<&Path>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         tracing::info!("Loading ROM database at {:?}", database);
 
         let rom_information = if let Some(path) = database {
@@ -53,7 +52,7 @@ impl RomManager {
     pub fn load_database(
         &self,
         path: impl AsRef<Path>,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let path = path.as_ref();
 
         if !path.is_file() {

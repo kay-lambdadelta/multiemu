@@ -76,7 +76,10 @@ impl Display for SearchEntry {
     }
 }
 
-pub fn rom_import(paths: Vec<PathBuf>, symlink: bool) -> Result<(), Box<dyn Error>> {
+pub fn rom_import(
+    paths: Vec<PathBuf>,
+    symlink: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment = Arc::new(Environment::load()?);
     let rom_manager = Arc::new(RomManager::new(Some(&environment.database_file))?);
     fs::create_dir_all(&environment.roms_directory)?;
