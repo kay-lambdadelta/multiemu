@@ -20,7 +20,6 @@ Feature specific dependencies (all features are enabled by default)
 
 | Distro   | Feature | Development Package Name |
 | -------- | ------- | -------                  |
-| Debian   | `opengl` | libgl-dev               |
 | Debian   | `vulkan` | libvulkan-dev           |
 
 ## MSRV
