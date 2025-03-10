@@ -57,7 +57,9 @@ fn gamma_from_linear_rgba(linear_rgba: vec4<f32>) -> vec4<f32> {
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let texture_color = textureSample(texture, texture_sampler, input.uv);
-    let tex_gamma = gamma_from_linear_rgba(texture_color);
-    var out_color_gamma = input.color * tex_gamma;
-    return vec4<f32>(linear_from_gamma_rgb(out_color_gamma.rgb), out_color_gamma.a);
+    let srgba_texture_color = gamma_from_linear_rgba(texture_color);
+    let srgba_vertex_color = gamma_from_linear_rgba(input.color);
+    let blended_color = srgba_texture_color * srgba_vertex_color;
+    
+    return vec4<f32>(linear_from_gamma_rgb(blended_color.rgb), blended_color.a);
 }

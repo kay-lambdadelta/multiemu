@@ -58,7 +58,7 @@ use vulkano::{DeviceSize, single_pass_renderpass};
 struct Vertex {
     position: Point2<f32>,
     uv: Point2<f32>,
-    color: Srgba<f32>,
+    color: Srgba<u8>,
 }
 
 impl From<egui::epaint::Vertex> for Vertex {
@@ -66,7 +66,7 @@ impl From<egui::epaint::Vertex> for Vertex {
         Vertex {
             position: Point2::new(vertex.pos.x, vertex.pos.y),
             uv: Point2::new(vertex.uv.x, vertex.uv.y),
-            color: Srgba::from_components(vertex.color.to_tuple()).into_format(),
+            color: Srgba::from_components(vertex.color.to_tuple()),
         }
     }
 }
@@ -226,7 +226,7 @@ impl VulkanEguiRenderer {
                 2,
                 VertexInputAttributeDescription {
                     binding: 0,
-                    format: Format::R32G32B32A32_SFLOAT,
+                    format: Format::R8G8B8A8_UNORM,
                     offset: offset_of!(Vertex, color) as u32,
                     ..Default::default()
                 },
