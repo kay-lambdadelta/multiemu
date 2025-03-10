@@ -107,16 +107,6 @@ impl FromConfig for Chip8Display {
             )
         };
 
-        #[cfg(all(feature = "opengl", platform_desktop))]
-        let component_builder = {
-            use multiemu_machine::display::opengl::OpenGlRendering;
-            component_builder.set_display_config::<OpenGlRendering>(
-                None,
-                None,
-                opengl::set_display_data,
-            )
-        };
-
         component_builder.build(Chip8Display {
             state: OnceCell::default(),
             modified: RefCell::new(true),

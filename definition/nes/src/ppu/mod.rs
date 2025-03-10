@@ -5,8 +5,6 @@ use multiemu_machine::memory::AddressSpaceId;
 use std::ops::Range;
 use std::sync::Arc;
 
-#[cfg(all(feature = "opengl", platform_desktop))]
-mod opengl;
 mod software;
 #[cfg(all(feature = "vulkan", platform_desktop))]
 mod vulkan;

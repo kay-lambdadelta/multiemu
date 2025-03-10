@@ -124,17 +124,6 @@ fn main() {
                         environment,
                     );
                 }
-                #[cfg(all(feature = "opengl", platform_desktop))]
-                GraphicsApi::OpenGl => {
-                    use runtime::desktop::renderer::opengl::OpenGlRenderingRuntime;
-
-                    PlatformRuntime::<OpenGlRenderingRuntime>::launch_game(
-                        game_system,
-                        user_specified_roms,
-                        rom_manager,
-                        environment,
-                    )
-                }
             }
 
             return;
