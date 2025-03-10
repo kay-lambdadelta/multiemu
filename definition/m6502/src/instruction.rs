@@ -3,7 +3,6 @@ use std::borrow::Cow;
 
 // https://www.pagetable.com/c64ref/6502/?tab=2
 
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AddressingMode {
     Accumulator,

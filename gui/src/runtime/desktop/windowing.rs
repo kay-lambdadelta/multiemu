@@ -56,6 +56,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                 <R as RenderBackend>::ContextExtensionSpecification::default(),
                 <R as RenderBackend>::ContextExtensionSpecification::default(),
                 environment.clone(),
+                self.shader_cache.clone(),
             )
             .unwrap(),
             RuntimeMode::Pending {
@@ -185,17 +186,23 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                                     .insert(rom_id, LoadedRomLocation::External(path.clone()))
                                     .unwrap();
 
-                                let windowing = self.windowing.take().unwrap();
+                                let WindowingContext {
+                                    egui_winit,
+                                    display_api_handle,
+                                    state,
+                                } = self.windowing.take().unwrap();
+                                drop(state);
+
                                 let state = self.setup_render_backend_and_machine(
-                                    windowing.display_api_handle.clone(),
+                                    display_api_handle.clone(),
                                     self.environment.clone(),
                                     game_system,
                                     vec![rom_id],
                                 );
 
                                 self.windowing = Some(WindowingContext {
-                                    display_api_handle: windowing.display_api_handle,
-                                    egui_winit: windowing.egui_winit,
+                                    display_api_handle,
+                                    egui_winit,
                                     state,
                                 });
                                 return;
@@ -279,6 +286,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             user_specified_roms,
             self.rom_manager.clone(),
             self.environment.clone(),
+            self.shader_cache.clone(),
         );
 
         let mut preferred_extensions = R::ContextExtensionSpecification::default();
@@ -304,6 +312,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             preferred_extensions,
             required_extensions,
             environment.clone(),
+            self.shader_cache.clone(),
         )
         .unwrap();
 

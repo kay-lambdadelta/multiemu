@@ -39,6 +39,7 @@ crossbeam = { workspace = true }
 palette = { workspace = true }
 uuid = { workspace = true }
 redb = { workspace = true }
+versions = { workspace = true }
 egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
 egui_extras = { version = "0.31", default-features = false, features = [
     "image",
@@ -53,26 +54,20 @@ winit = { version = "0.30", default-features = false, features = [
     "wayland",
     "wayland-dlopen",
     "x11",
-    "rwh_05",
     "rwh_06",
     "android-game-activity",
 ] }
 egui-winit = { version = "0.31", default-features = false, features = [
     "android-game-activity",
-    "links",
     "wayland",
     "x11",
 ] }
 softbuffer = "0.4"
 cpal = "0.15"
 gilrs = "0.11"
+clap = { workspace = true }
 # Vulkan support
 vulkano = { workspace = true, optional = true }
-# Opengl support
-glium = { workspace = true, optional = true }
-glutin = { version = "0.32", optional = true }
-clap = { workspace = true }
-encase = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
@@ -85,24 +80,16 @@ cranelift = { workspace = true, optional = true }
 ctru-rs = { workspace = true }
 
 [build-dependencies]
-multiemu-wgsl-bindgen = { workspace = true }
 multiemu-macros = { workspace = true }
 cfg_aliases = { workspace = true }
 
-
 [features]
-default = ["jit", "vulkan", "opengl"]
+default = ["jit", "vulkan"]
 jit = ["dep:cranelift", "multiemu-machine/jit", "multiemu-definition-chip8/jit"]
 vulkan = [
     "dep:vulkano",
     "multiemu-machine/vulkan",
     "multiemu-definition-chip8/vulkan",
-]
-opengl = [
-    "dep:glutin",
-    "dep:glium",
-    "multiemu-machine/opengl",
-    "multiemu-definition-chip8/opengl",
 ]
 
 [package.metadata.deb]

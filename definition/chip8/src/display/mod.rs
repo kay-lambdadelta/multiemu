@@ -13,8 +13,6 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-#[cfg(all(feature = "opengl", platform_desktop))]
-mod opengl;
 mod software;
 #[cfg(all(feature = "vulkan", platform_desktop))]
 mod vulkan;

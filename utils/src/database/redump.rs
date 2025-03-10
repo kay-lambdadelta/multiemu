@@ -50,12 +50,8 @@ pub fn database_redump_download(
         if let Ok(redump_system) = RedumpSystem::try_from(system) {
             tracing::info!("Downloading redump dat for system {}", system);
 
-            let url = format!(
-                "{}/{}",
-                BASE_URL,
-                redump_system.to_string().to_lowercase()
-            );
-            
+            let url = format!("{}/{}", BASE_URL, redump_system.to_string().to_lowercase());
+
             let mut temp_file = tempfile::tempfile()?;
             // Download to temp file
             std::io::copy(

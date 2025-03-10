@@ -151,12 +151,6 @@ fn main() {
 
             PlatformRuntime::<VulkanRenderingRuntime>::launch_gui(rom_manager, environment);
         }
-        #[cfg(all(feature = "opengl", platform_desktop))]
-        GraphicsApi::OpenGl => {
-            use runtime::desktop::renderer::opengl::OpenGlRenderingRuntime;
-
-            PlatformRuntime::<OpenGlRenderingRuntime>::launch_gui(rom_manager, environment);
-        }
     }
 }
 

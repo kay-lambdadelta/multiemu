@@ -8,6 +8,7 @@ use multiemu_config::Environment;
 use multiemu_input::{GamepadId, Input, InputState};
 use multiemu_machine::Machine;
 use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::shader::ShaderCache;
 use multiemu_machine::input::VirtualGamepadId;
 use multiemu_rom::id::RomId;
 use multiemu_rom::manager::RomManager;
@@ -38,6 +39,7 @@ pub struct PlatformRuntime<RS: RenderingBackendState> {
     windowing: Option<WindowingContext<RS>>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
+    shader_cache: Arc<ShaderCache>,
     egui_context: egui::Context,
     menu_state: MenuState,
     audio: CpalAudio,
@@ -60,6 +62,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             windowing: None,
             rom_manager,
             environment,
+            shader_cache: Arc::new(ShaderCache::new(12)),
             egui_context,
             menu_state,
             audio: CpalAudio::default(),
@@ -102,6 +105,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             windowing: None,
             rom_manager,
             environment,
+            shader_cache: Arc::new(ShaderCache::new(12)),
             egui_context,
             menu_state,
             audio: CpalAudio::default(),

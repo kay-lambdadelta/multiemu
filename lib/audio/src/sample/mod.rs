@@ -10,7 +10,7 @@ pub trait Sample:
 {
     /// Minimum sample value
     const SAMPLE_MIN: Self;
-    
+
     /// Maximum sample value
     const SAMPLE_MAX: Self;
 

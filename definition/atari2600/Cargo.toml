@@ -21,13 +21,11 @@ serde = { workspace = true }
 num = { workspace = true }
 
 [build-dependencies]
-multiemu-wgsl-bindgen = { workspace = true }
 multiemu-macros = { workspace = true }
 cfg_aliases = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
 vulkano = { workspace = true, optional = true }
-glium = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
@@ -35,4 +33,3 @@ criterion = { workspace = true }
 [features]
 jit = ["multiemu-machine/jit", "multiemu-definition-m6502/jit"]
 vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
-opengl = ["dep:glium", "multiemu-machine/opengl"]

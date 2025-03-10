@@ -4,6 +4,7 @@ use multiemu_config::Environment;
 use multiemu_machine::Machine;
 use multiemu_machine::component::ComponentId;
 use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::shader::ShaderCache;
 use multiemu_machine::display::software::SoftwareRendering;
 use nalgebra::{DMatrix, DMatrixViewMut, Vector2};
 use palette::Srgba;
@@ -32,6 +33,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         _preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         _required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         environment: Arc<RwLock<Environment>>,
+        _shader_cache: Arc<ShaderCache>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
@@ -88,7 +90,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             .integer_scaling;
 
         if integer_scaling {
-            for (index, component_framebuffer) in self.previously_seen_frames.iter() {
+            for (_, component_framebuffer) in self.previously_seen_frames.iter() {
                 let component_display_buffer_size =
                     Vector2::new(component_framebuffer.nrows(), component_framebuffer.ncols())
                         .cast::<u16>();
@@ -126,7 +128,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                 }
             }
         } else {
-            for (index, component_framebuffer) in self.previously_seen_frames.iter() {
+            for (_, component_framebuffer) in self.previously_seen_frames.iter() {
                 let component_display_buffer_size =
                     Vector2::new(component_framebuffer.nrows(), component_framebuffer.ncols())
                         .cast::<u16>();

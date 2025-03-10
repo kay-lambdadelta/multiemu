@@ -1,5 +1,6 @@
 use crate::ComponentStore;
 use crate::builder::ComponentBuilder;
+use crate::display::shader::ShaderCache;
 use crate::memory::memory_translation_table::MemoryTranslationTable;
 use downcast_rs::Downcast;
 use multiemu_config::Environment;
@@ -19,15 +20,21 @@ pub struct RuntimeEssentials {
     component_store: Arc<ComponentStore>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
+    shader_cache: Arc<ShaderCache>,
 }
 
 impl RuntimeEssentials {
-    pub(crate) fn new(rom_manager: Arc<RomManager>, environment: Arc<RwLock<Environment>>) -> Self {
+    pub(crate) fn new(
+        rom_manager: Arc<RomManager>,
+        environment: Arc<RwLock<Environment>>,
+        shader_cache: Arc<ShaderCache>,
+    ) -> Self {
         Self {
             memory_translation_table: OnceLock::new(),
             component_store: Arc::new(ComponentStore::default()),
             rom_manager,
             environment,
+            shader_cache,
         }
     }
 

@@ -3,14 +3,14 @@ use std::sync::{Arc, RwLock};
 pub use cartridge::ines::INes;
 use cartridge::ines::TimingMode;
 use cartridge::{NesCartridge, NesCartridgeConfig};
-use enumflags2::BitFlag;
 use multiemu_config::Environment;
-use multiemu_definition_m6502::{FlagRegister, M6502, M6502Config, M6502Kind, M6502Registers};
+use multiemu_definition_m6502::{M6502, M6502Config, M6502Kind, M6502Registers};
 use multiemu_definition_misc::memory::mirror::{MirrorMemory, MirrorMemoryConfig};
 use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use multiemu_machine::builder::MachineBuilder;
+use multiemu_machine::display::shader::ShaderCache;
 use multiemu_machine::memory::AddressSpaceId;
 use multiemu_rom::id::RomId;
 use multiemu_rom::manager::RomManager;
@@ -30,11 +30,13 @@ pub fn manifest(
     user_specified_roms: Vec<RomId>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
+    shader_cache: Arc<ShaderCache>,
 ) -> MachineBuilder {
     let machine = multiemu_machine::builder::MachineBuilder::new(
         GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem),
         rom_manager.clone(),
         environment.clone(),
+        shader_cache.clone(),
     );
 
     let machine = machine.insert_address_space(CPU_ADDRESS_SPACE, 16);

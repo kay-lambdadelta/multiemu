@@ -4,7 +4,9 @@ use multiemu_config::Environment;
 use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_machine::{builder::MachineBuilder, memory::AddressSpaceId};
+use multiemu_machine::{
+    builder::MachineBuilder, display::shader::ShaderCache, memory::AddressSpaceId,
+};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
@@ -155,11 +157,13 @@ pub fn manifest(
     user_specified_roms: Vec<RomId>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
+    shader_cache: Arc<ShaderCache>,
 ) -> MachineBuilder {
     let machine = MachineBuilder::new(
         GameSystem::Other(OtherSystem::Chip8),
-        rom_manager.clone(),
-        environment.clone(),
+        rom_manager,
+        environment,
+        shader_cache,
     );
 
     let machine = machine.insert_address_space(CPU_ADDRESS_SPACE, 12);

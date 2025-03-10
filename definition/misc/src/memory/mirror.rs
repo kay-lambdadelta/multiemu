@@ -139,6 +139,7 @@ mod test {
     };
     use multiemu_config::Environment;
     use multiemu_machine::builder::MachineBuilder;
+    use multiemu_machine::display::shader::ShaderCache;
     use multiemu_machine::display::software::SoftwareRendering;
     use multiemu_machine::memory::AddressSpaceId;
     use multiemu_rom::manager::RomManager;
@@ -152,29 +153,37 @@ mod test {
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_address_space(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=0xffff,
-                    assigned_address_space: ADDRESS_SPACE,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .insert_component::<MirrorMemory>(
-                "workram-mirror",
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    assigned_ranges: RangeInclusiveMap::from_iter([(0x10000..=0x1ffff, 0x0000)]),
-                    assigned_address_space: ADDRESS_SPACE,
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let shader_cache = Arc::new(ShaderCache::default());
+
+        let machine =
+            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
+                .insert_address_space(ADDRESS_SPACE, 64)
+                .insert_component::<StandardMemory>(
+                    "workram",
+                    StandardMemoryConfig {
+                        max_word_size: 8,
+                        readable: true,
+                        writable: true,
+                        assigned_range: 0..=0xffff,
+                        assigned_address_space: ADDRESS_SPACE,
+                        initial_contents: vec![StandardMemoryInitialContents::Value {
+                            value: 0xff,
+                        }],
+                    },
+                )
+                .insert_component::<MirrorMemory>(
+                    "workram-mirror",
+                    MirrorMemoryConfig {
+                        readable: true,
+                        writable: true,
+                        assigned_ranges: RangeInclusiveMap::from_iter([(
+                            0x10000..=0x1ffff,
+                            0x0000,
+                        )]),
+                        assigned_address_space: ADDRESS_SPACE,
+                    },
+                )
+                .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 8];
 
         machine
@@ -188,29 +197,37 @@ mod test {
     fn basic_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_address_space(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=0xffff,
-                    assigned_address_space: ADDRESS_SPACE,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .insert_component::<MirrorMemory>(
-                "workram-mirror",
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    assigned_ranges: RangeInclusiveMap::from_iter([(0x10000..=0x1ffff, 0x0000)]),
-                    assigned_address_space: ADDRESS_SPACE,
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let shader_cache = Arc::new(ShaderCache::default());
+
+        let machine =
+            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
+                .insert_address_space(ADDRESS_SPACE, 64)
+                .insert_component::<StandardMemory>(
+                    "workram",
+                    StandardMemoryConfig {
+                        max_word_size: 8,
+                        readable: true,
+                        writable: true,
+                        assigned_range: 0..=0xffff,
+                        assigned_address_space: ADDRESS_SPACE,
+                        initial_contents: vec![StandardMemoryInitialContents::Value {
+                            value: 0xff,
+                        }],
+                    },
+                )
+                .insert_component::<MirrorMemory>(
+                    "workram-mirror",
+                    MirrorMemoryConfig {
+                        readable: true,
+                        writable: true,
+                        assigned_ranges: RangeInclusiveMap::from_iter([(
+                            0x10000..=0x1ffff,
+                            0x0000,
+                        )]),
+                        assigned_address_space: ADDRESS_SPACE,
+                    },
+                )
+                .build::<SoftwareRendering>(Default::default());
         let buffer = [0; 8];
 
         machine

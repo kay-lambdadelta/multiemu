@@ -1,4 +1,3 @@
-use bitvec::{prelude::Msb0, view::BitView};
 use decoder::M6502InstructionDecoder;
 use enumflags2::{BitFlags, bitflags};
 use multiemu_machine::{
@@ -103,20 +102,6 @@ struct ProcessorState {
     registers: M6502Registers,
     cycle_counter: u8,
     execution_mode: ExecutionMode,
-}
-
-impl ProcessorState {
-    #[inline]
-    fn set_accumulator_flags(&mut self) {
-        self.registers.flags.set(
-            FlagRegister::Negative,
-            self.registers.accumulator.view_bits::<Msb0>()[0],
-        );
-
-        self.registers
-            .flags
-            .set(FlagRegister::Zero, self.registers.accumulator == 0);
-    }
 }
 
 pub struct M6502 {

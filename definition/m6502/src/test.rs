@@ -6,6 +6,7 @@ use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use multiemu_machine::builder::MachineBuilder;
+use multiemu_machine::display::shader::ShaderCache;
 use multiemu_machine::display::software::SoftwareRendering;
 use multiemu_machine::memory::AddressSpaceId;
 use multiemu_machine::processor::decoder::InstructionDecoder;
@@ -22,12 +23,14 @@ const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
 fn all_instructions_decode_to_something() {
     let environment = Arc::new(RwLock::new(Environment::load().unwrap()));
     let rom_manager = Arc::new(RomManager::new(None).unwrap());
+    let shader_cache = Arc::new(ShaderCache::default());
 
     for instruction in 0x00..=0xff {
         let machine = MachineBuilder::new(
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
+            shader_cache.clone(),
         )
         .insert_address_space(ADDRESS_SPACE, 64)
         .insert_component::<StandardMemory>(
@@ -57,6 +60,7 @@ fn all_instructions_decode_to_something() {
 fn m6502_instruction_decode() {
     let environment = Arc::new(RwLock::new(Environment::load().unwrap()));
     let rom_manager = Arc::new(RomManager::new(None).unwrap());
+    let shader_cache = Arc::new(ShaderCache::default());
 
     let map: IndexMap<_, _, RandomState> = IndexMap::from_iter([
         (
@@ -356,6 +360,7 @@ fn m6502_instruction_decode() {
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
+            shader_cache.clone(),
         )
         .insert_address_space(ADDRESS_SPACE, 64)
         .insert_component::<StandardMemory>(

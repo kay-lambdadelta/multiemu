@@ -97,9 +97,9 @@ pub struct GamepadId(Uuid);
 
 impl GamepadId {
     /// The ID of the platforms default input device
-    /// 
+    ///
     /// For desktop, this is the keyboard
-    /// 
+    ///
     /// For 3ds/psp this is the built in gamepad
     pub const PLATFORM_RESERVED: GamepadId = GamepadId(Uuid::from_u128(0));
 

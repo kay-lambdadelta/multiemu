@@ -1,7 +1,7 @@
 use egui::FullOutput;
 use multiemu_config::Environment;
-use multiemu_machine::Machine;
 use multiemu_machine::display::RenderBackend;
+use multiemu_machine::{Machine, display::shader::ShaderCache};
 use std::sync::{Arc, RwLock};
 
 /// A backend for a given render backend
@@ -14,6 +14,7 @@ pub trait RenderingBackendState: Sized {
         preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         environment: Arc<RwLock<Environment>>,
+        shader_cache: Arc<ShaderCache>,
     ) -> Result<Self, Box<dyn std::error::Error>>;
     fn component_initialization_data(
         &self,

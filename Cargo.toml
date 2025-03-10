@@ -7,7 +7,6 @@ multiemu-machine = { path = "lib/machine" }
 multiemu-rom = { path = "lib/rom" }
 multiemu-config = { path = "lib/config" }
 multiemu-input = { path = "lib/input" }
-multiemu-wgsl-bindgen = { path = "lib/wgsl-bindgen" }
 multiemu-macros = { path = "lib/macros" }
 multiemu-audio = { path = "lib/audio" }
 
@@ -19,7 +18,7 @@ multiemu-definition-i8080 = { path = "definition/i8080" }
 multiemu-definition-atari2600 = { path = "definition/atari2600" }
 
 # External dependencies
-naga = "24.0"
+naga = { version = "24.0", features = ["wgsl-in"] }
 strum = { version = "0.27", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -35,14 +34,12 @@ nalgebra = { version = "0.33", features = [
     "rayon",
 ] }
 bytemuck = { version = "1.22", features = ["derive"] }
-encase = { version = "0.10", features = ["nalgebra"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
 bitvec = "1.0"
 cranelift = { version = "0.117", features = ["jit", "native", "module"] }
 vulkano = { version = "0.35", default-features = false }
-glium = "0.36"
 crossbeam = "0.8"
 scc = "2.3"
 enumflags2 = { version = "0.7", features = ["serde"] }

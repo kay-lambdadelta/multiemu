@@ -1,12 +1,12 @@
 use multiemu_config::graphics::GraphicsApi;
 use std::any::Any;
 
-#[cfg(all(feature = "opengl", platform_desktop))]
-pub mod opengl;
 #[cfg(all(feature = "vulkan", platform_desktop))]
 pub mod vulkan;
 
 pub mod software;
+
+pub mod shader;
 
 /// Trait for marker structs representing rendering backends
 pub trait RenderBackend: Any + 'static {

@@ -5,6 +5,7 @@ use multiemu_config::Environment;
 use multiemu_machine::Machine;
 use multiemu_machine::component::ComponentId;
 use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::shader::ShaderCache;
 use multiemu_machine::display::vulkan::VulkanComponentInitializationData;
 use multiemu_machine::display::vulkan::VulkanRendering;
 use nalgebra::Vector2;
@@ -46,13 +47,13 @@ pub struct VulkanRenderingRuntime {
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     render_pass: Arc<RenderPass>,
-    previous_frame_future: Option<Box<dyn GpuFuture>>,
     framebuffers: Vec<Arc<Framebuffer>>,
     swapchain_images: Vec<Arc<Image>>,
     recreate_swapchain: bool,
     display_api_handle: Arc<Window>,
     environment: Arc<RwLock<Environment>>,
     previously_seen_frames: HashMap<ComponentId, Arc<Image>>,
+    gui_renderer: VulkanEguiRenderer,
 }
 
 impl RenderingBackendState for VulkanRenderingRuntime {
@@ -64,6 +65,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         environment: Arc<RwLock<Environment>>,
+        shader_cache: Arc<ShaderCache>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
@@ -178,10 +180,11 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             memory_allocator.clone(),
             command_buffer_allocator.clone(),
             descriptor_set_allocator.clone(),
+            shader_cache,
+            swapchain.image_format(),
         );
 
         Ok(Self {
-            previous_frame_future: Some(vulkano::sync::now(device.clone()).boxed()),
             instance,
             surface,
             device,
@@ -198,6 +201,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             display_api_handle,
             environment,
             previously_seen_frames: HashMap::new(),
+            gui_renderer,
         })
     }
 
@@ -254,11 +258,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
         self.display_api_handle.pre_present_notify();
         // Swap that swapchain
-        match self
-            .previous_frame_future
-            .take()
-            .unwrap()
-            .join(acquire_future)
+        match acquire_future
             .then_execute(self.gui_queue.clone(), command_buffer)
             .unwrap()
             .then_swapchain_present(
@@ -268,20 +268,14 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             .then_signal_fence_and_flush()
             .map_err(Validated::unwrap)
         {
-            Ok(previous_frame_future) => {
-                self.previous_frame_future = Some(Box::new(previous_frame_future));
+            Ok(future) => {
+                future.wait(None).unwrap();
             }
             Err(VulkanError::OutOfDate) => {
                 self.recreate_swapchain = true;
-                self.previous_frame_future = Some(vulkano::sync::now(self.device.clone()).boxed());
             }
             Err(_) => panic!("Failed to present swapchain image"),
         }
-
-        self.previous_frame_future
-            .as_mut()
-            .unwrap()
-            .cleanup_finished();
     }
 
     fn redraw_menu(&mut self, egui_context: &egui::Context, full_output: egui::FullOutput) {
@@ -298,25 +292,15 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
         let swapchain_image_view = ImageView::new_default(swapchain_image.clone()).unwrap();
 
-        /*self.gui_renderer
-        .render(egui_context, swapchain_image_view, full_output); */
-
-        let command_buffer = AutoCommandBufferBuilder::primary(
-            self.command_buffer_allocator.clone(),
-            self.gui_queue.queue_family_index(),
-            CommandBufferUsage::OneTimeSubmit,
-        )
-        .unwrap();
+        let command_buffer =
+            self.gui_renderer
+                .render(egui_context, swapchain_image_view, full_output);
 
         let command_buffer = command_buffer.build().unwrap();
 
         self.display_api_handle.pre_present_notify();
         // Swap that swapchain
-        match self
-            .previous_frame_future
-            .take()
-            .unwrap()
-            .join(acquire_future)
+        match acquire_future
             .then_execute(self.gui_queue.clone(), command_buffer)
             .unwrap()
             .then_swapchain_present(
@@ -326,20 +310,14 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             .then_signal_fence_and_flush()
             .map_err(Validated::unwrap)
         {
-            Ok(previous_frame_future) => {
-                self.previous_frame_future = Some(Box::new(previous_frame_future));
+            Ok(future) => {
+                future.wait(None).unwrap();
             }
             Err(VulkanError::OutOfDate) => {
                 self.recreate_swapchain = true;
-                self.previous_frame_future = Some(vulkano::sync::now(self.device.clone()).boxed());
             }
             Err(_) => panic!("Failed to present swapchain image"),
         }
-
-        self.previous_frame_future
-            .as_mut()
-            .unwrap()
-            .cleanup_finished();
     }
 
     fn surface_resized(&mut self) {

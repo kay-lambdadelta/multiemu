@@ -342,11 +342,13 @@ impl MemoryCallbacks {
 
 #[cfg(test)]
 mod test {
-    use std::sync::RwLock;
-
     use multiemu_config::Environment;
-    use multiemu_machine::{builder::MachineBuilder, display::software::SoftwareRendering};
+    use multiemu_machine::{
+        builder::MachineBuilder,
+        display::{shader::ShaderCache, software::SoftwareRendering},
+    };
     use multiemu_rom::system::GameSystem;
+    use std::sync::RwLock;
 
     use super::*;
 
@@ -356,10 +358,13 @@ mod test {
     fn initialization() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
+        let shader_cache = Arc::new(ShaderCache::default());
+
         let machine = MachineBuilder::new(
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
+            shader_cache.clone(),
         )
         .insert_address_space(ADDRESS_SPACE, 64)
         .insert_component::<StandardMemory>(
@@ -382,23 +387,28 @@ mod test {
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
-        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager.clone(), environment)
-            .insert_address_space(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=3,
-                    assigned_address_space: ADDRESS_SPACE,
-                    initial_contents: vec![StandardMemoryInitialContents::Array {
-                        value: Cow::Borrowed(&[0xff; 4]),
-                        offset: 0,
-                    }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let machine = MachineBuilder::new(
+            GameSystem::Unknown,
+            rom_manager.clone(),
+            environment.clone(),
+            shader_cache.clone(),
+        )
+        .insert_address_space(ADDRESS_SPACE, 64)
+        .insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=3,
+                assigned_address_space: ADDRESS_SPACE,
+                initial_contents: vec![StandardMemoryInitialContents::Array {
+                    value: Cow::Borrowed(&[0xff; 4]),
+                    offset: 0,
+                }],
+            },
+        )
+        .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 4];
 
         machine
@@ -412,20 +422,25 @@ mod test {
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_address_space(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=7,
-                    assigned_address_space: ADDRESS_SPACE,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let shader_cache = Arc::new(ShaderCache::default());
+
+        let machine =
+            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
+                .insert_address_space(ADDRESS_SPACE, 64)
+                .insert_component::<StandardMemory>(
+                    "workram",
+                    StandardMemoryConfig {
+                        max_word_size: 8,
+                        readable: true,
+                        writable: true,
+                        assigned_range: 0..=7,
+                        assigned_address_space: ADDRESS_SPACE,
+                        initial_contents: vec![StandardMemoryInitialContents::Value {
+                            value: 0xff,
+                        }],
+                    },
+                )
+                .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 8];
 
         machine
@@ -439,20 +454,25 @@ mod test {
     fn basic_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_address_space(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=7,
-                    assigned_address_space: ADDRESS_SPACE,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let shader_cache = Arc::new(ShaderCache::default());
+
+        let machine =
+            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
+                .insert_address_space(ADDRESS_SPACE, 64)
+                .insert_component::<StandardMemory>(
+                    "workram",
+                    StandardMemoryConfig {
+                        max_word_size: 8,
+                        readable: true,
+                        writable: true,
+                        assigned_range: 0..=7,
+                        assigned_address_space: ADDRESS_SPACE,
+                        initial_contents: vec![StandardMemoryInitialContents::Value {
+                            value: 0xff,
+                        }],
+                    },
+                )
+                .build::<SoftwareRendering>(Default::default());
         let buffer = [0; 8];
 
         machine
@@ -465,20 +485,25 @@ mod test {
     fn basic_read_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_address_space(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=7,
-                    assigned_address_space: ADDRESS_SPACE,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let shader_cache = Arc::new(ShaderCache::default());
+
+        let machine =
+            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
+                .insert_address_space(ADDRESS_SPACE, 64)
+                .insert_component::<StandardMemory>(
+                    "workram",
+                    StandardMemoryConfig {
+                        max_word_size: 8,
+                        readable: true,
+                        writable: true,
+                        assigned_range: 0..=7,
+                        assigned_address_space: ADDRESS_SPACE,
+                        initial_contents: vec![StandardMemoryInitialContents::Value {
+                            value: 0xff,
+                        }],
+                    },
+                )
+                .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0xff; 8];
 
         machine
@@ -497,20 +522,25 @@ mod test {
     fn extensive() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None).unwrap());
-        let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment)
-            .insert_address_space(ADDRESS_SPACE, 64)
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=0xffff,
-                    assigned_address_space: ADDRESS_SPACE,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let shader_cache = Arc::new(ShaderCache::default());
+
+        let machine =
+            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
+                .insert_address_space(ADDRESS_SPACE, 64)
+                .insert_component::<StandardMemory>(
+                    "workram",
+                    StandardMemoryConfig {
+                        max_word_size: 8,
+                        readable: true,
+                        writable: true,
+                        assigned_range: 0..=0xffff,
+                        assigned_address_space: ADDRESS_SPACE,
+                        initial_contents: vec![StandardMemoryInitialContents::Value {
+                            value: 0xff,
+                        }],
+                    },
+                )
+                .build::<SoftwareRendering>(Default::default());
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];

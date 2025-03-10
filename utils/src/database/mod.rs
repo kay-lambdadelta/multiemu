@@ -4,8 +4,8 @@ use native::NativeAction;
 
 pub mod logiqx;
 pub mod native;
-pub mod screenscraper;
 pub mod redump;
+pub mod screenscraper;
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum DatabaseAction {

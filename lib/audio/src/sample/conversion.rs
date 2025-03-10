@@ -23,7 +23,7 @@ impl<F: Sample, I: FromSample<F>> IntoSample<I> for F {
 }
 
 /// Automatic conversion macro
-/// 
+///
 /// This is pretty efficient and accurate but could be made more efficient
 macro_rules! conversion_impl {
     ($from:ty, $to:ty, $conversion_space:ty) => {

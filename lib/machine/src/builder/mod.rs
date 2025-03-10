@@ -1,7 +1,7 @@
 use crate::{
     Machine,
     component::{Component, ComponentId, FromConfig, RuntimeEssentials, store::ComponentStore},
-    display::RenderBackend,
+    display::{RenderBackend, shader::ShaderCache},
     memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
 };
@@ -47,12 +47,17 @@ impl MachineBuilder {
         game_system: GameSystem,
         rom_manager: Arc<RomManager>,
         environment: Arc<RwLock<Environment>>,
+        shader_cache: Arc<ShaderCache>,
     ) -> Self {
         MachineBuilder {
             current_component_id: ComponentId(0),
             component_metadata: HashMap::new(),
             memory_busses: HashMap::new(),
-            essentials: Arc::new(RuntimeEssentials::new(rom_manager, environment.clone())),
+            essentials: Arc::new(RuntimeEssentials::new(
+                rom_manager,
+                environment.clone(),
+                shader_cache,
+            )),
             environment,
             game_system,
         }
@@ -249,7 +254,6 @@ impl MachineBuilder {
     }
 }
 
-
 /// Struct passed into components for their initialization purposes
 pub struct ComponentBuilder<'a, C: Component> {
     machine_builder: &'a mut MachineBuilder,
@@ -273,7 +277,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
     }
 
     /// Insert this component in the global store, ensuring quick access for all other components
-    /// 
+    ///
     /// Use this if unsure
     pub fn build_global(self, component: C)
     where

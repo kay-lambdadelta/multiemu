@@ -1,28 +1,31 @@
+use bytemuck::{Pod, Zeroable};
 use egui::TextureId;
-use encase::ShaderSize;
-use nalgebra::{DMatrix, DMatrixViewMut, Vector2};
+use egui::epaint::Primitive;
+use multiemu_machine::display::shader::ShaderCache;
+use multiemu_machine::display::shader::spirv::SpirvShader;
+use nalgebra::{Point2, Vector2};
 use palette::{LinSrgba, Srgba};
-use shader::spirv::{FRAGMENT_SHADER_ENTRY, VERTEX_SHADER, VERTEX_SHADER_ENTRY};
-use shader::types::VertexInput;
 use std::collections::{HashMap, HashSet};
-use std::ops::DerefMut;
+use std::mem::offset_of;
+use std::num::NonZero;
 use std::sync::Arc;
+use versions::SemVer;
 use vulkano::buffer::allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo};
 use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer};
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::{
     AutoCommandBufferBuilder, BufferImageCopy, CommandBufferUsage, CopyBufferToImageInfo,
-    PrimaryCommandBufferAbstract,
+    PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents,
+    SubpassEndInfo,
 };
 use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
-use vulkano::descriptor_set::layout::{
-    DescriptorSetLayout, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo,
-};
 use vulkano::descriptor_set::{DescriptorSet, WriteDescriptorSet};
 use vulkano::device::{Device, Queue};
-use vulkano::format::Format;
-use vulkano::image::sampler::{Filter, Sampler, SamplerCreateInfo};
-use vulkano::image::view::{ImageView, ImageViewCreateInfo, ImageViewType};
+use vulkano::format::{ClearValue, Format};
+use vulkano::image::sampler::{
+    Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode,
+};
+use vulkano::image::view::{ImageView, ImageViewCreateInfo};
 use vulkano::image::{
     Image, ImageCreateInfo, ImageSubresourceLayers, ImageType, ImageUsage, SampleCount,
 };
@@ -30,43 +33,67 @@ use vulkano::memory::DeviceAlignment;
 use vulkano::memory::allocator::{
     AllocationCreateInfo, DeviceLayout, MemoryTypeFilter, StandardMemoryAllocator,
 };
-use vulkano::pipeline::cache::{PipelineCache, PipelineCacheCreateInfo};
 use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
 use vulkano::pipeline::graphics::color_blend::{
     AttachmentBlend, BlendFactor, ColorBlendAttachmentState, ColorBlendState,
 };
 use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
 use vulkano::pipeline::graphics::multisample::MultisampleState;
-use vulkano::pipeline::graphics::rasterization::RasterizationState;
+use vulkano::pipeline::graphics::rasterization::{CullMode, RasterizationState};
 use vulkano::pipeline::graphics::vertex_input::{
-    VertexBufferDescription, VertexInputAttributeDescription, VertexInputBindingDescription,
-    VertexInputRate, VertexInputState,
+    VertexInputAttributeDescription, VertexInputBindingDescription, VertexInputState,
 };
-use vulkano::pipeline::graphics::viewport::ViewportState;
+use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
 use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
 use vulkano::pipeline::{
     DynamicState, GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
     PipelineShaderStageCreateInfo,
 };
-use vulkano::render_pass::Subpass;
+use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass};
 use vulkano::shader::{ShaderModule, ShaderModuleCreateInfo};
-use vulkano::sync::GpuFuture;
 use vulkano::{DeviceSize, single_pass_renderpass};
 
-include!(concat!(env!("OUT_DIR"), "/egui.rs"));
+#[derive(Clone, Copy, Debug, Zeroable, Pod)]
+#[repr(C)]
+struct Vertex {
+    position: Point2<f32>,
+    uv: Point2<f32>,
+    color: Srgba<f32>,
+}
+
+impl From<egui::epaint::Vertex> for Vertex {
+    fn from(vertex: egui::epaint::Vertex) -> Self {
+        Vertex {
+            position: Point2::new(vertex.pos.x, vertex.pos.y),
+            uv: Point2::new(vertex.uv.x, vertex.uv.y),
+            color: Srgba::from_components(vertex.color.to_tuple()).into_format(),
+        }
+    }
+}
 
 const VERTEX_INDEX_DEVICE_ALIGNMENT: DeviceAlignment = DeviceAlignment::of::<u32>();
+const VERTEX_DEVICE_ALIGNMENT: DeviceAlignment = DeviceAlignment::of::<Vertex>();
 
 pub struct VulkanEguiRenderer {
-    textures: HashMap<TextureId, Arc<Image>>,
+    /// Stored textures and their descriptor sets
+    textures: HashMap<TextureId, (Arc<Image>, Arc<DescriptorSet>)>,
+    /// memory allocator
     memory_allocator: Arc<StandardMemoryAllocator>,
+    /// vulkan queue
     gui_queue: Arc<Queue>,
+    /// command buffer allocator
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
+    /// descriptor set allocator
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
+    /// vulkan pipeline
     pipeline: Arc<GraphicsPipeline>,
+    /// image sampler
     sampler: Arc<Sampler>,
-    vertex_index_buffer_pool: SubbufferAllocator,
-    rebind: bool,
+    vertex_buffer_pool: SubbufferAllocator,
+    /// screen size uniform
+    screen_size: Subbuffer<Vector2<f32>>,
+    render_pass: Arc<RenderPass>,
+    screen_size_sampler_descriptor_set: Arc<DescriptorSet>,
 }
 
 impl VulkanEguiRenderer {
@@ -76,12 +103,14 @@ impl VulkanEguiRenderer {
         memory_allocator: Arc<StandardMemoryAllocator>,
         command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
         descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
+        shader_cache: Arc<ShaderCache>,
+        output_format: Format,
     ) -> Self {
         let render_pass = single_pass_renderpass!(
             device.clone(),
             attachments: {
                 color: {
-                    format: Format::R8G8B8A8_UNORM,
+                    format: output_format,
                     samples: 1,
                     load_op: Clear,
                     store_op: Store,
@@ -93,28 +122,29 @@ impl VulkanEguiRenderer {
             }
         )
         .unwrap();
+
         let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
 
-        // SAFETY: These shaders are pre validated by the wgsl bindgen so this should be safe
+        let shader = shader_cache
+            .get::<SpirvShader>(include_str!("../egui.wgsl"), SemVer::new("1.0.0").unwrap())
+            .unwrap();
+
+        // SAFETY: These shaders are pre validated by naga so this should be safe
         let vertex_shader = unsafe {
-            ShaderModule::new(
-                device.clone(),
-                ShaderModuleCreateInfo::new(shader::spirv::VERTEX_SHADER),
-            )
-            .unwrap()
+            ShaderModule::new(device.clone(), ShaderModuleCreateInfo::new(&shader.vertex)).unwrap()
         };
 
         let fragment_shader = unsafe {
             ShaderModule::new(
                 device.clone(),
-                ShaderModuleCreateInfo::new(shader::spirv::FRAGMENT_SHADER),
+                ShaderModuleCreateInfo::new(&shader.fragment),
             )
             .unwrap()
         };
 
         let blend = AttachmentBlend {
             src_color_blend_factor: BlendFactor::One,
-            src_alpha_blend_factor: BlendFactor::OneMinusDstAlpha,
+            src_alpha_blend_factor: BlendFactor::OneMinusSrcAlpha,
             dst_color_blend_factor: BlendFactor::One,
             ..AttachmentBlend::alpha()
         };
@@ -124,10 +154,10 @@ impl VulkanEguiRenderer {
                 blend: Some(blend),
                 ..Default::default()
             }],
-            ..ColorBlendState::default()
+            ..Default::default()
         };
 
-        let vertex_index_buffer_pool = SubbufferAllocator::new(
+        let vertex_buffer_pool = SubbufferAllocator::new(
             memory_allocator.clone(),
             SubbufferAllocatorCreateInfo {
                 buffer_usage: BufferUsage::TRANSFER_SRC
@@ -141,15 +171,17 @@ impl VulkanEguiRenderer {
         let sampler = Sampler::new(
             device.clone(),
             SamplerCreateInfo {
-                mag_filter: Filter::Nearest,
-                min_filter: Filter::Nearest,
+                mag_filter: Filter::Linear,
+                min_filter: Filter::Linear,
+                address_mode: [SamplerAddressMode::ClampToEdge; 3],
+                mipmap_mode: SamplerMipmapMode::Linear,
                 ..Default::default()
             },
         )
         .unwrap();
 
-        let vertex_shader_entry = vertex_shader.entry_point(VERTEX_SHADER_ENTRY).unwrap();
-        let fragment_shader_entry = fragment_shader.entry_point(FRAGMENT_SHADER_ENTRY).unwrap();
+        let vertex_shader_entry = vertex_shader.entry_point(&shader.vertex_entry).unwrap();
+        let fragment_shader_entry = fragment_shader.entry_point(&shader.fragment_entry).unwrap();
 
         let stages = [
             PipelineShaderStageCreateInfo::new(vertex_shader_entry),
@@ -164,24 +196,89 @@ impl VulkanEguiRenderer {
         )
         .unwrap();
 
+        let vertex_input_state = VertexInputState::new()
+            .binding(
+                0,
+                VertexInputBindingDescription {
+                    stride: size_of::<Vertex>() as u32,
+                    ..Default::default()
+                },
+            )
+            .attribute(
+                0,
+                VertexInputAttributeDescription {
+                    binding: 0,
+                    format: Format::R32G32_SFLOAT,
+                    offset: offset_of!(Vertex, position) as u32,
+                    ..Default::default()
+                },
+            )
+            .attribute(
+                1,
+                VertexInputAttributeDescription {
+                    binding: 0,
+                    format: Format::R32G32_SFLOAT,
+                    offset: offset_of!(Vertex, uv) as u32,
+                    ..Default::default()
+                },
+            )
+            .attribute(
+                2,
+                VertexInputAttributeDescription {
+                    binding: 0,
+                    format: Format::R32G32B32A32_SFLOAT,
+                    offset: offset_of!(Vertex, color) as u32,
+                    ..Default::default()
+                },
+            );
+
         let pipeline = GraphicsPipeline::new(
             device.clone(),
             None,
             GraphicsPipelineCreateInfo {
                 stages: stages.into_iter().collect(),
-                vertex_input_state: None,
+                vertex_input_state: Some(vertex_input_state),
                 multisample_state: Some(MultisampleState {
                     rasterization_samples: subpass.num_samples().unwrap_or(SampleCount::Sample1),
                     ..Default::default()
                 }),
                 color_blend_state: Some(blend_state),
-                dynamic_state: HashSet::from_iter([DynamicState::Viewport, DynamicState::Scissor]),
+                dynamic_state: HashSet::from_iter([DynamicState::Viewport]),
                 subpass: Some(subpass.into()),
-                rasterization_state: Some(RasterizationState::default()),
+                rasterization_state: Some(RasterizationState {
+                    cull_mode: CullMode::None,
+                    ..Default::default()
+                }),
                 input_assembly_state: Some(InputAssemblyState::default()),
                 viewport_state: Some(ViewportState::default()),
                 ..GraphicsPipelineCreateInfo::layout(layout)
             },
+        )
+        .unwrap();
+
+        let screen_size = Buffer::from_data(
+            memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::UNIFORM_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            Vector2::default(),
+        )
+        .unwrap();
+
+        let screen_size_sampler_descriptor_set = DescriptorSet::new(
+            descriptor_set_allocator.clone(),
+            pipeline.layout().set_layouts()[0].clone(),
+            [
+                WriteDescriptorSet::buffer(0, screen_size.clone()),
+                WriteDescriptorSet::sampler(1, sampler.clone()),
+            ],
+            [],
         )
         .unwrap();
 
@@ -191,10 +288,12 @@ impl VulkanEguiRenderer {
             gui_queue,
             command_buffer_allocator,
             descriptor_set_allocator,
-            vertex_index_buffer_pool,
+            vertex_buffer_pool,
             pipeline,
             sampler,
-            rebind: true,
+            screen_size,
+            render_pass,
+            screen_size_sampler_descriptor_set,
         }
     }
 
@@ -203,7 +302,12 @@ impl VulkanEguiRenderer {
         context: &egui::Context,
         render_buffer: Arc<ImageView>,
         full_output: egui::FullOutput,
-    ) {
+    ) -> AutoCommandBufferBuilder<PrimaryAutoCommandBuffer> {
+        let render_buffer_dimensions = Vector2::new(
+            render_buffer.image().extent()[0],
+            render_buffer.image().extent()[1],
+        );
+
         for remove_texture_id in full_output.textures_delta.free {
             tracing::trace!("Freeing egui texture {:?}", remove_texture_id);
             self.textures.remove(&remove_texture_id);
@@ -225,24 +329,41 @@ impl VulkanEguiRenderer {
 
             let texture_dimensions = Vector2::from(new_texture.image.size());
 
-            let destination_texture = self.textures.entry(new_texture_id).or_insert_with(|| {
-                Image::new(
-                    self.memory_allocator.clone(),
-                    ImageCreateInfo {
-                        image_type: ImageType::Dim2d,
-                        format: Format::R8G8B8A8_SRGB,
-                        extent: [texture_dimensions.x as u32, texture_dimensions.y as u32, 1],
-                        usage: ImageUsage::TRANSFER_SRC
-                            | ImageUsage::TRANSFER_DST
-                            | ImageUsage::SAMPLED,
-                        ..Default::default()
-                    },
-                    AllocationCreateInfo {
-                        ..Default::default()
-                    },
-                )
-                .unwrap()
-            });
+            let (destination_texture, _) =
+                self.textures.entry(new_texture_id).or_insert_with(|| {
+                    let texture = Image::new(
+                        self.memory_allocator.clone(),
+                        ImageCreateInfo {
+                            image_type: ImageType::Dim2d,
+                            format: Format::R8G8B8A8_SRGB,
+                            extent: [texture_dimensions.x as u32, texture_dimensions.y as u32, 1],
+                            usage: ImageUsage::TRANSFER_SRC
+                                | ImageUsage::TRANSFER_DST
+                                | ImageUsage::SAMPLED,
+                            ..Default::default()
+                        },
+                        AllocationCreateInfo {
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                    let texture_view =
+                        ImageView::new(texture.clone(), ImageViewCreateInfo::from_image(&texture))
+                            .unwrap();
+
+                    let layout = self.pipeline.layout().set_layouts()[1].clone();
+
+                    let descriptor_set = DescriptorSet::new(
+                        self.descriptor_set_allocator.clone(),
+                        layout,
+                        [WriteDescriptorSet::image_view(0, texture_view.clone())],
+                        [],
+                    )
+                    .unwrap();
+
+                    (texture, descriptor_set)
+                });
 
             let texture_staging_buffer: Subbuffer<[Srgba<u8>]> = match &new_texture.image {
                 egui::ImageData::Color(image) => {
@@ -309,46 +430,135 @@ impl VulkanEguiRenderer {
                 .unwrap();
         }
 
-        if self.rebind {
-            self.rebind = false;
+        let mut screen_size_guard = self.screen_size.write().unwrap();
+        *screen_size_guard = render_buffer_dimensions.map(|v| v as f32);
+        drop(screen_size_guard);
 
-            let descriptor_set_layout = self.pipeline.layout().set_layouts()[1].clone();
+        let framebuffer = Framebuffer::new(
+            self.render_pass.clone(),
+            FramebufferCreateInfo {
+                attachments: vec![render_buffer.clone()],
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
-            command_buffer
-                .bind_pipeline_graphics(self.pipeline.clone())
-                .unwrap()
-                .bind_descriptor_sets(
-                    PipelineBindPoint::Graphics,
-                    self.pipeline.layout().clone(),
-                    0,
-                    DescriptorSet::new(
-                        self.descriptor_set_allocator.clone(),
-                        descriptor_set_layout,
-                        [
-                            WriteDescriptorSet::sampler(0, self.sampler.clone()),
-                            WriteDescriptorSet::image_view(1, render_buffer.clone()),
-                        ],
-                        [],
+        command_buffer
+            .set_viewport(
+                0,
+                [Viewport {
+                    offset: [0.0, 0.0],
+                    extent: render_buffer_dimensions.map(|v| v as f32).into(),
+                    depth_range: 0.0..=1.0,
+                }]
+                .into_iter()
+                .collect(),
+            )
+            .unwrap()
+            .bind_pipeline_graphics(self.pipeline.clone())
+            .unwrap()
+            .bind_descriptor_sets(
+                PipelineBindPoint::Graphics,
+                self.pipeline.layout().clone(),
+                0,
+                self.screen_size_sampler_descriptor_set.clone(),
+            )
+            .unwrap()
+            .begin_render_pass(
+                RenderPassBeginInfo {
+                    render_pass: self.render_pass.clone(),
+                    clear_values: vec![Some(ClearValue::Float(
+                        Srgba::<f32>::new(0.0, 0.0, 0.0, 1.0).into(),
+                    ))],
+                    ..RenderPassBeginInfo::framebuffer(framebuffer)
+                },
+                SubpassBeginInfo {
+                    contents: SubpassContents::Inline,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+        let mut loaded_texture = None;
+
+        for shape in context.tessellate(full_output.shapes, full_output.pixels_per_point) {
+            match shape.primitive {
+                Primitive::Mesh(mesh) => {
+                    let indexes_size = size_of::<u32>() * mesh.indices.len();
+                    let vertexes_size = size_of::<Vertex>() * mesh.vertices.len();
+
+                    let layout = DeviceLayout::new(
+                        NonZero::<DeviceSize>::new((indexes_size + vertexes_size) as DeviceSize)
+                            .unwrap(),
+                        VERTEX_INDEX_DEVICE_ALIGNMENT.max(VERTEX_DEVICE_ALIGNMENT),
                     )
-                    .unwrap(),
-                )
-                .unwrap();
+                    .unwrap();
+
+                    // Upload data
+                    let buffer = self.vertex_buffer_pool.allocate(layout).unwrap();
+
+                    let (vertex_buffer_view, index_buffer_view) =
+                        buffer.split_at(vertexes_size as u64);
+
+                    let vertex_buffer_view = vertex_buffer_view.reinterpret::<[Vertex]>();
+                    let index_buffer_view = index_buffer_view.reinterpret::<[u32]>();
+
+                    let mut vertex_buffer_view_guard = vertex_buffer_view.write().unwrap();
+                    let mut index_buffer_view_guard = index_buffer_view.write().unwrap();
+
+                    for (source, destination) in mesh
+                        .vertices
+                        .into_iter()
+                        .map(Vertex::from)
+                        .zip(vertex_buffer_view_guard.iter_mut())
+                    {
+                        *destination = source;
+                    }
+                    index_buffer_view_guard.copy_from_slice(&mesh.indices);
+
+                    drop(vertex_buffer_view_guard);
+                    drop(index_buffer_view_guard);
+
+                    if loaded_texture != Some(mesh.texture_id) {
+                        let (_, descriptor_set) = self
+                            .textures
+                            .get(&mesh.texture_id)
+                            .expect("Mesh reference missing texture");
+
+                        command_buffer
+                            .bind_descriptor_sets(
+                                PipelineBindPoint::Graphics,
+                                self.pipeline.layout().clone(),
+                                1,
+                                descriptor_set.clone(),
+                            )
+                            .unwrap();
+
+                        loaded_texture = Some(mesh.texture_id);
+                    }
+
+                    command_buffer
+                        .bind_vertex_buffers(0, vertex_buffer_view.clone())
+                        .unwrap()
+                        .bind_index_buffer(index_buffer_view.clone())
+                        .unwrap();
+
+                    unsafe {
+                        command_buffer
+                            .draw_indexed(index_buffer_view.len() as u32, 1, 0, 0, 0)
+                            .unwrap()
+                    };
+                }
+                Primitive::Callback(..) => {
+                    tracing::warn!("Epaint callbacks are ignored");
+                }
+            }
         }
 
-        let layout = DeviceLayout::new(u32::SHADER_SIZE, VERTEX_INDEX_DEVICE_ALIGNMENT).unwrap();
-        let vertex_index_buffer: Subbuffer<[u32]> = self
-            .vertex_index_buffer_pool
-            .allocate_slice(u32::SHADER_SIZE.get())
+        command_buffer
+            .end_render_pass(SubpassEndInfo::default())
             .unwrap();
 
         command_buffer
-            .build()
-            .unwrap()
-            .execute(self.gui_queue.clone())
-            .unwrap()
-            .then_signal_fence_and_flush()
-            .unwrap()
-            .wait(None)
-            .unwrap();
     }
 }
