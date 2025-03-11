@@ -3,7 +3,7 @@ use crate::component::{Component, ComponentId};
 use fxhash::FxBuildHasher;
 use itertools::Itertools;
 use num::ToPrimitive;
-use num::{Integer, integer::lcm, rational::Ratio};
+use num::{integer::lcm, rational::Ratio};
 use rangemap::RangeInclusiveMap;
 use std::sync::{Arc, Mutex};
 use std::{
@@ -15,8 +15,16 @@ type TaskId = u16;
 
 pub mod task;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ToRun {
+    pub task_id: TaskId,
+    pub run_indication: u64,
+    pub tick_rate: u64,
+}
+
 struct StoredTask {
     pub component_id: ComponentId,
+    #[allow(clippy::type_complexity)]
     pub task: Mutex<Box<dyn FnMut(&dyn Component, u64) + Send + 'static>>,
 }
 
@@ -45,14 +53,22 @@ impl Scheduler {
             .into_iter()
             .enumerate()
             .map(|(task_id, (component_id, frequency, task))| {
+                let task_id = task_id.try_into().expect("Too many tasks");
+
+                tracing::debug!(
+                    "Task {} needs to run every {:?}",
+                    task_id,
+                    Duration::from_secs_f64(frequency.recip().to_f64().unwrap()),
+                );
+
                 (
-                    task_id.try_into().expect("Too many tasks"),
+                    task_id,
                     (
                         StoredTask {
                             task: Mutex::new(task),
                             component_id,
                         },
-                        frequency,
+                        frequency.recip(),
                     ),
                 )
             })
@@ -60,27 +76,22 @@ impl Scheduler {
 
         let common_denominator = tasks
             .values()
-            .map(|(_, frequency)| *frequency.recip().denom())
-            .fold(1, |acc, denom| acc.lcm(&denom));
+            .map(|(_, frequency)| *frequency.denom())
+            .fold(1, lcm);
 
-        // Adjust numerators to the common denominator
-        let adjusted_numerators: HashMap<_, _, FxBuildHasher> = tasks
+        let common_numerator = tasks
+            .values()
+            .map(|(_, frequency)| *frequency.numer())
+            .fold(1, lcm);
+
+        let full_cycle = common_denominator / common_numerator;
+
+        let ratios: HashMap<_, _, FxBuildHasher> = tasks
             .iter()
             .map(|(task_id, (_, frequency))| {
                 let factor = common_denominator / frequency.denom();
                 (*task_id, frequency.numer() * factor)
             })
-            .collect();
-
-        let common_multiple = adjusted_numerators
-            .clone()
-            .into_values()
-            .reduce(lcm)
-            .unwrap_or(1);
-
-        let ratios: HashMap<_, _, FxBuildHasher> = adjusted_numerators
-            .iter()
-            .map(|(task_id, numerator)| (*task_id, common_multiple / numerator))
             .collect();
 
         // Fill out the schedule
@@ -91,16 +102,20 @@ impl Scheduler {
             // This is (task_id, tick_rate, run_indication)
             let to_run: Vec<_> = ratios
                 .iter()
-                .map(|(task_id, tick_rate)| (*task_id, current_tick % *tick_rate, *tick_rate))
-                .sorted_by_key(|(_, run_indication, _)| *run_indication)
+                .map(|(task_id, tick_rate)| ToRun {
+                    task_id: *task_id,
+                    run_indication: current_tick % tick_rate,
+                    tick_rate: *tick_rate,
+                })
+                .sorted_by_key(|to_run| to_run.run_indication)
                 .collect();
 
             if to_run.len() == 1 {
-                let (task_id, _, tick_rate) = to_run[0];
-                let time_slice = tick_rate;
+                let to_run_info = to_run[0];
+                let time_slice = to_run_info.tick_rate;
                 schedule.insert(
                     current_tick..=(current_tick + time_slice - 1),
-                    vec![task_id],
+                    vec![to_run_info.task_id],
                 );
                 current_tick += time_slice;
                 continue;
@@ -109,7 +124,7 @@ impl Scheduler {
             // do the different scenarios for how many should run this turn
             match to_run
                 .iter()
-                .filter(|(_, run_indication, _)| *run_indication == 0)
+                .filter(|to_run| to_run.run_indication == 0)
                 .count()
             {
                 // Nothing is set to run here
@@ -118,12 +133,12 @@ impl Scheduler {
                 }
                 // Full efficient batching
                 1 => {
-                    let batch_size = to_run[1].2 - to_run[1].1;
-                    let (task_id, _, tick_rate) = to_run[0];
-                    let normalized_batch_size = batch_size / tick_rate;
+                    let batch_size = to_run[1].tick_rate - to_run[1].run_indication;
+                    let to_run_info = to_run[0];
+                    let normalized_batch_size = batch_size / to_run_info.tick_rate;
                     schedule.insert(
                         current_tick..=(current_tick + normalized_batch_size - 1),
-                        vec![task_id],
+                        vec![to_run_info.task_id],
                     );
                     current_tick += batch_size;
                 }
@@ -133,9 +148,9 @@ impl Scheduler {
                         current_tick..=current_tick,
                         to_run
                             .into_iter()
-                            .filter_map(|(task_id, run_indication, _)| {
-                                if run_indication == 0 {
-                                    return Some(task_id);
+                            .filter_map(|to_run_info| {
+                                if to_run_info.run_indication == 0 {
+                                    return Some(to_run_info.task_id);
                                 }
 
                                 None
@@ -148,13 +163,13 @@ impl Scheduler {
             }
         }
 
-        let tick_real_time = Ratio::new(common_multiple, common_denominator).recip();
+        let tick_real_time = Ratio::new(common_numerator, common_denominator);
 
         tracing::debug!(
             "Schedule ticks take {:?} and restarts at tick {}, a full cycle takes {:?}",
             Duration::from_secs_f64(tick_real_time.to_f64().unwrap()),
             common_denominator,
-            Duration::from_secs_f64(tick_real_time.to_f64().unwrap() * common_denominator as f64)
+            Duration::from_secs_f64(tick_real_time.to_f64().unwrap() * full_cycle as f64)
         );
 
         Self {
@@ -162,7 +177,7 @@ impl Scheduler {
             rollover_tick: common_denominator,
             tick_real_time,
             schedule,
-            allotted_time: Duration::from_secs_f32(Ratio::new(1, 60).to_f32().unwrap()),
+            allotted_time: Duration::from_secs_f64(Ratio::new(1, 60).to_f64().unwrap()),
             component_store,
             tasks: tasks
                 .into_iter()
