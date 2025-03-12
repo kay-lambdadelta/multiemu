@@ -56,7 +56,7 @@ impl Task<M6502> for M6502Task {
                             let program = self.load_from_reset_vector();
 
                             state.registers.program = program;
-                            state.registers.stack_pointer = self.config.initial_state.stack_pointer;
+                            state.registers.stack = self.config.initial_state.stack;
                             state.execution_mode = ExecutionMode::Normal;
                             state.cycle_counter = 0;
 

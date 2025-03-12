@@ -3,7 +3,7 @@ use multiemu_machine::{
     component::{Component, FromConfig, RuntimeEssentials},
     memory::{
         AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
-        callbacks::{ReadMemory, WriteMemory},
+        callbacks::Memory,
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
     },
 };
@@ -29,7 +29,7 @@ impl FromConfig for MirrorMemory {
     type Quirks = ();
 
     fn from_config(
-        mut component_builder: ComponentBuilder<Self>,
+        component_builder: ComponentBuilder<Self>,
         _essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
         _quirks: Self::Quirks,
@@ -37,25 +37,12 @@ impl FromConfig for MirrorMemory {
         let assigned_address_space = config.assigned_address_space;
         let assigned_ranges = config.assigned_ranges.clone();
 
-        let readable = config.readable;
-        let writable = config.writable;
-        let memory_operation_callbacks = Arc::new(MemoryCallbacks { config });
-
-        if readable {
-            component_builder = component_builder.insert_read_memory(
-                assigned_address_space,
-                assigned_ranges.iter().map(|(range, _)| range.clone()),
-                memory_operation_callbacks.clone(),
-            );
-        }
-
-        if writable {
-            component_builder = component_builder.insert_write_memory(
-                assigned_address_space,
-                assigned_ranges.iter().map(|(range, _)| range.clone()),
-                memory_operation_callbacks,
-            );
-        }
+        let component_builder = component_builder.insert_memory(
+            assigned_ranges
+                .iter()
+                .map(|(range, _)| (range.clone(), assigned_address_space)),
+            MemoryCallbacks { config },
+        );
 
         component_builder.build_global(Self);
     }
@@ -65,12 +52,12 @@ struct MemoryCallbacks {
     config: MirrorMemoryConfig,
 }
 
-impl ReadMemory for MemoryCallbacks {
+impl Memory for MemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
-        buffer: &mut [u8],
         _address_space: AddressSpaceId,
+        buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
         assert!(
@@ -79,13 +66,22 @@ impl ReadMemory for MemoryCallbacks {
             buffer.len()
         );
 
-        let affected_range = address..=(address + buffer.len() - 1);
+        if !self.config.readable {
+            errors.insert(
+                address..=(address + (buffer.len() - 1)),
+                ReadMemoryRecord::Denied,
+            );
+            return;
+        }
+
+        let affected_range = address..=(address + (buffer.len() - 1));
 
         let redirect_base_address = self
             .config
             .assigned_ranges
             .get(affected_range.start())
             .unwrap();
+
         let adjusted_redirect_base_address =
             redirect_base_address + (address - affected_range.start());
 
@@ -96,14 +92,12 @@ impl ReadMemory for MemoryCallbacks {
             },
         );
     }
-}
 
-impl WriteMemory for MemoryCallbacks {
     fn write_memory(
         &self,
         address: usize,
-        buffer: &[u8],
         _address_space: AddressSpaceId,
+        buffer: &[u8],
         errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
         assert!(
@@ -111,6 +105,14 @@ impl WriteMemory for MemoryCallbacks {
             "Invalid memory access size {}",
             buffer.len()
         );
+
+        if !self.config.writable {
+            errors.insert(
+                address..=(address + (buffer.len() - 1)),
+                WriteMemoryRecord::Denied,
+            );
+            return;
+        }
 
         let affected_range = address..=(address + buffer.len() - 1);
 
@@ -152,7 +154,7 @@ mod test {
     #[test]
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
-        let rom_manager = Arc::new(RomManager::new(None).unwrap());
+        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
 
         let machine =
@@ -196,7 +198,7 @@ mod test {
     #[test]
     fn basic_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
-        let rom_manager = Arc::new(RomManager::new(None).unwrap());
+        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
 
         let machine =

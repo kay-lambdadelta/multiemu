@@ -5,6 +5,7 @@ use crate::memory::memory_translation_table::MemoryTranslationTable;
 use downcast_rs::Downcast;
 use multiemu_config::Environment;
 use multiemu_rom::manager::RomManager;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt::Debug;
@@ -14,7 +15,6 @@ pub mod component_ref;
 pub mod store;
 
 /// Stuff every component optionally needs
-#[derive(Debug, Clone)]
 pub struct RuntimeEssentials {
     memory_translation_table: OnceLock<Arc<MemoryTranslationTable>>,
     component_store: Arc<ComponentStore>,
@@ -42,9 +42,13 @@ impl RuntimeEssentials {
         &self,
         memory_translation_table: Arc<MemoryTranslationTable>,
     ) {
-        self.memory_translation_table
+        if self
+            .memory_translation_table
             .set(memory_translation_table)
-            .unwrap();
+            .is_err()
+        {
+            panic!("Memory translation table already set");
+        }
     }
 
     /// The memory translation table is late initalized so you cannot call this within componentbuilder
@@ -65,6 +69,10 @@ impl RuntimeEssentials {
     pub fn environment(&self) -> RwLockReadGuard<'_, Environment> {
         self.environment.read().unwrap()
     }
+
+    pub fn shader_cache(&self) -> &Arc<ShaderCache> {
+        &self.shader_cache
+    }
 }
 
 // Basic supertrait for all components
@@ -77,7 +85,7 @@ pub trait FromConfig: Component + Sized {
     /// Paramters to create this component
     type Config: Debug + Send + Sync;
     /// ROM specific behavior changes this component should apply
-    type Quirks: Default + Debug + Send + Sync;
+    type Quirks: Serialize + DeserializeOwned + Default + Debug + Send + Sync;
 
     /// Make a new component from the config
     fn from_config(

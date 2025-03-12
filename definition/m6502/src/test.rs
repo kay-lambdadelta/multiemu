@@ -22,7 +22,7 @@ const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
 /// The m6502 will decode even invalid instructions to nonsense, we should too, without crashing
 fn all_instructions_decode_to_something() {
     let environment = Arc::new(RwLock::new(Environment::load().unwrap()));
-    let rom_manager = Arc::new(RomManager::new(None).unwrap());
+    let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
     let shader_cache = Arc::new(ShaderCache::default());
 
     for instruction in 0x00..=0xff {
@@ -59,7 +59,7 @@ fn all_instructions_decode_to_something() {
 #[test]
 fn m6502_instruction_decode() {
     let environment = Arc::new(RwLock::new(Environment::load().unwrap()));
-    let rom_manager = Arc::new(RomManager::new(None).unwrap());
+    let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
     let shader_cache = Arc::new(ShaderCache::default());
 
     let map: IndexMap<_, _, RandomState> = IndexMap::from_iter([

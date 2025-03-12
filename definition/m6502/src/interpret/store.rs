@@ -30,13 +30,13 @@ macro_rules! store_m6502_addressing_modes {
     }};
 
     (@handler YIndexedAbsolute, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr, $value:expr) => {{
-        let mut value: u8 = $value;
+        let value: u8 = $value;
 
         let _ = $memory_translation_table
             .read($argument as usize, $assigned_address_space, &mut [0]);
 
-
         let actual_address = $argument.wrapping_add($register_store.index_registers[1] as u16);
+
         let _ = $memory_translation_table
             .write(actual_address as usize, $assigned_address_space, std::array::from_ref(&value));
     }};
@@ -82,15 +82,17 @@ macro_rules! store_m6502_addressing_modes {
 
     (@handler ZeroPageIndirectYIndexed, $argument:expr, $register_store:expr, $memory_translation_table:expr, $assigned_address_space:expr, $value:expr) => {{
         let value: u8 = $value;
-        let mut indirection_address: u8 = 0;
+        let mut indirection_address: [u8; 2] = [0; 2];
 
         let _ = $memory_translation_table
-            .read($argument as usize, $assigned_address_space, std::array::from_mut(&mut indirection_address));
+            .read($argument as usize, $assigned_address_space, &mut indirection_address);
+
+        let indirection_address = u16::from_le_bytes(indirection_address);
 
         let indirection_address = (indirection_address as u16)
             .wrapping_add($register_store.index_registers[1] as u16);
 
         let _ = $memory_translation_table
-            .read(indirection_address as usize, $assigned_address_space, std::array::from_ref(&value));
+            .write(indirection_address as usize, $assigned_address_space, std::array::from_ref(&value));
     }};
 }

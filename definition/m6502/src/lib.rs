@@ -69,7 +69,7 @@ pub enum FlagRegister {
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[cfg_attr(jit, repr(C))]
 pub struct M6502Registers {
-    pub stack_pointer: u8,
+    pub stack: u8,
     pub accumulator: u8,
     pub index_registers: [u8; 2],
     pub flags: BitFlags<FlagRegister>,
@@ -79,7 +79,7 @@ pub struct M6502Registers {
 impl Default for M6502Registers {
     fn default() -> Self {
         Self {
-            stack_pointer: 0xff,
+            stack: 0xff,
             accumulator: 0,
             index_registers: [0; 2],
             flags: BitFlags::empty(),
@@ -106,8 +106,6 @@ struct ProcessorState {
 
 pub struct M6502 {
     state: Mutex<ProcessorState>,
-    essentials: Arc<RuntimeEssentials>,
-    config: Arc<M6502Config>,
 }
 
 impl Component for M6502 {
@@ -117,7 +115,7 @@ impl Component for M6502 {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct M6502Quirks {
     pub broken_ror: bool,
 }
@@ -149,8 +147,6 @@ impl FromConfig for M6502 {
                     cycle_counter: 0,
                     execution_mode: ExecutionMode::Startup,
                 }),
-                config,
-                essentials,
             });
     }
 }

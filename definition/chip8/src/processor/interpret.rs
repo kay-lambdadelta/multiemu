@@ -19,6 +19,8 @@ impl Chip8ProcessorTask {
         state: &mut ProcessorState,
         instruction: Chip8InstructionSet,
     ) {
+        tracing::debug!("Interpreting instruction: {:x?}", instruction);
+
         match instruction {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Sys { syscall }) => match syscall {
                 0x0e0 => {

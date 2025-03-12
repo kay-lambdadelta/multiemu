@@ -57,6 +57,7 @@ pub enum NintendoSystem {
     Nintendo64,
     NintendoDS,
     PokemonMini,
+    VirtualBoy,
 }
 
 impl NintendoSystem {
@@ -203,6 +204,9 @@ impl Display for GameSystem {
             GameSystem::Nintendo(NintendoSystem::NintendoDS) => write!(f, "Nintendo - Nintendo DS"),
             GameSystem::Nintendo(NintendoSystem::PokemonMini) => {
                 write!(f, "Nintendo - Pokemon Mini")
+            }
+            GameSystem::Nintendo(NintendoSystem::VirtualBoy) => {
+                write!(f, "Nintendo - Virtual Boy")
             }
             GameSystem::Sony(SonySystem::Playstation) => write!(f, "Sony - PlayStation"),
             GameSystem::Sony(SonySystem::Playstation2) => write!(f, "Sony - PlayStation 2"),

@@ -134,28 +134,8 @@ impl MachineBuilder {
                 }
             })
         {
-            for (address_space, (assigned_ranges, callback)) in memory_metadata.read.drain() {
-                memory_translation_table.insert_read_callback(
-                    address_space,
-                    assigned_ranges,
-                    callback.clone(),
-                );
-            }
-
-            for (address_space, (assigned_ranges, callback)) in memory_metadata.write.drain() {
-                memory_translation_table.insert_write_callback(
-                    address_space,
-                    assigned_ranges,
-                    callback.clone(),
-                );
-            }
-
-            for (address_space, (assigned_ranges, callback)) in memory_metadata.preview.drain() {
-                memory_translation_table.insert_preview_callback(
-                    address_space,
-                    assigned_ranges,
-                    callback.clone(),
-                );
+            for (addresses, memory) in memory_metadata.memories.drain(..) {
+                memory_translation_table.insert_memory(addresses, memory);
             }
         }
 

@@ -3,7 +3,7 @@ use multiemu_machine::{
     component::{Component, FromConfig, RuntimeEssentials},
     memory::{
         AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
-        callbacks::{PreviewMemory, ReadMemory},
+        callbacks::Memory,
         memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord},
     },
 };
@@ -43,7 +43,11 @@ impl FromConfig for RomMemory {
     ) {
         let rom_file = essentials
             .rom_manager()
-            .open(config.rom, RomRequirement::Required)
+            .open(
+                config.rom,
+                RomRequirement::Required,
+                &essentials.environment().roms_directory,
+            )
             .unwrap();
 
         let assigned_address_space = config.assigned_address_space;
@@ -57,15 +61,9 @@ impl FromConfig for RomMemory {
         let memory_operation_callbacks = Arc::new(MemoryCallbacks { config, rom });
 
         component_builder
-            .insert_read_memory(
-                assigned_address_space,
-                [assigned_range.clone()],
-                memory_operation_callbacks.clone(),
-            )
-            .insert_preview_memory(
-                assigned_address_space,
-                [assigned_range.clone()],
-                memory_operation_callbacks.clone(),
+            .insert_memory(
+                [(assigned_range, assigned_address_space)],
+                memory_operation_callbacks,
             )
             .build_global(Self);
     }
@@ -81,12 +79,12 @@ struct MemoryCallbacks {
     rom: File,
 }
 
-impl ReadMemory for MemoryCallbacks {
+impl Memory for MemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
-        buffer: &mut [u8],
         _address_space: AddressSpaceId,
+        buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
         assert!(
@@ -103,23 +101,23 @@ impl ReadMemory for MemoryCallbacks {
 
         let adjusted_offset = address - self.config.assigned_range.start();
         buffer.copy_from_slice(
-            &self.rom[adjusted_offset..=(adjusted_offset + buffer.len()).min(self.rom.len()) - 1],
+            &self.rom
+                [adjusted_offset..=(adjusted_offset + (buffer.len() - 1)).min(self.rom.len()) - 1],
         );
     }
-}
 
-impl PreviewMemory for MemoryCallbacks {
     fn preview_memory(
         &self,
         address: usize,
-        buffer: &mut [u8],
         _address_space: AddressSpaceId,
+        buffer: &mut [u8],
         _errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
     ) {
         let adjusted_offset = address - self.config.assigned_range.start();
 
         buffer.copy_from_slice(
-            &self.rom[adjusted_offset..=(adjusted_offset + buffer.len()).min(self.rom.len()) - 1],
+            &self.rom
+                [adjusted_offset..=(adjusted_offset + (buffer.len() - 1)).min(self.rom.len()) - 1],
         );
     }
 }

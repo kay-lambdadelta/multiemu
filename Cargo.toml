@@ -46,10 +46,10 @@ enumflags2 = { version = "0.7", features = ["serde"] }
 # TODO: Remove this when trait upcasting is stable
 downcast-rs = "2.0"
 rand = "0.9"
-palette = { version = "0.7", features = ["bytemuck", "serializing", "wide"] }
+palette = { version = "0.7", features = ["bytemuck", "serializing"] }
 memmap2 = "0.9"
 clap = { version = "4.5", features = ["derive"] }
-indexmap = { version = "2.7", features = ["serde"] }
+indexmap = { version = "2.8", features = ["serde"] }
 versions = "7.0"
 isolang = { version = "2.4", features = ["serde"] }
 syn = { version = "2.0", features = ["full"] }

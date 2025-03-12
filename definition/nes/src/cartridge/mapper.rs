@@ -4,7 +4,7 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     memory::{
         AddressSpaceId,
-        callbacks::{ReadMemory, WriteMemory},
+        callbacks::Memory,
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
     },
 };
@@ -15,23 +15,21 @@ struct MemoryCallbacks {
     bus_conflict: bool,
 }
 
-impl ReadMemory for MemoryCallbacks {
+impl Memory for MemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
-        buffer: &mut [u8],
         address_space: AddressSpaceId,
+        buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
     }
-}
 
-impl WriteMemory for MemoryCallbacks {
     fn write_memory(
         &self,
         address: usize,
-        buffer: &[u8],
         address_space: AddressSpaceId,
+        buffer: &[u8],
         errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
         let original_data = buffer[0];
@@ -61,11 +59,8 @@ pub fn construct_mapper(
         bus_conflict: false,
     });
 
-    component_builder
-        .insert_read_memory(
-            CPU_ADDRESS_SPACE,
-            [0x8000..=0xffff],
-            memory_callbacks.clone(),
-        )
-        .insert_write_memory(CPU_ADDRESS_SPACE, [0x8000..=0xffff], memory_callbacks)
+    component_builder.insert_memory(
+        [(0x8000..=0xffff, CPU_ADDRESS_SPACE)],
+        memory_callbacks.clone(),
+    )
 }

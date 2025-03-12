@@ -203,14 +203,14 @@ impl AddressingMode {
     ) -> (Self, u8) {
         match addressing_mode {
             0b000 => {
-                let mut indirect = 0;
+                let mut immediate = 0;
                 let _ = memory_translation_table.read(
                     cursor as usize,
                     address_space,
-                    std::array::from_mut(&mut indirect),
+                    std::array::from_mut(&mut immediate),
                 );
 
-                (AddressingMode::XIndexedZeroPageIndirect(indirect), 1)
+                (AddressingMode::Immediate(immediate), 1)
             }
             0b001 => {
                 let mut indirect = 0;

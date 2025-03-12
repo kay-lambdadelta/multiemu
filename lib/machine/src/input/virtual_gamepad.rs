@@ -17,12 +17,15 @@ pub struct VirtualGamepad {
 }
 
 impl VirtualGamepad {
-    pub fn new(name: VirtualGamepadName, medadata: impl Into<Arc<VirtualGamepadMetadata>>) -> Self {
-        Self {
+    pub fn new(
+        name: VirtualGamepadName,
+        medadata: impl Into<Arc<VirtualGamepadMetadata>>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
             name,
             metadata: medadata.into(),
             state: scc::HashMap::new(),
-        }
+        })
     }
 
     pub fn name(&self) -> VirtualGamepadName {

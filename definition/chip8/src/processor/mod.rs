@@ -143,13 +143,13 @@ impl FromConfig for Chip8Processor {
                 None
             };
 
-        let virtual_gamepad = Arc::new(VirtualGamepad::new(
+        let virtual_gamepad = VirtualGamepad::new(
             CHIP8_KEYPAD_GAMEPAD_TYPE,
             VirtualGamepadMetadata {
                 present_inputs: present_inputs(),
                 default_bindings: default_bindings(),
             },
-        ));
+        );
 
         let display_component = essentials.component_store().get("display").unwrap();
 

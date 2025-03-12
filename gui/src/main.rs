@@ -47,7 +47,13 @@ fn main() {
 
     tracing::info!("MultiEMU v{}", env!("CARGO_PKG_VERSION"));
 
-    let rom_manager = Arc::new(RomManager::new(Some(&environment.database_file)).unwrap());
+    let rom_manager = Arc::new(
+        RomManager::new(
+            Some(&environment.database_file),
+            Some(&environment.roms_directory),
+        )
+        .unwrap(),
+    );
     let graphics_api = environment.graphics_setting.api;
     let environment = Arc::new(RwLock::new(environment));
 
@@ -81,26 +87,22 @@ fn main() {
                     roms,
                     forced_system,
                 } => {
-                    let system = forced_system.unwrap_or_else(|| {
-                        GameSystem::guess(&roms[0]).expect("Could not guess type of rom")
-                    });
-
-                    let rom_ids: Vec<_> = roms
-                        .iter()
-                        .map(|path| {
-                            let file = File::open(path).unwrap();
-                            RomId::from_read(file)
-                        })
+                    let rom_ids: Vec<RomId> = roms
+                        .into_iter()
+                        .map(|rom| rom_manager.identify_rom(rom).unwrap().unwrap())
                         .collect();
 
-                    for (rom_id, rom_path) in rom_ids.iter().zip(roms) {
-                        rom_manager
-                            .loaded_roms
-                            .insert(*rom_id, LoadedRomLocation::External(rom_path))
+                    let game_system = forced_system.unwrap_or_else(|| {
+                        let database_transaction =
+                            rom_manager.rom_information.begin_read().unwrap();
+                        let database_table = database_transaction
+                            .open_table(ROM_INFORMATION_TABLE)
                             .unwrap();
-                    }
+                        let rom_info = database_table.get(&rom_ids[0]).unwrap().unwrap().value();
+                        rom_info.system
+                    });
 
-                    (system, rom_ids)
+                    (game_system, rom_ids)
                 }
             };
 

@@ -7,6 +7,7 @@ use multiemu_rom::{
 use std::{
     error::Error,
     io::{BufReader, Seek},
+    sync::Arc,
 };
 use strum::{Display, EnumIter};
 use zip::ZipArchive;
@@ -44,8 +45,13 @@ pub fn database_redump_download(
     systems: impl IntoIterator<Item = GameSystem>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let environment = Environment::load()?;
-    let rom_manager = RomManager::new(Some(&environment.database_file))?;
-
+    let rom_manager = Arc::new(
+        RomManager::new(
+            Some(&environment.database_file),
+            Some(&environment.roms_directory),
+        )
+        .unwrap(),
+    );
     for system in systems {
         if let Ok(redump_system) = RedumpSystem::try_from(system) {
             tracing::info!("Downloading redump dat for system {}", system);

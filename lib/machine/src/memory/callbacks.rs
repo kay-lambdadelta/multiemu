@@ -1,89 +1,84 @@
+use std::sync::Arc;
+
 use super::{
     AddressSpaceId,
     memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
 };
 use rangemap::RangeInclusiveMap;
 
-pub trait ReadMemory: Send + Sync + 'static {
+#[allow(unused)]
+pub trait Memory: Send + Sync + 'static {
     fn read_memory(
         &self,
         address: usize,
-        buffer: &mut [u8],
         address_space: AddressSpaceId,
+        buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    );
+    ) {
+        errors.insert(
+            address..=(address + (buffer.len() - 1)),
+            ReadMemoryRecord::Denied,
+        );
+    }
+
+    fn write_memory(
+        &self,
+        address: usize,
+        address_space: AddressSpaceId,
+        buffer: &[u8],
+        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
+    ) {
+        errors.insert(
+            address..=(address + (buffer.len() - 1)),
+            WriteMemoryRecord::Denied,
+        );
+    }
+
+    fn preview_memory(
+        &self,
+        address: usize,
+        address_space: AddressSpaceId,
+        buffer: &mut [u8],
+        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
+    ) {
+        errors.insert(
+            address..=(address + (buffer.len() - 1)),
+            PreviewMemoryRecord::Impossible,
+        );
+    }
 }
 
-impl<
-    F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeInclusiveMap<usize, ReadMemoryRecord>)
-        + Send
-        + Sync
-        + 'static,
-> ReadMemory for F
-{
+impl<T: Memory> Memory for Arc<T> {
     fn read_memory(
         &self,
         address: usize,
-        buffer: &mut [u8],
         address_space: AddressSpaceId,
+        buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
-        self(address, buffer, address_space, errors);
+        self.as_ref()
+            .read_memory(address, address_space, buffer, errors);
     }
-}
 
-pub trait WriteMemory: Send + Sync + 'static {
     fn write_memory(
         &self,
         address: usize,
-        buffer: &[u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    );
-}
-
-impl<
-    F: Fn(usize, &[u8], AddressSpaceId, &mut RangeInclusiveMap<usize, WriteMemoryRecord>)
-        + Send
-        + Sync
-        + 'static,
-> WriteMemory for F
-{
-    fn write_memory(
-        &self,
-        address: usize,
         buffer: &[u8],
-        address_space: AddressSpaceId,
         errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
-        self(address, buffer, address_space, errors);
+        self.as_ref()
+            .write_memory(address, address_space, buffer, errors);
     }
-}
 
-pub trait PreviewMemory: Send + Sync + 'static {
     fn preview_memory(
         &self,
         address: usize,
-        buffer: &mut [u8],
         address_space: AddressSpaceId,
-        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
-    );
-}
-
-impl<
-    F: Fn(usize, &mut [u8], AddressSpaceId, &mut RangeInclusiveMap<usize, PreviewMemoryRecord>)
-        + Send
-        + Sync
-        + 'static,
-> PreviewMemory for F
-{
-    fn preview_memory(
-        &self,
-        address: usize,
         buffer: &mut [u8],
-        address_space: AddressSpaceId,
         errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
     ) {
-        self(address, buffer, address_space, errors);
+        self.as_ref()
+            .preview_memory(address, address_space, buffer, errors);
     }
 }

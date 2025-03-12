@@ -4,6 +4,7 @@ use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use redb::ReadableTable;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub fn rom_export(
     path: PathBuf,
@@ -11,7 +12,13 @@ pub fn rom_export(
     style: ExportStyle,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment = Environment::load()?;
-    let rom_manager = RomManager::new(Some(&environment.database_file))?;
+    let rom_manager = Arc::new(
+        RomManager::new(
+            Some(&environment.database_file),
+            Some(&environment.roms_directory),
+        )
+        .unwrap(),
+    );
     fs::create_dir_all(&environment.roms_directory)?;
     fs::create_dir_all(&path)?;
 

@@ -81,7 +81,13 @@ pub fn rom_import(
     symlink: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment = Arc::new(Environment::load()?);
-    let rom_manager = Arc::new(RomManager::new(Some(&environment.database_file))?);
+    let rom_manager = Arc::new(
+        RomManager::new(
+            Some(&environment.database_file),
+            Some(&environment.roms_directory),
+        )
+        .unwrap(),
+    );
     fs::create_dir_all(&environment.roms_directory)?;
 
     rayon::scope(|scope| {

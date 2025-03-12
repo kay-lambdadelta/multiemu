@@ -18,7 +18,7 @@ const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
 
 fn criterion_benchmark(c: &mut Criterion) {
     let environment = Arc::new(RwLock::new(Environment::default()));
-    let rom_manager = Arc::new(RomManager::new(None).unwrap());
+    let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
     let shader_cache = Arc::new(ShaderCache::default());
 
     let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)

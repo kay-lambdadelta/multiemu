@@ -12,12 +12,19 @@ use enumflags2::BitFlag;
 mod load;
 mod store;
 
+const STACK_BASE_ADDRESS: usize = 0x0100;
+const INTERRUPT_VECTOR: usize = 0xfffe;
+
+// NOTE: https://www.pagetable.com/c64ref/6502
+
 impl M6502Task {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,
         instruction: M6502InstructionSet,
     ) {
+        tracing::debug!("Interpreting instruction: {:x?}", instruction,);
+
         let memory_translation_table = self.essentials.memory_translation_table();
 
         match instruction.specifier {
@@ -294,7 +301,39 @@ impl M6502Task {
                         state.registers.program.wrapping_add_signed(value as i16);
                 }
             }
-            M6502InstructionSetSpecifier::Brk => todo!(),
+            M6502InstructionSetSpecifier::Brk => {
+                let new_stack = state.registers.stack.wrapping_sub(2);
+
+                let _ = memory_translation_table.write(
+                    new_stack as usize + STACK_BASE_ADDRESS,
+                    self.config.assigned_address_space,
+                    &state.registers.program.to_le_bytes(),
+                );
+
+                // https://www.nesdev.org/wiki/Status_flags
+                let mut flags = state.registers.flags;
+                flags.insert(FlagRegister::__Unused);
+                flags.insert(FlagRegister::Break);
+
+                let new_stack = new_stack.wrapping_sub(1);
+
+                let _ = memory_translation_table.write(
+                    new_stack as usize + STACK_BASE_ADDRESS,
+                    self.config.assigned_address_space,
+                    std::array::from_ref(&flags.bits()),
+                );
+
+                let mut interrupt_location = [0; 2];
+
+                let _ = memory_translation_table.read(
+                    INTERRUPT_VECTOR,
+                    self.config.assigned_address_space,
+                    &mut interrupt_location,
+                );
+
+                state.registers.program = u16::from_le_bytes(interrupt_location);
+                state.registers.stack = new_stack;
+            }
             M6502InstructionSetSpecifier::Bvc => {
                 let value = match instruction.addressing_mode {
                     Some(AddressingMode::Relative(value)) => value,
@@ -334,21 +373,170 @@ impl M6502Task {
             M6502InstructionSetSpecifier::Cpy => todo!(),
             M6502InstructionSetSpecifier::Dcp => todo!(),
             M6502InstructionSetSpecifier::Dec => todo!(),
-            M6502InstructionSetSpecifier::Dex => todo!(),
-            M6502InstructionSetSpecifier::Dey => todo!(),
+            M6502InstructionSetSpecifier::Dex => {
+                let result = state.registers.index_registers[0].wrapping_sub(1);
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, result == 0);
+
+                state.registers.index_registers[0] = result;
+            }
+            M6502InstructionSetSpecifier::Dey => {
+                let result = state.registers.index_registers[1].wrapping_sub(1);
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, result == 0);
+
+                state.registers.index_registers[1] = result;
+            }
             M6502InstructionSetSpecifier::Eor => todo!(),
-            M6502InstructionSetSpecifier::Inc => todo!(),
-            M6502InstructionSetSpecifier::Inx => todo!(),
-            M6502InstructionSetSpecifier::Iny => todo!(),
+            M6502InstructionSetSpecifier::Inc => {
+                let value = load_m6502_addressing_modes!(
+                    instruction,
+                    state.registers,
+                    memory_translation_table,
+                    self.config.assigned_address_space,
+                    [Absolute, XIndexedAbsolute, ZeroPage, XIndexedZeroPage]
+                );
+
+                let result = value.wrapping_add(1);
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, result == 0);
+
+                store_m6502_addressing_modes!(
+                    instruction,
+                    state.registers,
+                    memory_translation_table,
+                    self.config.assigned_address_space,
+                    result,
+                    [Absolute, XIndexedAbsolute, ZeroPage, XIndexedZeroPage]
+                );
+            }
+            M6502InstructionSetSpecifier::Inx => {
+                let result = state.registers.index_registers[0].wrapping_add(1);
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, result == 0);
+
+                state.registers.index_registers[0] = result;
+            }
+            M6502InstructionSetSpecifier::Iny => {
+                let result = state.registers.index_registers[1].wrapping_add(1);
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, result == 0);
+
+                state.registers.index_registers[1] = result;
+            }
             M6502InstructionSetSpecifier::Isc => todo!(),
             M6502InstructionSetSpecifier::Jam => todo!(),
             M6502InstructionSetSpecifier::Jmp => todo!(),
-            M6502InstructionSetSpecifier::Jsr => todo!(),
+            M6502InstructionSetSpecifier::Jsr => {
+                let Some(AddressingMode::Absolute(address)) = instruction.addressing_mode else {
+                    unreachable!()
+                };
+
+                let new_stack = state.registers.stack.wrapping_sub(2);
+
+                let _ = memory_translation_table.write(
+                    new_stack as usize + STACK_BASE_ADDRESS,
+                    self.config.assigned_address_space,
+                    &state.registers.program.to_le_bytes(),
+                );
+
+                state.registers.program = address;
+                state.registers.stack = new_stack;
+            }
             M6502InstructionSetSpecifier::Las => todo!(),
             M6502InstructionSetSpecifier::Lax => todo!(),
-            M6502InstructionSetSpecifier::Lda => todo!(),
-            M6502InstructionSetSpecifier::Ldx => todo!(),
-            M6502InstructionSetSpecifier::Ldy => todo!(),
+            M6502InstructionSetSpecifier::Lda => {
+                let value = load_m6502_addressing_modes!(
+                    instruction,
+                    state.registers,
+                    memory_translation_table,
+                    self.config.assigned_address_space,
+                    [
+                        Immediate,
+                        Absolute,
+                        XIndexedAbsolute,
+                        YIndexedAbsolute,
+                        ZeroPage,
+                        XIndexedZeroPage,
+                        XIndexedZeroPageIndirect,
+                        ZeroPageIndirectYIndexed
+                    ]
+                );
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, value.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, value == 0);
+
+                state.registers.accumulator = value;
+            }
+            M6502InstructionSetSpecifier::Ldx => {
+                let value = load_m6502_addressing_modes!(
+                    instruction,
+                    state.registers,
+                    memory_translation_table,
+                    self.config.assigned_address_space,
+                    [
+                        Immediate,
+                        Absolute,
+                        YIndexedAbsolute,
+                        ZeroPage,
+                        YIndexedZeroPage
+                    ]
+                );
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, value.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, value == 0);
+
+                state.registers.index_registers[0] = value;
+            }
+            M6502InstructionSetSpecifier::Ldy => {
+                let value = load_m6502_addressing_modes!(
+                    instruction,
+                    state.registers,
+                    memory_translation_table,
+                    self.config.assigned_address_space,
+                    [
+                        Immediate,
+                        Absolute,
+                        XIndexedAbsolute,
+                        ZeroPage,
+                        XIndexedZeroPage
+                    ]
+                );
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, value.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, value == 0);
+
+                state.registers.index_registers[1] = value;
+            }
             M6502InstructionSetSpecifier::Lsr => todo!(),
             M6502InstructionSetSpecifier::Nop => {
                 if instruction.addressing_mode.is_some() {
@@ -396,34 +584,37 @@ impl M6502Task {
                 state.registers.accumulator = result;
             }
             M6502InstructionSetSpecifier::Pha => {
+                let new_stack = state.registers.stack.wrapping_sub(1);
+
                 let _ = memory_translation_table.write(
-                    state.registers.stack_pointer as usize,
+                    new_stack as usize + STACK_BASE_ADDRESS,
                     self.config.assigned_address_space,
                     &state.registers.accumulator.to_le_bytes(),
                 );
 
-                state.registers.stack_pointer = state.registers.stack_pointer.wrapping_sub(1);
+                state.registers.stack = new_stack;
             }
             M6502InstructionSetSpecifier::Php => {
                 let mut flags = state.registers.flags;
                 // https://www.nesdev.org/wiki/Status_flags
                 flags.insert(FlagRegister::__Unused);
+                flags.insert(FlagRegister::Break);
+
+                let new_stack = state.registers.stack.wrapping_sub(1);
 
                 let _ = memory_translation_table.write(
-                    state.registers.stack_pointer as usize,
+                    new_stack as usize + STACK_BASE_ADDRESS,
                     self.config.assigned_address_space,
                     &flags.bits().to_ne_bytes(),
                 );
 
-                state.registers.stack_pointer = state.registers.stack_pointer.wrapping_sub(1);
+                state.registers.stack = new_stack;
             }
             M6502InstructionSetSpecifier::Pla => {
-                state.registers.stack_pointer = state.registers.stack_pointer.wrapping_add(1);
-
                 let mut value = 0;
 
                 let _ = memory_translation_table.read(
-                    state.registers.stack_pointer as usize,
+                    state.registers.stack as usize + STACK_BASE_ADDRESS,
                     self.config.assigned_address_space,
                     std::array::from_mut(&mut value),
                 );
@@ -435,26 +626,37 @@ impl M6502Task {
                 state.registers.flags.set(FlagRegister::Zero, value == 0);
 
                 state.registers.accumulator = value;
+                state.registers.stack = state.registers.stack.wrapping_add(1);
             }
             M6502InstructionSetSpecifier::Plp => {
-                state.registers.stack_pointer = state.registers.stack_pointer.wrapping_add(1);
-
                 let mut value = 0;
 
                 let _ = memory_translation_table.read(
-                    state.registers.stack_pointer as usize,
+                    state.registers.stack as usize + STACK_BASE_ADDRESS,
                     self.config.assigned_address_space,
                     std::array::from_mut(&mut value),
                 );
 
                 state.registers.flags = FlagRegister::from_bits(value).unwrap();
+                state.registers.stack = state.registers.stack.wrapping_add(1);
             }
             M6502InstructionSetSpecifier::Rla => todo!(),
             M6502InstructionSetSpecifier::Rol => todo!(),
             M6502InstructionSetSpecifier::Ror => todo!(),
             M6502InstructionSetSpecifier::Rra => todo!(),
             M6502InstructionSetSpecifier::Rti => todo!(),
-            M6502InstructionSetSpecifier::Rts => todo!(),
+            M6502InstructionSetSpecifier::Rts => {
+                let mut address = [0; 2];
+
+                let _ = memory_translation_table.read(
+                    state.registers.stack as usize + STACK_BASE_ADDRESS,
+                    self.config.assigned_address_space,
+                    &mut address,
+                );
+
+                state.registers.program = u16::from_le_bytes(address);
+                state.registers.stack = state.registers.stack.wrapping_add(2);
+            }
             M6502InstructionSetSpecifier::Sax => {
                 let value = state.registers.accumulator & state.registers.index_registers[0];
 
@@ -489,14 +691,45 @@ impl M6502Task {
             M6502InstructionSetSpecifier::Shy => todo!(),
             M6502InstructionSetSpecifier::Slo => todo!(),
             M6502InstructionSetSpecifier::Sre => todo!(),
-            M6502InstructionSetSpecifier::Sta => todo!(),
+            M6502InstructionSetSpecifier::Sta => {
+                let value = state.registers.accumulator;
+
+                store_m6502_addressing_modes!(
+                    instruction,
+                    state.registers,
+                    memory_translation_table,
+                    self.config.assigned_address_space,
+                    value,
+                    [
+                        Absolute,
+                        XIndexedAbsolute,
+                        YIndexedAbsolute,
+                        ZeroPage,
+                        XIndexedZeroPage,
+                        XIndexedZeroPageIndirect,
+                        ZeroPageIndirectYIndexed
+                    ]
+                );
+            }
             M6502InstructionSetSpecifier::Stx => todo!(),
             M6502InstructionSetSpecifier::Sty => todo!(),
             M6502InstructionSetSpecifier::Tax => todo!(),
             M6502InstructionSetSpecifier::Tay => todo!(),
             M6502InstructionSetSpecifier::Tsx => todo!(),
-            M6502InstructionSetSpecifier::Txa => todo!(),
-            M6502InstructionSetSpecifier::Txs => todo!(),
+            M6502InstructionSetSpecifier::Txa => {
+                let result = state.registers.index_registers[0];
+
+                state
+                    .registers
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.registers.flags.set(FlagRegister::Zero, result == 0);
+
+                state.registers.accumulator = result;
+            }
+            M6502InstructionSetSpecifier::Txs => {
+                state.registers.stack = state.registers.index_registers[0];
+            }
             M6502InstructionSetSpecifier::Tya => todo!(),
             M6502InstructionSetSpecifier::Xaa => {
                 let value = load_m6502_addressing_modes!(

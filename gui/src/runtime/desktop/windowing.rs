@@ -11,12 +11,10 @@ use multiemu_machine::builder::display::BackendSpecificData;
 use multiemu_machine::display::{ContextExtensionSpecification, RenderBackend};
 use multiemu_machine::input::VirtualGamepadId;
 use multiemu_rom::id::RomId;
-use multiemu_rom::manager::{LoadedRomLocation, ROM_INFORMATION_TABLE};
+use multiemu_rom::manager::ROM_INFORMATION_TABLE;
 use multiemu_rom::system::GameSystem;
 use std::any::TypeId;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufReader;
 use std::sync::{Arc, RwLock};
 use winit::event::WindowEvent;
 use winit::window::WindowId;
@@ -162,53 +160,35 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                         Some(UiOutput::Resume) => {
                             self.gui_active = false;
                         }
-                        Some(UiOutput::OpenGame { path }) => {
-                            tracing::info!("Opening ROM at {}", path.display());
-
-                            let mut rom_file = BufReader::new(File::open(&path).unwrap());
-                            let rom_id = RomId::from_read(&mut rom_file);
-
+                        Some(UiOutput::OpenGame { rom_id }) => {
                             let database_transaction =
                                 self.rom_manager.rom_information.begin_read().unwrap();
                             let database_table = database_transaction
                                 .open_table(ROM_INFORMATION_TABLE)
                                 .unwrap();
 
-                            // Try to figure out what kind of game is this
-                            if let Some(game_system) = database_table
-                                .get(rom_id)
-                                .unwrap()
-                                .map(|info| info.value().system)
-                                .or_else(|| GameSystem::guess(&path))
-                            {
-                                self.rom_manager
-                                    .loaded_roms
-                                    .insert(rom_id, LoadedRomLocation::External(path.clone()))
-                                    .unwrap();
+                            let rom_info = database_table.get(&rom_id).unwrap().unwrap().value();
 
-                                let WindowingContext {
-                                    egui_winit,
-                                    display_api_handle,
-                                    state,
-                                } = self.windowing.take().unwrap();
-                                drop(state);
+                            let WindowingContext {
+                                egui_winit,
+                                display_api_handle,
+                                state,
+                            } = self.windowing.take().unwrap();
+                            drop(state);
 
-                                let state = self.setup_render_backend_and_machine(
-                                    display_api_handle.clone(),
-                                    self.environment.clone(),
-                                    game_system,
-                                    vec![rom_id],
-                                );
+                            let state = self.setup_render_backend_and_machine(
+                                display_api_handle.clone(),
+                                self.environment.clone(),
+                                rom_info.system,
+                                vec![rom_id],
+                            );
 
-                                self.windowing = Some(WindowingContext {
-                                    display_api_handle,
-                                    egui_winit,
-                                    state,
-                                });
-                                return;
-                            } else {
-                                tracing::error!("Could not identify ROM at {}", path.display());
-                            }
+                            self.windowing = Some(WindowingContext {
+                                display_api_handle,
+                                egui_winit,
+                                state,
+                            });
+                            return;
                         }
                     }
 

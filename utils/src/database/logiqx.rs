@@ -2,7 +2,7 @@ use clap::Subcommand;
 use multiemu_config::Environment;
 use multiemu_rom::manager::RomManager;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use std::{fs::File, io::BufReader, path::PathBuf};
+use std::{fs::File, io::BufReader, path::PathBuf, sync::Arc};
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum LogiqxAction {
@@ -16,7 +16,13 @@ pub fn database_logiqx_import(
     files: Vec<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment = Environment::load()?;
-    let rom_manager = RomManager::new(Some(&environment.database_file))?;
+    let rom_manager = Arc::new(
+        RomManager::new(
+            Some(&environment.database_file),
+            Some(&environment.roms_directory),
+        )
+        .unwrap(),
+    );
 
     files.into_par_iter().try_for_each(|path| {
         let file = BufReader::new(File::open(&path)?);

@@ -98,7 +98,7 @@ pub fn manifest(
             assigned_address_space: CPU_ADDRESS_SPACE,
             kind: M6502Kind::R2A0x,
             initial_state: M6502Registers {
-                stack_pointer: 0xfd,
+                stack: 0xfd,
                 ..Default::default()
             },
         },

@@ -45,7 +45,11 @@ impl FromConfig for NesCartridge {
     ) {
         let mut rom_file = essentials
             .rom_manager()
-            .open(config.rom, RomRequirement::Required)
+            .open(
+                config.rom,
+                RomRequirement::Required,
+                &essentials.environment().roms_directory,
+            )
             .unwrap();
 
         let mut rom = Vec::default();

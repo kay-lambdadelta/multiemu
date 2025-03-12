@@ -1,15 +1,16 @@
 use super::AddressSpaceId;
-use super::callbacks::{PreviewMemory, ReadMemory, WriteMemory};
+use super::callbacks::Memory;
 use crate::memory::{MAX_MEMORY_ACCESS_SIZE, VALID_MEMORY_ACCESS_SIZES};
 use arrayvec::ArrayVec;
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use fxhash::FxBuildHasher;
 use rangemap::RangeInclusiveMap;
-use std::fmt::{Debug, Formatter};
+use std::collections::HashMap;
+use std::fmt::Debug;
 use std::ops::RangeInclusive;
-use std::sync::Arc;
-use std::{collections::HashMap, sync::atomic::AtomicBool};
 use thiserror::Error;
+
+type MemoryId = usize;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ReadMemoryOperationErrorFailureType {
@@ -76,41 +77,15 @@ pub enum PreviewMemoryRecord {
 
 #[derive(Debug)]
 struct BusInfo {
-    read: RangeInclusiveMap<usize, MemoryOperatorWrapper<dyn ReadMemory>>,
-    write: RangeInclusiveMap<usize, MemoryOperatorWrapper<dyn WriteMemory>>,
-    preview: RangeInclusiveMap<usize, MemoryOperatorWrapper<dyn PreviewMemory>>,
+    members: RangeInclusiveMap<usize, MemoryId>,
     width: u8,
 }
 
-struct MemoryOperatorWrapper<T: ?Sized + Sync>(pub Arc<T>);
-
-impl<T: ?Sized + Sync> Clone for MemoryOperatorWrapper<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T: ?Sized + Sync> PartialEq for MemoryOperatorWrapper<T> {
-    fn eq(&self, _other: &Self) -> bool {
-        // HACK: Implements equality so rangemap operates correctly
-        //
-        // Remove this when rangemap allows losing the eq requirement
-        false
-    }
-}
-
-impl<T: ?Sized + Sync> Eq for MemoryOperatorWrapper<T> {}
-
-impl<T: ?Sized + Sync> Debug for MemoryOperatorWrapper<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("MemoryOperatorWrapper").finish()
-    }
-}
-
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct MemoryTranslationTable {
+    current_memory_id: MemoryId,
     bus_info: HashMap<AddressSpaceId, BusInfo, FxBuildHasher>,
-    dirty_pages: Vec<AtomicBool>,
+    memories: Vec<Box<dyn Memory>>,
 }
 
 impl MemoryTranslationTable {
@@ -119,62 +94,31 @@ impl MemoryTranslationTable {
             address_space_id,
             BusInfo {
                 width: bus_width,
-                read: RangeInclusiveMap::default(),
-                write: RangeInclusiveMap::default(),
-                preview: RangeInclusiveMap::default(),
+                members: RangeInclusiveMap::new(),
             },
         );
     }
 
-    pub fn insert_read_callback(
+    pub fn insert_memory(
         &mut self,
-        address_space: AddressSpaceId,
-        mappings: impl IntoIterator<Item = RangeInclusive<usize>>,
-        read_callback: Arc<dyn ReadMemory>,
+        mappings: impl IntoIterator<Item = (RangeInclusive<usize>, AddressSpaceId)>,
+        memory: Box<dyn Memory>,
     ) {
-        self.bus_info
-            .get_mut(&address_space)
-            .expect("Non existant address space")
-            .read
-            .extend(
-                mappings
-                    .into_iter()
-                    .map(|range| (range, MemoryOperatorWrapper(read_callback.clone()))),
-            );
-    }
+        let id = self.current_memory_id;
+        self.current_memory_id = self
+            .current_memory_id
+            .checked_add(1)
+            .expect("Too many memories");
 
-    pub fn insert_write_callback(
-        &mut self,
-        address_space: AddressSpaceId,
-        mappings: impl IntoIterator<Item = RangeInclusive<usize>>,
-        write_callback: Arc<dyn WriteMemory>,
-    ) {
-        self.bus_info
-            .get_mut(&address_space)
-            .expect("Non existant address space")
-            .write
-            .extend(
-                mappings
-                    .into_iter()
-                    .map(|range| (range, MemoryOperatorWrapper(write_callback.clone()))),
-            );
-    }
+        self.memories.insert(id, memory);
 
-    pub fn insert_preview_callback(
-        &mut self,
-        address_space: AddressSpaceId,
-        mappings: impl IntoIterator<Item = RangeInclusive<usize>>,
-        preview_callback: Arc<dyn PreviewMemory>,
-    ) {
-        self.bus_info
-            .get_mut(&address_space)
-            .expect("Non existant address space")
-            .preview
-            .extend(
-                mappings
-                    .into_iter()
-                    .map(|range| (range, MemoryOperatorWrapper(preview_callback.clone()))),
-            );
+        for (addresses, address_space) in mappings {
+            self.bus_info
+                .get_mut(&address_space)
+                .expect("Non existant address space")
+                .members
+                .insert(addresses, id);
+        }
     }
 
     pub fn address_spaces(&self) -> u8 {
@@ -218,9 +162,11 @@ impl MemoryTranslationTable {
                 (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
             let mut did_handle = false;
 
-            for (component_assignment_range, read_callback) in
-                bus_info.read.overlapping(accessing_range.clone())
+            for (component_assignment_range, memory_id) in
+                bus_info.members.overlapping(accessing_range.clone())
             {
+                let memory = self.memories.get(*memory_id).expect("Non existant memory");
+
                 did_handle = true;
                 let mut errors = RangeInclusiveMap::default();
 
@@ -228,10 +174,10 @@ impl MemoryTranslationTable {
                     .start()
                     .max(component_assignment_range.start());
 
-                read_callback.0.read_memory(
+                memory.read_memory(
                     *overlap_start,
-                    &mut buffer[buffer_subrange.clone()],
                     address_space,
+                    &mut buffer[buffer_subrange.clone()],
                     &mut errors,
                 );
 
@@ -308,9 +254,11 @@ impl MemoryTranslationTable {
                 (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
             let mut did_handle = false;
 
-            for (component_assignment_range, write_callback) in
-                bus_info.write.overlapping(accessing_range.clone())
+            for (component_assignment_range, memory_id) in
+                bus_info.members.overlapping(accessing_range.clone())
             {
+                let memory = self.memories.get(*memory_id).expect("Non existant memory");
+
                 did_handle = true;
                 let mut errors = RangeInclusiveMap::default();
 
@@ -318,10 +266,10 @@ impl MemoryTranslationTable {
                     .start()
                     .max(component_assignment_range.start());
 
-                write_callback.0.write_memory(
+                memory.write_memory(
                     *overlap_start,
-                    &buffer[buffer_subrange.clone()],
                     address_space,
+                    &buffer[buffer_subrange.clone()],
                     &mut errors,
                 );
 
@@ -389,9 +337,11 @@ impl MemoryTranslationTable {
                 (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
             let mut did_handle = false;
 
-            for (component_assignment_range, preview_callback) in
-                bus_info.preview.overlapping(accessing_range.clone())
+            for (component_assignment_range, memory_id) in
+                bus_info.members.overlapping(accessing_range.clone())
             {
+                let memory = self.memories.get(*memory_id).expect("Non existant memory");
+
                 did_handle = true;
                 let mut errors = RangeInclusiveMap::default();
 
@@ -399,10 +349,10 @@ impl MemoryTranslationTable {
                     .start()
                     .max(component_assignment_range.start());
 
-                preview_callback.0.preview_memory(
+                memory.preview_memory(
                     *overlap_start,
-                    &mut buffer[buffer_subrange.clone()],
                     address_space,
+                    &mut buffer[buffer_subrange.clone()],
                     &mut errors,
                 );
 

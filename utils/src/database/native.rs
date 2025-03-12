@@ -5,6 +5,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use redb::ReadableTable;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum NativeAction {
@@ -23,8 +24,13 @@ pub fn database_native_import(
     paths: Vec<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment = Environment::load()?;
-    let rom_manager = RomManager::new(Some(&environment.database_file))?;
-
+    let rom_manager = Arc::new(
+        RomManager::new(
+            Some(&environment.database_file),
+            Some(&environment.roms_directory),
+        )
+        .unwrap(),
+    );
     paths
         .into_par_iter()
         .try_for_each(|path| rom_manager.load_database(path))?;
@@ -38,7 +44,13 @@ pub fn database_native_fuzzy_search(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let search = search.to_lowercase();
     let environment = Environment::load()?;
-    let rom_manager = RomManager::new(Some(&environment.database_file))?;
+    let rom_manager = Arc::new(
+        RomManager::new(
+            Some(&environment.database_file),
+            Some(&environment.roms_directory),
+        )
+        .unwrap(),
+    );
     let database_transaction = rom_manager.rom_information.begin_read().unwrap();
     let database_table = database_transaction.open_table(ROM_INFORMATION_TABLE)?;
 

@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+#[derive(Clone)]
 enum ComponentLocation {
     Here(Arc<dyn Component + Send + Sync>),
     Elsewhere(ComponentId),
@@ -13,6 +14,16 @@ pub struct ComponentRef<C: Component> {
     location: ComponentLocation,
     store: Arc<ComponentStore>,
     _phantom: std::marker::PhantomData<C>,
+}
+
+impl<C: Component> Clone for ComponentRef<C> {
+    fn clone(&self) -> Self {
+        Self {
+            location: self.location.clone(),
+            store: self.store.clone(),
+            _phantom: std::marker::PhantomData,
+        }
+    }
 }
 
 /// SAFETY: This struct is perfectly safe to send between threads

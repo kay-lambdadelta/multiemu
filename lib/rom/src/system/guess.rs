@@ -96,8 +96,9 @@ pub fn guess_system(rom_path: impl AsRef<Path>) -> Option<GameSystem> {
 
         if read_buffer == entry.bytes {
             tracing::info!(
-                "Guessed system of ROM at {} from its magic",
-                rom_path.display()
+                "Guessed system of ROM at {} from its magic as {}",
+                rom_path.display(),
+                system
             );
 
             return Some(system);
@@ -133,9 +134,10 @@ fn guess_by_extension(rom: &Path) -> Option<GameSystem> {
             _ => None,
         } {
             tracing::info!(
-                "Guessed system of ROM at {} from file extension {}",
+                "Guessed system of ROM at {} from file extension {} as {}",
                 rom.display(),
-                file_extension
+                file_extension,
+                system
             );
             return Some(system);
         }
