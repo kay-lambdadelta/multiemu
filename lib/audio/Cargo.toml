@@ -9,7 +9,7 @@ num = { workspace = true }
 ringbuffer = { workspace = true }
 bytemuck = { workspace = true }
 
-[dev-dependencies]
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }
 
 [[bench]]
@@ -18,4 +18,8 @@ harness = false
 
 [[bench]]
 name = "resample"
+harness = false
+
+[[bench]]
+name = "remix"
 harness = false

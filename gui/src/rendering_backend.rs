@@ -1,7 +1,9 @@
 use egui::FullOutput;
 use multiemu_config::Environment;
-use multiemu_machine::display::RenderBackend;
-use multiemu_machine::{Machine, display::shader::ShaderCache};
+use multiemu_machine::{
+    RunOutput,
+    display::{backend::RenderBackend, shader::ShaderCache},
+};
 use std::sync::{Arc, RwLock};
 
 /// A backend for a given render backend
@@ -19,7 +21,7 @@ pub trait RenderingBackendState: Sized {
     fn component_initialization_data(
         &self,
     ) -> Arc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData>;
-    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>);
+    fn redraw(&mut self, output: &RunOutput<Self::RenderBackend>);
     fn redraw_menu(&mut self, egui_context: &egui::Context, full_output: FullOutput);
     fn surface_resized(&mut self) {}
 }

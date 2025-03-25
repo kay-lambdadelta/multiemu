@@ -1,7 +1,7 @@
 use crate::{
     Machine,
     component::{Component, ComponentId, FromConfig, RuntimeEssentials, store::ComponentStore},
-    display::{RenderBackend, shader::ShaderCache},
+    display::{FrameReceptacle, backend::RenderBackend, shader::ShaderCache},
     memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
 };
@@ -139,7 +139,7 @@ impl MachineBuilder {
             }
         }
 
-        let mut component_framebuffers = HashMap::new();
+        let mut frame_receptacles = HashMap::new();
         let mut tasks = Vec::new();
         let mut all_gamepads = Vec::default();
 
@@ -149,7 +149,7 @@ impl MachineBuilder {
                 self.essentials
                     .component_store()
                     .interact_dyn_local(component_id, |component| {
-                        let (frame_sender, frame_receiver) = crossbeam::channel::bounded(1);
+                        let frame_receptacle = Arc::new(FrameReceptacle::default());
 
                         // Call the display callback
                         (display_metadata
@@ -160,10 +160,10 @@ impl MachineBuilder {
                             .set_display_callback)(
                             component,
                             display_component_initialization_data.clone(),
-                            frame_sender,
+                            frame_receptacle.clone(),
                         );
 
-                        component_framebuffers.insert(component_id, frame_receiver);
+                        frame_receptacles.insert(component_id, frame_receptacle);
                     });
             }
 
@@ -212,7 +212,7 @@ impl MachineBuilder {
             scheduler,
             component_store: self.essentials.component_store().clone(),
             memory_translation_table,
-            component_framebuffers,
+            frame_receptacles,
             virtual_gamepads: all_gamepads
                 .into_iter()
                 .enumerate()

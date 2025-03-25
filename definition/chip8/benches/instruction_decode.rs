@@ -6,7 +6,7 @@ use multiemu_definition_misc::memory::standard::{
 };
 use multiemu_machine::{
     builder::MachineBuilder,
-    display::{shader::ShaderCache, software::SoftwareRendering},
+    display::{backend::software::SoftwareRendering, shader::ShaderCache},
     memory::AddressSpaceId,
     processor::decoder::InstructionDecoder,
 };
@@ -50,7 +50,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             let _ = decoder.decode(
                 address,
                 ADDRESS_SPACE,
-                black_box(&machine.memory_translation_table),
+                black_box(&machine.memory_translation_table()),
             );
         })
     });

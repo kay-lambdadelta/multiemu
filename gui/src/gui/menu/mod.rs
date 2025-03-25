@@ -3,12 +3,8 @@ use egui::{CentralPanel, Context, ScrollArea, SidePanel};
 use file_browser::FileBrowserState;
 use multiemu_config::Environment;
 use multiemu_rom::id::RomId;
-use multiemu_rom::info::RomInfo;
-use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
+use multiemu_rom::manager::RomManager;
 use options::OptionsState;
-use redb::ReadOnlyTable;
-use redb::ReadableTable;
-use redb::ReadableTableMetadata;
 use std::fmt::Display;
 use std::sync::{Arc, RwLock};
 use strum::{EnumIter, IntoEnumIterator};
@@ -52,19 +48,12 @@ pub struct MenuState {
     file_browser_state: FileBrowserState,
     options_state: OptionsState,
     database_state: DatabaseState,
-    table: ReadOnlyTable<RomId, RomInfo>,
     autofocus: bool,
 }
 
 impl MenuState {
     pub fn new(environment: Arc<RwLock<Environment>>, rom_manager: Arc<RomManager>) -> Self {
         let environment_guard = environment.read().unwrap();
-        let table = rom_manager
-            .rom_information
-            .begin_read()
-            .unwrap()
-            .open_table(ROM_INFORMATION_TABLE)
-            .unwrap();
 
         Self {
             open_menu_item: MenuItem::default(),
@@ -74,7 +63,6 @@ impl MenuState {
             ),
             options_state: OptionsState::new(environment.clone()),
             database_state: DatabaseState::new(rom_manager),
-            table,
             autofocus: true,
         }
     }

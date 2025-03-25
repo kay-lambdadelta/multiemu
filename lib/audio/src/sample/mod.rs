@@ -6,7 +6,7 @@ pub mod iterator;
 
 /// Base trait for samples
 pub trait Sample:
-    Num + NumAssignOps + PartialOrd + Debug + ToPrimitive + FromPrimitive + Copy + 'static
+    Num + NumAssignOps + PartialOrd + Debug + ToPrimitive + FromPrimitive + Copy + Send + Sync + 'static
 {
     /// Minimum sample value
     const SAMPLE_MIN: Self;

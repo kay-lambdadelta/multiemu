@@ -1,7 +1,7 @@
-use multiemu_machine::processor::instruction::{InstructionSet, InstructionTextRepresentation};
+use multiemu_machine::processor::instruction::InstructionSet;
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
-use std::ops::Range;
+use std::{fmt::Display, ops::Range};
 use strum::FromRepr;
 
 #[derive(
@@ -173,12 +173,13 @@ pub enum Chip8InstructionSet {
     XoChip(InstructionSetXoChip),
 }
 
-impl InstructionSet for Chip8InstructionSet {
-    fn to_text_representation(&self) -> InstructionTextRepresentation {
-        todo!()
+impl Display for Chip8InstructionSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
+}
 
-    fn cycles_taken(&self) -> u8 {
-        1
-    }
+impl InstructionSet for Chip8InstructionSet {
+    type Opcode = Self;
+    type AddressingMode = ();
 }

@@ -1,12 +1,14 @@
 use crate::gui::software_rendering::SoftwareEguiRenderer;
 use crate::rendering_backend::RenderingBackendState;
 use multiemu_config::Environment;
-use multiemu_machine::Machine;
+use multiemu_machine::RunOutput;
 use multiemu_machine::component::ComponentId;
-use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::backend::RenderBackend;
+use multiemu_machine::display::backend::software::{
+    SoftwareComponentFramebuffer, SoftwareRendering,
+};
 use multiemu_machine::display::shader::ShaderCache;
-use multiemu_machine::display::software::SoftwareRendering;
-use nalgebra::{DMatrix, DMatrixViewMut, Vector2};
+use nalgebra::{DMatrixViewMut, Vector2};
 use palette::Srgba;
 use palette::cast::Packed;
 use palette::rgb::channels::Argb;
@@ -21,7 +23,7 @@ pub struct SoftwareRenderingRuntime {
     egui_renderer: SoftwareEguiRenderer,
     previously_recorded_size: Vector2<u16>,
     environment: Arc<RwLock<Environment>>,
-    previously_seen_frames: HashMap<ComponentId, DMatrix<Srgba<u8>>>,
+    previously_seen_frames: HashMap<ComponentId, SoftwareComponentFramebuffer>,
 }
 
 impl RenderingBackendState for SoftwareRenderingRuntime {
@@ -62,7 +64,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         Arc::default()
     }
 
-    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>) {
+    fn redraw(&mut self, output: &RunOutput<Self::RenderBackend>) {
         if self.previously_recorded_size.min() == 0 {
             return;
         }
@@ -75,11 +77,9 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         );
         surface_buffer_view.fill(Packed::<Argb, u32>::pack(Srgba::new(0, 0, 0, 0xff)));
 
-        for (component_id, framebuffer_receiver) in &machine.component_framebuffers {
-            if let Ok(framebuffer) = framebuffer_receiver.try_recv() {
-                self.previously_seen_frames
-                    .insert(*component_id, framebuffer);
-            }
+        for (component_id, framebuffer) in &output.screens {
+            self.previously_seen_frames
+                .insert(*component_id, framebuffer.clone());
         }
 
         let integer_scaling = self
@@ -91,6 +91,8 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
 
         if integer_scaling {
             for (_, component_framebuffer) in self.previously_seen_frames.iter() {
+                let component_framebuffer = component_framebuffer.lock().unwrap();
+
                 let component_display_buffer_size =
                     Vector2::new(component_framebuffer.nrows(), component_framebuffer.ncols())
                         .cast::<u16>();
@@ -129,6 +131,8 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             }
         } else {
             for (_, component_framebuffer) in self.previously_seen_frames.iter() {
+                let component_framebuffer = component_framebuffer.lock().unwrap();
+
                 let component_display_buffer_size =
                     Vector2::new(component_framebuffer.nrows(), component_framebuffer.ncols())
                         .cast::<u16>();

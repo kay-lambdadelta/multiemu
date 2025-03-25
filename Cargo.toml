@@ -38,7 +38,7 @@ num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
 bitvec = "1.0"
-cranelift = { version = "0.117", features = ["jit", "native", "module"] }
+cranelift = { version = "0.118", features = ["jit", "native", "module"] }
 vulkano = { version = "0.35", default-features = false }
 crossbeam = "0.8"
 scc = "2.3"

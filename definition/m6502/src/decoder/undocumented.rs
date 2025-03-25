@@ -1,212 +1,83 @@
 use super::ARGUMENT;
-use crate::instruction::{AddressingMode, M6502InstructionSet, M6502InstructionSetSpecifier};
+use crate::instruction::{AddressingMode, Opcode};
 use bitvec::{
     field::BitField,
     prelude::{BitSlice, Msb0},
 };
-use multiemu_machine::memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable};
 
 #[inline]
 pub fn decode_undocumented_space_instruction(
-    cursor: u16,
-    address_space: AddressSpaceId,
-    memory_translation_table: &MemoryTranslationTable,
     instruction_identifier: u8,
     instruction_first_byte: &BitSlice<u8, Msb0>,
-) -> (M6502InstructionSet, u8) {
-    let addressing_mode_byte = instruction_first_byte[ARGUMENT].load::<u8>();
+) -> (Opcode, Option<AddressingMode>) {
+    let argument = instruction_first_byte[ARGUMENT].load::<u8>();
 
-    let (addressing_mode, added_instruction_length) = AddressingMode::from_group1_addressing(
-        cursor,
-        address_space,
-        memory_translation_table,
-        addressing_mode_byte,
-    );
+    let addressing_mode = AddressingMode::from_group1_addressing(argument);
 
     match instruction_identifier {
         0b000 => {
-            if matches!(addressing_mode, AddressingMode::Immediate(..)) {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Anc,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+            if matches!(addressing_mode, AddressingMode::Immediate) {
+                (Opcode::Anc, Some(addressing_mode))
             } else {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Slo,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+                (Opcode::Slo, Some(addressing_mode))
             }
         }
         0b001 => {
-            if matches!(addressing_mode, AddressingMode::Immediate(..)) {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Anc,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+            if matches!(addressing_mode, AddressingMode::Immediate) {
+                (Opcode::Anc, Some(addressing_mode))
             } else {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Rla,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+                (Opcode::Rla, Some(addressing_mode))
             }
         }
         0b010 => {
-            if matches!(addressing_mode, AddressingMode::Immediate(..)) {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Anc,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+            if matches!(addressing_mode, AddressingMode::Immediate) {
+                (Opcode::Anc, Some(addressing_mode))
             } else {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Sre,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+                (Opcode::Sre, Some(addressing_mode))
             }
         }
         0b011 => {
-            if matches!(addressing_mode, AddressingMode::Immediate(..)) {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Anc,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+            if matches!(addressing_mode, AddressingMode::Immediate) {
+                (Opcode::Anc, Some(addressing_mode))
             } else {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Rra,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+                (Opcode::Rra, Some(addressing_mode))
             }
         }
         0b100 => match addressing_mode {
-            AddressingMode::XIndexedZeroPageIndirect(..) => (
-                M6502InstructionSet {
-                    specifier: M6502InstructionSetSpecifier::Sax,
-                    addressing_mode: Some(addressing_mode),
-                },
-                added_instruction_length,
-            ),
-            AddressingMode::Immediate(..) => (
-                M6502InstructionSet {
-                    specifier: M6502InstructionSetSpecifier::Xaa,
-                    addressing_mode: Some(addressing_mode),
-                },
-                added_instruction_length,
-            ),
-            AddressingMode::Absolute(..) | AddressingMode::ZeroPage(..) => (
-                M6502InstructionSet {
-                    specifier: M6502InstructionSetSpecifier::Sax,
-                    addressing_mode: Some(addressing_mode),
-                },
-                added_instruction_length,
-            ),
-            AddressingMode::XIndexedZeroPage(value) => (
-                M6502InstructionSet {
-                    specifier: M6502InstructionSetSpecifier::Sax,
-                    addressing_mode: Some(AddressingMode::YIndexedZeroPage(value)),
-                },
-                added_instruction_length,
-            ),
-            AddressingMode::YIndexedAbsolute(..) => (
-                M6502InstructionSet {
-                    specifier: M6502InstructionSetSpecifier::Shs,
-                    addressing_mode: Some(addressing_mode),
-                },
-                added_instruction_length,
-            ),
-            AddressingMode::XIndexedAbsolute(address) => (
-                M6502InstructionSet {
-                    specifier: M6502InstructionSetSpecifier::Sha,
-                    addressing_mode: Some(AddressingMode::YIndexedAbsolute(address)),
-                },
-                added_instruction_length,
-            ),
-            AddressingMode::ZeroPageIndirectYIndexed(..) => (
-                M6502InstructionSet {
-                    specifier: M6502InstructionSetSpecifier::Sha,
-                    addressing_mode: Some(addressing_mode),
-                },
-                added_instruction_length,
-            ),
+            AddressingMode::XIndexedZeroPageIndirect => (Opcode::Sax, Some(addressing_mode)),
+            AddressingMode::Immediate => (Opcode::Xaa, Some(addressing_mode)),
+            AddressingMode::Absolute | AddressingMode::ZeroPage => {
+                (Opcode::Sax, Some(addressing_mode))
+            }
+            AddressingMode::XIndexedZeroPage => {
+                (Opcode::Sax, Some(AddressingMode::YIndexedZeroPage))
+            }
+            AddressingMode::YIndexedAbsolute => (Opcode::Shs, Some(addressing_mode)),
+            AddressingMode::XIndexedAbsolute => {
+                (Opcode::Sha, Some(AddressingMode::YIndexedAbsolute))
+            }
+            AddressingMode::ZeroPageIndirectYIndexed => (Opcode::Sha, Some(addressing_mode)),
             _ => unreachable!(),
         },
         0b101 => {
-            if matches!(addressing_mode, AddressingMode::YIndexedAbsolute(..)) {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Las,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+            if matches!(addressing_mode, AddressingMode::YIndexedAbsolute) {
+                (Opcode::Las, Some(addressing_mode))
             } else {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Lax,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+                (Opcode::Lax, Some(addressing_mode))
             }
         }
         0b110 => {
-            if matches!(addressing_mode, AddressingMode::Immediate(..)) {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Sbx,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+            if matches!(addressing_mode, AddressingMode::Immediate) {
+                (Opcode::Sbx, Some(addressing_mode))
             } else {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Dcp,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+                (Opcode::Dcp, Some(addressing_mode))
             }
         }
         0b111 => {
-            if matches!(addressing_mode, AddressingMode::Immediate(..)) {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Sbc,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+            if matches!(addressing_mode, AddressingMode::Immediate) {
+                (Opcode::Sbc, Some(addressing_mode))
             } else {
-                (
-                    M6502InstructionSet {
-                        specifier: M6502InstructionSetSpecifier::Isc,
-                        addressing_mode: Some(addressing_mode),
-                    },
-                    added_instruction_length,
-                )
+                (Opcode::Isc, Some(addressing_mode))
             }
         }
         _ => {

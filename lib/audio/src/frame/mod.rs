@@ -1,41 +1,92 @@
 use crate::interpolate::Interpolator;
 use crate::sample::conversion::IntoSample;
 use crate::sample::{Sample, conversion::FromSample};
-use nalgebra::{DefaultAllocator, Dim, OVector, allocator::Allocator};
+use nalgebra::{ComplexField, SVector};
+use num::Float;
 use num::rational::Ratio;
+use std::cmp::Ordering;
 
 /// Helper iterator for operating on frames of samples
-pub trait FrameIterator<S: Sample, CHANNELS: Dim>: Iterator<Item = OVector<S, CHANNELS>>
-where
-    DefaultAllocator: Allocator<CHANNELS>,
+pub trait FrameIterator<S: Sample, const CHANNELS: usize>:
+    Iterator<Item = SVector<S, CHANNELS>>
 {
     /// Convert the samples in the iterator to another sample type
-    fn convert_sample<S2: Sample + FromSample<S>>(self) -> impl FrameIterator<S2, CHANNELS>;
+    fn rescale<S2: Sample + FromSample<S>>(self) -> impl FrameIterator<S2, CHANNELS>;
 
     /// Use the specified [Interpolator] to resample the iterator
-    fn resample<I: Interpolator<S, CHANNELS>>(
+    fn resample<F: Float + Sample + ComplexField>(
         self,
         source_rate: Ratio<u32>,
         target_rate: Ratio<u32>,
-        interpolator: I,
-    ) -> impl Iterator<Item = OVector<S, CHANNELS>>;
+        interpolator: impl Interpolator<S, CHANNELS, F>,
+    ) -> impl FrameIterator<S, CHANNELS>;
+
+    /// Mix the channels of the iterator into a different number of channels
+    fn remix<const CHANNELS2: usize>(self) -> impl FrameIterator<S, CHANNELS2>;
+
+    /// Normalize the samples in the iterator
+    fn normalize(self) -> impl FrameIterator<S, CHANNELS>;
+
+    /// Fill a buffer with samples
+    fn fill_buf(self, buffer: &mut [SVector<S, CHANNELS>]);
 }
 
-impl<S: Sample, CHANNELS: Dim, SourceIterator: Iterator<Item = OVector<S, CHANNELS>>>
+impl<S: Sample, const CHANNELS: usize, SourceIterator: Iterator<Item = SVector<S, CHANNELS>>>
     FrameIterator<S, CHANNELS> for SourceIterator
-where
-    DefaultAllocator: Allocator<CHANNELS>,
 {
-    fn convert_sample<S2: Sample + FromSample<S>>(self) -> impl FrameIterator<S2, CHANNELS> {
+    fn rescale<S2: Sample + FromSample<S>>(self) -> impl FrameIterator<S2, CHANNELS> {
         self.map(|s| s.map(|s| s.into_sample()))
     }
 
-    fn resample<I: Interpolator<S, CHANNELS>>(
+    fn resample<F: Float + Sample + ComplexField>(
         self,
         source_rate: Ratio<u32>,
         target_rate: Ratio<u32>,
-        interpolator: I,
-    ) -> impl Iterator<Item = OVector<S, CHANNELS>> {
+        interpolator: impl Interpolator<S, CHANNELS, F>,
+    ) -> impl FrameIterator<S, CHANNELS> {
         interpolator.interpolate(source_rate, target_rate, self)
+    }
+
+    fn remix<const CHANNELS2: usize>(self) -> impl FrameIterator<S, CHANNELS2> {
+        self.map(move |frame| {
+            let mut new_frame = SVector::<S, CHANNELS2>::from_element(S::equilibrium());
+
+            match CHANNELS.cmp(&CHANNELS2) {
+                Ordering::Less => {
+                    for i in 0..CHANNELS2 {
+                        new_frame[i] = frame[i % CHANNELS];
+                    }
+                }
+                Ordering::Equal => {
+                    for i in 0..CHANNELS2 {
+                        new_frame[i] = frame[i];
+                    }
+                }
+                Ordering::Greater => {
+                    for i in 0..CHANNELS2 {
+                        let mut sum = S::zero();
+                        for j in 0..CHANNELS / CHANNELS2 {
+                            sum += frame[i * (CHANNELS / CHANNELS2) + j];
+                        }
+                        new_frame[i] = sum / S::from_usize(CHANNELS / CHANNELS2).unwrap();
+                    }
+                }
+            }
+
+            new_frame
+        })
+    }
+
+    fn normalize(self) -> impl FrameIterator<S, CHANNELS> {
+        self.map(|s| s.map(|s| s.normalize()))
+    }
+
+    fn fill_buf(self, buffer: &mut [SVector<S, CHANNELS>]) {
+        for (destination, sample) in buffer
+            .iter_mut()
+            .zip(self.chain(std::iter::repeat(SVector::from_element(S::equilibrium()))))
+        {
+            *destination = sample;
+        }
     }
 }

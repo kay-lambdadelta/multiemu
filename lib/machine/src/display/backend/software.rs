@@ -1,7 +1,9 @@
-use crate::display::{ContextExtensionSpecification, RenderBackend};
+use super::ContextExtensionSpecification;
+use crate::display::RenderBackend;
 use multiemu_config::graphics::GraphicsApi;
 use nalgebra::DMatrix;
 use palette::Srgba;
+use std::sync::{Arc, Mutex};
 
 /// Marker trait for software rendering, this should be the one used in tests and as a fallback
 pub struct SoftwareRendering;
@@ -17,7 +19,8 @@ impl ContextExtensionSpecification for SoftwareContextExtentionSpecification {
         Self
     }
 }
-pub type SoftwareComponentFramebuffer = DMatrix<Srgba<u8>>;
+
+pub type SoftwareComponentFramebuffer = Arc<Mutex<DMatrix<Srgba<u8>>>>;
 
 impl RenderBackend for SoftwareRendering {
     const GRAPHICS_API: GraphicsApi = GraphicsApi::Software;

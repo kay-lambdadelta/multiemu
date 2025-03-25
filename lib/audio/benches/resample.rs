@@ -1,7 +1,7 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_audio::{
     frame::FrameIterator,
-    interpolate::{cubic::Cubic, linear::Linear},
+    interpolate::{cubic::Cubic, linear::Linear, sinc::Sinc},
 };
 use nalgebra::Vector2;
 use num::rational::Ratio;
@@ -14,11 +14,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
                 .into_iter()
-                .resample(
-                    Ratio::from_integer(44100),
-                    Ratio::from_integer(440),
-                    Linear::<f32>::default(),
-                )
+                .resample::<f32>(Ratio::from_integer(44100), Ratio::from_integer(440), Linear)
                 .collect();
         })
     });
@@ -27,11 +23,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
                 .into_iter()
-                .resample(
-                    Ratio::from_integer(440),
-                    Ratio::from_integer(44100),
-                    Linear::<f32>::default(),
-                )
+                .resample::<f32>(Ratio::from_integer(440), Ratio::from_integer(44100), Linear)
                 .collect();
         })
     });
@@ -40,11 +32,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
                 .into_iter()
-                .resample(
-                    Ratio::from_integer(44100),
-                    Ratio::from_integer(440),
-                    Linear::<f64>::default(),
-                )
+                .resample::<f64>(Ratio::from_integer(44100), Ratio::from_integer(440), Linear)
                 .collect();
         })
     });
@@ -53,11 +41,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
                 .into_iter()
-                .resample(
-                    Ratio::from_integer(440),
-                    Ratio::from_integer(44100),
-                    Linear::<f64>::default(),
-                )
+                .resample::<f64>(Ratio::from_integer(440), Ratio::from_integer(44100), Linear)
                 .collect();
         })
     });
@@ -66,11 +50,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
                 .into_iter()
-                .resample(
-                    Ratio::from_integer(44100),
-                    Ratio::from_integer(440),
-                    Cubic::<f32>::default(),
-                )
+                .resample::<f32>(Ratio::from_integer(44100), Ratio::from_integer(440), Cubic)
                 .collect();
         })
     });
@@ -79,11 +59,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
                 .into_iter()
-                .resample(
-                    Ratio::from_integer(440),
-                    Ratio::from_integer(44100),
-                    Cubic::<f32>::default(),
-                )
+                .resample::<f32>(Ratio::from_integer(440), Ratio::from_integer(44100), Cubic)
                 .collect();
         })
     });
@@ -92,11 +68,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
                 .into_iter()
-                .resample(
-                    Ratio::from_integer(44100),
-                    Ratio::from_integer(440),
-                    Cubic::<f64>::default(),
-                )
+                .resample::<f64>(Ratio::from_integer(44100), Ratio::from_integer(440), Cubic)
                 .collect();
         })
     });
@@ -105,10 +77,214 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
                 .into_iter()
-                .resample(
+                .resample::<f64>(Ratio::from_integer(440), Ratio::from_integer(44100), Cubic)
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc1_f32_down", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f32>(
+                    Ratio::from_integer(44100),
+                    Ratio::from_integer(440),
+                    Sinc::<1>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc1_f32_up", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f32>(
                     Ratio::from_integer(440),
                     Ratio::from_integer(44100),
-                    Cubic::<f64>::default(),
+                    Sinc::<1>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc1_f64_down", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f64>(
+                    Ratio::from_integer(44100),
+                    Ratio::from_integer(440),
+                    Sinc::<1>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc1_f64_up", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f64>(
+                    Ratio::from_integer(440),
+                    Ratio::from_integer(44100),
+                    Sinc::<1>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc2_f32_down", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f32>(
+                    Ratio::from_integer(44100),
+                    Ratio::from_integer(440),
+                    Sinc::<2>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc2_f32_up", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f32>(
+                    Ratio::from_integer(440),
+                    Ratio::from_integer(44100),
+                    Sinc::<2>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc2_f64_down", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f64>(
+                    Ratio::from_integer(44100),
+                    Ratio::from_integer(440),
+                    Sinc::<2>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc2_f64_up", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f64>(
+                    Ratio::from_integer(440),
+                    Ratio::from_integer(44100),
+                    Sinc::<2>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc4_f32_down", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f32>(
+                    Ratio::from_integer(44100),
+                    Ratio::from_integer(440),
+                    Sinc::<4>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc4_f32_up", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f32>(
+                    Ratio::from_integer(440),
+                    Ratio::from_integer(44100),
+                    Sinc::<4>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc4_f64_down", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f64>(
+                    Ratio::from_integer(44100),
+                    Ratio::from_integer(440),
+                    Sinc::<4>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc4_f64_up", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f64>(
+                    Ratio::from_integer(440),
+                    Ratio::from_integer(44100),
+                    Sinc::<4>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc8_f32_down", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f32>(
+                    Ratio::from_integer(44100),
+                    Ratio::from_integer(440),
+                    Sinc::<8>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc8_f32_up", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f32>(
+                    Ratio::from_integer(440),
+                    Ratio::from_integer(44100),
+                    Sinc::<8>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc8_f64_down", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f64>(
+                    Ratio::from_integer(44100),
+                    Ratio::from_integer(440),
+                    Sinc::<8>,
+                )
+                .collect();
+        })
+    });
+
+    c.bench_function("resample_sinc8_f64_up", |b| {
+        b.iter(|| {
+            let _: Vec<_> = black_box([Vector2::new(0i16, 0i16); BUFFER_SIZE])
+                .into_iter()
+                .resample::<f64>(
+                    Ratio::from_integer(440),
+                    Ratio::from_integer(44100),
+                    Sinc::<8>,
                 )
                 .collect();
         })

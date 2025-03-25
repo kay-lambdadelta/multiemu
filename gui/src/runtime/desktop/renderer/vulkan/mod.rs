@@ -2,12 +2,13 @@ use crate::rendering_backend::RenderingBackendState;
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
 use multiemu_config::Environment;
-use multiemu_machine::Machine;
+use multiemu_machine::RunOutput;
 use multiemu_machine::component::ComponentId;
-use multiemu_machine::display::RenderBackend;
+use multiemu_machine::display::backend::RenderBackend;
+use multiemu_machine::display::backend::vulkan::{
+    VulkanComponentInitializationData, VulkanRendering,
+};
 use multiemu_machine::display::shader::ShaderCache;
-use multiemu_machine::display::vulkan::VulkanComponentInitializationData;
-use multiemu_machine::display::vulkan::VulkanRendering;
 use nalgebra::Vector2;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -21,7 +22,6 @@ use vulkano::{
     },
     device::{Device, DeviceCreateInfo, Queue, QueueCreateInfo},
     image::{Image, ImageLayout, sampler::Filter, view::ImageView},
-    instance::Instance,
     memory::allocator::StandardMemoryAllocator,
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
     single_pass_renderpass,
@@ -37,15 +37,12 @@ mod create;
 mod gui;
 
 pub struct VulkanRenderingRuntime {
-    instance: Arc<Instance>,
-    surface: Arc<Surface>,
     device: Arc<Device>,
     gui_queue: Arc<Queue>,
     queues_for_components: Vec<Arc<Queue>>,
     swapchain: Arc<Swapchain>,
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-    descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     render_pass: Arc<RenderPass>,
     framebuffers: Vec<Arc<Framebuffer>>,
     swapchain_images: Vec<Arc<Image>>,
@@ -185,15 +182,12 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         );
 
         Ok(Self {
-            instance,
-            surface,
             device,
             gui_queue,
             queues_for_components,
             swapchain,
             memory_allocator,
             command_buffer_allocator,
-            descriptor_set_allocator,
             render_pass,
             framebuffers,
             swapchain_images,
@@ -216,16 +210,14 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         })
     }
 
-    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>) {
+    fn redraw(&mut self, output: &RunOutput<Self::RenderBackend>) {
         let window_dimensions = self.display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
 
         // HACK: This only works with a single component
-        for (component_id, framebuffer_receiver) in &machine.component_framebuffers {
-            if let Ok(framebuffer) = framebuffer_receiver.try_recv() {
-                self.previously_seen_frames
-                    .insert(*component_id, framebuffer);
-            }
+        for (component_id, framebuffer) in &output.screens {
+            self.previously_seen_frames
+                .insert(*component_id, framebuffer.clone());
         }
 
         // Skip rendering if impossible window size

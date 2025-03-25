@@ -12,7 +12,7 @@ serde = { workspace = true }
 serde_with = { workspace = true }
 serde-inline-default = { workspace = true }
 strum = { workspace = true }
-ron = "0.8"
+ron = "0.9"
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
 dirs = "6.0"

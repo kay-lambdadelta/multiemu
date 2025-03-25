@@ -2,20 +2,17 @@ use super::Interpolator;
 use crate::frame::FrameIterator;
 use crate::sample::Sample;
 use crate::sample::conversion::FromSample;
-use nalgebra::allocator::Allocator;
-use nalgebra::{DefaultAllocator, Dim, OVector, RawStorage};
+use nalgebra::{ComplexField, SVector};
 use num::rational::Ratio;
 use num::{Float, ToPrimitive};
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 
 #[derive(Default)]
-pub struct Linear<F: Float + Sample = f32> {
-    _precision: std::marker::PhantomData<F>,
-}
+pub struct Linear;
 
-impl<S: Sample, CHANNELS: Dim, F: Float + Sample> Interpolator<S, CHANNELS> for Linear<F>
+impl<S: Sample, const CHANNELS: usize, F: Float + Sample + ComplexField>
+    Interpolator<S, CHANNELS, F> for Linear
 where
-    DefaultAllocator: Allocator<CHANNELS>,
     F: FromSample<S>,
     S: FromSample<F>,
 {
@@ -23,15 +20,15 @@ where
         self,
         source_rate: Ratio<u32>,
         target_rate: Ratio<u32>,
-        input: impl IntoIterator<Item = OVector<S, CHANNELS>>,
-    ) -> impl Iterator<Item = OVector<S, CHANNELS>> {
+        input: impl IntoIterator<Item = SVector<S, CHANNELS>>,
+    ) -> impl Iterator<Item = SVector<S, CHANNELS>> {
         interpolate_internal(source_rate, target_rate, input)
     }
 }
 
-impl<S: Sample, CHANNELS: Dim, F: Float + Sample> Interpolator<S, CHANNELS> for &Linear<F>
+impl<S: Sample, const CHANNELS: usize, F: Float + Sample + ComplexField>
+    Interpolator<S, CHANNELS, F> for &Linear
 where
-    DefaultAllocator: Allocator<CHANNELS>,
     F: FromSample<S>,
     S: FromSample<F>,
 {
@@ -39,8 +36,8 @@ where
         self,
         source_rate: Ratio<u32>,
         target_rate: Ratio<u32>,
-        input: impl IntoIterator<Item = OVector<S, CHANNELS>>,
-    ) -> impl Iterator<Item = OVector<S, CHANNELS>> {
+        input: impl IntoIterator<Item = SVector<S, CHANNELS>>,
+    ) -> impl Iterator<Item = SVector<S, CHANNELS>> {
         interpolate_internal(source_rate, target_rate, input)
     }
 }
@@ -48,17 +45,14 @@ where
 #[inline]
 fn interpolate_internal<
     S: Sample + FromSample<F>,
-    CHANNELS: Dim,
+    const CHANNELS: usize,
     F: Float + Sample + FromSample<S>,
 >(
     source_rate: Ratio<u32>,
     target_rate: Ratio<u32>,
-    input: impl IntoIterator<Item = OVector<S, CHANNELS>>,
-) -> impl FrameIterator<S, CHANNELS>
-where
-    DefaultAllocator: Allocator<CHANNELS>,
-{
-    let mut input = input.into_iter().convert_sample::<F>();
+    input: impl IntoIterator<Item = SVector<S, CHANNELS>>,
+) -> impl FrameIterator<S, CHANNELS> {
+    let mut input = input.into_iter().rescale::<F>();
     let mut input_exhausted = false;
 
     let mut held_samples = ConstGenericRingBuffer::new();
@@ -72,14 +66,8 @@ where
         }
     }
 
-    if let Some(shape) = held_samples.get(0).map(|s| s.data.shape()) {
-        for _ in 0..(2 - held_samples.len()) {
-            held_samples.push(OVector::from_element_generic(
-                shape.0,
-                shape.1,
-                F::equilibrium(),
-            ));
-        }
+    for _ in 0..(2 - held_samples.len()) {
+        held_samples.push(SVector::from_element(F::equilibrium()));
     }
 
     LinearIterator::<F, CHANNELS, _> {
@@ -90,27 +78,26 @@ where
         input,
         input_exhausted,
     }
-    .convert_sample::<S>()
+    .rescale::<S>()
 }
 
-struct LinearIterator<F: Float + Sample, CHANNELS: Dim, I: Iterator<Item = OVector<F, CHANNELS>>>
-where
-    DefaultAllocator: Allocator<CHANNELS>,
-{
+struct LinearIterator<
+    F: Float + Sample,
+    const CHANNELS: usize,
+    I: Iterator<Item = SVector<F, CHANNELS>>,
+> {
     resampling_ratio: F,
     index: F,
     input_index: F,
-    held_samples: ConstGenericRingBuffer<OVector<F, CHANNELS>, 2>,
+    held_samples: ConstGenericRingBuffer<SVector<F, CHANNELS>, 2>,
     input: I,
     input_exhausted: bool,
 }
 
-impl<F: Float + Sample, CHANNELS: Dim, I: Iterator<Item = OVector<F, CHANNELS>>> Iterator
+impl<F: Float + Sample, const CHANNELS: usize, I: Iterator<Item = SVector<F, CHANNELS>>> Iterator
     for LinearIterator<F, CHANNELS, I>
-where
-    DefaultAllocator: Allocator<CHANNELS>,
 {
-    type Item = OVector<F, CHANNELS>;
+    type Item = SVector<F, CHANNELS>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let input_target_index = self.index / self.resampling_ratio;
@@ -137,6 +124,7 @@ where
         // LERP
         let fractional_part =
             (input_target_index - (self.input_index - F::one())).clamp(F::zero(), F::one());
+
         let interpolated_sample = self.held_samples[0].lerp(&self.held_samples[1], fractional_part);
         self.index += F::one();
 

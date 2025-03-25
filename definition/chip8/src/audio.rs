@@ -1,6 +1,7 @@
 use multiemu_machine::builder::ComponentBuilder;
 use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use num::rational::Ratio;
+use std::num::NonZero;
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
@@ -33,10 +34,10 @@ impl FromConfig for Chip8Audio {
             .insert_task(Ratio::from_integer(60), {
                 let sound_timer = sound_timer.clone();
 
-                move |_: &Self, period: u64| {
+                move |_: &Self, period: NonZero<u32>| {
                     let mut sound_timer_guard = sound_timer.lock().unwrap();
-                    *sound_timer_guard =
-                        sound_timer_guard.saturating_sub(period.try_into().unwrap_or(u8::MAX));
+                    *sound_timer_guard = sound_timer_guard
+                        .saturating_sub(period.get().try_into().unwrap_or(u8::MAX));
                 }
             })
             .build_global(Self {

@@ -59,7 +59,7 @@ impl Default for Chip8ProcessorRegisters {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Chip8ProcessorQuirks {
-    pub frequency: Ratio<u64>,
+    pub frequency: Ratio<u32>,
     pub force_mode: Option<Chip8Kind>,
     pub always_shr_in_place: bool,
 }

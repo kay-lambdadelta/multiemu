@@ -1,7 +1,5 @@
 use super::UiOutput;
-use egui::{
-    ScrollArea, Ui,
-};
+use egui::{ScrollArea, Ui};
 use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use std::sync::Arc;
 

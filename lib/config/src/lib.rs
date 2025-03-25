@@ -8,6 +8,7 @@ use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use serde_with::serde_as;
+use std::io::Write;
 use std::{collections::BTreeSet, sync::LazyLock};
 use std::{
     fs::{File, create_dir_all},
@@ -108,14 +109,14 @@ impl Environment {
     /// Saves the config to the disk
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         create_dir_all(STORAGE_DIRECTORY.deref())?;
-        let config_file = File::create(CONFIG_LOCATION.deref())?;
-        ron::ser::to_writer_pretty(
-            config_file,
+        let mut config_file = File::create(CONFIG_LOCATION.deref())?;
+        let config = ron::ser::to_string_pretty(
             self,
             PrettyConfig::default()
                 .new_line("\n".to_owned())
                 .struct_names(false),
         )?;
+        config_file.write_all(config.as_bytes())?;
 
         Ok(())
     }

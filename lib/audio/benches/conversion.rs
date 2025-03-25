@@ -10,7 +10,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<i8> = black_box([0u8; BUFFER_SIZE])
                 .into_iter()
-                .convert_sample()
+                .rescale()
                 .collect();
         })
     });
@@ -19,7 +19,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<u8> = black_box([0i8; BUFFER_SIZE])
                 .into_iter()
-                .convert_sample()
+                .rescale()
                 .collect();
         })
     });
@@ -28,7 +28,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<i16> = black_box([0u8; BUFFER_SIZE])
                 .into_iter()
-                .convert_sample()
+                .rescale()
                 .collect();
         })
     });
@@ -37,7 +37,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: Vec<u8> = black_box([0i16; BUFFER_SIZE])
                 .into_iter()
-                .convert_sample()
+                .rescale()
                 .collect();
         })
     });

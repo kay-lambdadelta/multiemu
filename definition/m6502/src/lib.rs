@@ -1,5 +1,7 @@
+use arrayvec::ArrayVec;
 use decoder::M6502InstructionDecoder;
 use enumflags2::{BitFlags, bitflags};
+use instruction::M6502InstructionSet;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
@@ -7,7 +9,10 @@ use multiemu_machine::{
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, atomic::AtomicBool},
+};
 use task::M6502Task;
 
 pub mod decoder;
@@ -18,15 +23,108 @@ pub mod task;
 pub const RESET_VECTOR: usize = 0xfffc;
 const PAGE_SIZE: usize = 256;
 
-#[cfg(test)]
-pub mod test;
+// Addressing modes vs load steps
+//
+// We will start with the program pointer on the address bus
+//
+// AddressingMode::Immediate
+//      LoadStep::Opcode
+//
+// AddressingMode::Absolute
+//      LoadStep::Opcode
+//      LoadStep::Data (low byte)
+//      LoadStep::Data (high byte)
+//      LoadStep::LatchToBus
+//
+// AddressingMode::AbsoluteIndirect
+//      LoadStep::Opcode
+//      LoadStep::Data (low byte of indirect address)
+//      LoadStep::Data (high byte of indirect address)
+//      LoadStep::LatchToBus
+//      LoadStep::Data (fetch low byte of pointer as immediate)
+//      LoadStep::Data (fetch high byte of pointer as immediate)
+//      LoadStep::LatchToBus
+//
+// AddressingMode::XIndexedAbsolute
+//      LoadStep::Opcode
+//      LoadStep::Data (low byte)
+//      LoadStep::Data (high byte)
+//      LoadStep::LatchToBus
+//      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
+//
+// AddressingMode::YIndexedAbsolute
+//      LoadStep::Opcode
+//      LoadStep::Data (low byte)
+//      LoadStep::Data (high byte)
+//      LoadStep::LatchToBus
+//      LoadStep::Offset (add Y) <- this might be done in parallel depending on the instruction
+//
+// AddressingMode::ZeroPage
+//      LoadStep::Opcode
+//      LoadStep::Data (zero page offset)
+//      LoadStep::LatchToBus
+//
+// AddressingMode::XIndexedZeroPage
+//      LoadStep::Opcode
+//      LoadStep::Data (zero page offset)
+//      LoadStep::LatchToBus
+//      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
+//
+// AddressingMode::YIndexedZeroPage
+//      LoadStep::Opcode
+//      LoadStep::Data (zero page offset)
+//      LoadStep::LatchToBus
+//      LoadStep::Offset (add Y) <- this might be done in parallel depending on the instruction
+//
+// AddressingMode::XIndexedZeroPageIndirect
+//      LoadStep::Opcode
+//      LoadStep::Data (zero page offset)
+//      LoadStep::LatchToBus
+//      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
+//      LoadStep::Data (fetch low byte of pointer as immediate)
+//      LoadStep::Data (fetch high byte of pointer as immediate)
+//      LoadStep::LatchToBus
+//
+// AddressingMode::ZeroPageIndirectYIndexed
+//      LoadStep::Opcode
+//      LoadStep::Data (zero page offset)
+//      LoadStep::LatchToBus
+//      LoadStep::Data (fetch low byte of pointer as immediate)
+//      LoadStep::Data (fetch high byte of pointer as immediate)
+//      LoadStep::LatchToBus
+//      LoadStep::Offset (add Y)  <- this might be done in parallel depending on the instruction
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LoadStep {
+    /// The CPU is fetching a byte of data so it can continue to the next operation
+    Data,
+    /// The CPU is moving the contents of the temporary latch to the bus. This is a pseudo step so it doesnt consume a cycle
+    LatchToBus,
+    /// The CPU is computing an offset to the data its loading
+    Offset { offset: u8 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionMode {
-    Startup,
+    /// Resets the processor
     Reset,
-    Normal,
+    /// Processor is jammed forever and cannot do anything until a reset
     Jammed,
+    /// Fetch and decode instruction
+    Fetch,
+    /// Fetches and decodes the next instruction
+    Load {
+        instruction: M6502InstructionSet,
+        latch: ArrayVec<u8, 2>,
+        queue: VecDeque<LoadStep>,
+    },
+    Store {
+        value: u8,
+    },
+    /// Execute this instruction
+    Execute {
+        instruction: M6502InstructionSet,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -66,52 +164,57 @@ pub enum FlagRegister {
     Carry = 0b0000_0001,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-#[cfg_attr(jit, repr(C))]
-pub struct M6502Registers {
-    pub stack: u8,
-    pub accumulator: u8,
-    pub index_registers: [u8; 2],
-    pub flags: BitFlags<FlagRegister>,
-    pub program: u16,
+#[derive(Debug)]
+pub struct M6502Config {
+    pub frequency: Ratio<u32>,
+    pub assigned_address_space: AddressSpaceId,
+    pub kind: M6502Kind,
 }
 
-impl Default for M6502Registers {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(jit, repr(C))]
+struct ProcessorState {
+    /// Accumulator
+    pub a: u8,
+    /// X index register
+    pub x: u8,
+    /// Y index register
+    pub y: u8,
+    /// Flag register
+    pub flags: BitFlags<FlagRegister>,
+    /// Stack pointer
+    pub stack: u8,
+    /// Program pointer
+    pub program: u16,
+    pub execution_mode: Option<ExecutionMode>,
+    /// Address bus
+    pub address_bus: u16,
+}
+
+impl Default for ProcessorState {
     fn default() -> Self {
         Self {
-            stack: 0xff,
-            accumulator: 0,
-            index_registers: [0; 2],
+            a: 0,
+            x: 0,
+            y: 0,
             flags: BitFlags::empty(),
-            program: 0,
+            stack: 0xff,
+            // Will be set later
+            program: 0x0000,
+            execution_mode: Some(ExecutionMode::Reset),
+            address_bus: 0x0000,
         }
     }
 }
 
-#[derive(Debug)]
-pub struct M6502Config {
-    pub frequency: Ratio<u64>,
-    pub assigned_address_space: AddressSpaceId,
-    pub kind: M6502Kind,
-    pub initial_state: M6502Registers,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-#[cfg_attr(jit, repr(C))]
-struct ProcessorState {
-    registers: M6502Registers,
-    cycle_counter: u8,
-    execution_mode: ExecutionMode,
-}
-
 pub struct M6502 {
     state: Mutex<ProcessorState>,
+    pub rdy: Arc<AtomicBool>,
 }
 
 impl Component for M6502 {
     fn reset(&self) {
-        let mut state = self.state.lock().unwrap();
-        state.execution_mode = ExecutionMode::Reset;
+        todo!()
     }
 }
 
@@ -131,6 +234,7 @@ impl FromConfig for M6502 {
         _quirks: Self::Quirks,
     ) {
         let config = Arc::new(config);
+        let rdy = Arc::new(AtomicBool::new(true));
 
         component_builder
             .insert_task(
@@ -141,12 +245,9 @@ impl FromConfig for M6502 {
                     config: config.clone(),
                 },
             )
-            .build(Self {
-                state: Mutex::new(ProcessorState {
-                    registers: M6502Registers::default(),
-                    cycle_counter: 0,
-                    execution_mode: ExecutionMode::Startup,
-                }),
+            .build_global(Self {
+                state: Mutex::default(),
+                rdy,
             });
     }
 }

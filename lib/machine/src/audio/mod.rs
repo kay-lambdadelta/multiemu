@@ -1,19 +1,16 @@
 use crossbeam::queue::ArrayQueue;
 use multiemu_audio::{
     frame::FrameIterator,
-    interpolate::linear::Linear,
+    interpolate::cubic::Cubic,
     sample::{Sample, conversion::FromSample},
 };
-use nalgebra::{SVector, Vector2};
+use nalgebra::SVector;
 use num::rational::Ratio;
-use std::sync::Arc;
 
 /// Queue to be shared with components that contains audio data
-pub struct AudioQueue
-where
-    Self: Send + Sync,
-{
-    pub frames: Arc<ArrayQueue<SVector<i16, 2>>>,
+#[derive(Debug)]
+pub struct AudioQueue {
+    frames: ArrayQueue<SVector<f32, 2>>,
     sample_rate: Ratio<u32>,
 }
 
@@ -21,31 +18,35 @@ impl AudioQueue {
     /// Create a new audio queue
     pub fn new(sample_rate: Ratio<u32>) -> Self {
         Self {
-            frames: Arc::new(ArrayQueue::new(sample_rate.to_integer() as usize)),
+            frames: ArrayQueue::new(sample_rate.to_integer() as usize),
             sample_rate,
         }
     }
 
-    /// Fetch audio frames
-    pub fn fetch_frames<S: Sample + FromSample<i16>>(
+    /// Push audio frames
+    pub fn extend<S: Sample + FromSample<f32>, const CHANNELS: usize>(
         &self,
-        sample_rate: Ratio<u32>,
-        channel_count: usize,
-    ) -> impl Iterator<Item = Vector2<S>> {
-        let frames = self.frames.clone();
-
-        std::iter::from_fn(move || frames.pop())
-            .resample(self.sample_rate, sample_rate, Linear::<f32>::default())
-            .convert_sample()
+        frames: impl IntoIterator<Item = SVector<S, CHANNELS>>,
+    ) where
+        f32: FromSample<S>,
+    {
+        for frame in frames.into_iter().rescale().remix() {
+            self.frames.force_push(frame);
+        }
     }
 
-    /// Push audio frames
-    pub fn push_frames<S: Sample>(&self, frames: impl IntoIterator<Item = SVector<S, 2>>)
-    where
-        i16: FromSample<S>,
+    pub fn fetch<S: Sample + FromSample<f32>, const CHANNELS: usize>(
+        &self,
+        target_rate: Ratio<u32>,
+        buffer: &mut [SVector<S, CHANNELS>],
+    ) where
+        f32: FromSample<S>,
     {
-        for frame in frames.into_iter().convert_sample() {
-            self.frames.push(frame).unwrap();
-        }
+        std::iter::from_fn(|| self.frames.pop())
+            .chain(std::iter::repeat(SVector::from_element(f32::equilibrium())))
+            .resample::<f32>(self.sample_rate, target_rate, Cubic)
+            .rescale()
+            .remix()
+            .fill_buf(buffer);
     }
 }

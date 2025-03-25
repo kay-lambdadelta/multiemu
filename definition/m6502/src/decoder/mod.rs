@@ -26,64 +26,42 @@ impl InstructionDecoder for M6502InstructionDecoder {
 
     fn decode(
         &self,
-        cursor: usize,
+        address: usize,
         address_space: AddressSpaceId,
         memory_translation_table: &MemoryTranslationTable,
     ) -> Option<(Self::InstructionSet, u8)> {
-        let mut cursor = cursor as u16;
-        let mut instruction_first_byte = 0;
-        let _ = memory_translation_table.read(
-            cursor as usize,
-            address_space,
-            std::array::from_mut(&mut instruction_first_byte),
-        );
-        cursor = cursor.wrapping_add(1);
+        let byte: u8 = memory_translation_table
+            .read_le_value(address, address_space)
+            .unwrap_or_default();
 
-        let instruction_first_byte = instruction_first_byte.view_bits::<Msb0>();
-        let instruction_identifier = InstructionGroup::from_repr(
-            instruction_first_byte[INSTRUCTION_IDENTIFIER].load::<u8>(),
-        )
-        .unwrap();
-        let secondary_instruction_identifier =
-            instruction_first_byte[SECONDARY_INSTRUCTION_IDENTIFIER].load::<u8>();
+        let byte = byte.view_bits::<Msb0>();
+        let instruction_identifier =
+            InstructionGroup::from_repr(byte[INSTRUCTION_IDENTIFIER].load::<u8>()).unwrap();
+        let secondary_instruction_identifier = byte[SECONDARY_INSTRUCTION_IDENTIFIER].load::<u8>();
 
         let result = Some(match instruction_identifier {
-            InstructionGroup::Group3 => decode_group3_space_instruction(
-                cursor,
-                address_space,
-                memory_translation_table,
-                secondary_instruction_identifier,
-                instruction_first_byte,
-            ),
-            InstructionGroup::Group1 => decode_group1_space_instruction(
-                cursor,
-                address_space,
-                memory_translation_table,
-                secondary_instruction_identifier,
-                instruction_first_byte,
-            ),
-            InstructionGroup::Group2 => decode_group2_space_instruction(
-                cursor,
-                address_space,
-                memory_translation_table,
-                secondary_instruction_identifier,
-                instruction_first_byte,
-            ),
-            InstructionGroup::Undocumented => decode_undocumented_space_instruction(
-                cursor,
-                address_space,
-                memory_translation_table,
-                secondary_instruction_identifier,
-                instruction_first_byte,
-            ),
+            InstructionGroup::Group3 => {
+                decode_group3_space_instruction(secondary_instruction_identifier, byte)
+            }
+            InstructionGroup::Group1 => {
+                decode_group1_space_instruction(secondary_instruction_identifier, byte)
+            }
+            InstructionGroup::Group2 => {
+                decode_group2_space_instruction(secondary_instruction_identifier, byte)
+            }
+            InstructionGroup::Undocumented => {
+                decode_undocumented_space_instruction(secondary_instruction_identifier, byte)
+            }
         });
 
-        result.map(|(instruction_set, added_instruction_length)| {
-            if instruction_set.addressing_mode.is_none() {
-                debug_assert!(added_instruction_length == 0);
-            }
-
-            (instruction_set, added_instruction_length + 1)
+        result.map(|(opcode, addressing_mode)| {
+            (
+                M6502InstructionSet {
+                    opcode,
+                    addressing_mode,
+                },
+                1,
+            )
         })
     }
 }
@@ -104,90 +82,16 @@ enum InstructionGroup {
 impl AddressingMode {
     // Really need this to be inlined
     #[inline(always)]
-    pub fn from_group1_addressing(
-        cursor: u16,
-        address_space: AddressSpaceId,
-        memory_translation_table: &MemoryTranslationTable,
-        addressing_mode: u8,
-    ) -> (Self, u8) {
+    pub fn from_group1_addressing(addressing_mode: u8) -> Self {
         match addressing_mode {
-            0b000 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::XIndexedZeroPageIndirect(indirect), 1)
-            }
-            0b001 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::ZeroPage(indirect), 1)
-            }
-            0b010 => {
-                let mut immediate = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut immediate),
-                );
-
-                (AddressingMode::Immediate(immediate), 1)
-            }
-            0b011 => {
-                let mut indirect = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut indirect);
-
-                (AddressingMode::Absolute(u16::from_le_bytes(indirect)), 2)
-            }
-            0b100 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::ZeroPageIndirectYIndexed(indirect), 1)
-            }
-            0b101 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::XIndexedZeroPage(indirect), 1)
-            }
-            0b110 => {
-                let mut absolute = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
-
-                (
-                    AddressingMode::YIndexedAbsolute(u16::from_le_bytes(absolute)),
-                    2,
-                )
-            }
-            0b111 => {
-                let mut absolute = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
-
-                (
-                    AddressingMode::XIndexedAbsolute(u16::from_le_bytes(absolute)),
-                    2,
-                )
-            }
+            0b000 => AddressingMode::XIndexedZeroPageIndirect,
+            0b001 => AddressingMode::ZeroPage,
+            0b010 => AddressingMode::Immediate,
+            0b011 => AddressingMode::Absolute,
+            0b100 => AddressingMode::ZeroPageIndirectYIndexed,
+            0b101 => AddressingMode::XIndexedZeroPage,
+            0b110 => AddressingMode::YIndexedAbsolute,
+            0b111 => AddressingMode::XIndexedAbsolute,
             _ => {
                 unreachable!()
             }
@@ -195,81 +99,16 @@ impl AddressingMode {
     }
 
     #[inline]
-    pub fn from_group2_addressing(
-        cursor: u16,
-        address_space: AddressSpaceId,
-        memory_translation_table: &MemoryTranslationTable,
-        addressing_mode: u8,
-    ) -> (Self, u8) {
+    pub fn from_group2_addressing(addressing_mode: u8) -> Self {
         match addressing_mode {
-            0b000 => {
-                let mut immediate = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut immediate),
-                );
-
-                (AddressingMode::Immediate(immediate), 1)
-            }
-            0b001 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::ZeroPage(indirect), 1)
-            }
-            0b010 => (AddressingMode::Accumulator, 0),
-            0b011 => {
-                let mut indirect = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut indirect);
-
-                (AddressingMode::Absolute(u16::from_le_bytes(indirect)), 2)
-            }
-            0b100 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::ZeroPageIndirectYIndexed(indirect), 1)
-            }
-            0b101 => {
-                let mut indirect = 0;
-                let _ = memory_translation_table.read(
-                    cursor as usize,
-                    address_space,
-                    std::array::from_mut(&mut indirect),
-                );
-
-                (AddressingMode::XIndexedZeroPage(indirect), 1)
-            }
-            0b110 => {
-                let mut absolute = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
-
-                (
-                    AddressingMode::YIndexedAbsolute(u16::from_le_bytes(absolute)),
-                    2,
-                )
-            }
-            0b111 => {
-                let mut absolute = [0; 2];
-                let _ =
-                    memory_translation_table.read(cursor as usize, address_space, &mut absolute);
-
-                (
-                    AddressingMode::XIndexedAbsolute(u16::from_le_bytes(absolute)),
-                    2,
-                )
-            }
+            0b000 => AddressingMode::Immediate,
+            0b001 => AddressingMode::ZeroPage,
+            0b010 => AddressingMode::Accumulator,
+            0b011 => AddressingMode::Absolute,
+            0b100 => AddressingMode::ZeroPageIndirectYIndexed,
+            0b101 => AddressingMode::XIndexedZeroPage,
+            0b110 => AddressingMode::YIndexedAbsolute,
+            0b111 => AddressingMode::XIndexedAbsolute,
             _ => {
                 unreachable!()
             }

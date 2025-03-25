@@ -79,30 +79,39 @@ impl Default for CpalAudio {
     }
 }
 
-pub fn build_output_stream<S: Sample + FromSample<i16> + Pod + cpal::SizedSample>(
+pub fn build_output_stream<S: Sample + FromSample<f32> + Pod + cpal::SizedSample>(
     queue: Arc<AudioQueue>,
     device: &Device,
     config: StreamConfig,
-) -> Stream {
+) -> Stream
+where
+    f32: FromSample<S>,
+{
     let stream = device
         .build_output_stream(
             &config,
-            move |data: &mut [S], _| {
-                let mut data: &mut [SVector<S, 2>] = bytemuck::try_cast_slice_mut(data).unwrap();
-
-                data.fill(SVector::from_element(S::equilibrium()));
-
-                for source_frame in queue.fetch_frames(
-                    Ratio::from_integer(config.sample_rate.0),
-                    config.channels as usize,
-                ) {
-                    if let Some(destination_frame) = data.get_mut(0) {
-                        *destination_frame = source_frame;
-                    } else {
-                        break;
-                    }
-                    data = &mut data[1..];
+            move |data: &mut [S], _| match config.channels {
+                1 => {
+                    let data: &mut [SVector<S, 1>] = bytemuck::try_cast_slice_mut(data).unwrap();
+                    queue.fetch(Ratio::from_integer(config.sample_rate.0), data);
                 }
+                2 => {
+                    let data: &mut [SVector<S, 2>] = bytemuck::try_cast_slice_mut(data).unwrap();
+                    queue.fetch(Ratio::from_integer(config.sample_rate.0), data);
+                }
+                4 => {
+                    let data: &mut [SVector<S, 4>] = bytemuck::try_cast_slice_mut(data).unwrap();
+                    queue.fetch(Ratio::from_integer(config.sample_rate.0), data);
+                }
+                5 => {
+                    let data: &mut [SVector<S, 5>] = bytemuck::try_cast_slice_mut(data).unwrap();
+                    queue.fetch(Ratio::from_integer(config.sample_rate.0), data);
+                }
+                7 => {
+                    let data: &mut [SVector<S, 7>] = bytemuck::try_cast_slice_mut(data).unwrap();
+                    queue.fetch(Ratio::from_integer(config.sample_rate.0), data);
+                }
+                _ => unimplemented!(),
             },
             move |err| tracing::error!("an error occurred on the output audio stream: {}", err),
             None,

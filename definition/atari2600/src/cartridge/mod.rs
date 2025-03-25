@@ -1,14 +1,15 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
-    memory::{AddressSpaceId, callbacks::Memory, memory_translation_table::ReadMemoryRecord},
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
-use rangemap::RangeInclusiveMap;
+use raw::RawCartridgeMemoryCallback;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::CPU_ADDRESS_SPACE;
+
+mod raw;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub enum CartType {
@@ -75,22 +76,5 @@ impl FromConfig for Atari2600Cartridge {
         };
 
         component_builder.build_global(Self {});
-    }
-}
-
-struct RawCartridgeMemoryCallback {
-    rom: Vec<u8>,
-}
-
-impl Memory for RawCartridgeMemoryCallback {
-    fn read_memory(
-        &self,
-        address: usize,
-        _address_space: AddressSpaceId,
-        buffer: &mut [u8],
-        _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
-        let adjusted_offset = address - 0xf000;
-        buffer.copy_from_slice(&self.rom[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))]);
     }
 }

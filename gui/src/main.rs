@@ -1,13 +1,12 @@
 #![allow(clippy::arc_with_non_send_sync)]
 //! A multisystem hardware emulator
 
-use crate::runtime::{PlatformRuntime, Runtime, SoftwareRenderingRuntime};
+use crate::runtime::{Runtime, SoftwareRenderingRuntime};
 use multiemu_config::Environment;
 use multiemu_config::graphics::GraphicsApi;
 use multiemu_rom::{
     id::RomId,
-    manager::{LoadedRomLocation, ROM_INFORMATION_TABLE, RomManager},
-    system::GameSystem,
+    manager::{ROM_INFORMATION_TABLE, RomManager},
 };
 use std::{
     fs::File,
@@ -23,10 +22,13 @@ mod cli;
 mod gui;
 mod rendering_backend;
 mod runtime;
-mod timing_tracker;
 
-/// TODO: Give each platform a different main function
+#[cfg(platform_desktop)]
 fn main() {
+    use clap::Parser;
+    use cli::{Cli, CliAction};
+    use runtime::desktop::windowing;
+
     let environment = Environment::load().expect("Could not parse environment");
 
     let file = File::create(&environment.log_location).expect("Failed to create log file");
@@ -57,90 +59,94 @@ fn main() {
     let graphics_api = environment.graphics_setting.api;
     let environment = Arc::new(RwLock::new(environment));
 
-    #[cfg(platform_desktop)]
-    {
-        use clap::Parser;
-        use cli::Cli;
-        use cli::CliAction;
+    let cli = Cli::parse();
 
-        let cli = Cli::parse();
+    // TODO: Move this somewhere else
+    if let Some(action) = cli.action {
+        let (game_system, user_specified_roms) = match action {
+            CliAction::Run {
+                roms,
+                forced_system,
+            } => {
+                let system = forced_system.unwrap_or_else(|| {
+                    let database_transaction = rom_manager.rom_information.begin_read().unwrap();
+                    let database_table = database_transaction
+                        .open_table(ROM_INFORMATION_TABLE)
+                        .unwrap();
+                    let rom_info = database_table.get(&roms[0]).unwrap().unwrap().value();
+                    rom_info.system
+                });
+                (system, roms)
+            }
+            CliAction::RunExternal {
+                roms,
+                forced_system,
+            } => {
+                let rom_ids: Vec<RomId> = roms
+                    .into_iter()
+                    .map(|rom| rom_manager.identify_rom(rom).unwrap().unwrap())
+                    .collect();
 
-        // TODO: Move this somewhere else
-        if let Some(action) = cli.action {
-            let (game_system, user_specified_roms) = match action {
-                CliAction::Run {
-                    roms,
-                    forced_system,
-                } => {
-                    let system = forced_system.unwrap_or_else(|| {
-                        let database_transaction =
-                            rom_manager.rom_information.begin_read().unwrap();
-                        let database_table = database_transaction
-                            .open_table(ROM_INFORMATION_TABLE)
-                            .unwrap();
-                        let rom_info = database_table.get(&roms[0]).unwrap().unwrap().value();
-                        rom_info.system
-                    });
-                    (system, roms)
-                }
-                CliAction::RunExternal {
-                    roms,
-                    forced_system,
-                } => {
-                    let rom_ids: Vec<RomId> = roms
-                        .into_iter()
-                        .map(|rom| rom_manager.identify_rom(rom).unwrap().unwrap())
-                        .collect();
+                let game_system = forced_system.unwrap_or_else(|| {
+                    let database_transaction = rom_manager.rom_information.begin_read().unwrap();
+                    let database_table = database_transaction
+                        .open_table(ROM_INFORMATION_TABLE)
+                        .unwrap();
+                    let rom_info = database_table.get(&rom_ids[0]).unwrap().unwrap().value();
+                    rom_info.system
+                });
 
-                    let game_system = forced_system.unwrap_or_else(|| {
-                        let database_transaction =
-                            rom_manager.rom_information.begin_read().unwrap();
-                        let database_table = database_transaction
-                            .open_table(ROM_INFORMATION_TABLE)
-                            .unwrap();
-                        let rom_info = database_table.get(&rom_ids[0]).unwrap().unwrap().value();
-                        rom_info.system
-                    });
+                (game_system, rom_ids)
+            }
+        };
 
-                    (game_system, rom_ids)
-                }
-            };
-
-            match graphics_api {
-                GraphicsApi::Software => {
-                    PlatformRuntime::<SoftwareRenderingRuntime>::launch_game(
-                        game_system,
-                        user_specified_roms,
-                        rom_manager,
-                        environment,
-                    );
-                }
-                #[cfg(all(feature = "vulkan", platform_desktop))]
-                GraphicsApi::Vulkan => {
-                    use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
-
-                    PlatformRuntime::<VulkanRenderingRuntime>::launch_game(
-                        game_system,
-                        user_specified_roms,
-                        rom_manager,
-                        environment,
-                    );
+        match graphics_api {
+            GraphicsApi::Software => {
+                if let Ok(mut runtime) = windowing::PlatformRuntime::<SoftwareRenderingRuntime>::new(
+                    rom_manager,
+                    environment,
+                ) {
+                    runtime
+                        .launch_game(game_system, user_specified_roms)
+                        .unwrap();
                 }
             }
+            #[cfg(all(feature = "vulkan", platform_desktop))]
+            GraphicsApi::Vulkan => {
+                use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-            return;
+                if let Ok(mut runtime) = windowing::PlatformRuntime::<VulkanRenderingRuntime>::new(
+                    rom_manager,
+                    environment,
+                ) {
+                    runtime
+                        .launch_game(game_system, user_specified_roms)
+                        .unwrap();
+                }
+            }
         }
+
+        return;
     }
 
     match graphics_api {
         GraphicsApi::Software => {
-            PlatformRuntime::<SoftwareRenderingRuntime>::launch_gui(rom_manager, environment);
+            if let Ok(mut runtime) = windowing::PlatformRuntime::<SoftwareRenderingRuntime>::new(
+                rom_manager,
+                environment,
+            ) {
+                runtime.launch_gui().unwrap();
+            }
         }
         #[cfg(all(feature = "vulkan", platform_desktop))]
         GraphicsApi::Vulkan => {
             use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-            PlatformRuntime::<VulkanRenderingRuntime>::launch_gui(rom_manager, environment);
+            if let Ok(mut runtime) =
+                windowing::PlatformRuntime::<VulkanRenderingRuntime>::new(rom_manager, environment)
+            {
+                runtime.launch_gui().unwrap();
+            }
         }
     }
 }

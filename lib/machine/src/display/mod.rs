@@ -1,23 +1,30 @@
-use multiemu_config::graphics::GraphicsApi;
-use std::any::Any;
+use backend::RenderBackend;
+use std::{fmt::Debug, sync::Mutex};
 
-#[cfg(all(feature = "vulkan", platform_desktop))]
-pub mod vulkan;
-
-pub mod software;
-
+pub mod backend;
 pub mod shader;
 
-/// Trait for marker structs representing rendering backends
-pub trait RenderBackend: Any + 'static {
-    const GRAPHICS_API: GraphicsApi;
-    type ComponentInitializationData: 'static;
-    type ComponentFramebuffer;
-    type ContextExtensionSpecification: ContextExtensionSpecification;
+/// Display components that need to swap out framebuffers they use this to make the runtime aware they are using a new framebuffer
+pub struct FrameReceptacle<R: RenderBackend>(Mutex<Option<R::ComponentFramebuffer>>);
+
+impl<R: RenderBackend> Default for FrameReceptacle<R> {
+    fn default() -> Self {
+        Self(Mutex::new(None))
+    }
 }
 
-pub trait ContextExtensionSpecification: Any + Default + Clone + 'static {
-    fn combine(self, other: Self) -> Self
-    where
-        Self: Sized;
+impl<R: RenderBackend> Debug for FrameReceptacle<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FrameReceptacle").finish()
+    }
+}
+
+impl<R: RenderBackend> FrameReceptacle<R> {
+    pub fn submit(&self, framebuffer: R::ComponentFramebuffer) {
+        *self.0.lock().unwrap() = Some(framebuffer);
+    }
+
+    pub fn get(&self) -> Option<R::ComponentFramebuffer> {
+        self.0.lock().unwrap().take()
+    }
 }

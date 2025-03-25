@@ -3,7 +3,7 @@ use bitvec::{order::Msb0, view::BitView};
 use downcast_rs::Downcast;
 use multiemu_machine::builder::ComponentBuilder;
 use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
-use multiemu_machine::display::software::SoftwareRendering;
+use multiemu_machine::display::backend::software::SoftwareRendering;
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
 use palette::Srgba;
@@ -99,7 +99,7 @@ impl FromConfig for Chip8Display {
 
         #[cfg(all(feature = "vulkan", platform_desktop))]
         let component_builder = {
-            use multiemu_machine::display::vulkan::VulkanRendering;
+            use multiemu_machine::display::backend::vulkan::VulkanRendering;
             component_builder.set_display_config::<VulkanRendering>(
                 None,
                 None,

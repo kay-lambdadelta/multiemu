@@ -1,7 +1,8 @@
-use crossbeam::channel::Sender;
-
 use super::ComponentBuilder;
-use crate::{component::Component, display::RenderBackend};
+use crate::{
+    component::Component,
+    display::{FrameReceptacle, backend::RenderBackend},
+};
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -17,11 +18,7 @@ pub struct BackendSpecificData<R: RenderBackend> {
     pub required_extensions: R::ContextExtensionSpecification,
     /// Callback for when display data is initialized per above specifications
     pub set_display_callback: Box<
-        dyn FnOnce(
-            &dyn Component,
-            Arc<R::ComponentInitializationData>,
-            Sender<R::ComponentFramebuffer>,
-        ),
+        dyn FnOnce(&dyn Component, Arc<R::ComponentInitializationData>, Arc<FrameReceptacle<R>>),
     >,
 }
 
@@ -39,7 +36,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
         set_display_callback: impl FnOnce(
             &C,
             Arc<R::ComponentInitializationData>,
-            Sender<R::ComponentFramebuffer>,
+            Arc<FrameReceptacle<R>>,
         ) + 'static,
     ) -> Self {
         let backend_specific_data = &mut self

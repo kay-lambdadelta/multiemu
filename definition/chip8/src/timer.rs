@@ -1,6 +1,7 @@
 use multiemu_machine::builder::ComponentBuilder;
 use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use num::rational::Ratio;
+use std::num::NonZero;
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
@@ -37,10 +38,10 @@ impl FromConfig for Chip8Timer {
             .insert_task(Ratio::from_integer(60), {
                 let delay_timer = delay_timer.clone();
 
-                move |_: &Self, period: u64| {
+                move |_: &Self, period: NonZero<u32>| {
                     let mut delay_timer_guard = delay_timer.lock().unwrap();
-                    *delay_timer_guard =
-                        delay_timer_guard.saturating_sub(period.try_into().unwrap_or(u8::MAX));
+                    *delay_timer_guard = delay_timer_guard
+                        .saturating_sub(period.get().try_into().unwrap_or(u8::MAX));
                 }
             })
             .build_global(Self {

@@ -120,7 +120,7 @@ impl FileBrowserState {
                                     .get(rom_id)
                                     .unwrap()
                                     .map(|info| info.value().system)
-                                    .or_else(|| GameSystem::guess(&path))
+                                    .or_else(|| GameSystem::guess(path))
                                 {
                                     // Put its location in the store
                                     self.rom_manager

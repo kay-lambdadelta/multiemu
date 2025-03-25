@@ -91,6 +91,7 @@ impl ShaderCache {
                 .downcast_ref::<Shader<T>>()
                 .unwrap()
                 .clone()),
+
             scc::hash_cache::Entry::Vacant(vacant_entry) => {
                 let module = Arc::new(naga::front::wgsl::parse_str(&wgsl)?);
                 let mut validator = Validator::new(ValidationFlags::all(), Capabilities::all());

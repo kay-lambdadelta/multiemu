@@ -12,9 +12,12 @@ use multiemu_machine::{
     processor::decoder::InstructionDecoder,
     scheduler::task::Task,
 };
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    num::NonZero,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 pub(crate) struct Chip8ProcessorTask {
@@ -41,10 +44,10 @@ pub(crate) struct Chip8ProcessorTask {
 }
 
 impl Task<Chip8Processor> for Chip8ProcessorTask {
-    fn run(&mut self, target: &Chip8Processor, period: u64) {
+    fn run(&mut self, target: &Chip8Processor, period: NonZero<u32>) {
         let mut state = target.state.lock().unwrap();
 
-        for _ in 0..period {
+        for _ in 0..period.get() {
             'main: {
                 match &state.execution_state {
                     ExecutionState::Normal => {

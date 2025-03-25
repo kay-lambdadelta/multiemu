@@ -1,24 +1,128 @@
+use super::audio::CpalAudio;
 use super::keyboard::{KEYBOARD_ID, winit2key};
-use super::{PlatformRuntime, RuntimeBoundMessage, RuntimeMode};
+use super::{RuntimeBoundMessage, setup_theme};
 use crate::build_machine::build_machine;
-use crate::gui::menu::UiOutput;
+use crate::gui::menu::{MenuState, UiOutput};
 use crate::rendering_backend::RenderingBackendState;
+use crate::runtime::Runtime;
+use crate::runtime::desktop::gamepad::gamepad_task;
 use egui::ViewportId;
 use multiemu_config::Environment;
 use multiemu_input::{GamepadId, Input, InputState};
 use multiemu_machine::Machine;
 use multiemu_machine::builder::display::BackendSpecificData;
-use multiemu_machine::display::{ContextExtensionSpecification, RenderBackend};
+use multiemu_machine::display::backend::{ContextExtensionSpecification, RenderBackend};
+use multiemu_machine::display::shader::ShaderCache;
 use multiemu_machine::input::VirtualGamepadId;
 use multiemu_rom::id::RomId;
-use multiemu_rom::manager::ROM_INFORMATION_TABLE;
+use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use multiemu_rom::system::GameSystem;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 use winit::event::WindowEvent;
+use winit::event_loop::EventLoop;
 use winit::window::WindowId;
 use winit::{application::ApplicationHandler, event_loop::ActiveEventLoop, window::Window};
+
+enum RuntimeMode<R: RenderBackend> {
+    Idle,
+    Pending {
+        game_system: GameSystem,
+        user_specified_roms: Vec<RomId>,
+    },
+    Running {
+        machine: Machine<R>,
+    },
+}
+
+pub struct PlatformRuntime<RS: RenderingBackendState> {
+    windowing: Option<WindowingContext<RS>>,
+    rom_manager: Arc<RomManager>,
+    environment: Arc<RwLock<Environment>>,
+    shader_cache: Arc<ShaderCache>,
+    egui_context: egui::Context,
+    menu_state: MenuState,
+    audio: CpalAudio,
+    gamepad_mapping: HashMap<GamepadId, VirtualGamepadId>,
+    mode: RuntimeMode<RS::RenderBackend>,
+    gui_active: bool,
+    event_loop: Option<EventLoop<RuntimeBoundMessage>>,
+    previous_frame_render_time: Duration,
+    previous_frame_time: Duration,
+}
+
+impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>>
+    Runtime<R> for PlatformRuntime<RS>
+{
+    fn new(
+        rom_manager: Arc<RomManager>,
+        environment: Arc<RwLock<Environment>>,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        Self: Sized,
+    {
+        let egui_context = egui::Context::default();
+        let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
+
+        setup_theme(&egui_context);
+
+        let event_loop = EventLoop::with_user_event().build()?;
+        {
+            let event_loop_proxy = event_loop.create_proxy();
+
+            std::thread::Builder::new()
+                .name("gamepad".to_string())
+                .spawn(move || {
+                    tracing::debug!("Starting up gamepad thread");
+
+                    gamepad_task(event_loop_proxy);
+
+                    tracing::debug!("Shutting down gamepad thread");
+                })?;
+        }
+
+        let me = Self {
+            windowing: None,
+            rom_manager,
+            environment,
+            shader_cache: Arc::new(ShaderCache::new(12)),
+            egui_context,
+            menu_state,
+            audio: CpalAudio::default(),
+            gamepad_mapping: HashMap::new(),
+            mode: RuntimeMode::Idle,
+            gui_active: true,
+            event_loop: Some(event_loop),
+            previous_frame_render_time: Duration::from_millis(16),
+            previous_frame_time: Duration::from_millis(16),
+        };
+
+        Ok(me)
+    }
+
+    fn launch_gui(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.event_loop.take().unwrap().run_app(self)?;
+
+        Ok(())
+    }
+
+    fn launch_game(
+        &mut self,
+        game_system: GameSystem,
+        user_specified_roms: Vec<RomId>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.mode = RuntimeMode::Pending {
+            game_system,
+            user_specified_roms,
+        };
+
+        self.event_loop.take().unwrap().run_app(self)?;
+
+        Ok(())
+    }
+}
 
 pub struct WindowingContext<RS: RenderingBackendState> {
     egui_winit: egui_winit::State,
@@ -194,24 +298,22 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
 
                     windowing.state.redraw_menu(&self.egui_context, full_output);
                 } else {
+                    let start_period = Instant::now();
+
                     let RuntimeMode::Running { machine } = &mut self.mode else {
                         unreachable!()
                     };
 
-                    self.timing_tracker.machine_main_cycle_starting();
-                    machine.scheduler.run();
-                    windowing.state.redraw(machine);
-                    let time_taken = self.timing_tracker.machine_main_cycle_ending();
+                    let output =
+                        machine.run(self.previous_frame_time, self.previous_frame_render_time);
 
-                    match time_taken.cmp(&self.timing_tracker.average_timings()) {
-                        std::cmp::Ordering::Less => {
-                            machine.scheduler.speed_up();
-                        }
-                        std::cmp::Ordering::Greater => {
-                            machine.scheduler.slow_down();
-                        }
-                        std::cmp::Ordering::Equal => {}
-                    }
+                    let start_frame_render_period = Instant::now();
+                    windowing.state.redraw(&output);
+                    let frame_render_duration = start_frame_render_period.elapsed();
+                    let frame_duration = start_period.elapsed();
+
+                    self.previous_frame_time = frame_duration;
+                    self.previous_frame_render_time = frame_render_duration;
                 }
             }
             _ => {}
@@ -300,7 +402,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             machine_builder.build::<R>(render_backend_state.component_initialization_data());
 
         // HACK: Map the keyboard to the first gamepad
-        if let Some(virtual_gamepad_id) = machine.virtual_gamepads.keys().next().copied() {
+        if let Some(virtual_gamepad_id) = machine.virtual_gamepads().keys().next().copied() {
             self.gamepad_mapping.insert(KEYBOARD_ID, virtual_gamepad_id);
         }
 
@@ -330,10 +432,10 @@ fn insert_input<R: RenderBackend>(
     if let Some(virtual_id) = gamepad_mapping.get(&id) {
         let environment_guard = environment.read().unwrap();
 
-        if let Some(virtual_gamepad) = machine.virtual_gamepads.get(virtual_id) {
+        if let Some(virtual_gamepad) = machine.virtual_gamepads().get(virtual_id) {
             if let Some(transformed_input) = environment_guard
                 .gamepad_configs
-                .get(&machine.game_system)
+                .get(&machine.system())
                 .and_then(|gamepad_types| gamepad_types.get(&virtual_gamepad.name()))
                 .and_then(|gamepad_transformer| gamepad_transformer.get(&input))
             {

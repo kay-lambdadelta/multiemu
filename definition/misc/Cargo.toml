@@ -15,7 +15,7 @@ rayon = { workspace = true }
 crossbeam = { workspace = true }
 num = { workspace = true }
 
-[dev-dependencies]
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]

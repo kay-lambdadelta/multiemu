@@ -1,4 +1,6 @@
-use super::{Component, ComponentId, component_ref::ComponentRef};
+use super::{
+    Component, ComponentId, component_ref::ComponentRef, main_thread_queue::MainThreadExecutor,
+};
 use fxhash::FxBuildHasher;
 use std::{
     borrow::Cow,
@@ -23,11 +25,10 @@ impl Debug for ComponentLocation {
 }
 
 thread_local! {
-    static IS_MAIN_THREAD: RefCell<bool> = const { RefCell::new(false) };
-    static LOCAL_COMPONENT_STORE: LazyCell<RefCell<HashMap<ComponentId, Arc<dyn Component>>>> = const { LazyCell::new(RefCell::default) };
+    pub(super) static IS_MAIN_THREAD: RefCell<bool> = const { RefCell::new(false) };
+    static MAIN_THREAD_COMPONENT_STORE: LazyCell<RefCell<HashMap<ComponentId, Arc<dyn Component>>>> = const { LazyCell::new(RefCell::default) };
 }
 
-#[derive(Debug)]
 pub struct ComponentStore
 // This absolutely has to be thread-safe
 where
@@ -35,9 +36,28 @@ where
 {
     component_ids: scc::HashMap<Cow<'static, str>, ComponentId, FxBuildHasher>,
     component_location: scc::HashMap<ComponentId, ComponentLocation, FxBuildHasher>,
+    pub main_thread_queue: Arc<MainThreadExecutor>,
 }
 
 impl ComponentStore {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        IS_MAIN_THREAD.with(|is_main_thread| {
+            *is_main_thread.borrow_mut() = true;
+        });
+
+        MAIN_THREAD_COMPONENT_STORE.with(|task_component_store| {
+            let mut task_component_store = task_component_store.borrow_mut();
+            task_component_store.clear();
+        });
+
+        Self {
+            component_ids: scc::HashMap::default(),
+            component_location: scc::HashMap::default(),
+            main_thread_queue: Arc::new(MainThreadExecutor::default()),
+        }
+    }
+
     pub(crate) fn insert_component(
         &self,
         manifest_name: &'static str,
@@ -48,7 +68,7 @@ impl ComponentStore {
             assert!(*is_main_thread.borrow());
         });
 
-        LOCAL_COMPONENT_STORE.with(|task_component_store| {
+        MAIN_THREAD_COMPONENT_STORE.with(|task_component_store| {
             let mut task_component_store = task_component_store.borrow_mut();
             task_component_store.insert(component_id, Arc::new(component));
         });
@@ -95,13 +115,19 @@ impl ComponentStore {
             .read(&component_id, |_, location| match location {
                 ComponentLocation::MainThread => {
                     if is_main_thread {
-                        LOCAL_COMPONENT_STORE.with(|thread_component_store| {
+                        MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
                             let thread_component_store = thread_component_store.borrow();
                             let component = thread_component_store.get(&component_id).unwrap();
                             callback(component.as_ref());
                         });
                     } else {
-                        unimplemented!()
+                        self.main_thread_queue.wait_on_main(|| {
+                            MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
+                                let thread_component_store = thread_component_store.borrow();
+                                let component = thread_component_store.get(&component_id).unwrap();
+                                callback(component.as_ref());
+                            });
+                        });
                     }
                 }
                 ComponentLocation::Global(component) => {
@@ -125,7 +151,7 @@ impl ComponentStore {
             .read(&component_id, |_, location| match location {
                 ComponentLocation::MainThread => {
                     if is_main_thread {
-                        LOCAL_COMPONENT_STORE.with(|thread_component_store| {
+                        MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
                             let thread_component_store = thread_component_store.borrow();
                             let component = thread_component_store.get(&component_id).unwrap();
                             callback(component.as_ref());
@@ -199,23 +225,5 @@ impl ComponentStore {
         };
 
         Some(ComponentRef::new(component_id, component, self.clone()))
-    }
-}
-
-impl Default for ComponentStore {
-    fn default() -> Self {
-        IS_MAIN_THREAD.with(|is_main_thread| {
-            *is_main_thread.borrow_mut() = true;
-        });
-
-        LOCAL_COMPONENT_STORE.with(|task_component_store| {
-            let mut task_component_store = task_component_store.borrow_mut();
-            task_component_store.clear();
-        });
-
-        Self {
-            component_ids: scc::HashMap::default(),
-            component_location: scc::HashMap::default(),
-        }
     }
 }

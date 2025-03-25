@@ -4,7 +4,7 @@ pub use cartridge::ines::INes;
 use cartridge::ines::TimingMode;
 use cartridge::{NesCartridge, NesCartridgeConfig};
 use multiemu_config::Environment;
-use multiemu_definition_m6502::{M6502, M6502Config, M6502Kind, M6502Registers};
+use multiemu_definition_m6502::{M6502, M6502Config, M6502Kind};
 use multiemu_definition_misc::memory::mirror::{MirrorMemory, MirrorMemoryConfig};
 use multiemu_definition_misc::memory::standard::{
     StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
@@ -97,10 +97,6 @@ pub fn manifest(
             frequency: processor_frequency,
             assigned_address_space: CPU_ADDRESS_SPACE,
             kind: M6502Kind::R2A0x,
-            initial_state: M6502Registers {
-                stack: 0xfd,
-                ..Default::default()
-            },
         },
     )
 }

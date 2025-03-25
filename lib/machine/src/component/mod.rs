@@ -12,6 +12,7 @@ use std::fmt::Debug;
 use std::sync::{Arc, OnceLock, RwLock, RwLockReadGuard};
 
 pub mod component_ref;
+pub mod main_thread_queue;
 pub mod store;
 
 /// Stuff every component optionally needs
@@ -31,7 +32,7 @@ impl RuntimeEssentials {
     ) -> Self {
         Self {
             memory_translation_table: OnceLock::new(),
-            component_store: Arc::new(ComponentStore::default()),
+            component_store: Arc::new(ComponentStore::new()),
             rom_manager,
             environment,
             shader_cache,

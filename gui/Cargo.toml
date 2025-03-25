@@ -40,13 +40,13 @@ palette = { workspace = true }
 uuid = { workspace = true }
 redb = { workspace = true }
 versions = { workspace = true }
+ringbuffer = { workspace = true }
 egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
 egui_extras = { version = "0.31", default-features = false, features = [
     "image",
 ] }
 image = { version = "0.25", default-features = false, features = ["webp"] }
 itertools = "0.14"
-ringbuffer = { workspace = true }
 
 # Desktop type dependencies
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
@@ -69,7 +69,7 @@ clap = { workspace = true }
 # Vulkan support
 vulkano = { workspace = true, optional = true }
 
-[dev-dependencies]
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }
 
 # Jit support

@@ -141,8 +141,8 @@ mod test {
     };
     use multiemu_config::Environment;
     use multiemu_machine::builder::MachineBuilder;
+    use multiemu_machine::display::backend::software::SoftwareRendering;
     use multiemu_machine::display::shader::ShaderCache;
-    use multiemu_machine::display::software::SoftwareRendering;
     use multiemu_machine::memory::AddressSpaceId;
     use multiemu_rom::manager::RomManager;
     use multiemu_rom::system::GameSystem;
@@ -189,7 +189,7 @@ mod test {
         let mut buffer = [0; 8];
 
         machine
-            .memory_translation_table
+            .memory_translation_table()
             .read(0x10000, ADDRESS_SPACE, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
@@ -233,7 +233,7 @@ mod test {
         let buffer = [0; 8];
 
         machine
-            .memory_translation_table
+            .memory_translation_table()
             .write(0x10000, ADDRESS_SPACE, &buffer)
             .unwrap();
     }

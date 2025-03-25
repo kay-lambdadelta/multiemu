@@ -1,4 +1,5 @@
-use crate::display::{ContextExtensionSpecification, RenderBackend};
+use super::ContextExtensionSpecification;
+use crate::display::RenderBackend;
 use multiemu_config::graphics::GraphicsApi;
 use std::sync::Arc;
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
@@ -23,6 +24,7 @@ impl ContextExtensionSpecification for VulkanContextExtensionSpecification {
         }
     }
 }
+
 pub type VulkanComponentFramebuffer = Arc<Image>;
 
 impl RenderBackend for VulkanRendering {

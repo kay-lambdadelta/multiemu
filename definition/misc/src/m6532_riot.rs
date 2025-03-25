@@ -11,9 +11,12 @@ use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::sync::{
-    Arc, OnceLock, RwLock,
-    atomic::{AtomicU8, Ordering},
+use std::{
+    num::NonZero,
+    sync::{
+        Arc, OnceLock, RwLock,
+        atomic::{AtomicU8, Ordering},
+    },
 };
 
 #[serde_as]
@@ -165,29 +168,37 @@ impl FromConfig for M6532Riot {
                 .insert_task(config.frequency, {
                     let registers = registers.clone();
 
-                    move |_: &Self, period| {
-                        registers.tim1t.fetch_add(period as u8, Ordering::Relaxed);
+                    move |_: &Self, period: NonZero<_>| {
+                        registers
+                            .tim1t
+                            .fetch_add(period.get() as u8, Ordering::Relaxed);
                     }
                 })
                 .insert_task(config.frequency / 8, {
                     let registers = registers.clone();
 
-                    move |_: &Self, period| {
-                        registers.tim8t.fetch_add(period as u8, Ordering::Relaxed);
+                    move |_: &Self, period: NonZero<_>| {
+                        registers
+                            .tim8t
+                            .fetch_add(period.get() as u8, Ordering::Relaxed);
                     }
                 })
                 .insert_task(config.frequency / 64, {
                     let registers = registers.clone();
 
-                    move |_: &Self, period| {
-                        registers.tim64t.fetch_add(period as u8, Ordering::Relaxed);
+                    move |_: &Self, period: NonZero<_>| {
+                        registers
+                            .tim64t
+                            .fetch_add(period.get() as u8, Ordering::Relaxed);
                     }
                 })
                 .insert_task(config.frequency / 1024, {
                     let registers = registers.clone();
 
-                    move |_: &Self, period| {
-                        registers.t1024t.fetch_add(period as u8, Ordering::Relaxed);
+                    move |_: &Self, period: NonZero<_>| {
+                        registers
+                            .t1024t
+                            .fetch_add(period.get() as u8, Ordering::Relaxed);
                     }
                 })
         };
@@ -198,7 +209,7 @@ impl FromConfig for M6532Riot {
 
 #[derive(Debug)]
 pub struct M6532RiotConfig {
-    pub frequency: Ratio<u64>,
+    pub frequency: Ratio<u32>,
     pub ram_assigned_address: usize,
     pub registers_assigned_address: usize,
     pub assigned_address_space: AddressSpaceId,

@@ -31,6 +31,7 @@ versions = { workspace = true }
 indexmap = { workspace = true }
 itertools = { workspace = true }
 ringbuffer = { workspace = true }
+rayon = { workspace = true }
 naga = { workspace = true, features = ["spv-out", "glsl-out"] }
 fxhash = "0.2"
 

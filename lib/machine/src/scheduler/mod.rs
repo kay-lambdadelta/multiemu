@@ -4,7 +4,8 @@ use fxhash::FxBuildHasher;
 use itertools::Itertools;
 use num::ToPrimitive;
 use num::{integer::lcm, rational::Ratio};
-use rangemap::RangeInclusiveMap;
+use std::num::NonZero;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{
     collections::HashMap,
@@ -18,23 +19,23 @@ pub mod task;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ToRun {
     pub task_id: TaskId,
-    pub run_indication: u64,
-    pub tick_rate: u64,
+    pub run_indication: u32,
+    pub tick_rate: u32,
 }
 
 struct StoredTask {
     pub component_id: ComponentId,
     #[allow(clippy::type_complexity)]
-    pub task: Mutex<Box<dyn FnMut(&dyn Component, u64) + Send + 'static>>,
+    pub task: Mutex<Box<dyn FnMut(&dyn Component, NonZero<u32>) + Send + 'static>>,
+    pub frequency: Ratio<u32>,
 }
 
 pub struct Scheduler {
-    current_tick: u64,
-    rollover_tick: u64,
-    tick_real_time: Ratio<u64>,
+    current_tick: u32,
+    common_denominator: u32,
+    tick_real_time: Duration,
     allotted_time: Duration,
     component_store: Arc<ComponentStore>,
-    schedule: RangeInclusiveMap<u64, Vec<TaskId>>,
     tasks: HashMap<TaskId, StoredTask, FxBuildHasher>,
 }
 
@@ -44,8 +45,8 @@ impl Scheduler {
         tasks: impl IntoIterator<
             Item = (
                 ComponentId,
-                Ratio<u64>,
-                Box<dyn FnMut(&dyn Component, u64) + Send + 'static>,
+                Ratio<u32>,
+                Box<dyn FnMut(&dyn Component, NonZero<u32>) + Send + 'static>,
             ),
         >,
     ) -> Self {
@@ -63,49 +64,75 @@ impl Scheduler {
 
                 (
                     task_id,
-                    (
-                        StoredTask {
-                            task: Mutex::new(task),
-                            component_id,
-                        },
-                        frequency.recip(),
-                    ),
+                    StoredTask {
+                        task: Mutex::new(task),
+                        component_id,
+                        frequency: frequency.recip(),
+                    },
                 )
             })
             .collect();
 
         let common_denominator = tasks
             .values()
-            .map(|(_, frequency)| *frequency.denom())
+            .map(|task| *task.frequency.denom())
             .fold(1, lcm);
 
         let common_numerator = tasks
             .values()
-            .map(|(_, frequency)| *frequency.numer())
+            .map(|task| *task.frequency.numer())
             .fold(1, lcm);
 
         let full_cycle = common_denominator / common_numerator;
+        let tick_real_time = Duration::from_secs_f64(
+            Ratio::new(common_numerator, common_denominator)
+                .to_f64()
+                .unwrap(),
+        );
 
-        let ratios: HashMap<_, _, FxBuildHasher> = tasks
-            .iter()
-            .map(|(task_id, (_, frequency))| {
-                let factor = common_denominator / frequency.denom();
-                (*task_id, frequency.numer() * factor)
-            })
-            .collect();
+        tracing::debug!(
+            "Schedule ticks take {:?} and restarts at tick {}, a full cycle takes {:?}",
+            tick_real_time,
+            common_denominator,
+            tick_real_time * full_cycle as u32
+        );
 
-        // Fill out the schedule
-        let mut schedule = RangeInclusiveMap::default();
+        Self {
+            current_tick: 0,
+            common_denominator,
+            tick_real_time,
+            allotted_time: Duration::from_secs_f64(Ratio::new(1, 60).to_f64().unwrap()),
+            component_store,
+            tasks: tasks.into_iter().collect(),
+        }
+    }
 
-        let mut current_tick = 0;
-        while current_tick < common_denominator {
-            // This is (task_id, tick_rate, run_indication)
-            let to_run: Vec<_> = ratios
+    pub fn run(&mut self) {
+        // TODO: This should actually be calculating how much time is between frames minus draw time
+        let mut ticks_this_pass: u32 = 0;
+        let timestamp = Instant::now();
+
+        loop {
+            let did_overstep_real_time = self.allotted_time < timestamp.elapsed();
+            let did_overstep_virtual_time =
+                self.allotted_time < (self.tick_real_time * ticks_this_pass);
+
+            if did_overstep_virtual_time || did_overstep_real_time {
+                break;
+            }
+
+            let to_run: Vec<_> = self
+                .tasks
                 .iter()
-                .map(|(task_id, tick_rate)| ToRun {
-                    task_id: *task_id,
-                    run_indication: current_tick % tick_rate,
-                    tick_rate: *tick_rate,
+                .map(|(task_id, stored_task)| {
+                    let factor = self.common_denominator / stored_task.frequency.denom();
+                    let tick_rate = stored_task.frequency.numer() * factor;
+
+                    ToRun {
+                        task_id: *task_id,
+                        run_indication: self.current_tick % tick_rate,
+                        tick_rate,
+                    }
                 })
                 .sorted_by_key(|to_run| to_run.run_indication)
                 .collect();
@@ -113,11 +140,12 @@ impl Scheduler {
             if to_run.len() == 1 {
                 let to_run_info = to_run[0];
                 let time_slice = to_run_info.tick_rate;
-                schedule.insert(
-                    current_tick..=(current_tick + time_slice - 1),
-                    vec![to_run_info.task_id],
-                );
-                current_tick += time_slice;
+
+                self.run_task([(to_run_info.task_id, NonZero::new(time_slice).unwrap())]);
+
+                self.current_tick =
+                    self.current_tick.wrapping_add(time_slice) % self.common_denominator;
+                ticks_this_pass = ticks_this_pass.saturating_add(time_slice);
                 continue;
             }
 
@@ -129,98 +157,77 @@ impl Scheduler {
             {
                 // Nothing is set to run here
                 0 => {
-                    current_tick += 1;
+                    self.current_tick = self.current_tick.wrapping_add(1) % self.common_denominator;
+                    ticks_this_pass = ticks_this_pass.saturating_add(1);
                 }
                 // Full efficient batching
                 1 => {
                     let batch_size = to_run[1].tick_rate - to_run[1].run_indication;
                     let to_run_info = to_run[0];
-                    let normalized_batch_size = batch_size / to_run_info.tick_rate;
-                    schedule.insert(
-                        current_tick..=(current_tick + normalized_batch_size - 1),
-                        vec![to_run_info.task_id],
-                    );
-                    current_tick += batch_size;
+                    let time_slice = batch_size / to_run_info.tick_rate;
+
+                    if let Some(time_slice) = NonZero::new(time_slice) {
+                        self.run_task([(to_run_info.task_id, time_slice)]);
+
+                        self.current_tick = self.current_tick.wrapping_add(time_slice.get())
+                            % self.common_denominator;
+                        ticks_this_pass = ticks_this_pass.saturating_add(time_slice.get());
+                    } else {
+                        self.current_tick =
+                            self.current_tick.wrapping_add(1) % self.common_denominator;
+                        ticks_this_pass = ticks_this_pass.saturating_add(1);
+                    }
                 }
                 // Conflicted components
                 _ => {
-                    schedule.insert(
-                        current_tick..=current_tick,
-                        to_run
-                            .into_iter()
-                            .filter_map(|to_run_info| {
-                                if to_run_info.run_indication == 0 {
-                                    return Some(to_run_info.task_id);
-                                }
+                    self.run_task(to_run.into_iter().filter_map(|to_run_info| {
+                        if to_run_info.run_indication == 0 {
+                            return Some((to_run_info.task_id, NonZero::new(1).unwrap()));
+                        }
 
-                                None
-                            })
-                            .collect(),
-                    );
+                        None
+                    }));
 
-                    current_tick += 1;
+                    self.current_tick = self.current_tick.wrapping_add(1) % self.common_denominator;
+                    ticks_this_pass = ticks_this_pass.saturating_add(1);
                 }
             }
-        }
-
-        let tick_real_time = Ratio::new(common_numerator, common_denominator);
-
-        tracing::debug!(
-            "Schedule ticks take {:?} and restarts at tick {}, a full cycle takes {:?}",
-            Duration::from_secs_f64(tick_real_time.to_f64().unwrap()),
-            common_denominator,
-            Duration::from_secs_f64(tick_real_time.to_f64().unwrap() * full_cycle as f64)
-        );
-
-        Self {
-            current_tick: 0,
-            rollover_tick: common_denominator,
-            tick_real_time,
-            schedule,
-            allotted_time: Duration::from_secs_f64(Ratio::new(1, 60).to_f64().unwrap()),
-            component_store,
-            tasks: tasks
-                .into_iter()
-                .map(|(id, (task, _))| (id, task))
-                .collect(),
         }
     }
 
-    pub fn run(&mut self) {
-        // TODO: This should actually be calculating how much time is between frames minus draw time
-        let mut ticks_this_pass: u64 = 0;
-        let timestamp = Instant::now();
+    #[inline]
+    fn run_task(&mut self, to_run: impl IntoIterator<Item = (TaskId, NonZero<u32>)>) {
+        // Indicator the main thread should give up
+        let queued_task_count = Arc::new(AtomicUsize::new(0));
 
-        loop {
-            let did_overstep_real_time = self.allotted_time < timestamp.elapsed();
-            let did_overstep_virtual_time = self.allotted_time.as_secs_f32()
-                < (ticks_this_pass as f32 * self.tick_real_time.to_f32().unwrap());
+        rayon::in_place_scope(|scope| {
+            for (task_id, time_slice) in to_run {
+                scope.spawn({
+                    let queued_task_count = queued_task_count.clone();
+                    let component_store = self.component_store.as_ref();
+                    let task_info = self.tasks.get(&task_id).unwrap();
+                    queued_task_count.fetch_add(1, Ordering::SeqCst);
 
-            if did_overstep_virtual_time || did_overstep_real_time {
-                break;
-            }
-
-            if let Some((time_slice, task_ids)) = self.schedule.get_key_value(&self.current_tick) {
-                let ticks = time_slice.clone().count() as u64;
-
-                for task_id in task_ids {
-                    if let Some(task_info) = self.tasks.get(task_id) {
-                        self.component_store
-                            .interact_dyn(task_info.component_id, |component| {
-                                let mut task = task_info.task.lock().unwrap();
-
-                                task(component, ticks);
-                            });
+                    // Send execution task to the other thread
+                    move |_| {
+                        component_store.interact_dyn(task_info.component_id, |component| {
+                            let mut task = task_info.task.lock().unwrap();
+                            task(component, time_slice);
+                            queued_task_count.fetch_sub(1, Ordering::SeqCst);
+                        });
                     }
-                }
-
-                self.current_tick = self.current_tick.wrapping_add(ticks) % self.rollover_tick;
-                ticks_this_pass = ticks_this_pass.saturating_add(ticks)
-            } else {
-                self.current_tick = self.current_tick.wrapping_add(1) % self.rollover_tick;
-                ticks_this_pass = ticks_this_pass.saturating_add(1);
+                });
             }
-        }
+
+            // Wait for all tasks spawned to end
+            while queued_task_count.load(Ordering::SeqCst) != 0 {
+                self.component_store.main_thread_queue.main_thread_poll();
+                // Yield during polling loop
+                std::thread::yield_now();
+            }
+
+            // join
+        });
     }
 
     pub fn slow_down(&mut self) {
@@ -228,9 +235,7 @@ impl Scheduler {
         self.allotted_time = self
             .allotted_time
             .saturating_sub(Duration::from_nanos(500))
-            .max(Duration::from_secs_f32(
-                self.tick_real_time.to_f32().unwrap(),
-            ));
+            .max(self.tick_real_time);
 
         tracing::trace!(
             "Alotted time for scheduler moved down to {:?}",
@@ -243,9 +248,7 @@ impl Scheduler {
         self.allotted_time = self
             .allotted_time
             .saturating_add(Duration::from_nanos(500))
-            .min(Duration::from_secs_f32(
-                (self.tick_real_time * self.rollover_tick).to_f32().unwrap(),
-            ));
+            .min(self.tick_real_time * self.common_denominator);
 
         tracing::trace!(
             "Alotted time for scheduler moved up to {:?}",

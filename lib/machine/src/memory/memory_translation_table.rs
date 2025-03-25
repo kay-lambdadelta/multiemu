@@ -4,6 +4,7 @@ use crate::memory::{MAX_MEMORY_ACCESS_SIZE, VALID_MEMORY_ACCESS_SIZES};
 use arrayvec::ArrayVec;
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use fxhash::FxBuildHasher;
+use num::traits::{FromBytes, ToBytes};
 use rangemap::RangeInclusiveMap;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -186,6 +187,11 @@ impl MemoryTranslationTable {
                 for (range, error) in errors {
                     match error {
                         ReadMemoryRecord::Denied => {
+                            tracing::error!(
+                                "Read memory operation operation denied at {:?}",
+                                range
+                            );
+
                             detected_errors
                                 .insert(range, ReadMemoryOperationErrorFailureType::Denied);
                         }
@@ -219,6 +225,34 @@ impl MemoryTranslationTable {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn read_le_value<T: FromBytes>(
+        &self,
+        address: usize,
+        address_space: AddressSpaceId,
+    ) -> Result<T, ReadMemoryOperationError>
+    where
+        T::Bytes: Default,
+    {
+        let mut buffer = T::Bytes::default();
+        self.read(address, address_space, buffer.as_mut())?;
+        Ok(T::from_le_bytes(&buffer))
+    }
+
+    #[inline]
+    pub fn read_be_value<T: FromBytes>(
+        &self,
+        address: usize,
+        address_space: AddressSpaceId,
+    ) -> Result<T, ReadMemoryOperationError>
+    where
+        T::Bytes: Default,
+    {
+        let mut buffer = T::Bytes::default();
+        self.read(address, address_space, buffer.as_mut())?;
+        Ok(T::from_be_bytes(&buffer))
     }
 
     /// Step through the memory translation table to give a set of components the buffer
@@ -278,6 +312,11 @@ impl MemoryTranslationTable {
                 for (range, error) in errors {
                     match error {
                         WriteMemoryRecord::Denied => {
+                            tracing::error!(
+                                "Write memory operation operation denied at {:?}",
+                                range
+                            );
+
                             detected_errors
                                 .insert(range, WriteMemoryOperationErrorFailureType::Denied);
                         }
@@ -311,6 +350,26 @@ impl MemoryTranslationTable {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn write_le_value<T: ToBytes>(
+        &self,
+        address: usize,
+        address_space: AddressSpaceId,
+        value: T,
+    ) -> Result<(), WriteMemoryOperationError> {
+        self.write(address, address_space, value.to_le_bytes().as_ref())
+    }
+
+    #[inline]
+    pub fn write_be_value<T: ToBytes>(
+        &self,
+        address: usize,
+        address_space: AddressSpaceId,
+        value: T,
+    ) -> Result<(), WriteMemoryOperationError> {
+        self.write(address, address_space, value.to_be_bytes().as_ref())
     }
 
     #[inline]
@@ -400,5 +459,33 @@ impl MemoryTranslationTable {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn preview_le_value<T: FromBytes>(
+        &self,
+        address: usize,
+        address_space: AddressSpaceId,
+    ) -> Result<T, PreviewMemoryOperationError>
+    where
+        T::Bytes: Default,
+    {
+        let mut buffer = T::Bytes::default();
+        self.preview(address, address_space, buffer.as_mut())?;
+        Ok(T::from_le_bytes(&buffer))
+    }
+
+    #[inline]
+    pub fn preview_be_value<T: FromBytes>(
+        &self,
+        address: usize,
+        address_space: AddressSpaceId,
+    ) -> Result<T, PreviewMemoryOperationError>
+    where
+        T::Bytes: Default,
+    {
+        let mut buffer = T::Bytes::default();
+        self.preview(address, address_space, buffer.as_mut())?;
+        Ok(T::from_be_bytes(&buffer))
     }
 }
