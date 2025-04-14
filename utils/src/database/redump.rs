@@ -21,6 +21,7 @@ pub enum RedumpSystem {
     Psx,
     Ps2,
     Ps3,
+    Psp,
     Mcd,
 }
 
@@ -34,6 +35,7 @@ impl TryFrom<GameSystem> for RedumpSystem {
             GameSystem::Sony(SonySystem::Playstation) => Ok(Self::Psx),
             GameSystem::Sony(SonySystem::Playstation2) => Ok(Self::Ps2),
             GameSystem::Sony(SonySystem::Playstation3) => Ok(Self::Ps3),
+            GameSystem::Sony(SonySystem::PlaystationPortable) => Ok(Self::Psp),
             GameSystem::Sega(SegaSystem::SegaCD) => Ok(Self::Mcd),
             _ => Err(()),
         }
