@@ -1,4 +1,3 @@
-use database::DatabaseState;
 use egui::{CentralPanel, Context, ScrollArea, SidePanel};
 use file_browser::FileBrowserState;
 use multiemu_config::Environment;
@@ -9,7 +8,6 @@ use std::fmt::Display;
 use std::sync::{Arc, RwLock};
 use strum::{EnumIter, IntoEnumIterator};
 
-mod database;
 mod file_browser;
 mod options;
 
@@ -24,7 +22,6 @@ pub enum MenuItem {
     Main,
     FileBrowser,
     Options,
-    Database,
 }
 
 impl Display for MenuItem {
@@ -36,7 +33,6 @@ impl Display for MenuItem {
                 MenuItem::Main => "Main",
                 MenuItem::FileBrowser => "File Browser",
                 MenuItem::Options => "Options",
-                MenuItem::Database => "Database",
             }
         )
     }
@@ -47,7 +43,6 @@ pub struct MenuState {
     open_menu_item: MenuItem,
     file_browser_state: FileBrowserState,
     options_state: OptionsState,
-    database_state: DatabaseState,
     autofocus: bool,
 }
 
@@ -62,7 +57,6 @@ impl MenuState {
                 rom_manager.clone(),
             ),
             options_state: OptionsState::new(environment.clone()),
-            database_state: DatabaseState::new(rom_manager),
             autofocus: true,
         }
     }
@@ -109,9 +103,6 @@ impl MenuState {
                     }
                     MenuItem::Options => {
                         self.options_state.run(&mut output, ui);
-                    }
-                    MenuItem::Database => {
-                        self.database_state.run(&mut output, ui);
                     }
                 },
             );

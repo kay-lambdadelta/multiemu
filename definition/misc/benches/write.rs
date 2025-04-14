@@ -40,7 +40,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("write1", |b| {
         b.iter(|| {
             machine
-                .memory_translation_table()
+                .memory_translation_table
                 .write(0x1000, ADDRESS_SPACE, black_box(&buffer))
                 .unwrap();
         })
@@ -50,7 +50,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("write2", |b| {
         b.iter(|| {
             machine
-                .memory_translation_table()
+                .memory_translation_table
                 .write(0x1000, ADDRESS_SPACE, black_box(&buffer))
                 .unwrap();
         })
@@ -60,7 +60,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("write4", |b| {
         b.iter(|| {
             machine
-                .memory_translation_table()
+                .memory_translation_table
                 .write(0x1000, ADDRESS_SPACE, black_box(&buffer))
                 .unwrap();
         })
@@ -70,7 +70,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("write8", |b| {
         b.iter(|| {
             machine
-                .memory_translation_table()
+                .memory_translation_table
                 .write(0x1000, ADDRESS_SPACE, black_box(&buffer))
                 .unwrap();
         })

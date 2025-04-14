@@ -31,7 +31,6 @@ vulkano = { workspace = true, optional = true }
 criterion = { workspace = true }
 
 [features]
-jit = ["multiemu-machine/jit", "multiemu-definition-m6502/jit"]
 vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
 
 [[bench]]

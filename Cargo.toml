@@ -18,7 +18,7 @@ multiemu-definition-i8080 = { path = "definition/i8080" }
 multiemu-definition-atari2600 = { path = "definition/atari2600" }
 
 # External dependencies
-naga = { version = "24.0", features = ["wgsl-in"] }
+naga = { version = "25.0", features = ["wgsl-in"] }
 strum = { version = "0.27", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -38,7 +38,6 @@ num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
 bitvec = "1.0"
-cranelift = { version = "0.118", features = ["jit", "native", "module"] }
 vulkano = { version = "0.35", default-features = false }
 crossbeam = "0.8"
 scc = "2.3"
@@ -49,7 +48,7 @@ rand = "0.9"
 palette = { version = "0.7", features = ["bytemuck", "serializing"] }
 memmap2 = "0.9"
 clap = { version = "4.5", features = ["derive"] }
-indexmap = { version = "2.8", features = ["serde"] }
+indexmap = { version = "2.9", features = ["serde"] }
 versions = "7.0"
 isolang = { version = "2.4", features = ["serde"] }
 syn = { version = "2.0", features = ["full"] }
@@ -58,11 +57,21 @@ quote = "1.0"
 cfg_aliases = "0.2"
 itertools = "0.14"
 criterion = "0.5"
-uuid = { version = "1.15", features = ["v4", "serde"] }
+uuid = { version = "1.16", features = ["v4", "serde"] }
 ringbuffer = "0.15"
+petgraph = "0.8"
+arc-swap = "1.7"
+camino = { version = "1.1", features = ["serde1"] }
+
+# Add back when I'm ready for jit supports
+# cranelift = { version = "0.118", features = ["jit", "native", "module"] }
+
 
 # 3DS stuff
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
+debug = true
+
+[profile.release]
 debug = true

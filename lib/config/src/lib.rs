@@ -39,12 +39,8 @@ pub static CONFIG_LOCATION: LazyLock<PathBuf> =
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, EnumIter, Display, PartialEq, Eq, Default)]
 /// Processor execution mode, if your platform supports JIT
 pub enum ProcessorExecutionMode {
-    #[cfg_attr(not(jit), default)]
-    /// Interpreted mode, slow
+    #[default]
     Interpret,
-    #[cfg_attr(jit, default)]
-    /// JIT mode, faster but less accurate
-    Jit,
 }
 
 #[serde_as]

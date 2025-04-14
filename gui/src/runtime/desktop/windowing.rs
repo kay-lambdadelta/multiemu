@@ -155,10 +155,10 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
         let state = match std::mem::replace(&mut self.mode, RuntimeMode::Idle) {
             RuntimeMode::Idle => RS::new(
                 display_api_handle.clone(),
-                <R as RenderBackend>::ContextExtensionSpecification::default(),
-                <R as RenderBackend>::ContextExtensionSpecification::default(),
                 environment.clone(),
                 self.shader_cache.clone(),
+                <R as RenderBackend>::ContextExtensionSpecification::default(),
+                <R as RenderBackend>::ContextExtensionSpecification::default(),
             )
             .unwrap(),
             RuntimeMode::Pending {
@@ -268,10 +268,15 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                             let database_transaction =
                                 self.rom_manager.rom_information.begin_read().unwrap();
                             let database_table = database_transaction
-                                .open_table(ROM_INFORMATION_TABLE)
+                                .open_multimap_table(ROM_INFORMATION_TABLE)
                                 .unwrap();
-
-                            let rom_info = database_table.get(&rom_id).unwrap().unwrap().value();
+                            let rom_info = database_table
+                                .get(&rom_id)
+                                .unwrap()
+                                .next()
+                                .unwrap()
+                                .unwrap()
+                                .value();
 
                             let WindowingContext {
                                 egui_winit,
@@ -304,11 +309,10 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
                         unreachable!()
                     };
 
-                    let output =
-                        machine.run(self.previous_frame_time, self.previous_frame_render_time);
+                    machine.run(self.previous_frame_time, self.previous_frame_render_time);
 
                     let start_frame_render_period = Instant::now();
-                    windowing.state.redraw(&output);
+                    windowing.state.redraw(machine);
                     let frame_render_duration = start_frame_render_period.elapsed();
                     let frame_duration = start_period.elapsed();
 
@@ -391,10 +395,10 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
 
         let render_backend_state = RS::new(
             display_api_handle.clone(),
-            preferred_extensions,
-            required_extensions,
             environment.clone(),
             self.shader_cache.clone(),
+            preferred_extensions,
+            required_extensions,
         )
         .unwrap();
 
@@ -402,7 +406,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
             machine_builder.build::<R>(render_backend_state.component_initialization_data());
 
         // HACK: Map the keyboard to the first gamepad
-        if let Some(virtual_gamepad_id) = machine.virtual_gamepads().keys().next().copied() {
+        if let Some(virtual_gamepad_id) = machine.virtual_gamepads.keys().next().copied() {
             self.gamepad_mapping.insert(KEYBOARD_ID, virtual_gamepad_id);
         }
 
@@ -432,10 +436,10 @@ fn insert_input<R: RenderBackend>(
     if let Some(virtual_id) = gamepad_mapping.get(&id) {
         let environment_guard = environment.read().unwrap();
 
-        if let Some(virtual_gamepad) = machine.virtual_gamepads().get(virtual_id) {
+        if let Some(virtual_gamepad) = machine.virtual_gamepads.get(virtual_id) {
             if let Some(transformed_input) = environment_guard
                 .gamepad_configs
-                .get(&machine.system())
+                .get(&machine.game_system)
                 .and_then(|gamepad_types| gamepad_types.get(&virtual_gamepad.name()))
                 .and_then(|gamepad_transformer| gamepad_transformer.get(&input))
             {

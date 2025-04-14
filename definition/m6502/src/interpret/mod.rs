@@ -11,6 +11,9 @@ use num::traits::{FromBytes, ToBytes};
 const STACK_BASE_ADDRESS: usize = 0x0100;
 const INTERRUPT_VECTOR: usize = 0xfffe;
 
+#[cfg(test)]
+mod tests;
+
 // NOTE: https://www.pagetable.com/c64ref/6502
 
 impl M6502Task {
@@ -19,8 +22,6 @@ impl M6502Task {
         state: &mut ProcessorState,
         instruction: M6502InstructionSet,
     ) {
-        tracing::trace!("Interpreting instruction: {:x?}", instruction,);
-
         let memory_translation_table = self.essentials.memory_translation_table();
 
         match instruction.opcode {
@@ -250,7 +251,22 @@ impl M6502Task {
             Opcode::Cpx => todo!(),
             Opcode::Cpy => todo!(),
             Opcode::Dcp => todo!(),
-            Opcode::Dec => todo!(),
+            Opcode::Dec => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+
+                let result = value.wrapping_sub(1);
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+
+                if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
+                    state.a = result;
+                } else {
+                    state.execution_mode = Some(ExecutionMode::Store { value: result });
+                }
+            }
             Opcode::Dex => {
                 let result = state.x.wrapping_sub(1);
 
@@ -271,7 +287,18 @@ impl M6502Task {
 
                 state.y = result;
             }
-            Opcode::Eor => todo!(),
+            Opcode::Eor => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+
+                let result = state.a ^ value;
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+
+                state.a = result;
+            }
             Opcode::Inc => {
                 let value: u8 = self.load(state, &instruction, memory_translation_table);
 
@@ -349,7 +376,23 @@ impl M6502Task {
 
                 state.y = value;
             }
-            Opcode::Lsr => todo!(),
+            Opcode::Lsr => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+                let value_bits = value.view_bits::<Msb0>();
+
+                let carry = value_bits[0];
+                let value = value >> 1;
+
+                state.flags.remove(FlagRegister::Negative);
+                state.flags.set(FlagRegister::Carry, carry);
+                state.flags.set(FlagRegister::Zero, value == 0);
+
+                if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
+                    state.a = value;
+                } else {
+                    state.execution_mode = Some(ExecutionMode::Store { value });
+                }
+            }
             Opcode::Nop => {
                 if instruction.addressing_mode.is_some() {
                     let _: u8 = self.load(state, &instruction, memory_translation_table);
@@ -424,8 +467,42 @@ impl M6502Task {
                 state.stack = state.stack.wrapping_add(1);
             }
             Opcode::Rla => todo!(),
-            Opcode::Rol => todo!(),
-            Opcode::Ror => todo!(),
+            Opcode::Rol => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+                let value_bits = value.view_bits::<Msb0>();
+
+                let carry = value_bits[7];
+                let negative = value_bits[6];
+                let value = value.rotate_left(1);
+
+                state.flags.set(FlagRegister::Carry, carry);
+                state.flags.set(FlagRegister::Negative, negative);
+                state.flags.set(FlagRegister::Zero, value == 0);
+
+                if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
+                    state.a = value;
+                } else {
+                    state.execution_mode = Some(ExecutionMode::Store { value });
+                }
+            }
+            Opcode::Ror => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+                let value_bits = value.view_bits::<Msb0>();
+
+                let carry = value_bits[0];
+                let negative = value_bits[1];
+                let value = value.rotate_right(1);
+
+                state.flags.set(FlagRegister::Carry, carry);
+                state.flags.set(FlagRegister::Negative, negative);
+                state.flags.set(FlagRegister::Zero, value == 0);
+
+                if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
+                    state.a = value;
+                } else {
+                    state.execution_mode = Some(ExecutionMode::Store { value });
+                }
+            }
             Opcode::Rra => todo!(),
             Opcode::Rti => todo!(),
             Opcode::Rts => {
@@ -465,11 +542,42 @@ impl M6502Task {
             Opcode::Sta => {
                 self.store(state, &instruction, memory_translation_table, state.a);
             }
-            Opcode::Stx => todo!(),
-            Opcode::Sty => todo!(),
-            Opcode::Tax => todo!(),
-            Opcode::Tay => todo!(),
-            Opcode::Tsx => todo!(),
+            Opcode::Stx => {
+                self.store(state, &instruction, memory_translation_table, state.x);
+            }
+            Opcode::Sty => {
+                self.store(state, &instruction, memory_translation_table, state.y);
+            }
+            Opcode::Tax => {
+                let result = state.a;
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+
+                state.x = result;
+            }
+            Opcode::Tay => {
+                let result = state.a;
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+
+                state.y = result;
+            }
+            Opcode::Tsx => {
+                let result = state.stack;
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+
+                state.x = result;
+            }
             Opcode::Txa => {
                 let result = state.x;
 
@@ -483,7 +591,16 @@ impl M6502Task {
             Opcode::Txs => {
                 state.stack = state.x;
             }
-            Opcode::Tya => todo!(),
+            Opcode::Tya => {
+                let result = state.y;
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+
+                state.a = result;
+            }
             Opcode::Xaa => {
                 let value: u8 = self.load(state, &instruction, memory_translation_table);
             }

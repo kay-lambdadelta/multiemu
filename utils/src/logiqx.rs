@@ -1,6 +1,6 @@
 use isolang::Language;
 use multiemu_rom::id::RomId;
-use multiemu_rom::info::RomInfo;
+use multiemu_rom::info::RomInfoV0;
 use multiemu_rom::manager::ROM_INFORMATION_TABLE;
 use multiemu_rom::manager::RomManager;
 use multiemu_rom::system::GameSystem;
@@ -13,7 +13,6 @@ use std::error::Error;
 use std::io::BufRead;
 use std::str::FromStr;
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Datafile {
     pub header: Header,
@@ -21,7 +20,6 @@ pub struct Datafile {
     pub machine: Vec<Machine>,
 }
 
-#[allow(dead_code)]
 #[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct Header {
@@ -29,16 +27,13 @@ pub struct Header {
     pub name: GameSystem,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Machine {
     #[serde(rename = "@name")]
     pub name: String,
-    pub description: String,
     pub rom: Vec<Rom>,
 }
 
-#[allow(dead_code)]
 #[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct Rom {
@@ -47,7 +42,6 @@ pub struct Rom {
     #[serde_as(as = "DisplayFromStr")]
     #[serde(rename = "@sha1")]
     pub id: RomId,
-    pub status: Option<String>,
 }
 
 fn get_data_in_parentheses(input: &str) -> Vec<String> {
@@ -134,21 +128,22 @@ pub fn import(
     );
 
     let database_transaction = rom_manager.rom_information.begin_write()?;
-    let mut database_table = database_transaction.open_table(ROM_INFORMATION_TABLE)?;
+    let mut database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
 
-    for mut entry in data_file.machine {
+    for mut machine in data_file.machine {
         let mut dependencies = BTreeSet::default();
 
         // Extract dependency roms
-        for rom in entry.rom.drain(1..) {
+        for rom in machine.rom.drain(1..) {
             let mut languages = BTreeSet::default();
 
             if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
                 languages.extend(name_metadata.languages);
             }
 
-            let info = RomInfo {
-                name: rom.name,
+            let info = RomInfoV0 {
+                name: machine.name.clone(),
+                file_name: rom.name.replace('\\', "/").into(),
                 system: data_file.header.name,
                 languages,
                 dependencies: BTreeSet::default(),
@@ -160,15 +155,16 @@ pub fn import(
             dependencies.insert(rom.id);
         }
 
-        let rom = entry.rom.remove(0);
+        let rom = machine.rom.remove(0);
         let mut languages = BTreeSet::default();
 
         if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
             languages.extend(name_metadata.languages);
         }
 
-        let info = RomInfo {
-            name: rom.name,
+        let info = RomInfoV0 {
+            name: machine.name,
+            file_name: rom.name.replace('\\', "/").into(),
             system: data_file.header.name,
             languages,
             dependencies,

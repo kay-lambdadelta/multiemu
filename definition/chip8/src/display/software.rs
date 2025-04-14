@@ -1,7 +1,8 @@
 use super::{Chip8Display, Chip8DisplayBackend, draw_sprite_common};
-use multiemu_machine::display::FrameReceptacle;
 use multiemu_machine::display::backend::RenderBackend;
-use multiemu_machine::display::backend::software::SoftwareRendering;
+use multiemu_machine::display::backend::software::{
+    SoftwareComponentFramebuffer, SoftwareRendering,
+};
 use nalgebra::{DMatrix, Point2};
 use palette::Srgba;
 use std::cell::RefCell;
@@ -49,14 +50,14 @@ impl Chip8DisplayBackend for SoftwareState {
 pub fn set_display_data(
     display: &Chip8Display,
     _initialization_data: Arc<<SoftwareRendering as RenderBackend>::ComponentInitializationData>,
-    frame_receptacle: Arc<FrameReceptacle<SoftwareRendering>>,
-) {
+) -> SoftwareComponentFramebuffer {
     let staging_buffer = DMatrix::from_element(64, 32, Srgba::new(0, 0, 0, 255));
     let framebuffer = Arc::new(Mutex::new(staging_buffer.clone()));
-    frame_receptacle.submit(framebuffer.clone());
 
     let _ = display.state.set(Box::new(SoftwareState {
         staging_buffer: RefCell::new(staging_buffer),
-        framebuffer,
+        framebuffer: framebuffer.clone(),
     }));
+
+    framebuffer
 }

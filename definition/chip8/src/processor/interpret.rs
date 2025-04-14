@@ -235,7 +235,7 @@ impl Chip8ProcessorTask {
                 height,
             }) => {
                 let mut buffer =
-                    ArrayVec::<_, 16>::from_iter(std::iter::repeat(0).take(height as usize));
+                    ArrayVec::<_, 16>::from_iter(std::iter::repeat_n(0, height as usize));
 
                 let mut cursor = 0;
                 for buffer_section in buffer.chunks_mut(2) {

@@ -2,7 +2,7 @@ use clap::Subcommand;
 use multiemu_config::Environment;
 use multiemu_rom::{
     manager::RomManager,
-    system::{GameSystem, NintendoSystem},
+    system::{GameSystem, NintendoSystem, SegaSystem, SonySystem},
 };
 use std::{
     error::Error,
@@ -18,6 +18,10 @@ const BASE_URL: &str = "http://redump.org/datfile/";
 pub enum RedumpSystem {
     Gc,
     Wii,
+    Psx,
+    Ps2,
+    Ps3,
+    Mcd,
 }
 
 impl TryFrom<GameSystem> for RedumpSystem {
@@ -27,6 +31,10 @@ impl TryFrom<GameSystem> for RedumpSystem {
         match value {
             GameSystem::Nintendo(NintendoSystem::GameCube) => Ok(Self::Gc),
             GameSystem::Nintendo(NintendoSystem::Wii) => Ok(Self::Wii),
+            GameSystem::Sony(SonySystem::Playstation) => Ok(Self::Psx),
+            GameSystem::Sony(SonySystem::Playstation2) => Ok(Self::Ps2),
+            GameSystem::Sony(SonySystem::Playstation3) => Ok(Self::Ps3),
+            GameSystem::Sega(SegaSystem::SegaCD) => Ok(Self::Mcd),
             _ => Err(()),
         }
     }

@@ -19,6 +19,8 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 num = { workspace = true }
+petgraph = { workspace = true }
+nalgebra = { workspace = true }
 
 [build-dependencies]
 multiemu-macros = { workspace = true }
@@ -31,5 +33,4 @@ vulkano = { workspace = true, optional = true }
 criterion = { workspace = true }
 
 [features]
-jit = ["multiemu-machine/jit", "multiemu-definition-m6502/jit"]
 vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]

@@ -13,6 +13,7 @@ strum = { workspace = true }
 redb = { workspace = true }
 isolang = { workspace = true }
 indexmap = { workspace = true }
-data-encoding = "2.8"
+camino = { workspace = true }
+data-encoding = "2.9"
 sha1 = "0.10"
 bincode = { version = "2.0", features = ["serde"] }

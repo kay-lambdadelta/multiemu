@@ -1,7 +1,7 @@
 use crate::{
     Machine,
     component::{Component, ComponentId, FromConfig, RuntimeEssentials, store::ComponentStore},
-    display::{FrameReceptacle, backend::RenderBackend, shader::ShaderCache},
+    display::{backend::RenderBackend, shader::ShaderCache},
     memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
 };
@@ -139,7 +139,7 @@ impl MachineBuilder {
             }
         }
 
-        let mut frame_receptacles = HashMap::new();
+        let mut framebuffers = HashMap::new();
         let mut tasks = Vec::new();
         let mut all_gamepads = Vec::default();
 
@@ -149,10 +149,8 @@ impl MachineBuilder {
                 self.essentials
                     .component_store()
                     .interact_dyn_local(component_id, |component| {
-                        let frame_receptacle = Arc::new(FrameReceptacle::default());
-
                         // Call the display callback
-                        (display_metadata
+                        let framebuffer = (display_metadata
                             .backend_specific_data
                             .remove(&TypeId::of::<R>())
                             .and_then(|item| item.downcast::<BackendSpecificData<R>>().ok())
@@ -160,10 +158,9 @@ impl MachineBuilder {
                             .set_display_callback)(
                             component,
                             display_component_initialization_data.clone(),
-                            frame_receptacle.clone(),
                         );
 
-                        frame_receptacles.insert(component_id, frame_receptacle);
+                        framebuffers.insert(component_id, framebuffer);
                     });
             }
 
@@ -212,7 +209,7 @@ impl MachineBuilder {
             scheduler,
             component_store: self.essentials.component_store().clone(),
             memory_translation_table,
-            frame_receptacles,
+            framebuffers,
             virtual_gamepads: all_gamepads
                 .into_iter()
                 .enumerate()

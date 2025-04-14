@@ -71,9 +71,15 @@ fn main() {
                 let system = forced_system.unwrap_or_else(|| {
                     let database_transaction = rom_manager.rom_information.begin_read().unwrap();
                     let database_table = database_transaction
-                        .open_table(ROM_INFORMATION_TABLE)
+                        .open_multimap_table(ROM_INFORMATION_TABLE)
                         .unwrap();
-                    let rom_info = database_table.get(&roms[0]).unwrap().unwrap().value();
+                    let rom_info = database_table
+                        .get(&roms[0])
+                        .unwrap()
+                        .next()
+                        .unwrap()
+                        .unwrap()
+                        .value();
                     rom_info.system
                 });
                 (system, roms)
@@ -90,9 +96,15 @@ fn main() {
                 let game_system = forced_system.unwrap_or_else(|| {
                     let database_transaction = rom_manager.rom_information.begin_read().unwrap();
                     let database_table = database_transaction
-                        .open_table(ROM_INFORMATION_TABLE)
+                        .open_multimap_table(ROM_INFORMATION_TABLE)
                         .unwrap();
-                    let rom_info = database_table.get(&rom_ids[0]).unwrap().unwrap().value();
+                    let rom_info = database_table
+                        .get(&rom_ids[0])
+                        .unwrap()
+                        .next()
+                        .unwrap()
+                        .unwrap()
+                        .value();
                     rom_info.system
                 });
 

@@ -21,7 +21,7 @@
             },
             "args": [
                 "run-external",
-                "roms/slipperyslope.ch8"
+                "/home/lambdadelta/Roms/Atari - 2600/McDonald's - Golden Arches Adventure (USA) (Proto)/McDonald's - Golden Arches Adventure (USA) (Proto).a26"
             ],
             "cwd": "${workspaceFolder}"
         },

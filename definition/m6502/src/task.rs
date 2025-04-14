@@ -29,8 +29,6 @@ impl Task<M6502> for M6502Task {
                 continue;
             }
 
-            tracing::trace!("Execution mode: {:#?}", state.execution_mode);
-
             match state.execution_mode.take().unwrap() {
                 ExecutionMode::Fetch => {
                     let (instruction, identifiying_bytes_length) = self
@@ -42,7 +40,7 @@ impl Task<M6502> for M6502Task {
                         )
                         .unwrap();
 
-                    tracing::trace!("Decoded instruction: {:#?}", instruction);
+                    tracing::debug!("Decoded instruction: {:#?}", instruction);
 
                     state.program = state.program.wrapping_add(
                         identifiying_bytes_length as u16
@@ -76,7 +74,6 @@ impl Task<M6502> for M6502Task {
                                     LoadStep::Data,
                                     LoadStep::LatchToBus,
                                     LoadStep::Offset { offset },
-                                    LoadStep::LatchToBus,
                                 ]),
                             }
                         }
@@ -91,7 +88,6 @@ impl Task<M6502> for M6502Task {
                                     LoadStep::Data,
                                     LoadStep::LatchToBus,
                                     LoadStep::Offset { offset },
-                                    LoadStep::LatchToBus,
                                 ]),
                             }
                         }
@@ -136,7 +132,6 @@ impl Task<M6502> for M6502Task {
                                     LoadStep::Data,
                                     LoadStep::LatchToBus,
                                     LoadStep::Offset { offset },
-                                    LoadStep::LatchToBus,
                                 ]),
                             }
                         }
@@ -150,7 +145,6 @@ impl Task<M6502> for M6502Task {
                                     LoadStep::Data,
                                     LoadStep::LatchToBus,
                                     LoadStep::Offset { offset },
-                                    LoadStep::LatchToBus,
                                 ]),
                             }
                         }
@@ -164,7 +158,6 @@ impl Task<M6502> for M6502Task {
                                     LoadStep::Data,
                                     LoadStep::LatchToBus,
                                     LoadStep::Offset { offset },
-                                    LoadStep::LatchToBus,
                                 ]),
                             }
                         }
@@ -199,21 +192,25 @@ impl Task<M6502> for M6502Task {
 
                             period -= 1;
                         }
-                        Some(LoadStep::LatchToBus) => match latch.len() {
-                            0 => {
-                                unreachable!()
+                        Some(LoadStep::LatchToBus) => {
+                            match latch.len() {
+                                0 => {
+                                    unreachable!()
+                                }
+                                1 => {
+                                    state.address_bus = latch[0] as u16;
+                                }
+                                2 => {
+                                    let latch = [latch[1], latch[0]];
+                                    state.address_bus = u16::from_le_bytes(latch);
+                                }
+                                _ => {
+                                    unreachable!()
+                                }
                             }
-                            1 => {
-                                state.address_bus = latch[0] as u16;
-                            }
-                            2 => {
-                                let latch = [latch[1], latch[0]];
-                                state.address_bus = u16::from_le_bytes(latch);
-                            }
-                            _ => {
-                                unreachable!()
-                            }
-                        },
+
+                            latch.clear();
+                        }
                         Some(LoadStep::Offset { offset }) => {
                             state.address_bus = state.address_bus.wrapping_add(offset as u16);
                         }

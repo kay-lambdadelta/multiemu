@@ -1,18 +1,25 @@
-use crate::{id::RomId, info::RomInfo, system::GameSystem};
-use indexmap::IndexMap;
-use redb::{Database, ReadableTable, TableDefinition, backends::InMemoryBackend};
+use crate::{id::RomId, info::RomInfoV0, system::GameSystem};
+use camino::Utf8PathBuf;
+use redb::{
+    Database, MultimapTableDefinition, ReadableMultimapTable, TableDefinition,
+    backends::InMemoryBackend,
+};
 use std::{
     collections::BTreeSet,
     fmt::Debug,
     fs::{self, File, create_dir_all},
+    ops::Deref,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::RwLock,
 };
 
 /// Definition of the rom information table
-pub const ROM_INFORMATION_TABLE: TableDefinition<RomId, RomInfo> =
-    TableDefinition::new("rom_information");
+pub const ROM_INFORMATION_TABLE: MultimapTableDefinition<RomId, RomInfoV0> =
+    MultimapTableDefinition::new("rom_information");
+
+pub const DATABASE_VERSION_TABLE: TableDefinition<(), u8> = TableDefinition::new("version");
+
+const CACHE_SIZE: usize = 64 * 1024 * 1024; // 64MB
 
 #[derive(Debug, Clone)]
 pub enum LoadedRomLocation {
@@ -26,7 +33,7 @@ pub enum LoadedRomLocation {
 /// The ROM manager which contains the database and information about the roms that were loaded
 pub struct RomManager {
     pub rom_information: Database,
-    pub loaded_roms: RwLock<IndexMap<RomId, LoadedRomLocation>>,
+    pub loaded_roms: scc::HashMap<RomId, LoadedRomLocation>,
 }
 
 impl RomManager {
@@ -40,16 +47,21 @@ impl RomManager {
         let rom_information = if let Some(path) = database {
             let _ = create_dir_all(path.parent().unwrap());
 
-            Database::builder().create(path)?
+            Database::builder()
+                .set_cache_size(CACHE_SIZE)
+                .create(path)?
         } else {
-            Database::builder().create_with_backend(InMemoryBackend::default())?
+            Database::builder()
+                .set_cache_size(CACHE_SIZE)
+                .create_with_backend(InMemoryBackend::default())?
         };
 
-        let database_transaction = rom_information.begin_write()?;
-        database_transaction.open_table(ROM_INFORMATION_TABLE)?;
+        let mut database_transaction = rom_information.begin_write()?;
+        database_transaction.set_quick_repair(true);
+        database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
         database_transaction.commit()?;
 
-        let mut loaded_roms = IndexMap::new();
+        let loaded_roms = scc::HashMap::new();
 
         if let Some(rom_store) = rom_store {
             let _ = create_dir_all(rom_store);
@@ -63,7 +75,7 @@ impl RomManager {
                         .ok()
                         .and_then(|file| RomId::from_str(&file).ok())
                     {
-                        loaded_roms.insert(file, LoadedRomLocation::Internal);
+                        loaded_roms.upsert(file, LoadedRomLocation::Internal);
                     } else {
                         tracing::error!(
                             "Internal ROM store has a file thats name is not a valid ROM ID, please remove it: {:?}",
@@ -76,7 +88,7 @@ impl RomManager {
 
         Ok(Self {
             rom_information,
-            loaded_roms: RwLock::new(loaded_roms),
+            loaded_roms,
         })
     }
 
@@ -94,15 +106,23 @@ impl RomManager {
         let database = Database::builder().open(path)?;
         let external_database_transaction = database.begin_read()?;
         let external_database_table =
-            external_database_transaction.open_table(ROM_INFORMATION_TABLE)?;
+            external_database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
 
         for item in external_database_table.iter()? {
-            let (rom_id, rom_info) = item?;
+            let (rom_id, rom_infos) = item?;
 
             let internal_database_transaction = self.rom_information.begin_write()?;
             let mut internal_database_table =
-                internal_database_transaction.open_table(ROM_INFORMATION_TABLE)?;
-            internal_database_table.insert(rom_id.value(), rom_info.value())?;
+                internal_database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
+
+            for rom_info in rom_infos.into_iter() {
+                let rom_info = rom_info?;
+
+                internal_database_table
+                    .insert(rom_id.value(), rom_info.value())
+                    .unwrap();
+            }
+
             drop(internal_database_table);
             internal_database_transaction.commit()?;
         }
@@ -117,8 +137,8 @@ impl RomManager {
         requirement: RomRequirement,
         internal_rom_store: impl AsRef<Path>,
     ) -> Option<File> {
-        if let Some(path) = self.loaded_roms.read().unwrap().get(&id).cloned() {
-            match path {
+        if let Some(path) = self.loaded_roms.get(&id) {
+            match path.deref() {
                 LoadedRomLocation::Internal => {
                     let internal_rom_store = internal_rom_store.as_ref();
                     return Some(File::open(internal_rom_store.join(id.to_string())).unwrap());
@@ -155,58 +175,71 @@ impl RomManager {
         &self,
         rom: impl AsRef<Path>,
     ) -> Result<Option<RomId>, Box<dyn std::error::Error>> {
-        let rom = rom.as_ref();
+        let rom_path = rom.as_ref();
 
-        if rom.is_file() {
-            let file = File::open(rom).unwrap();
-            let rom_id = RomId::from_read(file);
-
-            let write_transaction = self.rom_information.begin_write().unwrap();
-            let mut table = write_transaction.open_table(ROM_INFORMATION_TABLE).unwrap();
-
-            // Try to figure out what kind of game is this
-            if let Some(game_system) = table
-                .get(rom_id)
-                .unwrap()
-                .map(|info| info.value().system)
-                .or_else(|| GameSystem::guess(rom))
-            {
-                // Put its location in the store
-                self.loaded_roms
-                    .write()
-                    .unwrap()
-                    .insert(rom_id, LoadedRomLocation::External(rom.to_path_buf()));
-
-                // Add a stub for it in the database
-                if table.get(rom_id).unwrap().is_none() {
-                    tracing::info!(
-                        "Adding basic ROM definition for {} to database due to it being absent (its id is {})",
-                        rom.display(),
-                        rom_id
-                    );
-
-                    table
-                        .insert(
-                            rom_id,
-                            RomInfo {
-                                name: rom.file_name().unwrap().to_string_lossy().to_string(),
-                                system: game_system,
-                                languages: BTreeSet::default(),
-                                dependencies: BTreeSet::default(),
-                            },
-                        )
-                        .unwrap();
-                }
-
-                drop(table);
-                write_transaction.commit().unwrap();
-
-                return Ok(Some(rom_id));
-            } else {
-                tracing::error!("Could not identify ROM at {}", rom.display());
-            }
+        if !rom_path.is_file() {
+            return Ok(None);
         }
 
+        let file = File::open(rom_path)?;
+        let rom_id = RomId::from_read(file);
+
+        let write_transaction = self.rom_information.begin_write()?;
+        let mut table = write_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
+
+        // Determine the game system
+        let game_system = table
+            .get(rom_id)
+            .ok()
+            .and_then(|info| {
+                info.into_iter()
+                    .next()
+                    .and_then(|entry| entry.ok().map(|v| v.value().system))
+            })
+            .or_else(|| GameSystem::guess(rom_path));
+
+        if let Some(game_system) = game_system {
+            // Update the ROM location
+            self.loaded_roms
+                .upsert(rom_id, LoadedRomLocation::External(rom_path.to_path_buf()));
+
+            // Add a stub entry to the database if it doesn't exist
+            if table.get(rom_id)?.is_empty() {
+                tracing::info!(
+                    "Adding basic ROM definition for {} to database (ID: {})",
+                    rom_path.display(),
+                    rom_id
+                );
+
+                table.insert(
+                    rom_id,
+                    RomInfoV0 {
+                        name: rom_path
+                            .with_extension("")
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string(),
+                        file_name: Utf8PathBuf::from(
+                            rom_path
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string(),
+                        ),
+                        system: game_system,
+                        languages: BTreeSet::new(),
+                        dependencies: BTreeSet::new(),
+                    },
+                )?;
+            }
+
+            drop(table);
+            write_transaction.commit()?;
+            return Ok(Some(rom_id));
+        }
+
+        tracing::error!("Could not identify ROM at {}", rom_path.display());
         Ok(None)
     }
 }

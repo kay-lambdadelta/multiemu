@@ -1,19 +1,15 @@
 use crate::gui::software_rendering::SoftwareEguiRenderer;
 use crate::rendering_backend::RenderingBackendState;
 use multiemu_config::Environment;
-use multiemu_machine::RunOutput;
-use multiemu_machine::component::ComponentId;
+use multiemu_machine::Machine;
 use multiemu_machine::display::backend::RenderBackend;
-use multiemu_machine::display::backend::software::{
-    SoftwareComponentFramebuffer, SoftwareRendering,
-};
+use multiemu_machine::display::backend::software::SoftwareRendering;
 use multiemu_machine::display::shader::ShaderCache;
 use nalgebra::{DMatrixViewMut, Vector2};
 use palette::Srgba;
 use palette::cast::Packed;
 use palette::rgb::channels::Argb;
 use softbuffer::{Context, Surface};
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use winit::window::Window;
 
@@ -23,7 +19,6 @@ pub struct SoftwareRenderingRuntime {
     egui_renderer: SoftwareEguiRenderer,
     previously_recorded_size: Vector2<u16>,
     environment: Arc<RwLock<Environment>>,
-    previously_seen_frames: HashMap<ComponentId, SoftwareComponentFramebuffer>,
 }
 
 impl RenderingBackendState for SoftwareRenderingRuntime {
@@ -32,10 +27,10 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
-        _preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
-        _required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         environment: Arc<RwLock<Environment>>,
         _shader_cache: Arc<ShaderCache>,
+        _preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
+        _required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
@@ -54,7 +49,6 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             egui_renderer: SoftwareEguiRenderer::default(),
             environment,
             previously_recorded_size: window_dimensions.cast(),
-            previously_seen_frames: HashMap::new(),
         })
     }
 
@@ -64,7 +58,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         Arc::default()
     }
 
-    fn redraw(&mut self, output: &RunOutput<Self::RenderBackend>) {
+    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>) {
         if self.previously_recorded_size.min() == 0 {
             return;
         }
@@ -77,11 +71,6 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         );
         surface_buffer_view.fill(Packed::<Argb, u32>::pack(Srgba::new(0, 0, 0, 0xff)));
 
-        for (component_id, framebuffer) in &output.screens {
-            self.previously_seen_frames
-                .insert(*component_id, framebuffer.clone());
-        }
-
         let integer_scaling = self
             .environment
             .read()
@@ -89,13 +78,12 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             .graphics_setting
             .integer_scaling;
 
-        if integer_scaling {
-            for (_, component_framebuffer) in self.previously_seen_frames.iter() {
-                let component_framebuffer = component_framebuffer.lock().unwrap();
+        for (_, framebuffer) in machine.framebuffers.iter() {
+            if integer_scaling {
+                let framebuffer = framebuffer.lock().unwrap();
 
                 let component_display_buffer_size =
-                    Vector2::new(component_framebuffer.nrows(), component_framebuffer.ncols())
-                        .cast::<u16>();
+                    Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();
 
                 let scaling = self
                     .previously_recorded_size
@@ -103,9 +91,9 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                     .cast::<usize>();
 
                 // Iterate over each pixel in the display component buffer
-                for x in 0..component_framebuffer.nrows() {
-                    for y in 0..component_framebuffer.ncols() {
-                        let source_pixel = component_framebuffer[(x, y)];
+                for x in 0..framebuffer.nrows() {
+                    for y in 0..framebuffer.ncols() {
+                        let source_pixel = framebuffer[(x, y)];
 
                         let dest_start = Vector2::new(x, y).component_mul(&scaling).zip_map(
                             &self.previously_recorded_size.cast::<usize>(),
@@ -128,14 +116,11 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                         destination_pixels.fill(Packed::pack(source_pixel));
                     }
                 }
-            }
-        } else {
-            for (_, component_framebuffer) in self.previously_seen_frames.iter() {
-                let component_framebuffer = component_framebuffer.lock().unwrap();
+            } else {
+                let framebuffer = framebuffer.lock().unwrap();
 
                 let component_display_buffer_size =
-                    Vector2::new(component_framebuffer.nrows(), component_framebuffer.ncols())
-                        .cast::<u16>();
+                    Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();
 
                 let scaling = self
                     .previously_recorded_size
@@ -143,9 +128,9 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                     .component_div(&component_display_buffer_size.cast::<f32>());
 
                 // Iterate over each pixel in the display component buffer
-                for x in 0..component_framebuffer.nrows() {
-                    for y in 0..component_framebuffer.ncols() {
-                        let source_pixel = component_framebuffer[(x, y)];
+                for x in 0..framebuffer.nrows() {
+                    for y in 0..framebuffer.ncols() {
+                        let source_pixel = framebuffer[(x, y)];
 
                         let dest_start = Vector2::new(x, y)
                             .cast::<f32>()

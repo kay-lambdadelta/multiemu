@@ -20,7 +20,7 @@ isolang = { workspace = true }
 scc = { workspace = true }
 strum = { workspace = true }
 quick-xml = { version = "0.37", features = ["serialize"] }
-zip = { version = "2.5", default-features = false, features = [
+zip = { version = "2.6", default-features = false, features = [
     "zstd",
     "bzip2",
     "deflate64",

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display, iter::once, path::Path, str::FromStr};
+use std::{
+    cell::LazyCell, collections::HashMap, fmt::Display, iter::once, path::Path, str::FromStr,
+};
 use strum::{EnumIter, IntoEnumIterator};
 
 mod extension;
@@ -56,6 +58,8 @@ pub enum NintendoSystem {
     SuperNintendoEntertainmentSystem,
     Nintendo64,
     NintendoDS,
+    NintendoDSi,
+    Nintendo3DS,
     PokemonMini,
     VirtualBoy,
 }
@@ -130,48 +134,64 @@ impl FromStr for GameSystem {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let original_s = s;
 
-        let s = strip_brackets_and_parens(s)
-            .trim()
-            .to_lowercase()
-            .replace(' ', "");
+        let s = strip_brackets_and_parens(
+            &s.replace("Non-Redump -", "")
+                .replace("Unofficial -", "")
+                .replace("- BIOS Images", ""),
+        )
+        .trim()
+        .to_lowercase()
+        .replace(' ', "");
 
-        let systems: HashMap<String, GameSystem> = GameSystem::iter()
-            .map(|system| (system.to_string().to_lowercase().replace(' ', ""), system))
-            .collect();
-
-        if let Some(system) = systems.get(&s) {
-            return Ok(*system);
+        thread_local! {
+            static SYSTEMS_AS_STRINGS: LazyCell<HashMap<String, GameSystem>> = LazyCell::new(
+                || {
+                    GameSystem::iter()
+                        .map(|system| (system.to_string().to_lowercase().replace(' ', ""), system))
+                    .collect()
+                }
+            )
         }
 
-        let company_names = [
-            NintendoSystem::NAME,
-            SegaSystem::NAME,
-            SonySystem::NAME,
-            AtariSystem::NAME,
-            OtherSystem::NAME,
-        ];
-
-        for company_name in company_names.map(|company_name| company_name.to_lowercase()) {
-            if let Some(index) = s.rfind(&company_name) {
-                let mut s_without_company = s.clone();
-                s_without_company.replace_range(index..index + company_name.len(), "");
-
-                if let Some(system) = systems.get(&s_without_company) {
-                    return Ok(*system);
-                }
+        if let Some(system) = SYSTEMS_AS_STRINGS.with(|systems| {
+            if let Some(system) = systems.get(&s) {
+                return Some(*system);
             }
 
-            for (system_string, system) in &systems {
-                if let Some(index) = system_string.rfind(&company_name) {
-                    let mut system_string_without_company = system_string.clone();
-                    system_string_without_company
-                        .replace_range(index..index + company_name.len(), "");
+            let company_names = [
+                NintendoSystem::NAME,
+                SegaSystem::NAME,
+                SonySystem::NAME,
+                AtariSystem::NAME,
+                OtherSystem::NAME,
+            ];
 
-                    if s == system_string_without_company {
-                        return Ok(*system);
+            for company_name in company_names.map(|company_name| company_name.to_lowercase()) {
+                if let Some(index) = s.rfind(&company_name) {
+                    let mut s_without_company = s.clone();
+                    s_without_company.replace_range(index..index + company_name.len(), "");
+
+                    if let Some(system) = systems.get(&s_without_company) {
+                        return Some(*system);
+                    }
+                }
+
+                for (system_string, system) in systems.iter() {
+                    if let Some(index) = system_string.rfind(&company_name) {
+                        let mut system_string_without_company = system_string.clone();
+                        system_string_without_company
+                            .replace_range(index..index + company_name.len(), "");
+
+                        if s == system_string_without_company {
+                            return Some(*system);
+                        }
                     }
                 }
             }
+
+            None
+        }) {
+            return Ok(system);
         }
 
         Err(format!("Unknown system: {}", original_s))
@@ -202,6 +222,12 @@ impl Display for GameSystem {
             }
             GameSystem::Nintendo(NintendoSystem::Nintendo64) => write!(f, "Nintendo - Nintendo 64"),
             GameSystem::Nintendo(NintendoSystem::NintendoDS) => write!(f, "Nintendo - Nintendo DS"),
+            GameSystem::Nintendo(NintendoSystem::NintendoDSi) => {
+                write!(f, "Nintendo - Nintendo DSi")
+            }
+            GameSystem::Nintendo(NintendoSystem::Nintendo3DS) => {
+                write!(f, "Nintendo - Nintendo 3DS")
+            }
             GameSystem::Nintendo(NintendoSystem::PokemonMini) => {
                 write!(f, "Nintendo - Pokemon Mini")
             }

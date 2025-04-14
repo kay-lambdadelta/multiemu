@@ -1,7 +1,8 @@
 use super::system::GameSystem;
 use crate::id::RomId;
+use camino::Utf8PathBuf;
 use isolang::Language;
-use redb::{TypeName, Value};
+use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::BTreeSet;
@@ -9,8 +10,9 @@ use std::collections::BTreeSet;
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 /// Information about a ROM, for the database
-pub struct RomInfo {
+pub struct RomInfoV0 {
     pub name: String,
+    pub file_name: Utf8PathBuf,
     pub system: GameSystem,
     #[serde(default)]
     pub languages: BTreeSet<Language>,
@@ -18,7 +20,7 @@ pub struct RomInfo {
     pub dependencies: BTreeSet<RomId>,
 }
 
-impl Value for RomInfo {
+impl Value for RomInfoV0 {
     type SelfType<'a> = Self;
 
     type AsBytes<'a> = Vec<u8>;
@@ -45,5 +47,15 @@ impl Value for RomInfo {
 
     fn type_name() -> redb::TypeName {
         TypeName::new("rom_info")
+    }
+}
+
+impl Key for RomInfoV0 {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        let value1 = Self::from_bytes(data1);
+        let value2 = Self::from_bytes(data2);
+
+        // Only the name is used for comparison
+        value1.name.to_lowercase().cmp(&value2.name.to_lowercase())
     }
 }

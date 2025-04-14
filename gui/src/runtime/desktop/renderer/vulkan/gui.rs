@@ -126,7 +126,10 @@ impl VulkanEguiRenderer {
         let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
 
         let shader = shader_cache
-            .get::<SpirvShader>(include_str!("../egui.wgsl"), SemVer::new("1.0.0").unwrap())
+            .get::<SpirvShader>(
+                include_str!("../../../../../shaders/egui.wgsl"),
+                SemVer::new("1.0.0").unwrap(),
+            )
             .unwrap();
 
         // SAFETY: These shaders are pre validated by naga so this should be safe

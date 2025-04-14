@@ -50,7 +50,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             let _ = decoder.decode(
                 address,
                 ADDRESS_SPACE,
-                black_box(&machine.memory_translation_table()),
+                black_box(&machine.memory_translation_table),
             );
         })
     });

@@ -187,7 +187,7 @@ fn process_file(
     environment: Arc<Environment>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let database_transaction = rom_manager.rom_information.begin_read()?;
-    let database_table = database_transaction.open_table(ROM_INFORMATION_TABLE)?;
+    let database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
 
     let mut converted_reader = None;
 
@@ -217,13 +217,14 @@ fn process_file(
         })?,
     };
 
-    if let Some(rom_info) = database_table.get(&rom_id)? {
-        let rom_info = rom_info.value();
+    // Just fetch the first one
+    if let Some(rom_info) = database_table.get(&rom_id)?.next() {
+        let rom_info = rom_info?.value();
 
         tracing::info!(
             "Found ROM {} with name \"{}\" in file \"{}\"",
             rom_id,
-            rom_info.name,
+            rom_info.file_name,
             entry
         );
 

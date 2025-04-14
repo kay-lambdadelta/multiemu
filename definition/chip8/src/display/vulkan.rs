@@ -1,7 +1,7 @@
 use crate::display::{Chip8Display, Chip8DisplayBackend, draw_sprite_common};
-use multiemu_machine::display::FrameReceptacle;
+use arc_swap::ArcSwap;
 use multiemu_machine::display::backend::RenderBackend;
-use multiemu_machine::display::backend::vulkan::VulkanRendering;
+use multiemu_machine::display::backend::vulkan::{VulkanComponentFramebuffer, VulkanRendering};
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
 use palette::Srgba;
 use std::{ops::DerefMut, sync::Arc};
@@ -25,7 +25,7 @@ pub struct VulkanState {
     pub staging_buffer: Subbuffer<[Srgba<u8>]>,
     pub queue: Arc<Queue>,
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-    pub render_image: Arc<Image>,
+    pub render_image: Arc<ArcSwap<Image>>,
 }
 
 impl Chip8DisplayBackend for VulkanState {
@@ -66,7 +66,7 @@ impl Chip8DisplayBackend for VulkanState {
             // Copy the staging buffer to the image
             .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
                 self.staging_buffer.clone(),
-                self.render_image.clone(),
+                self.render_image.load_full(),
             ))
             .unwrap();
 
@@ -85,8 +85,7 @@ impl Chip8DisplayBackend for VulkanState {
 pub fn set_display_data(
     display: &Chip8Display,
     initialization_data: Arc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
-    frame_receptacle: Arc<FrameReceptacle<VulkanRendering>>,
-) {
+) -> VulkanComponentFramebuffer {
     let staging_buffer = Buffer::from_iter(
         initialization_data.memory_allocator.clone(),
         BufferCreateInfo {
@@ -101,24 +100,27 @@ pub fn set_display_data(
     )
     .unwrap();
 
-    let render_image = Image::new(
-        initialization_data.memory_allocator.clone(),
-        ImageCreateInfo {
-            image_type: ImageType::Dim2d,
-            format: Format::R8G8B8A8_SRGB,
-            extent: [64, 32, 1],
-            usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
-            ..Default::default()
-        },
-        AllocationCreateInfo::default(),
-    )
-    .unwrap();
-    frame_receptacle.submit(render_image.clone());
+    let render_image = Arc::new(ArcSwap::new(
+        Image::new(
+            initialization_data.memory_allocator.clone(),
+            ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: Format::R8G8B8A8_SRGB,
+                extent: [64, 32, 1],
+                usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
+                ..Default::default()
+            },
+            AllocationCreateInfo::default(),
+        )
+        .unwrap(),
+    ));
 
     let _ = display.state.set(Box::new(VulkanState {
         queue: initialization_data.best_queue(),
         command_buffer_allocator: initialization_data.command_buffer_allocator.clone(),
         staging_buffer,
-        render_image,
+        render_image: render_image.clone(),
     }));
+
+    render_image
 }

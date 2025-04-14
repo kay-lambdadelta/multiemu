@@ -23,6 +23,7 @@ rand = { workspace = true }
 downcast-rs = { workspace = true }
 palette = { workspace = true }
 crossbeam = { workspace = true }
+arc-swap = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }
@@ -31,14 +32,13 @@ criterion = { workspace = true }
 vulkano = { workspace = true, optional = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64", target_arch = "s390x")))'.dependencies]
-cranelift = { workspace = true, optional = true }
+# cranelift = { workspace = true, optional = true }
 
 [build-dependencies]
 multiemu-macros = { workspace = true }
 cfg_aliases = { workspace = true }
 
 [features]
-jit = ["dep:cranelift", "multiemu-machine/jit"]
 vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
 
 [[bench]]

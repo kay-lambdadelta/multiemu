@@ -3,11 +3,11 @@ use egui::{Align, Layout};
 use egui_extras::{Column, TableBuilder};
 use multiemu_rom::{
     id::RomId,
-    info::RomInfo,
+    info::RomInfoV0,
     manager::{LoadedRomLocation, ROM_INFORMATION_TABLE, RomManager},
     system::GameSystem,
 };
-use redb::ReadableTable;
+use redb::ReadableMultimapTable;
 use std::{
     collections::BTreeSet,
     fs::{File, read_dir},
@@ -99,9 +99,10 @@ impl FileBrowserState {
                     let path = self.directory_contents.get(row.index()).unwrap();
 
                     row.col(|ui| {
-                        let file_name = path.file_name().unwrap().to_str().unwrap();
+                        let name = path.with_extension("").file_name().unwrap().to_string_lossy().to_string();
+                        let file_name = path.file_name().unwrap().to_string_lossy().to_string();
 
-                        if ui.button(file_name).clicked() {
+                        if ui.button(&file_name).clicked() {
                             if path.is_dir() {
                                 new_dir = Some(path.to_path_buf());
                             }
@@ -110,40 +111,19 @@ impl FileBrowserState {
                                 let file = File::open(path).unwrap();
                                 let rom_id = RomId::from_read(file);
 
-                                let write_transaction =
-                                    self.rom_manager.rom_information.begin_write().unwrap();
-                                let mut table =
-                                    write_transaction.open_table(ROM_INFORMATION_TABLE).unwrap();
+                                let write_transaction = self.rom_manager.rom_information.begin_write().unwrap();
+                                let mut table = write_transaction.open_multimap_table(ROM_INFORMATION_TABLE).unwrap();
 
-                                // Try to figure out what kind of game is this
-                                if let Some(game_system) = table
-                                    .get(rom_id)
-                                    .unwrap()
-                                    .map(|info| info.value().system)
-                                    .or_else(|| GameSystem::guess(path))
-                                {
+                                // Try to figure out what kind of game this is
+                                if let Some(game_system) = table.get(rom_id).ok().and_then(|info| info.into_iter().next().and_then(|entry| entry.ok().map(|v| v.value().system))).or_else(|| GameSystem::guess(path)) {
                                     // Put its location in the store
-                                    self.rom_manager
-                                        .loaded_roms
-                                        .write()
-                                        .unwrap()
-                                        .insert(rom_id, LoadedRomLocation::External(path.clone()));
+                                    self.rom_manager.loaded_roms.upsert(rom_id, LoadedRomLocation::External(path.clone()));
 
                                     // Add a stub for it in the database
-                                    if table.get(rom_id).unwrap().is_none() {
+                                    if table.get(rom_id).unwrap().is_empty() {
                                         tracing::info!("Adding basic ROM definition for {} to database due to it being absent (its id is {})", path.display(), rom_id);
 
-                                        table
-                                            .insert(
-                                                rom_id,
-                                                RomInfo {
-                                                    name: file_name.to_string(),
-                                                    system: game_system,
-                                                    languages: BTreeSet::default(),
-                                                    dependencies: BTreeSet::default(),
-                                                },
-                                            )
-                                            .unwrap();
+                                        table.insert(rom_id, RomInfoV0 { name, file_name: file_name.into(), system: game_system, languages: BTreeSet::default(), dependencies: BTreeSet::default() }).unwrap();
                                     }
 
                                     drop(table);

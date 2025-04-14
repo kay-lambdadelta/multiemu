@@ -1,8 +1,5 @@
 use super::ComponentBuilder;
-use crate::{
-    component::Component,
-    display::{FrameReceptacle, backend::RenderBackend},
-};
+use crate::{component::Component, display::backend::RenderBackend};
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -18,7 +15,7 @@ pub struct BackendSpecificData<R: RenderBackend> {
     pub required_extensions: R::ContextExtensionSpecification,
     /// Callback for when display data is initialized per above specifications
     pub set_display_callback: Box<
-        dyn FnOnce(&dyn Component, Arc<R::ComponentInitializationData>, Arc<FrameReceptacle<R>>),
+        dyn FnOnce(&dyn Component, Arc<R::ComponentInitializationData>) -> R::ComponentFramebuffer,
     >,
 }
 
@@ -36,8 +33,8 @@ impl<C: Component> ComponentBuilder<'_, C> {
         set_display_callback: impl FnOnce(
             &C,
             Arc<R::ComponentInitializationData>,
-            Arc<FrameReceptacle<R>>,
-        ) + 'static,
+        ) -> R::ComponentFramebuffer
+        + 'static,
     ) -> Self {
         let backend_specific_data = &mut self
             .component_metadata
@@ -50,12 +47,10 @@ impl<C: Component> ComponentBuilder<'_, C> {
             Box::new(BackendSpecificData::<R> {
                 preferred_extensions: preferred_extensions.unwrap_or_default(),
                 required_extensions: required_extensions.unwrap_or_default(),
-                set_display_callback: Box::new(
-                    move |component, initialization_data, frame_channel| {
-                        let component = component.as_any().downcast_ref::<C>().unwrap();
-                        set_display_callback(component, initialization_data, frame_channel);
-                    },
-                ),
+                set_display_callback: Box::new(move |component, initialization_data| {
+                    let component = component.as_any().downcast_ref::<C>().unwrap();
+                    set_display_callback(component, initialization_data)
+                }),
             }),
         );
 

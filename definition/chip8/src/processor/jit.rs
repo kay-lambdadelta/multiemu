@@ -3,7 +3,6 @@ use crate::Chip8Kind;
 use crate::processor::ProcessorState;
 use cranelift::prelude::{Block, FunctionBuilder, InstBuilder, MemFlags, Value, types};
 use crossbeam::atomic::AtomicCell;
-use multiemu_machine::processor::jit::InstructionTranslator;
 use rangemap::RangeInclusiveMap;
 use std::{mem::offset_of, sync::Arc};
 

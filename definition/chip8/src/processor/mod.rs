@@ -6,7 +6,6 @@ use arrayvec::ArrayVec;
 use crossbeam::atomic::AtomicCell;
 use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
-use multiemu_config::ProcessorExecutionMode;
 use multiemu_machine::builder::ComponentBuilder;
 use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
 use multiemu_machine::input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata};
@@ -19,8 +18,8 @@ pub mod decoder;
 mod input;
 mod instruction;
 mod interpret;
-#[cfg(jit)]
-mod jit;
+// #[cfg(jit)]
+// mod jit;
 mod task;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -40,7 +39,6 @@ enum ExecutionState {
 // This is extremely complex because the chip8 cpu has a lot of non cpu machinery
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[cfg_attr(jit, repr(C))]
 struct Chip8ProcessorRegisters {
     work_registers: [u8; 16],
     index: u16,
@@ -75,7 +73,7 @@ impl Default for Chip8ProcessorQuirks {
 }
 
 #[derive(Debug)]
-#[cfg_attr(jit, repr(C))]
+// #[cfg_attr(jit, repr(C))]
 pub struct ProcessorState {
     registers: Chip8ProcessorRegisters,
     stack: ArrayVec<u16, 16>,
@@ -130,19 +128,6 @@ impl FromConfig for Chip8Processor {
         let frequency = quirks.frequency;
         let state = Mutex::new(ProcessorState::default());
 
-        // Optionally initialize the jit engine
-        #[cfg(jit)]
-        let jit =
-            if essentials.environment().processor_execution_mode == ProcessorExecutionMode::Jit {
-                Some(
-                    multiemu_machine::processor::jit::InstructionJitExecutor::new(
-                        jit::Chip8InstructionTranslator::new(mode.clone()),
-                    ),
-                )
-            } else {
-                None
-            };
-
         let virtual_gamepad = VirtualGamepad::new(
             CHIP8_KEYPAD_GAMEPAD_TYPE,
             VirtualGamepadMetadata {
@@ -164,8 +149,6 @@ impl FromConfig for Chip8Processor {
                 frequency,
                 Chip8ProcessorTask {
                     instruction_decoder: Chip8InstructionDecoder,
-                    #[cfg(jit)]
-                    jit,
                     virtual_gamepad,
                     vsync_occurred: vsync.unwrap(),
                     display_component,

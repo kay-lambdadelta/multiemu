@@ -10,7 +10,7 @@ pub mod software;
 pub trait RenderBackend: Any + 'static {
     const GRAPHICS_API: GraphicsApi;
     type ComponentInitializationData: 'static;
-    type ComponentFramebuffer: Clone;
+    type ComponentFramebuffer: Clone + 'static;
     type ContextExtensionSpecification: ContextExtensionSpecification;
 }
 

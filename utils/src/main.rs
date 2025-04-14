@@ -5,6 +5,8 @@ use crate::rom::RomAction;
 use clap::Parser;
 use database::redump::RedumpAction;
 use multiemu_rom::system::GameSystem;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::EnvFilter;
 
 mod convert;
 mod database;
@@ -20,7 +22,13 @@ pub enum Cli {
 }
 
 fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy(),
+        )
+        .init();
 
     let args = Cli::parse();
 

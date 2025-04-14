@@ -35,12 +35,6 @@ pub(crate) struct Chip8ProcessorTask {
     pub display_component: ComponentRef<Chip8Display>,
     pub timer_component: ComponentRef<Chip8Timer>,
     pub audio_component: ComponentRef<Chip8Audio>,
-    #[cfg(jit)]
-    pub jit: Option<
-        multiemu_machine::processor::jit::InstructionJitExecutor<
-            super::jit::Chip8InstructionTranslator,
-        >,
-    >,
 }
 
 impl Task<Chip8Processor> for Chip8ProcessorTask {

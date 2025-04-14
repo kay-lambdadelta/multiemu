@@ -2,15 +2,13 @@ use crate::rendering_backend::RenderingBackendState;
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
 use multiemu_config::Environment;
-use multiemu_machine::RunOutput;
-use multiemu_machine::component::ComponentId;
+use multiemu_machine::Machine;
 use multiemu_machine::display::backend::RenderBackend;
 use multiemu_machine::display::backend::vulkan::{
     VulkanComponentInitializationData, VulkanRendering,
 };
 use multiemu_machine::display::shader::ShaderCache;
 use nalgebra::Vector2;
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
 use vulkano::swapchain::SwapchainAcquireFuture;
@@ -49,7 +47,6 @@ pub struct VulkanRenderingRuntime {
     recreate_swapchain: bool,
     display_api_handle: Arc<Window>,
     environment: Arc<RwLock<Environment>>,
-    previously_seen_frames: HashMap<ComponentId, Arc<Image>>,
     gui_renderer: VulkanEguiRenderer,
 }
 
@@ -59,10 +56,10 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
-        preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
-        required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         environment: Arc<RwLock<Environment>>,
         shader_cache: Arc<ShaderCache>,
+        preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
+        required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
@@ -194,7 +191,6 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             recreate_swapchain: false,
             display_api_handle,
             environment,
-            previously_seen_frames: HashMap::new(),
             gui_renderer,
         })
     }
@@ -210,15 +206,9 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         })
     }
 
-    fn redraw(&mut self, output: &RunOutput<Self::RenderBackend>) {
+    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>) {
         let window_dimensions = self.display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
-
-        // HACK: This only works with a single component
-        for (component_id, framebuffer) in &output.screens {
-            self.previously_seen_frames
-                .insert(*component_id, framebuffer.clone());
-        }
 
         // Skip rendering if impossible window size
         if window_dimensions.min() == 0 {
@@ -235,13 +225,13 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         )
         .unwrap();
 
-        for (component_id, framebuffer) in self.previously_seen_frames.iter() {
+        for (_, framebuffer) in machine.framebuffers.iter() {
             command_buffer
                 .blit_image(BlitImageInfo {
                     src_image_layout: ImageLayout::TransferSrcOptimal,
                     dst_image_layout: ImageLayout::TransferDstOptimal,
                     filter: Filter::Nearest,
-                    ..BlitImageInfo::images(framebuffer.clone(), swapchain_image.clone())
+                    ..BlitImageInfo::images(framebuffer.load_full(), swapchain_image.clone())
                 })
                 .unwrap();
         }

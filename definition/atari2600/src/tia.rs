@@ -1,4 +1,7 @@
-use bitvec::{prelude::Lsb0, view::BitView};
+use bitvec::{
+    prelude::{Lsb0, Msb0},
+    view::BitView,
+};
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
@@ -8,14 +11,37 @@ use multiemu_machine::{
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
     },
 };
+use nalgebra::Point2;
+use petgraph::prelude::UnGraphMap;
 use rangemap::RangeInclusiveMap;
-use std::sync::Arc;
-use strum::FromRepr;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+use strum::{EnumIter, FromRepr, IntoEnumIterator};
 
 use crate::CPU_ADDRESS_SPACE;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr)]
-enum WriteOnlyRegisters {
+enum ReadRegisters {
+    Cxm0p = 0x030,
+    Cxm1p = 0x031,
+    Cxp0fb = 0x032,
+    Cxp1fb = 0x033,
+    Cxm0fb = 0x034,
+    Cxm1fb = 0x035,
+    Cxblpf = 0x036,
+    Cxppmm = 0x037,
+    Inpt0 = 0x038,
+    Inpt1 = 0x039,
+    Inpt2 = 0x03a,
+    Inpt3 = 0x03b,
+    Inpt4 = 0x03c,
+    Inpt5 = 0x03d,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr)]
+enum WriteRegisters {
     Vsync = 0x000,
     Vblank = 0x001,
     Wsync = 0x002,
@@ -63,25 +89,52 @@ enum WriteOnlyRegisters {
     Cxclr = 0x02c,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr)]
-pub enum ReadOnlyRegisters {
-    Cxm0p = 0x030,
-    Cxm1p = 0x031,
-    Cxp0fb = 0x032,
-    Cxp1fb = 0x033,
-    Cxm0fb = 0x034,
-    Cxn1fb = 0x035,
-    Cxblpf = 0x036,
-    Cxppmm = 0x037,
-    Inpt0 = 0x038,
-    Inpt1 = 0x039,
-    Inpt2 = 0x03a,
-    Inpt3 = 0x03b,
-    Inpt4 = 0x03c,
-    Inpt5 = 0x03d,
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, FromRepr, EnumIter)]
+enum ObjectId {
+    Player0,
+    Player1,
+    Missile0,
+    Missile1,
+    Playfield,
+    Ball,
 }
 
-pub struct Tia {}
+#[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Clone, Copy)]
+enum ObjectPosition {
+    LockedToPlayer,
+    Position(Point2<u8>),
+}
+
+impl Default for ObjectPosition {
+    fn default() -> Self {
+        Self::Position(Point2::new(0, 0))
+    }
+}
+
+struct State {
+    objects: HashMap<ObjectId, Object>,
+    collision_matrix: UnGraphMap<ObjectId, ()>,
+    current_scanline: u8,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            collision_matrix: UnGraphMap::default(),
+            objects: ObjectId::iter().map(|id| (id, Object::default())).collect(),
+            current_scanline: 0,
+        }
+    }
+}
+
+#[derive(Default)]
+struct Object {
+    position: ObjectPosition,
+}
+
+pub(crate) struct Tia {
+    state: Arc<Mutex<State>>,
+}
 
 impl Component for Tia {}
 
@@ -95,13 +148,22 @@ impl FromConfig for Tia {
         config: Self::Config,
         quirks: Self::Quirks,
     ) {
+        let state = Arc::new(Mutex::new(State::default()));
+
         component_builder
-            .insert_memory([(0x000..=0x03d, CPU_ADDRESS_SPACE)], MemoryCallback {})
-            .build(Tia {});
+            .insert_memory(
+                [(0x000..=0x03d, CPU_ADDRESS_SPACE)],
+                MemoryCallback {
+                    state: state.clone(),
+                },
+            )
+            .build(Tia { state });
     }
 }
 
-struct MemoryCallback {}
+struct MemoryCallback {
+    state: Arc<Mutex<State>>,
+}
 
 impl Memory for MemoryCallback {
     fn write_memory(
@@ -112,60 +174,75 @@ impl Memory for MemoryCallback {
         errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
         let data = buffer[0].view_bits::<Lsb0>();
+        let mut state_guard = self.state.lock().unwrap();
 
-        if let Some(address) = WriteOnlyRegisters::from_repr(address) {
+        if let Some(address) = WriteRegisters::from_repr(address) {
             match address {
-                WriteOnlyRegisters::Vsync => {
-                    let set_clear = data[1];
+                WriteRegisters::Vsync => todo!(),
+                WriteRegisters::Vblank => todo!(),
+                WriteRegisters::Wsync => todo!(),
+                WriteRegisters::Rsync => todo!(),
+                WriteRegisters::Nusiz0 => todo!(),
+                WriteRegisters::Nusiz1 => todo!(),
+                WriteRegisters::Colup0 => todo!(),
+                WriteRegisters::Colup1 => todo!(),
+                WriteRegisters::Colupf => todo!(),
+                WriteRegisters::Colubk => todo!(),
+                WriteRegisters::Ctrlpf => todo!(),
+                WriteRegisters::Refp0 => todo!(),
+                WriteRegisters::Refp1 => todo!(),
+                WriteRegisters::Pf0 => todo!(),
+                WriteRegisters::Pf1 => todo!(),
+                WriteRegisters::Pf2 => todo!(),
+                WriteRegisters::Resp0 => todo!(),
+                WriteRegisters::Resp1 => todo!(),
+                WriteRegisters::Resm0 => todo!(),
+                WriteRegisters::Resm1 => todo!(),
+                WriteRegisters::Resbl => todo!(),
+                WriteRegisters::Audc0 => todo!(),
+                WriteRegisters::Audc1 => todo!(),
+                WriteRegisters::Audf0 => todo!(),
+                WriteRegisters::Audf1 => todo!(),
+                WriteRegisters::Audv0 => todo!(),
+                WriteRegisters::Audv1 => todo!(),
+                WriteRegisters::Grp0 => todo!(),
+                WriteRegisters::Grp1 => todo!(),
+                WriteRegisters::Enam0 => todo!(),
+                WriteRegisters::Enam1 => todo!(),
+                WriteRegisters::Enabl => todo!(),
+                WriteRegisters::Hmp0 => todo!(),
+                WriteRegisters::Hmp1 => todo!(),
+                WriteRegisters::Hmm0 => todo!(),
+                WriteRegisters::Hmm1 => todo!(),
+                WriteRegisters::Hmbl => todo!(),
+                WriteRegisters::Vdelp0 => todo!(),
+                WriteRegisters::Vdelp1 => todo!(),
+                WriteRegisters::Vdelpl => todo!(),
+                WriteRegisters::Resmp0 => {
+                    if data[1] {
+                        state_guard
+                            .objects
+                            .get_mut(&ObjectId::Missile0)
+                            .unwrap()
+                            .position = ObjectPosition::LockedToPlayer;
+                    }
                 }
-                WriteOnlyRegisters::Vblank => {
-                    let start_blanking = data[1];
-                    let latch_inpt4to5 = data[6];
-                    let dump_to_ground_inpt0to3 = data[7];
+                WriteRegisters::Resmp1 => {
+                    if data[1] {
+                        state_guard
+                            .objects
+                            .get_mut(&ObjectId::Missile1)
+                            .unwrap()
+                            .position = ObjectPosition::LockedToPlayer;
+                    }
                 }
-                WriteOnlyRegisters::Wsync => todo!(),
-                WriteOnlyRegisters::Rsync => todo!(),
-                WriteOnlyRegisters::Nusiz0 => todo!(),
-                WriteOnlyRegisters::Nusiz1 => todo!(),
-                WriteOnlyRegisters::Colup0 => todo!(),
-                WriteOnlyRegisters::Colup1 => todo!(),
-                WriteOnlyRegisters::Colupf => todo!(),
-                WriteOnlyRegisters::Colubk => todo!(),
-                WriteOnlyRegisters::Ctrlpf => todo!(),
-                WriteOnlyRegisters::Refp0 => todo!(),
-                WriteOnlyRegisters::Refp1 => todo!(),
-                WriteOnlyRegisters::Pf0 => todo!(),
-                WriteOnlyRegisters::Pf1 => todo!(),
-                WriteOnlyRegisters::Pf2 => todo!(),
-                WriteOnlyRegisters::Resp0 => todo!(),
-                WriteOnlyRegisters::Resp1 => todo!(),
-                WriteOnlyRegisters::Resm0 => todo!(),
-                WriteOnlyRegisters::Resm1 => todo!(),
-                WriteOnlyRegisters::Resbl => todo!(),
-                WriteOnlyRegisters::Audc0 => todo!(),
-                WriteOnlyRegisters::Audc1 => todo!(),
-                WriteOnlyRegisters::Audf0 => todo!(),
-                WriteOnlyRegisters::Audf1 => todo!(),
-                WriteOnlyRegisters::Audv0 => todo!(),
-                WriteOnlyRegisters::Audv1 => todo!(),
-                WriteOnlyRegisters::Grp0 => todo!(),
-                WriteOnlyRegisters::Grp1 => todo!(),
-                WriteOnlyRegisters::Enam0 => todo!(),
-                WriteOnlyRegisters::Enam1 => todo!(),
-                WriteOnlyRegisters::Enabl => todo!(),
-                WriteOnlyRegisters::Hmp0 => todo!(),
-                WriteOnlyRegisters::Hmp1 => todo!(),
-                WriteOnlyRegisters::Hmm0 => todo!(),
-                WriteOnlyRegisters::Hmm1 => todo!(),
-                WriteOnlyRegisters::Hmbl => todo!(),
-                WriteOnlyRegisters::Vdelp0 => todo!(),
-                WriteOnlyRegisters::Vdelp1 => todo!(),
-                WriteOnlyRegisters::Vdelpl => todo!(),
-                WriteOnlyRegisters::Resmp0 => todo!(),
-                WriteOnlyRegisters::Resmp1 => todo!(),
-                WriteOnlyRegisters::Hmove => todo!(),
-                WriteOnlyRegisters::Hmclr => todo!(),
-                WriteOnlyRegisters::Cxclr => todo!(),
+                WriteRegisters::Hmove => todo!(),
+                WriteRegisters::Hmclr => todo!(),
+                WriteRegisters::Cxclr => {
+                    // Clear collision latches
+
+                    state_guard.collision_matrix.clear();
+                }
             }
         } else {
             errors.insert(
@@ -178,26 +255,84 @@ impl Memory for MemoryCallback {
     fn read_memory(
         &self,
         address: usize,
-        address_space: AddressSpaceId,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
-        if let Some(address) = ReadOnlyRegisters::from_repr(address) {
-            match address {
-                ReadOnlyRegisters::Cxm0p => todo!(),
-                ReadOnlyRegisters::Cxm1p => todo!(),
-                ReadOnlyRegisters::Cxp0fb => todo!(),
-                ReadOnlyRegisters::Cxp1fb => todo!(),
-                ReadOnlyRegisters::Cxm0fb => todo!(),
-                ReadOnlyRegisters::Cxn1fb => todo!(),
-                ReadOnlyRegisters::Cxblpf => todo!(),
-                ReadOnlyRegisters::Cxppmm => todo!(),
-                ReadOnlyRegisters::Inpt0 => todo!(),
-                ReadOnlyRegisters::Inpt1 => todo!(),
-                ReadOnlyRegisters::Inpt2 => todo!(),
-                ReadOnlyRegisters::Inpt3 => todo!(),
-                ReadOnlyRegisters::Inpt4 => todo!(),
-                ReadOnlyRegisters::Inpt5 => todo!(),
+        let state_guard = self.state.lock().unwrap();
+
+        if let Some(register) = ReadRegisters::from_repr(address) {
+            match register {
+                ReadRegisters::Cxm0p => {
+                    self.read_collision_register(
+                        buffer,
+                        [ObjectId::Player0, ObjectId::Missile0],
+                        [ObjectId::Player1, ObjectId::Missile0],
+                        &state_guard.collision_matrix,
+                    );
+                }
+                ReadRegisters::Cxm1p => {
+                    self.read_collision_register(
+                        buffer,
+                        [ObjectId::Player0, ObjectId::Missile1],
+                        [ObjectId::Player1, ObjectId::Missile1],
+                        &state_guard.collision_matrix,
+                    );
+                }
+                ReadRegisters::Cxp0fb => {
+                    self.read_collision_register(
+                        buffer,
+                        [ObjectId::Player0, ObjectId::Playfield],
+                        [ObjectId::Player0, ObjectId::Ball],
+                        &state_guard.collision_matrix,
+                    );
+                }
+                ReadRegisters::Cxp1fb => {
+                    self.read_collision_register(
+                        buffer,
+                        [ObjectId::Player1, ObjectId::Playfield],
+                        [ObjectId::Player1, ObjectId::Ball],
+                        &state_guard.collision_matrix,
+                    );
+                }
+                ReadRegisters::Cxm0fb => {
+                    self.read_collision_register(
+                        buffer,
+                        [ObjectId::Missile0, ObjectId::Playfield],
+                        [ObjectId::Missile0, ObjectId::Ball],
+                        &state_guard.collision_matrix,
+                    );
+                }
+                ReadRegisters::Cxm1fb => {
+                    self.read_collision_register(
+                        buffer,
+                        [ObjectId::Missile1, ObjectId::Playfield],
+                        [ObjectId::Missile1, ObjectId::Ball],
+                        &state_guard.collision_matrix,
+                    );
+                }
+                ReadRegisters::Cxblpf => {
+                    let collision = state_guard
+                        .collision_matrix
+                        .contains_edge(ObjectId::Ball, ObjectId::Playfield);
+                    let buffer_bits = buffer.view_bits_mut::<Msb0>();
+
+                    buffer_bits.set(0, collision);
+                }
+                ReadRegisters::Cxppmm => {
+                    self.read_collision_register(
+                        buffer,
+                        [ObjectId::Player0, ObjectId::Player1],
+                        [ObjectId::Missile0, ObjectId::Missile1],
+                        &state_guard.collision_matrix,
+                    );
+                }
+                ReadRegisters::Inpt0 => todo!(),
+                ReadRegisters::Inpt1 => todo!(),
+                ReadRegisters::Inpt2 => todo!(),
+                ReadRegisters::Inpt3 => todo!(),
+                ReadRegisters::Inpt4 => todo!(),
+                ReadRegisters::Inpt5 => todo!(),
             }
         } else {
             errors.insert(
@@ -205,5 +340,24 @@ impl Memory for MemoryCallback {
                 ReadMemoryRecord::Denied,
             );
         }
+    }
+}
+
+impl MemoryCallback {
+    #[inline]
+    fn read_collision_register(
+        &self,
+        buffer: &mut [u8],
+        pair1: [ObjectId; 2],
+        pair2: [ObjectId; 2],
+        collision_matrix: &UnGraphMap<ObjectId, ()>,
+    ) {
+        let collision1 = collision_matrix.contains_edge(pair1[0], pair1[1]);
+        let collision2 = collision_matrix.contains_edge(pair2[0], pair2[1]);
+
+        let buffer_bits = buffer.view_bits_mut::<Msb0>();
+
+        buffer_bits.set(0, collision1);
+        buffer_bits.set(1, collision2);
     }
 }

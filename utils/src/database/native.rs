@@ -2,7 +2,7 @@ use clap::Subcommand;
 use multiemu_config::Environment;
 use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use redb::ReadableTable;
+use redb::ReadableMultimapTable;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -52,21 +52,26 @@ pub fn database_native_fuzzy_search(
         .unwrap(),
     );
     let database_transaction = rom_manager.rom_information.begin_read().unwrap();
-    let database_table = database_transaction.open_table(ROM_INFORMATION_TABLE)?;
+    let database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
 
     let mut found_games: HashMap<_, Vec<_>> = HashMap::new();
-
     for rom_info in database_table
         .iter()?
-        .filter_map(|rom_info| rom_info.ok().map(|(_, rom_info)| rom_info.value()))
+        .filter_map(|entry| {
+            entry.ok().map(|(_, rom_infos)| {
+                rom_infos.filter_map(|rom_info| rom_info.ok().map(|info| info.value()))
+            })
+        })
+        .flatten()
     {
-        let calculated_similarity = strsim::jaro_winkler(&search, &rom_info.name.to_lowercase());
+        let calculated_similarity =
+            strsim::jaro_winkler(&search, &rom_info.file_name.to_string().to_lowercase());
 
         if calculated_similarity >= similarity {
             found_games
                 .entry(rom_info.system)
                 .or_default()
-                .push((rom_info.name.clone(), calculated_similarity));
+                .push((rom_info.file_name.clone(), calculated_similarity));
         }
     }
 
