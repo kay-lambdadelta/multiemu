@@ -56,6 +56,6 @@ impl Key for RomInfoV0 {
         let value2 = Self::from_bytes(data2);
 
         // Only the name is used for comparison
-        value1.name.to_lowercase().cmp(&value2.name.to_lowercase())
+        value1.file_name.cmp(&value2.file_name)
     }
 }
