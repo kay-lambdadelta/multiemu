@@ -137,16 +137,23 @@ pub fn rom_import(
                                 );
 
                                 for index in 0..archive.len() {
-                                    let file = archive.by_index(index).unwrap();
-                                    let Some(internal_path) = file.enclosed_name() else {
-                                        continue;
-                                    };
+                                    if let Ok(file) = archive.by_index(index) {
+                                        let Some(internal_path) = file.enclosed_name() else {
+                                            continue;
+                                        };
 
-                                    stack.push_back(SearchEntry::Archive {
-                                        archive_path: path.clone(),
-                                        archive_type: ArchiveType::Zip,
-                                        path: internal_path,
-                                    });
+                                        stack.push_back(SearchEntry::Archive {
+                                            archive_path: path.clone(),
+                                            archive_type: ArchiveType::Zip,
+                                            path: internal_path,
+                                        });
+                                    } else {
+                                        tracing::error!(
+                                            "Failed to read entry {} in archive \"{}\"",
+                                            index,
+                                            path.display()
+                                        );
+                                    }
                                 }
                             }
                         });
