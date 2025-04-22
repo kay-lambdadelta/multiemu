@@ -30,7 +30,7 @@ impl MemoryViewerState {
                         header.col(|ui| {
                             ui.label("Address");
                         });
-                        for i in 0..16 {
+                        for i in 0..ROW_WIDTH {
                             header.col(|ui| {
                                 ui.label(format!("{:02x}", i));
                             });

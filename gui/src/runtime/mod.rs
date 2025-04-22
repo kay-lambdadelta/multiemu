@@ -227,6 +227,11 @@ impl<RS: RenderingBackendState> Runtime<RS> {
         };
         self.windowing_context = Some(windowing);
 
+        if let Some((virtual_gamepad, _)) = machine.virtual_gamepads.iter().next() {
+            self.gamepad_mapping
+                .insert(GamepadId::PLATFORM_RESERVED, *virtual_gamepad);
+        }
+
         self.mode = RuntimeMode::Machine(machine);
     }
 
@@ -303,10 +308,8 @@ impl<RS: RenderingBackendState> Runtime<RS> {
         match &self.mode {
             RuntimeMode::Machine(machine) => {
                 if let Some(virtual_id) = self.gamepad_mapping.get(&id) {
-                    let environment_guard = self.environment.read().unwrap();
-
                     if let Some(virtual_gamepad) = machine.virtual_gamepads.get(virtual_id) {
-                        if let Some(transformed_input) = environment_guard
+                        if let Some(transformed_input) = enviroment_guard
                             .gamepad_configs
                             .get(&machine.game_system)
                             .and_then(|gamepad_types| gamepad_types.get(&virtual_gamepad.name()))

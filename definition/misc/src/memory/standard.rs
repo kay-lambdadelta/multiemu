@@ -4,7 +4,7 @@ use multiemu_machine::{
     memory::{
         AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
         callbacks::Memory,
-        memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
+        memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
     },
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
@@ -161,42 +161,7 @@ impl Memory for MemoryCallbacks {
             return;
         }
 
-        let requested_range = address - self.config.assigned_range.start()
-            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
-
-        let start_chunk = requested_range.start() / PAGE_SIZE;
-        let end_chunk = requested_range.end() / PAGE_SIZE;
-
-        let mut buffer_offset = 0;
-
-        for chunk_index in start_chunk..=end_chunk {
-            let chunk = &self.buffer[chunk_index];
-
-            let chunk_start = if chunk_index == start_chunk {
-                requested_range.start() % PAGE_SIZE
-            } else {
-                0
-            };
-
-            let chunk_end = if chunk_index == end_chunk {
-                requested_range.end() % PAGE_SIZE
-            } else {
-                PAGE_SIZE - 1
-            };
-
-            // Lock the chunk and read the relevant part
-            let locked_chunk = chunk.read().unwrap();
-            let chunk_range = chunk_start..=chunk_end;
-            let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
-
-            buffer[buffer_range].copy_from_slice(&locked_chunk[chunk_range]);
-
-            buffer_offset += chunk_end - chunk_start + 1;
-
-            if buffer_offset > buffer.len() {
-                break;
-            }
-        }
+        self.read_internal(address, buffer);
     }
 
     fn write_memory(
@@ -243,6 +208,44 @@ impl Memory for MemoryCallbacks {
         // Shoved off in a helper function to prevent duplicated logic
         self.write_internal(address, buffer);
     }
+
+    fn preview_memory(
+        &self,
+        address: usize,
+        _address_space: AddressSpaceId,
+        buffer: &mut [u8],
+        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
+    ) {
+        if !self.config.readable {
+            errors.insert(
+                address..=(address + (buffer.len() - 1)),
+                PreviewMemoryRecord::Denied,
+            );
+            return;
+        }
+
+        if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
+            let invalid_before_range = address..=end_address;
+
+            if !invalid_before_range.is_empty() {
+                errors.insert(invalid_before_range, PreviewMemoryRecord::Denied);
+            }
+        }
+
+        if let Some(start_address) = self.config.assigned_range.end().checked_add(1) {
+            let invalid_after_range = start_address..=address;
+
+            if !invalid_after_range.is_empty() {
+                errors.insert(invalid_after_range, PreviewMemoryRecord::Denied);
+            }
+        }
+
+        if !errors.is_empty() {
+            return;
+        }
+
+        self.read_internal(address, buffer);
+    }
 }
 
 impl MemoryCallbacks {
@@ -277,6 +280,45 @@ impl MemoryCallbacks {
             let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
 
             locked_chunk[chunk_range].copy_from_slice(&buffer[buffer_range]);
+
+            buffer_offset += chunk_end - chunk_start + 1;
+
+            if buffer_offset > buffer.len() {
+                break;
+            }
+        }
+    }
+
+    fn read_internal(&self, address: usize, buffer: &mut [u8]) {
+        let requested_range = address - self.config.assigned_range.start()
+            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
+
+        let start_chunk = requested_range.start() / PAGE_SIZE;
+        let end_chunk = requested_range.end() / PAGE_SIZE;
+
+        let mut buffer_offset = 0;
+
+        for chunk_index in start_chunk..=end_chunk {
+            let chunk = &self.buffer[chunk_index];
+
+            let chunk_start = if chunk_index == start_chunk {
+                requested_range.start() % PAGE_SIZE
+            } else {
+                0
+            };
+
+            let chunk_end = if chunk_index == end_chunk {
+                requested_range.end() % PAGE_SIZE
+            } else {
+                PAGE_SIZE - 1
+            };
+
+            // Lock the chunk and read the relevant part
+            let locked_chunk = chunk.read().unwrap();
+            let chunk_range = chunk_start..=chunk_end;
+            let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
+
+            buffer[buffer_range].copy_from_slice(&locked_chunk[chunk_range]);
 
             buffer_offset += chunk_end - chunk_start + 1;
 

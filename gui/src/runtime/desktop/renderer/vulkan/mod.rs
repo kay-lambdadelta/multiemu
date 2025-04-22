@@ -22,7 +22,6 @@ use vulkano::{
     },
     descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{Device, DeviceCreateInfo, Queue, QueueCreateInfo},
-    half::vec,
     image::{Image, ImageLayout, sampler::Filter, view::ImageView},
     memory::{
         MemoryProperties,

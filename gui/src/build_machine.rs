@@ -36,6 +36,6 @@ pub fn build_machine(
             environment,
             shader_cache,
         ),
-        _ => unimplemented!(),
+        _ => unimplemented!("{:?}", game_system),
     }
 }
