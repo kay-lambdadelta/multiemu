@@ -1,17 +1,23 @@
 use super::Chip8Kind;
 use bitvec::{order::Msb0, view::BitView};
 use downcast_rs::Downcast;
-use multiemu_machine::builder::ComponentBuilder;
-use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
-use multiemu_machine::display::backend::software::SoftwareRendering;
+use multiemu_machine::{
+    builder::ComponentBuilder,
+    component::{Component, FromConfig, RuntimeEssentials},
+    display::backend::software::SoftwareRendering,
+};
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
 use palette::Srgba;
 use serde::{Deserialize, Serialize};
-use std::cell::{OnceCell, RefCell};
-use std::ops::Deref;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::{
+    cell::{OnceCell, RefCell},
+    ops::Deref,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 mod software;
 #[cfg(all(feature = "vulkan", platform_desktop))]

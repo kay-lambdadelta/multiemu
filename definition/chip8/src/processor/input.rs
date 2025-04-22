@@ -1,5 +1,4 @@
-use multiemu_input::Input;
-use multiemu_input::{VirtualGamepadName, keyboard::KeyboardInput};
+use multiemu_input::{Input, VirtualGamepadName, keyboard::KeyboardInput};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 

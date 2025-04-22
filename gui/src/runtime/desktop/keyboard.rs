@@ -1,5 +1,4 @@
-use multiemu_input::Input;
-use multiemu_input::{GamepadId, keyboard::KeyboardInput};
+use multiemu_input::{GamepadId, Input, keyboard::KeyboardInput};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 pub const KEYBOARD_ID: GamepadId = GamepadId::PLATFORM_RESERVED;

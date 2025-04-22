@@ -48,6 +48,7 @@ impl FromConfig for MirrorMemory {
     }
 }
 
+#[derive(Debug)]
 struct MemoryCallbacks {
     config: MirrorMemoryConfig,
 }
@@ -135,17 +136,17 @@ impl Memory for MemoryCallbacks {
 
 #[cfg(test)]
 mod test {
-    use crate::memory::mirror::{MirrorMemory, MirrorMemoryConfig};
-    use crate::memory::standard::{
-        StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
+    use crate::memory::{
+        mirror::{MirrorMemory, MirrorMemoryConfig},
+        standard::{StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents},
     };
     use multiemu_config::Environment;
-    use multiemu_machine::builder::MachineBuilder;
-    use multiemu_machine::display::backend::software::SoftwareRendering;
-    use multiemu_machine::display::shader::ShaderCache;
-    use multiemu_machine::memory::AddressSpaceId;
-    use multiemu_rom::manager::RomManager;
-    use multiemu_rom::system::GameSystem;
+    use multiemu_machine::{
+        builder::MachineBuilder,
+        display::{backend::software::SoftwareRendering, shader::ShaderCache},
+        memory::AddressSpaceId,
+    };
+    use multiemu_rom::{manager::RomManager, system::GameSystem};
     use rangemap::RangeInclusiveMap;
     use std::sync::{Arc, RwLock};
 

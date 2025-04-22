@@ -1,9 +1,12 @@
-use crate::interpolate::Interpolator;
-use crate::sample::conversion::IntoSample;
-use crate::sample::{Sample, conversion::FromSample};
+use crate::{
+    interpolate::Interpolator,
+    sample::{
+        Sample,
+        conversion::{FromSample, IntoSample},
+    },
+};
 use nalgebra::{ComplexField, SVector};
-use num::Float;
-use num::rational::Ratio;
+use num::{Float, rational::Ratio};
 use std::cmp::Ordering;
 
 /// Helper iterator for operating on frames of samples

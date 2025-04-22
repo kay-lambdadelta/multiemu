@@ -1,14 +1,11 @@
-use super::AddressSpaceId;
-use super::callbacks::Memory;
+use super::{AddressSpaceId, callbacks::Memory};
 use crate::memory::{MAX_MEMORY_ACCESS_SIZE, VALID_MEMORY_ACCESS_SIZES};
 use arrayvec::ArrayVec;
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use fxhash::FxBuildHasher;
 use num::traits::{FromBytes, ToBytes};
 use rangemap::RangeInclusiveMap;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::ops::RangeInclusive;
+use std::{collections::HashMap, fmt::Debug, ops::RangeInclusive};
 use thiserror::Error;
 
 type MemoryId = usize;
@@ -82,7 +79,7 @@ struct BusInfo {
     width: u8,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct MemoryTranslationTable {
     current_memory_id: MemoryId,
     bus_info: HashMap<AddressSpaceId, BusInfo, FxBuildHasher>,
@@ -122,11 +119,12 @@ impl MemoryTranslationTable {
         }
     }
 
-    pub fn address_spaces(&self) -> u8 {
-        self.bus_info
-            .len()
-            .try_into()
-            .expect("Too many address spaces!")
+    pub fn address_spaces(&self) -> impl IntoIterator<Item = AddressSpaceId> + '_ {
+        self.bus_info.keys().copied()
+    }
+
+    pub fn get_address_space_width(&self, address_space: AddressSpaceId) -> Option<u8> {
+        self.bus_info.get(&address_space).map(|bus| bus.width)
     }
 
     /// Step through the memory translation table to fill the buffer with data
@@ -188,7 +186,7 @@ impl MemoryTranslationTable {
                     match error {
                         ReadMemoryRecord::Denied => {
                             tracing::error!(
-                                "Read memory operation operation denied at {:?}",
+                                "Read memory operation operation denied at {:#04x?}",
                                 range
                             );
 
@@ -313,7 +311,7 @@ impl MemoryTranslationTable {
                     match error {
                         WriteMemoryRecord::Denied => {
                             tracing::error!(
-                                "Write memory operation operation denied at {:?}",
+                                "Write memory operation operation denied at {:#04x?}",
                                 range
                             );
 

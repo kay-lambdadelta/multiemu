@@ -1,6 +1,5 @@
 use clap::{Subcommand, ValueEnum};
-use std::fmt::Display;
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf};
 
 pub mod export;
 pub mod import;

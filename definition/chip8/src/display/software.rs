@@ -1,12 +1,14 @@
 use super::{Chip8Display, Chip8DisplayBackend, draw_sprite_common};
-use multiemu_machine::display::backend::RenderBackend;
-use multiemu_machine::display::backend::software::{
-    SoftwareComponentFramebuffer, SoftwareRendering,
+use multiemu_machine::display::backend::{
+    RenderBackend,
+    software::{SoftwareComponentFramebuffer, SoftwareRendering},
 };
 use nalgebra::{DMatrix, Point2};
 use palette::Srgba;
-use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
+use std::{
+    cell::RefCell,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Debug)]
 pub struct SoftwareState {

@@ -2,30 +2,37 @@ use crate::rendering_backend::RenderingBackendState;
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
 use multiemu_config::Environment;
-use multiemu_machine::Machine;
-use multiemu_machine::display::backend::RenderBackend;
-use multiemu_machine::display::backend::vulkan::{
-    VulkanComponentInitializationData, VulkanRendering,
+use multiemu_machine::{
+    Machine,
+    display::{
+        backend::{
+            RenderBackend,
+            vulkan::{VulkanComponentInitializationData, VulkanRendering},
+        },
+        shader::ShaderCache,
+    },
 };
-use multiemu_machine::display::shader::ShaderCache;
 use nalgebra::Vector2;
 use std::sync::{Arc, RwLock};
-use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
-use vulkano::swapchain::SwapchainAcquireFuture;
 use vulkano::{
     Validated, VulkanError, VulkanLibrary,
     command_buffer::{
         AutoCommandBufferBuilder, BlitImageInfo, CommandBufferUsage,
         allocator::StandardCommandBufferAllocator,
     },
+    descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{Device, DeviceCreateInfo, Queue, QueueCreateInfo},
+    half::vec,
     image::{Image, ImageLayout, sampler::Filter, view::ImageView},
-    memory::allocator::StandardMemoryAllocator,
+    memory::{
+        MemoryProperties,
+        allocator::{GenericMemoryAllocatorCreateInfo, StandardMemoryAllocator},
+    },
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
     single_pass_renderpass,
     swapchain::{
-        PresentMode, Surface, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo,
-        acquire_next_image,
+        PresentMode, Surface, Swapchain, SwapchainAcquireFuture, SwapchainCreateInfo,
+        SwapchainPresentInfo, acquire_next_image,
     },
     sync::GpuFuture,
 };
@@ -122,7 +129,22 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             window_dimensions,
             environment_guard.graphics_setting.vsync,
         );
-        let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
+        let memory_allocator = {
+            let MemoryProperties { memory_types, .. } =
+                device.physical_device().memory_properties();
+
+            let memory_allocator = StandardMemoryAllocator::new(
+                device.clone(),
+                GenericMemoryAllocatorCreateInfo {
+                    // 64 MiB
+                    block_sizes: &vec![64 * 1024 * 1024; memory_types.len()],
+                    ..Default::default()
+                },
+            );
+
+            Arc::new(memory_allocator)
+        };
+
         let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(
             device.clone(),
             Default::default(),
@@ -206,7 +228,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         })
     }
 
-    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>) {
+    fn redraw(&mut self, machine: &Machine) {
         let window_dimensions = self.display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
 
@@ -225,7 +247,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         )
         .unwrap();
 
-        for (_, framebuffer) in machine.framebuffers.iter() {
+        for (_, framebuffer) in machine.framebuffers::<Self::RenderBackend>().iter() {
             command_buffer
                 .blit_image(BlitImageInfo {
                     src_image_layout: ImageLayout::TransferSrcOptimal,

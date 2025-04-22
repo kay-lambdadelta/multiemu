@@ -3,9 +3,7 @@ use multiemu_config::Environment;
 use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use redb::ReadableMultimapTable;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum NativeAction {

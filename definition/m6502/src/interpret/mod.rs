@@ -191,10 +191,10 @@ impl M6502Task {
             Opcode::Brk => {
                 let new_stack = state.stack.wrapping_sub(2);
 
-                let _ = memory_translation_table.write(
+                let _ = memory_translation_table.write_le_value(
                     new_stack as usize + STACK_BASE_ADDRESS,
                     self.config.assigned_address_space,
-                    &state.program.to_le_bytes(),
+                    state.program,
                 );
 
                 // https://www.nesdev.org/wiki/Status_flags
@@ -248,8 +248,28 @@ impl M6502Task {
                 state.flags.remove(FlagRegister::Overflow);
             }
             Opcode::Cmp => todo!(),
-            Opcode::Cpx => todo!(),
-            Opcode::Cpy => todo!(),
+            Opcode::Cpx => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+
+                let result = state.x.wrapping_sub(value);
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.set(FlagRegister::Carry, state.x >= value);
+            }
+            Opcode::Cpy => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+
+                let result = state.y.wrapping_sub(value);
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.set(FlagRegister::Carry, state.x >= value);
+            }
             Opcode::Dcp => todo!(),
             Opcode::Dec => {
                 let value: u8 = self.load(state, &instruction, memory_translation_table);

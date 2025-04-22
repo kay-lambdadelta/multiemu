@@ -1,14 +1,15 @@
-use crate::component::store::ComponentStore;
-use crate::component::{Component, ComponentId};
+use crate::component::{Component, ComponentId, store::ComponentStore};
 use fxhash::FxBuildHasher;
 use itertools::Itertools;
-use num::ToPrimitive;
-use num::{integer::lcm, rational::Ratio};
-use std::num::NonZero;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use num::{ToPrimitive, integer::lcm, rational::Ratio};
 use std::{
     collections::HashMap,
+    fmt::Debug,
+    num::NonZero,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -30,6 +31,16 @@ struct StoredTask {
     pub frequency: Ratio<u32>,
 }
 
+impl Debug for StoredTask {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoredTask")
+            .field("component_id", &self.component_id)
+            .field("frequency", &self.frequency)
+            .finish()
+    }
+}
+
+#[derive(Debug)]
 pub struct Scheduler {
     current_tick: u32,
     common_denominator: u32,

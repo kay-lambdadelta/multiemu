@@ -1,13 +1,12 @@
-use std::sync::Arc;
-
 use super::{
     AddressSpaceId,
     memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
 };
 use rangemap::RangeInclusiveMap;
+use std::{fmt::Debug, sync::Arc};
 
 #[allow(unused)]
-pub trait Memory: Send + Sync + 'static {
+pub trait Memory: Debug + Send + Sync + 'static {
     fn read_memory(
         &self,
         address: usize,

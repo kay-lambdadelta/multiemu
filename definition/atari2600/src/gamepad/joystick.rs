@@ -52,6 +52,7 @@ pub struct Atari2600JoystickConfig {
     pub m6532_riot: Cow<'static, str>,
 }
 
+#[derive(Debug)]
 pub struct JoystickSwchaCallback {
     gamepads: [Arc<VirtualGamepad>; 2],
 }

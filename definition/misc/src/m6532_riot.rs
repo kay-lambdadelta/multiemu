@@ -12,6 +12,7 @@ use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::{
+    fmt::Debug,
     num::NonZero,
     sync::{
         Arc, OnceLock, RwLock,
@@ -34,6 +35,7 @@ pub struct M6532RiotSnapshot {
     ram: [u8; 128],
 }
 
+#[derive(Debug)]
 struct Registers {
     swcha: OnceLock<Box<dyn SwchaCallback>>,
     swchb: OnceLock<Box<dyn SwchbCallback>>,
@@ -47,13 +49,13 @@ struct Registers {
     t1024t: AtomicU8,
 }
 
-pub trait SwchaCallback: Send + Sync + 'static {
+pub trait SwchaCallback: Debug + Send + Sync + 'static {
     fn read_memory(&self) -> u8;
 
     fn write_memory(&self, value: u8);
 }
 
-pub trait SwchbCallback: Send + Sync + 'static {
+pub trait SwchbCallback: Debug + Send + Sync + 'static {
     fn read_memory(&self) -> u8;
 
     fn write_memory(&self, value: u8);
@@ -215,6 +217,7 @@ pub struct M6532RiotConfig {
     pub assigned_address_space: AddressSpaceId,
 }
 
+#[derive(Debug)]
 struct RamMemoryCallbacks {
     config: Arc<M6532RiotConfig>,
     ram: Arc<RwLock<[u8; 128]>>,
@@ -261,6 +264,7 @@ impl Memory for RamMemoryCallbacks {
     }
 }
 
+#[derive(Debug)]
 struct SwchaMemoryCallback {
     registers: Arc<Registers>,
 }
@@ -287,6 +291,7 @@ impl Memory for SwchaMemoryCallback {
     }
 }
 
+#[derive(Debug)]
 struct SwchbMemoryCallback {
     registers: Arc<Registers>,
 }

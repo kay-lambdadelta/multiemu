@@ -1,14 +1,15 @@
-use crate::Chip8InstructionDecoder;
-use crate::display::Chip8Display;
+use crate::{Chip8InstructionDecoder, display::Chip8Display};
 
 use super::Chip8Kind;
 use arrayvec::ArrayVec;
 use crossbeam::atomic::AtomicCell;
 use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
-use multiemu_machine::builder::ComponentBuilder;
-use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
-use multiemu_machine::input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata};
+use multiemu_machine::{
+    builder::ComponentBuilder,
+    component::{Component, FromConfig, RuntimeEssentials},
+    input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
+};
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};

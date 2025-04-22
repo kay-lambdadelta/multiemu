@@ -4,12 +4,17 @@ use multiemu_machine::{
     Machine,
     display::{backend::RenderBackend, shader::ShaderCache},
 };
+use nalgebra::Vector2;
 use std::sync::{Arc, RwLock};
+
+pub trait DisplayApiHandle: Send + Sync + Clone + 'static {
+    fn dimensions(&self) -> Vector2<u16>;
+}
 
 /// A backend for a given render backend
 pub trait RenderingBackendState: Sized {
     type RenderBackend: RenderBackend;
-    type DisplayApiHandle: Send + Sync + Clone + 'static;
+    type DisplayApiHandle: DisplayApiHandle;
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
@@ -21,7 +26,7 @@ pub trait RenderingBackendState: Sized {
     fn component_initialization_data(
         &self,
     ) -> Arc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData>;
-    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>);
+    fn redraw(&mut self, machine: &Machine);
     fn redraw_menu(&mut self, egui_context: &egui::Context, full_output: FullOutput);
     fn surface_resized(&mut self) {}
 }

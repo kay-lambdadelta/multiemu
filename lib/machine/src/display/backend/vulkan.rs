@@ -3,10 +3,12 @@ use crate::display::RenderBackend;
 use arc_swap::ArcSwap;
 use multiemu_config::graphics::GraphicsApi;
 use std::sync::Arc;
-use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
-use vulkano::device::{Device, DeviceExtensions, Queue};
-use vulkano::image::Image;
-use vulkano::memory::allocator::StandardMemoryAllocator;
+use vulkano::{
+    command_buffer::allocator::StandardCommandBufferAllocator,
+    device::{Device, DeviceExtensions, Queue},
+    image::Image,
+    memory::allocator::StandardMemoryAllocator,
+};
 
 pub struct VulkanRendering;
 

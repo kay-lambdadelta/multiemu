@@ -10,10 +10,10 @@ use input::InputMetadata;
 use memory::MemoryMetadata;
 use multiemu_config::Environment;
 use multiemu_rom::{manager::RomManager, system::GameSystem};
-use std::marker::PhantomData;
 use std::{
     any::TypeId,
     collections::HashMap,
+    marker::PhantomData,
     sync::{Arc, RwLock},
 };
 use task::TaskMetadata;
@@ -114,7 +114,7 @@ impl MachineBuilder {
     pub fn build<R: RenderBackend>(
         mut self,
         display_component_initialization_data: Arc<R::ComponentInitializationData>,
-    ) -> Machine<R> {
+    ) -> Machine {
         let mut memory_translation_table = MemoryTranslationTable::default();
 
         // Populate the memory translation table with address spaces
@@ -209,7 +209,7 @@ impl MachineBuilder {
             scheduler,
             component_store: self.essentials.component_store().clone(),
             memory_translation_table,
-            framebuffers,
+            framebuffers: Box::new(framebuffers),
             virtual_gamepads: all_gamepads
                 .into_iter()
                 .enumerate()

@@ -2,9 +2,10 @@ use naga::{
     Module, ShaderStage,
     valid::{Capabilities, ModuleInfo, ValidationFlags, Validator},
 };
-use std::{any::type_name, borrow::Cow, fmt::Debug};
 use std::{
-    any::{Any, TypeId},
+    any::{Any, TypeId, type_name},
+    borrow::Cow,
+    fmt::Debug,
     sync::Arc,
 };
 use versions::SemVer;

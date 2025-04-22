@@ -1,5 +1,7 @@
-use crate::graphics::GraphicsSettings;
-use crate::input::{DEFAULT_HOTKEYS, Hotkey};
+use crate::{
+    graphics::GraphicsSettings,
+    input::{DEFAULT_HOTKEYS, Hotkey},
+};
 use audio::AudioSettings;
 use indexmap::IndexMap;
 use multiemu_input::{Input, VirtualGamepadName};
@@ -8,12 +10,13 @@ use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use serde_with::serde_as;
-use std::io::Write;
-use std::{collections::BTreeSet, sync::LazyLock};
 use std::{
+    collections::BTreeSet,
     fs::{File, create_dir_all},
+    io::Write,
     ops::Deref,
     path::PathBuf,
+    sync::LazyLock,
 };
 use strum::{Display, EnumIter};
 

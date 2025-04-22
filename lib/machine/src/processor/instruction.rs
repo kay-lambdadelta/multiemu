@@ -1,5 +1,4 @@
-use std::fmt::Debug;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 pub trait InstructionSet: Debug + Eq + Clone + Send + Sync + 'static {
     type Opcode: Display + Debug + 'static;

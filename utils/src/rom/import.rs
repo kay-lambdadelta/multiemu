@@ -1,18 +1,18 @@
 use multiemu_config::Environment;
-use multiemu_rom::id::RomId;
-use multiemu_rom::manager::{ROM_INFORMATION_TABLE, RomManager};
-use scc::HashCache;
-use scc::hash_cache::OccupiedEntry;
-use std::cell::LazyCell;
-use std::collections::VecDeque;
-use std::fmt::Display;
-use std::io::{Read, Seek};
-use std::path::Path;
-use std::sync::Arc;
+use multiemu_rom::{
+    id::RomId,
+    manager::{ROM_INFORMATION_TABLE, RomManager},
+};
+use scc::{HashCache, hash_cache::OccupiedEntry};
 use std::{
+    cell::LazyCell,
+    collections::VecDeque,
     error::Error,
+    fmt::Display,
     fs::{self, File},
-    path::PathBuf,
+    io::{Read, Seek},
+    path::{Path, PathBuf},
+    sync::Arc,
 };
 use zip::ZipArchive;
 

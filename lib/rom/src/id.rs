@@ -2,8 +2,7 @@ use data_encoding::HEXLOWER_PERMISSIVE;
 use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
-use std::cmp::Ordering;
-use std::{fmt::Display, io::Read, str::FromStr};
+use std::{cmp::Ordering, fmt::Display, io::Read, str::FromStr};
 
 #[derive(
     Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,

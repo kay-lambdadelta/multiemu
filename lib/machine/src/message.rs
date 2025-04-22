@@ -1,5 +1,4 @@
-use crate::component::ComponentId;
-use crate::memory::memory_translation_table::MemoryTranslationTable;
+use crate::{component::ComponentId, memory::memory_translation_table::MemoryTranslationTable};
 use redb::Database;
 use std::sync::Arc;
 

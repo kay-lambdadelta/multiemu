@@ -1,7 +1,8 @@
-use crate::builder::ComponentBuilder;
-use crate::component::Component;
-use crate::memory::AddressSpaceId;
-use crate::memory::callbacks::Memory;
+use crate::{
+    builder::ComponentBuilder,
+    component::Component,
+    memory::{AddressSpaceId, callbacks::Memory},
+};
 use rangemap::RangeInclusiveMap;
 use std::ops::RangeInclusive;
 

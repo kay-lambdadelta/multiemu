@@ -24,20 +24,20 @@ use crate::CPU_ADDRESS_SPACE;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr)]
 enum ReadRegisters {
-    Cxm0p = 0x030,
-    Cxm1p = 0x031,
-    Cxp0fb = 0x032,
-    Cxp1fb = 0x033,
-    Cxm0fb = 0x034,
-    Cxm1fb = 0x035,
-    Cxblpf = 0x036,
-    Cxppmm = 0x037,
-    Inpt0 = 0x038,
-    Inpt1 = 0x039,
-    Inpt2 = 0x03a,
-    Inpt3 = 0x03b,
-    Inpt4 = 0x03c,
-    Inpt5 = 0x03d,
+    Cxm0p = 0x000,
+    Cxm1p = 0x001,
+    Cxp0fb = 0x002,
+    Cxp1fb = 0x003,
+    Cxm0fb = 0x004,
+    Cxm1fb = 0x005,
+    Cxblpf = 0x006,
+    Cxppmm = 0x007,
+    Inpt0 = 0x008,
+    Inpt1 = 0x009,
+    Inpt2 = 0x00a,
+    Inpt3 = 0x00b,
+    Inpt4 = 0x00c,
+    Inpt5 = 0x00d,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr)]
@@ -111,6 +111,7 @@ impl Default for ObjectPosition {
     }
 }
 
+#[derive(Debug)]
 struct State {
     objects: HashMap<ObjectId, Object>,
     collision_matrix: UnGraphMap<ObjectId, ()>,
@@ -127,7 +128,7 @@ impl Default for State {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Object {
     position: ObjectPosition,
 }
@@ -161,6 +162,7 @@ impl FromConfig for Tia {
     }
 }
 
+#[derive(Debug)]
 struct MemoryCallback {
     state: Arc<Mutex<State>>,
 }
@@ -261,7 +263,14 @@ impl Memory for MemoryCallback {
     ) {
         let state_guard = self.state.lock().unwrap();
 
-        if let Some(register) = ReadRegisters::from_repr(address) {
+        // Adjust for the mirror
+        let actual_address = if (0x30..=0x3d).contains(&address) {
+            address - 0x30
+        } else {
+            address
+        };
+
+        if let Some(register) = ReadRegisters::from_repr(actual_address) {
             match register {
                 ReadRegisters::Cxm0p => {
                     self.read_collision_register(

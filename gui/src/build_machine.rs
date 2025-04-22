@@ -1,11 +1,9 @@
 use multiemu_config::Environment;
-use multiemu_machine::builder::MachineBuilder;
-use multiemu_machine::display::shader::ShaderCache;
-use multiemu_rom::system::{AtariSystem, NintendoSystem};
+use multiemu_machine::{builder::MachineBuilder, display::shader::ShaderCache};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
-    system::{GameSystem, OtherSystem},
+    system::{AtariSystem, GameSystem, NintendoSystem, OtherSystem},
 };
 use std::sync::{Arc, RwLock};
 

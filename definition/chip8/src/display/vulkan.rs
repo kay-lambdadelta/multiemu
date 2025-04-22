@@ -1,22 +1,22 @@
 use crate::display::{Chip8Display, Chip8DisplayBackend, draw_sprite_common};
 use arc_swap::ArcSwap;
-use multiemu_machine::display::backend::RenderBackend;
-use multiemu_machine::display::backend::vulkan::{VulkanComponentFramebuffer, VulkanRendering};
+use multiemu_machine::display::backend::{
+    RenderBackend,
+    vulkan::{VulkanComponentFramebuffer, VulkanRendering},
+};
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
 use palette::Srgba;
 use std::{ops::DerefMut, sync::Arc};
-use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
-use vulkano::format::Format;
-use vulkano::image::{ImageCreateInfo, ImageType, ImageUsage};
-use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter};
 use vulkano::{
-    buffer::Subbuffer,
+    buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
     command_buffer::{
         AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferToImageInfo,
         PrimaryCommandBufferAbstract, allocator::StandardCommandBufferAllocator,
     },
     device::Queue,
-    image::Image,
+    format::Format,
+    image::{Image, ImageCreateInfo, ImageType, ImageUsage},
+    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter},
     sync::GpuFuture,
 };
 

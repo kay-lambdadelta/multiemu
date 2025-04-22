@@ -1,10 +1,9 @@
 use super::instruction::{Chip8InstructionSet, InstructionSetChip8, Register};
-use bitvec::field::BitField;
-use bitvec::prelude::Msb0;
-use bitvec::view::BitView;
-use multiemu_machine::memory::AddressSpaceId;
-use multiemu_machine::memory::memory_translation_table::MemoryTranslationTable;
-use multiemu_machine::processor::decoder::InstructionDecoder;
+use bitvec::{field::BitField, prelude::Msb0, view::BitView};
+use multiemu_machine::{
+    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
+    processor::decoder::InstructionDecoder,
+};
 use nalgebra::Point2;
 
 #[derive(Debug, Default)]

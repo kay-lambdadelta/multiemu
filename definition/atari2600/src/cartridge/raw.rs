@@ -3,6 +3,7 @@ use multiemu_machine::memory::{
 };
 use rangemap::RangeInclusiveMap;
 
+#[derive(Debug)]
 pub struct RawCartridgeMemoryCallback {
     pub rom: Vec<u8>,
 }

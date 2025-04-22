@@ -7,7 +7,7 @@ struct QueuedCallback {
     is_done: Arc<(Condvar, Mutex<bool>)>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct MainThreadExecutor(SegQueue<QueuedCallback>);
 
 impl MainThreadExecutor {

@@ -1,17 +1,18 @@
 use isolang::Language;
-use multiemu_rom::id::RomId;
-use multiemu_rom::info::RomInfoV0;
-use multiemu_rom::manager::ROM_INFORMATION_TABLE;
-use multiemu_rom::manager::RomManager;
-use multiemu_rom::system::GameSystem;
+use multiemu_rom::{
+    id::RomId,
+    info::RomInfoV0,
+    manager::{ROM_INFORMATION_TABLE, RomManager},
+    system::GameSystem,
+};
 use serde::Deserialize;
-use serde_with::DisplayFromStr;
-use serde_with::serde_as;
-use std::collections::BTreeSet;
-use std::collections::HashSet;
-use std::error::Error;
-use std::io::BufRead;
-use std::str::FromStr;
+use serde_with::{DisplayFromStr, serde_as};
+use std::{
+    collections::{BTreeSet, HashSet},
+    error::Error,
+    io::BufRead,
+    str::FromStr,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct Datafile {

@@ -3,12 +3,14 @@ use gamepad::joystick::{Atari2600Joystick, Atari2600JoystickConfig};
 use multiemu_config::Environment;
 use multiemu_definition_m6502::{M6502, M6502Config, M6502Kind};
 use multiemu_definition_misc::m6532_riot::{M6532Riot, M6532RiotConfig};
-use multiemu_machine::builder::MachineBuilder;
-use multiemu_machine::display::shader::ShaderCache;
-use multiemu_machine::memory::AddressSpaceId;
-use multiemu_rom::id::RomId;
-use multiemu_rom::manager::RomManager;
-use multiemu_rom::system::{AtariSystem, GameSystem};
+use multiemu_machine::{
+    builder::MachineBuilder, display::shader::ShaderCache, memory::AddressSpaceId,
+};
+use multiemu_rom::{
+    id::RomId,
+    manager::RomManager,
+    system::{AtariSystem, GameSystem},
+};
 use num::rational::Ratio;
 use std::sync::{Arc, RwLock};
 use tia::Tia;

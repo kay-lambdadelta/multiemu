@@ -112,6 +112,7 @@ impl FromConfig for StandardMemory {
     }
 }
 
+#[derive(Debug)]
 struct MemoryCallbacks {
     config: StandardMemoryConfig,
     buffer: Vec<RwLock<[u8; PAGE_SIZE]>>,

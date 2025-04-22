@@ -11,6 +11,7 @@ use multiemu_machine::{
 use rangemap::RangeInclusiveMap;
 use std::sync::Arc;
 
+#[derive(Debug)]
 struct MemoryCallbacks {
     bus_conflict: bool,
 }

@@ -1,10 +1,7 @@
 use indexmap::IndexMap;
-use multiemu_input::Input;
-use multiemu_input::gamepad::GamepadInput;
-use multiemu_input::keyboard::KeyboardInput;
+use multiemu_input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
-use std::sync::LazyLock;
+use std::{collections::BTreeSet, sync::LazyLock};
 use strum::EnumIter;
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]

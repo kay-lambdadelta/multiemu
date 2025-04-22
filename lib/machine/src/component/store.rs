@@ -29,6 +29,7 @@ thread_local! {
     static MAIN_THREAD_COMPONENT_STORE: LazyCell<RefCell<HashMap<ComponentId, Arc<dyn Component>>>> = const { LazyCell::new(RefCell::default) };
 }
 
+#[derive(Debug)]
 pub struct ComponentStore
 // This absolutely has to be thread-safe
 where

@@ -1,14 +1,16 @@
-use crate::gui::software_rendering::SoftwareEguiRenderer;
-use crate::rendering_backend::RenderingBackendState;
+use crate::{
+    gui::software_rendering::SoftwareEguiRenderer, rendering_backend::RenderingBackendState,
+};
 use multiemu_config::Environment;
-use multiemu_machine::Machine;
-use multiemu_machine::display::backend::RenderBackend;
-use multiemu_machine::display::backend::software::SoftwareRendering;
-use multiemu_machine::display::shader::ShaderCache;
+use multiemu_machine::{
+    Machine,
+    display::{
+        backend::{RenderBackend, software::SoftwareRendering},
+        shader::ShaderCache,
+    },
+};
 use nalgebra::{DMatrixViewMut, Vector2};
-use palette::Srgba;
-use palette::cast::Packed;
-use palette::rgb::channels::Argb;
+use palette::{Srgba, cast::Packed, rgb::channels::Argb};
 use softbuffer::{Context, Surface};
 use std::sync::{Arc, RwLock};
 use winit::window::Window;
@@ -58,7 +60,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         Arc::default()
     }
 
-    fn redraw(&mut self, machine: &Machine<Self::RenderBackend>) {
+    fn redraw(&mut self, machine: &Machine) {
         if self.previously_recorded_size.min() == 0 {
             return;
         }
@@ -78,7 +80,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             .graphics_setting
             .integer_scaling;
 
-        for (_, framebuffer) in machine.framebuffers.iter() {
+        for (_, framebuffer) in machine.framebuffers::<Self::RenderBackend>().iter() {
             if integer_scaling {
                 let framebuffer = framebuffer.lock().unwrap();
 

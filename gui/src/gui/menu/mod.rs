@@ -1,14 +1,18 @@
 use egui::{CentralPanel, Context, ScrollArea, SidePanel};
 use file_browser::FileBrowserState;
+use memory_viewer::MemoryViewerState;
 use multiemu_config::Environment;
-use multiemu_rom::id::RomId;
-use multiemu_rom::manager::RomManager;
+use multiemu_machine::Machine;
+use multiemu_rom::{id::RomId, manager::RomManager};
 use options::OptionsState;
-use std::fmt::Display;
-use std::sync::{Arc, RwLock};
+use std::{
+    fmt::Display,
+    sync::{Arc, RwLock},
+};
 use strum::{EnumIter, IntoEnumIterator};
 
 mod file_browser;
+mod memory_viewer;
 mod options;
 
 pub enum UiOutput {
@@ -22,6 +26,7 @@ pub enum MenuItem {
     Main,
     FileBrowser,
     Options,
+    MemoryViewer,
 }
 
 impl Display for MenuItem {
@@ -33,6 +38,7 @@ impl Display for MenuItem {
                 MenuItem::Main => "Main",
                 MenuItem::FileBrowser => "File Browser",
                 MenuItem::Options => "Options",
+                MenuItem::MemoryViewer => "Memory Viewer",
             }
         )
     }
@@ -43,6 +49,7 @@ pub struct MenuState {
     open_menu_item: MenuItem,
     file_browser_state: FileBrowserState,
     options_state: OptionsState,
+    memory_viewer_state: MemoryViewerState,
     autofocus: bool,
 }
 
@@ -57,12 +64,13 @@ impl MenuState {
                 rom_manager.clone(),
             ),
             options_state: OptionsState::new(environment.clone()),
+            memory_viewer_state: MemoryViewerState::default(),
             autofocus: true,
         }
     }
 
     /// TODO: barely does anything
-    pub fn run_menu(&mut self, ctx: &Context) -> Option<UiOutput> {
+    pub fn run_menu(&mut self, ctx: &Context, machine: Option<&Machine>) -> Option<UiOutput> {
         let mut output = None;
 
         SidePanel::left("options_panel")
@@ -103,6 +111,9 @@ impl MenuState {
                     }
                     MenuItem::Options => {
                         self.options_state.run(&mut output, ui);
+                    }
+                    MenuItem::MemoryViewer => {
+                        self.memory_viewer_state.run(&mut output, ui, machine);
                     }
                 },
             );

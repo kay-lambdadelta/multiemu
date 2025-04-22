@@ -1,9 +1,10 @@
 use super::CPU_ADDRESS_SPACE;
-use multiemu_machine::builder::ComponentBuilder;
-use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
-use multiemu_machine::memory::AddressSpaceId;
-use std::ops::Range;
-use std::sync::Arc;
+use multiemu_machine::{
+    builder::ComponentBuilder,
+    component::{Component, FromConfig, RuntimeEssentials},
+    memory::AddressSpaceId,
+};
+use std::{ops::Range, sync::Arc};
 
 mod software;
 #[cfg(all(feature = "vulkan", platform_desktop))]

@@ -6,9 +6,11 @@ use super::{
 };
 use crate::{CHIP8_FONT, CPU_ADDRESS_SPACE, Chip8Kind};
 use arrayvec::ArrayVec;
-use bitvec::field::BitField;
-use bitvec::prelude::{Lsb0, Msb0};
-use bitvec::view::BitView;
+use bitvec::{
+    field::BitField,
+    prelude::{Lsb0, Msb0},
+    view::BitView,
+};
 use nalgebra::Point2;
 use rand::Rng;
 use std::sync::atomic::Ordering;

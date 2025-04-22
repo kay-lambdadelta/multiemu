@@ -1,57 +1,64 @@
 use bytemuck::{Pod, Zeroable};
-use egui::TextureId;
-use egui::epaint::Primitive;
-use multiemu_machine::display::shader::ShaderCache;
-use multiemu_machine::display::shader::spirv::SpirvShader;
+use egui::{TextureId, epaint::Primitive};
+use multiemu_machine::display::shader::{ShaderCache, spirv::SpirvShader};
 use nalgebra::{Point2, Vector2};
 use palette::{LinSrgba, Srgba};
-use std::collections::{HashMap, HashSet};
-use std::mem::offset_of;
-use std::num::NonZero;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    mem::offset_of,
+    num::NonZero,
+    sync::Arc,
+};
 use versions::SemVer;
-use vulkano::buffer::allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo};
-use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer};
-use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
-use vulkano::command_buffer::{
-    AutoCommandBufferBuilder, BufferImageCopy, CommandBufferUsage, CopyBufferToImageInfo,
-    PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents,
-    SubpassEndInfo,
+use vulkano::{
+    DeviceSize,
+    buffer::{
+        Buffer, BufferCreateInfo, BufferUsage, Subbuffer,
+        allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
+    },
+    command_buffer::{
+        AutoCommandBufferBuilder, BufferImageCopy, CommandBufferUsage, CopyBufferToImageInfo,
+        PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents,
+        SubpassEndInfo, allocator::StandardCommandBufferAllocator,
+    },
+    descriptor_set::{
+        DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator,
+    },
+    device::{Device, Queue},
+    format::{ClearValue, Format},
+    image::{
+        Image, ImageCreateInfo, ImageSubresourceLayers, ImageType, ImageUsage, SampleCount,
+        sampler::{Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode},
+        view::{ImageView, ImageViewCreateInfo},
+    },
+    memory::{
+        DeviceAlignment,
+        allocator::{
+            AllocationCreateInfo, DeviceLayout, MemoryTypeFilter, StandardMemoryAllocator,
+        },
+    },
+    pipeline::{
+        DynamicState, GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
+        PipelineShaderStageCreateInfo,
+        graphics::{
+            GraphicsPipelineCreateInfo,
+            color_blend::{
+                AttachmentBlend, BlendFactor, ColorBlendAttachmentState, ColorBlendState,
+            },
+            input_assembly::InputAssemblyState,
+            multisample::MultisampleState,
+            rasterization::{CullMode, RasterizationState},
+            vertex_input::{
+                VertexInputAttributeDescription, VertexInputBindingDescription, VertexInputState,
+            },
+            viewport::{Viewport, ViewportState},
+        },
+        layout::PipelineDescriptorSetLayoutCreateInfo,
+    },
+    render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
+    shader::{ShaderModule, ShaderModuleCreateInfo},
+    single_pass_renderpass,
 };
-use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
-use vulkano::descriptor_set::{DescriptorSet, WriteDescriptorSet};
-use vulkano::device::{Device, Queue};
-use vulkano::format::{ClearValue, Format};
-use vulkano::image::sampler::{
-    Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode,
-};
-use vulkano::image::view::{ImageView, ImageViewCreateInfo};
-use vulkano::image::{
-    Image, ImageCreateInfo, ImageSubresourceLayers, ImageType, ImageUsage, SampleCount,
-};
-use vulkano::memory::DeviceAlignment;
-use vulkano::memory::allocator::{
-    AllocationCreateInfo, DeviceLayout, MemoryTypeFilter, StandardMemoryAllocator,
-};
-use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
-use vulkano::pipeline::graphics::color_blend::{
-    AttachmentBlend, BlendFactor, ColorBlendAttachmentState, ColorBlendState,
-};
-use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
-use vulkano::pipeline::graphics::multisample::MultisampleState;
-use vulkano::pipeline::graphics::rasterization::{CullMode, RasterizationState};
-use vulkano::pipeline::graphics::vertex_input::{
-    VertexInputAttributeDescription, VertexInputBindingDescription, VertexInputState,
-};
-use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
-use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
-use vulkano::pipeline::{
-    DynamicState, GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
-    PipelineShaderStageCreateInfo,
-};
-use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass};
-use vulkano::shader::{ShaderModule, ShaderModuleCreateInfo};
-use vulkano::{DeviceSize, single_pass_renderpass};
 
 #[derive(Clone, Copy, Debug, Zeroable, Pod)]
 #[repr(C)]
@@ -163,9 +170,7 @@ impl VulkanEguiRenderer {
         let vertex_buffer_pool = SubbufferAllocator::new(
             memory_allocator.clone(),
             SubbufferAllocatorCreateInfo {
-                buffer_usage: BufferUsage::TRANSFER_SRC
-                    | BufferUsage::VERTEX_BUFFER
-                    | BufferUsage::INDEX_BUFFER,
+                buffer_usage: BufferUsage::VERTEX_BUFFER | BufferUsage::INDEX_BUFFER,
                 memory_type_filter: MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
                 ..Default::default()
             },
@@ -266,8 +271,7 @@ impl VulkanEguiRenderer {
                 ..Default::default()
             },
             AllocationCreateInfo {
-                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                memory_type_filter: MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
                 ..Default::default()
             },
             Vector2::default(),
@@ -343,6 +347,7 @@ impl VulkanEguiRenderer {
                             usage: ImageUsage::TRANSFER_SRC
                                 | ImageUsage::TRANSFER_DST
                                 | ImageUsage::SAMPLED,
+                            mip_levels: 1,
                             ..Default::default()
                         },
                         AllocationCreateInfo {
@@ -541,7 +546,7 @@ impl VulkanEguiRenderer {
                     }
 
                     command_buffer
-                        .bind_vertex_buffers(0, vertex_buffer_view.clone())
+                        .bind_vertex_buffers(0, vertex_buffer_view)
                         .unwrap()
                         .bind_index_buffer(index_buffer_view.clone())
                         .unwrap();

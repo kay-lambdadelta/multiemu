@@ -1,21 +1,23 @@
-use crate::ComponentStore;
-use crate::builder::ComponentBuilder;
-use crate::display::shader::ShaderCache;
-use crate::memory::memory_translation_table::MemoryTranslationTable;
+use crate::{
+    ComponentStore, builder::ComponentBuilder, display::shader::ShaderCache,
+    memory::memory_translation_table::MemoryTranslationTable,
+};
 use downcast_rs::Downcast;
 use multiemu_config::Environment;
 use multiemu_rom::manager::RomManager;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use std::any::Any;
-use std::fmt::Debug;
-use std::sync::{Arc, OnceLock, RwLock, RwLockReadGuard};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::{
+    any::Any,
+    fmt::Debug,
+    sync::{Arc, OnceLock, RwLock, RwLockReadGuard},
+};
 
 pub mod component_ref;
 pub mod main_thread_queue;
 pub mod store;
 
 /// Stuff every component optionally needs
+#[derive(Debug)]
 pub struct RuntimeEssentials {
     memory_translation_table: OnceLock<Arc<MemoryTranslationTable>>,
     component_store: Arc<ComponentStore>,

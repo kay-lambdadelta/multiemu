@@ -1,20 +1,21 @@
 use std::sync::{Arc, RwLock};
 
 pub use cartridge::ines::INes;
-use cartridge::ines::TimingMode;
-use cartridge::{NesCartridge, NesCartridgeConfig};
+use cartridge::{NesCartridge, NesCartridgeConfig, ines::TimingMode};
 use multiemu_config::Environment;
 use multiemu_definition_m6502::{M6502, M6502Config, M6502Kind};
-use multiemu_definition_misc::memory::mirror::{MirrorMemory, MirrorMemoryConfig};
-use multiemu_definition_misc::memory::standard::{
-    StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
+use multiemu_definition_misc::memory::{
+    mirror::{MirrorMemory, MirrorMemoryConfig},
+    standard::{StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents},
 };
-use multiemu_machine::builder::MachineBuilder;
-use multiemu_machine::display::shader::ShaderCache;
-use multiemu_machine::memory::AddressSpaceId;
-use multiemu_rom::id::RomId;
-use multiemu_rom::manager::RomManager;
-use multiemu_rom::system::{GameSystem, NintendoSystem};
+use multiemu_machine::{
+    builder::MachineBuilder, display::shader::ShaderCache, memory::AddressSpaceId,
+};
+use multiemu_rom::{
+    id::RomId,
+    manager::RomManager,
+    system::{GameSystem, NintendoSystem},
+};
 use num::rational::Ratio;
 use ppu::NesPpu;
 use rangemap::RangeInclusiveMap;

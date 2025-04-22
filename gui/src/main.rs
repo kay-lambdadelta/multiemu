@@ -1,9 +1,8 @@
 #![allow(clippy::arc_with_non_send_sync)]
 //! A multisystem hardware emulator
 
-use crate::runtime::{Runtime, SoftwareRenderingRuntime};
-use multiemu_config::Environment;
-use multiemu_config::graphics::GraphicsApi;
+use crate::runtime::{Platform, SoftwareRenderingRuntime};
+use multiemu_config::{Environment, graphics::GraphicsApi};
 use multiemu_rom::{
     id::RomId,
     manager::{ROM_INFORMATION_TABLE, RomManager},
@@ -27,7 +26,7 @@ mod runtime;
 fn main() {
     use clap::Parser;
     use cli::{Cli, CliAction};
-    use runtime::desktop::windowing;
+    use runtime::{Runtime, desktop::windowing::DesktopPlatform};
 
     let environment = Environment::load().expect("Could not parse environment");
 
@@ -114,27 +113,27 @@ fn main() {
 
         match graphics_api {
             GraphicsApi::Software => {
-                if let Ok(mut runtime) = windowing::PlatformRuntime::<SoftwareRenderingRuntime>::new(
-                    rom_manager,
-                    environment,
-                ) {
-                    runtime
-                        .launch_game(game_system, user_specified_roms)
-                        .unwrap();
-                }
+                let runtime = Runtime::<SoftwareRenderingRuntime>::new_with_machine(
+                    environment.clone(),
+                    rom_manager.clone(),
+                    game_system,
+                    user_specified_roms.clone(),
+                );
+
+                DesktopPlatform::run(runtime).unwrap();
             }
             #[cfg(all(feature = "vulkan", platform_desktop))]
             GraphicsApi::Vulkan => {
                 use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-                if let Ok(mut runtime) = windowing::PlatformRuntime::<VulkanRenderingRuntime>::new(
-                    rom_manager,
-                    environment,
-                ) {
-                    runtime
-                        .launch_game(game_system, user_specified_roms)
-                        .unwrap();
-                }
+                let runtime = Runtime::<VulkanRenderingRuntime>::new_with_machine(
+                    environment.clone(),
+                    rom_manager.clone(),
+                    game_system,
+                    user_specified_roms.clone(),
+                );
+
+                DesktopPlatform::run(runtime).unwrap();
             }
         }
 
@@ -143,22 +142,19 @@ fn main() {
 
     match graphics_api {
         GraphicsApi::Software => {
-            if let Ok(mut runtime) = windowing::PlatformRuntime::<SoftwareRenderingRuntime>::new(
-                rom_manager,
-                environment,
-            ) {
-                runtime.launch_gui().unwrap();
-            }
+            let runtime =
+                Runtime::<SoftwareRenderingRuntime>::new(environment.clone(), rom_manager.clone());
+
+            DesktopPlatform::run(runtime).unwrap();
         }
         #[cfg(all(feature = "vulkan", platform_desktop))]
         GraphicsApi::Vulkan => {
             use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-            if let Ok(mut runtime) =
-                windowing::PlatformRuntime::<VulkanRenderingRuntime>::new(rom_manager, environment)
-            {
-                runtime.launch_gui().unwrap();
-            }
+            let runtime =
+                Runtime::<VulkanRenderingRuntime>::new(environment.clone(), rom_manager.clone());
+
+            DesktopPlatform::run(runtime).unwrap();
         }
     }
 }

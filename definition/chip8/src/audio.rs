@@ -1,8 +1,12 @@
-use multiemu_machine::builder::ComponentBuilder;
-use multiemu_machine::component::{Component, FromConfig, RuntimeEssentials};
+use multiemu_machine::{
+    builder::ComponentBuilder,
+    component::{Component, FromConfig, RuntimeEssentials},
+};
 use num::rational::Ratio;
-use std::num::NonZero;
-use std::sync::{Arc, Mutex};
+use std::{
+    num::NonZero,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Debug)]
 pub struct Chip8Audio {

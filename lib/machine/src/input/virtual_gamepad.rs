@@ -1,7 +1,9 @@
 use multiemu_input::{Input, InputState, VirtualGamepadName};
-use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+    sync::Arc,
+};
 
 #[derive(Debug, Clone)]
 pub struct VirtualGamepadMetadata {

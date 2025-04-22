@@ -1,7 +1,7 @@
-use crate::database::DatabaseAction;
-use crate::database::logiqx::LogiqxAction;
-use crate::database::native::NativeAction;
-use crate::rom::RomAction;
+use crate::{
+    database::{DatabaseAction, logiqx::LogiqxAction, native::NativeAction},
+    rom::RomAction,
+};
 use clap::Parser;
 use database::redump::RedumpAction;
 use multiemu_rom::system::GameSystem;

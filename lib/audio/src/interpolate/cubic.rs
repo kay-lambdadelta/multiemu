@@ -1,9 +1,10 @@
 use super::Interpolator;
-use crate::frame::FrameIterator;
-use crate::sample::{Sample, conversion::FromSample};
+use crate::{
+    frame::FrameIterator,
+    sample::{Sample, conversion::FromSample},
+};
 use nalgebra::{ComplexField, SVector};
-use num::rational::Ratio;
-use num::{Float, ToPrimitive};
+use num::{Float, ToPrimitive, rational::Ratio};
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 
 #[derive(Default)]

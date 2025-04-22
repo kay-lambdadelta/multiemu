@@ -1,11 +1,9 @@
-use egui::FullOutput;
-use egui::TextureId;
-use nalgebra::Scalar;
-use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2, Vector3, Vector4};
-use palette::LinSrgba;
-use palette::Srgba;
-use palette::cast::ComponentOrder;
-use palette::cast::Packed;
+use egui::{FullOutput, TextureId};
+use nalgebra::{DMatrix, DMatrixViewMut, Point2, Scalar, Vector2, Vector3, Vector4};
+use palette::{
+    LinSrgba, Srgba,
+    cast::{ComponentOrder, Packed},
+};
 use std::collections::HashMap;
 
 mod render_pixel;
