@@ -28,4 +28,4 @@ Everything in this workspace will maintain the MSRV of debian sid. It will most 
 
 ## UI
 
-Note that the application being EGUI based is most likely a temporary arrangement, its just for prototyping EGUI is the least involved when writing a renderer
+Note that the application being EGUI based is most likely a temporary arrangement, its just for prototyping because EGUI is the least involved when writing a renderer
