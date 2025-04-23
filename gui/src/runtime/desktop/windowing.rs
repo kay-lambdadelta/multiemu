@@ -84,14 +84,26 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let egui_winit = self
-            .egui_winit
-            .as_mut()
-            .expect("egui_winit not initialized");
         let display_api_handle = self
             .runtime
             .display_api_handle()
             .expect("Display API handle not initialized");
+
+        let egui_winit = self
+            .egui_winit
+            .as_mut()
+            .expect("egui_winit not initialized");
+
+        if self.runtime.was_egui_context_reset() {
+            *egui_winit = egui_winit::State::new(
+                self.runtime.egui_context.clone(),
+                ViewportId::ROOT,
+                &display_api_handle,
+                Some(display_api_handle.scale_factor() as f32),
+                None,
+                None,
+            );
+        }
 
         let _ = egui_winit.on_window_event(&display_api_handle, &event);
 
