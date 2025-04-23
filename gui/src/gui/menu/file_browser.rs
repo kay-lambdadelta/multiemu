@@ -28,6 +28,7 @@ pub struct FileBrowserState {
     directory_contents: Vec<PathBuf>,
     sorting_method: SortingMethod,
     reverse_sorting: bool,
+    show_hidden: bool,
     rom_manager: Arc<RomManager>,
 }
 
@@ -38,6 +39,7 @@ impl FileBrowserState {
             directory_contents: Vec::new(),
             sorting_method: SortingMethod::Name,
             reverse_sorting: false,
+            show_hidden: false,
             rom_manager,
         };
         me.change_directory(home_directory);
@@ -69,7 +71,7 @@ impl FileBrowserState {
                 self.refresh_directory();
             }
 
-            let old_sorting = (self.sorting_method, self.reverse_sorting);
+            let old_settings = (self.sorting_method, self.reverse_sorting, self.show_hidden);
 
             egui::ComboBox::from_label("Sorting")
                 .selected_text(format!("{}", self.sorting_method))
@@ -79,8 +81,9 @@ impl FileBrowserState {
                 });
 
             ui.checkbox(&mut self.reverse_sorting, "Sort Reverse");
+            ui.checkbox(&mut self.show_hidden, "Show Hidden");
 
-            if old_sorting != (self.sorting_method, self.reverse_sorting) {
+            if old_settings != (self.sorting_method, self.reverse_sorting, self.show_hidden) {
                 self.refresh_directory();
             }
         });
@@ -168,7 +171,20 @@ impl FileBrowserState {
         self.current_directory = path.clone();
         self.directory_contents = read_dir(path)
             .unwrap()
-            .map(|path| path.unwrap().path())
+            .filter_map(|path| {
+                if !self.show_hidden
+                    && path
+                        .as_ref()
+                        .unwrap()
+                        .file_name()
+                        .to_str()?
+                        .starts_with('.')
+                {
+                    return None;
+                }
+
+                Some(path.unwrap().path())
+            })
             .collect();
 
         self.sort_contents();
