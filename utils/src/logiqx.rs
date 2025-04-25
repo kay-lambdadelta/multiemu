@@ -1,4 +1,5 @@
-use isolang::Language;
+use codes_iso_639::part_3::LanguageCode;
+use codes_iso_3166::part_1::CountryCode;
 use multiemu_rom::{
     id::RomId,
     info::RomInfoV0,
@@ -57,7 +58,7 @@ fn get_data_in_parentheses(input: &str) -> Vec<String> {
             ')' => {
                 if let Some(start) = stack.pop() {
                     let substring = &input[start + 1..i];
-                    result.push(substring.to_string());
+                    result.push(substring.trim().to_string());
                 }
             }
             _ => {}
@@ -68,7 +69,8 @@ fn get_data_in_parentheses(input: &str) -> Vec<String> {
 }
 
 struct NameMetadataExtractor {
-    pub languages: HashSet<Language>,
+    pub languages: HashSet<LanguageCode>,
+    pub regions: HashSet<CountryCode>,
 }
 
 impl FromStr for NameMetadataExtractor {
@@ -76,6 +78,7 @@ impl FromStr for NameMetadataExtractor {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut languages = HashSet::new();
+        let mut regions = HashSet::new();
 
         // Split the string into parts based on parentheses
         let parts = get_data_in_parentheses(s);
@@ -85,27 +88,65 @@ impl FromStr for NameMetadataExtractor {
             let part = part.trim().split(',');
 
             for part in part {
-                if let Some(language) = Language::from_639_1(part) {
-                    languages.insert(language);
+                let part = part.trim();
+
+                if let Ok(language) = codes_iso_639::part_1::LanguageCode::from_str(part) {
+                    match language {
+                        codes_iso_639::part_1::LanguageCode::En => {
+                            languages.insert(LanguageCode::Eng);
+                        }
+                        codes_iso_639::part_1::LanguageCode::Ja => {
+                            languages.insert(LanguageCode::Jpn);
+                        }
+                        codes_iso_639::part_1::LanguageCode::Fr => {
+                            languages.insert(LanguageCode::Fra);
+                        }
+                        codes_iso_639::part_1::LanguageCode::De => {
+                            languages.insert(LanguageCode::Deu);
+                        }
+                        codes_iso_639::part_1::LanguageCode::Es => {
+                            languages.insert(LanguageCode::Spa);
+                        }
+                        codes_iso_639::part_1::LanguageCode::It => {
+                            languages.insert(LanguageCode::Ita);
+                        }
+                        codes_iso_639::part_1::LanguageCode::Zh => {
+                            languages.insert(LanguageCode::Zho);
+                        }
+                        codes_iso_639::part_1::LanguageCode::Ko => {
+                            languages.insert(LanguageCode::Kor);
+                        }
+                        _ => {}
+                    }
                 }
 
-                // Region to default locale
-                match part {
-                    "usa" => {
-                        languages.insert(Language::from_639_1("en").unwrap());
+                if let Some(region) = match part {
+                    "usa" => Some(CountryCode::US),
+                    "japan" => Some(CountryCode::JP),
+                    "europe" => Some(CountryCode::EU),
+                    "china" => Some(CountryCode::CN),
+                    "korea" => Some(CountryCode::KR),
+                    "australia" => Some(CountryCode::AU),
+                    "canada" => Some(CountryCode::CA),
+                    "united kingdom" => Some(CountryCode::GB),
+                    "france" => Some(CountryCode::FR),
+                    "brazil" => Some(CountryCode::BR),
+                    "italy" => Some(CountryCode::IT),
+                    "germany" => Some(CountryCode::DE),
+                    "spain" => Some(CountryCode::ES),
+                    "taiwan" => Some(CountryCode::TW),
+                    _ => None,
+                } {
+                    regions.insert(region);
+
+                    if let Some(administrative_language) = region.administrative_language() {
+                        languages.insert(administrative_language);
                     }
-                    "united kingdom" => {
-                        languages.insert(Language::from_639_1("en").unwrap());
-                    }
-                    "japan" => {
-                        languages.insert(Language::from_639_1("ja").unwrap());
-                    }
-                    _ => {}
                 }
             }
         }
 
-        Ok(NameMetadataExtractor { languages })
+        Ok(NameMetadataExtractor { languages, regions })
     }
 }
 
@@ -131,15 +172,17 @@ pub fn import(
     let database_transaction = rom_manager.rom_information.begin_write()?;
     let mut database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
 
-    for mut machine in data_file.machine {
+    for machine in data_file.machine {
         let mut dependencies = BTreeSet::default();
 
         // Extract dependency roms
-        for rom in machine.rom.drain(1..) {
-            let mut languages = BTreeSet::default();
+        for rom in machine.rom {
+            let mut languages = HashSet::default();
+            let mut regions = HashSet::default();
 
             if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
                 languages.extend(name_metadata.languages);
+                regions.extend(name_metadata.regions);
             }
 
             let info = RomInfoV0 {
@@ -147,7 +190,7 @@ pub fn import(
                 file_name: rom.name.replace('\\', "/").into(),
                 system: data_file.header.name,
                 languages,
-                dependencies: BTreeSet::default(),
+                regions,
             };
 
             tracing::debug!("Full ROM info: {:#?}", info);
@@ -155,25 +198,6 @@ pub fn import(
             database_table.insert(rom.id, info)?;
             dependencies.insert(rom.id);
         }
-
-        let rom = machine.rom.remove(0);
-        let mut languages = BTreeSet::default();
-
-        if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
-            languages.extend(name_metadata.languages);
-        }
-
-        let info = RomInfoV0 {
-            name: machine.name,
-            file_name: rom.name.replace('\\', "/").into(),
-            system: data_file.header.name,
-            languages,
-            dependencies,
-        };
-
-        tracing::debug!("Full ROM info: {:#?}", info);
-
-        database_table.insert(rom.id, info)?;
     }
 
     drop(database_table);

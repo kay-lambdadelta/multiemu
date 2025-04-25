@@ -1,12 +1,12 @@
-use crate::display::{Chip8Display, Chip8DisplayBackend, draw_sprite_common};
+use super::{SCANLINE_LENGTH, Tia, TiaDisplayBackend, region::Region};
 use arc_swap::ArcSwap;
 use multiemu_machine::display::backend::{
     RenderBackend,
     vulkan::{VulkanComponentFramebuffer, VulkanRendering},
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
-use palette::{Srgb, Srgba};
-use std::{ops::DerefMut, sync::Arc};
+use palette::Srgba;
+use std::sync::Arc;
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
     command_buffer::{
@@ -28,38 +28,36 @@ pub struct VulkanState {
     pub render_image: Arc<ArcSwap<Image>>,
 }
 
-impl Chip8DisplayBackend for VulkanState {
-    fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool {
-        let mut staging_buffer = self.staging_buffer.write().unwrap();
-        let staging_buffer = DMatrixViewMut::from_slice(staging_buffer.deref_mut(), 64, 32);
+impl<R: Region> TiaDisplayBackend<R> for VulkanState {
+    fn draw(&self, position: Point2<u16>, hue: u8, luminosity: u8) {
+        let real_color = R::color_to_srgb(hue, luminosity);
 
-        draw_sprite_common(position, sprite, staging_buffer)
-    }
-
-    fn clear_display(&self) {
         let mut staging_buffer = self.staging_buffer.write().unwrap();
 
-        staging_buffer.fill(Srgba::new(0, 0, 0, 255));
+        let mut staging_buffer_view = DMatrixViewMut::from_slice(
+            staging_buffer.as_mut(),
+            R::TOTAL_SCANLINES as usize,
+            SCANLINE_LENGTH as usize,
+        );
+
+        let color = Srgba::new(real_color.red, real_color.green, real_color.blue, 0xff);
+        staging_buffer_view[(position.x as usize, position.y as usize)] = color;
     }
 
-    fn save_screen_contents(&self) -> DMatrix<Srgb<u8>> {
+    fn save_screen_contents(&self) -> DMatrix<Srgba<u8>> {
         let staging_buffer = self.staging_buffer.read().unwrap();
 
-        DMatrix::from_iterator(
-            64,
-            32,
-            staging_buffer
-                .iter()
-                .map(|pixel| Srgb::new(pixel.red, pixel.green, pixel.blue)),
+        DMatrix::from_row_slice(
+            SCANLINE_LENGTH as usize,
+            R::TOTAL_SCANLINES as usize,
+            &staging_buffer,
         )
     }
 
-    fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>) {
+    fn load_screen_contents(&self, buffer: DMatrix<Srgba<u8>>) {
         let mut staging_buffer = self.staging_buffer.write().unwrap();
 
-        for (source, destination) in buffer.iter().zip(staging_buffer.iter_mut()) {
-            *destination = Srgba::new(source.red, source.green, source.blue, 0xff);
-        }
+        staging_buffer.copy_from_slice(buffer.as_slice());
     }
 
     fn commit_display(&self) {
@@ -90,8 +88,8 @@ impl Chip8DisplayBackend for VulkanState {
     }
 }
 
-pub fn set_display_data(
-    display: &Chip8Display,
+pub fn set_display_data<R: Region>(
+    display: &Tia<R>,
     initialization_data: Arc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
 ) -> VulkanComponentFramebuffer {
     let staging_buffer = Buffer::from_iter(
@@ -104,7 +102,10 @@ pub fn set_display_data(
             memory_type_filter: MemoryTypeFilter::HOST_RANDOM_ACCESS,
             ..Default::default()
         },
-        vec![Srgba::new(0, 0, 0, 0xff); 64 * 32],
+        std::iter::repeat_n(
+            Srgba::new(0, 0, 0, 0),
+            SCANLINE_LENGTH as usize * R::TOTAL_SCANLINES as usize,
+        ),
     )
     .unwrap();
 
@@ -114,7 +115,7 @@ pub fn set_display_data(
             ImageCreateInfo {
                 image_type: ImageType::Dim2d,
                 format: Format::R8G8B8A8_SRGB,
-                extent: [64, 32, 1],
+                extent: [SCANLINE_LENGTH as u32, R::TOTAL_SCANLINES as u32, 1],
                 usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
                 ..Default::default()
             },
@@ -123,7 +124,7 @@ pub fn set_display_data(
         .unwrap(),
     ));
 
-    let _ = display.state.set(Box::new(VulkanState {
+    let _ = display.display_backend.set(Box::new(VulkanState {
         queue: initialization_data.best_queue(),
         command_buffer_allocator: initialization_data.command_buffer_allocator.clone(),
         staging_buffer,

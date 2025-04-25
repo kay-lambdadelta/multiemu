@@ -1,8 +1,5 @@
 use super::{Component, ComponentId, store::ComponentStore};
-use std::{
-    any::{Any, TypeId},
-    sync::Arc,
-};
+use std::{any::TypeId, fmt::Debug, sync::Arc};
 
 #[derive(Clone)]
 enum ComponentLocation {
@@ -23,6 +20,20 @@ impl<C: Component> Clone for ComponentRef<C> {
             store: self.store.clone(),
             _phantom: std::marker::PhantomData,
         }
+    }
+}
+
+impl<C: Component + Debug> Debug for ComponentRef<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::default();
+
+        self.interact(|component| {
+            s.push_str(&format!("{:?}", component));
+        });
+
+        f.debug_struct("ComponentRef")
+            .field("component", &s)
+            .finish()
     }
 }
 
@@ -60,8 +71,11 @@ impl<C: Component> ComponentRef<C> {
     pub fn interact(&self, callback: impl FnOnce(&C) + Send) {
         match &self.location {
             ComponentLocation::Here(component) => {
-                // SAFETY: We know that the component is of type C, this is not constructable otherwise
-                let component = unsafe { &*(component.as_any() as *const dyn Any as *const C) };
+                let component = component
+                    .as_any()
+                    .downcast_ref::<C>()
+                    .expect("Component type mismatch");
+
                 callback(component);
             }
             ComponentLocation::Elsewhere(component_id) => {

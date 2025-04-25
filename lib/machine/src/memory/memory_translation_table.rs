@@ -151,6 +151,12 @@ impl MemoryTranslationTable {
         // Cut off address
         let address = address.view_bits::<Lsb0>()[..bus_info.width as usize].load_le::<usize>();
 
+        tracing::trace!(
+            "Reading memory at {:#04x?} with size {}",
+            address,
+            buffer.len()
+        );
+
         let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
             address,
             (0..=buffer.len() - 1),
@@ -276,6 +282,12 @@ impl MemoryTranslationTable {
 
         let address = address.view_bits::<Lsb0>()[..bus_info.width as usize].load_le::<usize>();
 
+        tracing::trace!(
+            "Writing memory at {:#04x?} with size {}",
+            address,
+            buffer.len()
+        );
+
         let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
             address,
             (0..=(buffer.len() - 1)),
@@ -383,6 +395,12 @@ impl MemoryTranslationTable {
             .expect("Non existant address space");
 
         let address = address.view_bits::<Lsb0>()[..bus_info.width as usize].load_le::<usize>();
+
+        tracing::trace!(
+            "Previewing memory at {:#04x?} with size {}",
+            address,
+            buffer.len()
+        );
 
         let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
             address,

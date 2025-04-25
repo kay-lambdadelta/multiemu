@@ -3,6 +3,7 @@ use std::{fmt::Display, path::PathBuf};
 
 pub mod export;
 pub mod import;
+pub mod verify;
 
 #[derive(Clone, Debug, Default, ValueEnum)]
 pub enum ExportStyle {
@@ -43,4 +44,5 @@ pub enum RomAction {
         #[clap(short, long, default_value_t=ExportStyle::default())]
         style: ExportStyle,
     },
+    Verify,
 }

@@ -69,14 +69,14 @@ pub fn database_native_fuzzy_search(
             found_games
                 .entry(rom_info.system)
                 .or_default()
-                .push((rom_info.file_name.clone(), calculated_similarity));
+                .push((rom_info.clone(), calculated_similarity));
         }
     }
 
     for (system, found_games) in found_games {
         println!("{}", system);
         for (game, similarity) in found_games {
-            println!("\t{:.2} {}", similarity, game);
+            println!("\t{:.2} {:?}", similarity, game);
         }
     }
 

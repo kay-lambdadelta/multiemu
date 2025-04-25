@@ -22,7 +22,6 @@ arrayvec = { workspace = true }
 # cranelift = { workspace = true, optional = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
-criterion = { workspace = true }
 indexmap = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 
@@ -31,7 +30,3 @@ multiemu-macros = { workspace = true }
 cfg_aliases = { workspace = true }
 
 [features]
-
-[[bench]]
-name = "instruction_decode"
-harness = false

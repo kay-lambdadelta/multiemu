@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 #![allow(clippy::arc_with_non_send_sync)]
 //! A multisystem hardware emulator
 
@@ -34,10 +35,12 @@ fn main() {
     let stderr_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
         .with_ansi(true)
+        .with_thread_ids(true)
         .with_filter(create_filter());
     let file_layer = tracing_subscriber::fmt::layer()
         .with_writer(Arc::new(file))
         .with_ansi(false)
+        .with_thread_ids(true)
         .with_filter(create_filter());
 
     // Combine the layers and set the global subscriber

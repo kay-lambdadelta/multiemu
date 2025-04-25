@@ -220,7 +220,7 @@ fn process_file(
                 .ok_or_else(|| format!("Could not find entry \"{}\" in archive", path.display()))?;
             let file = archive.by_index(index)?;
 
-            Ok::<_, Box<dyn Error + Send + Sync>>(RomId::from_read(file))
+            Ok::<_, Box<dyn Error + Send + Sync>>(RomId::calculate_id(file)?)
         })?,
     };
 
@@ -306,18 +306,18 @@ fn convert_and_fetch_id(
                 let mut converted_reader = crate::convert::wiigamecube::to_iso(rom_file)?;
                 converted_reader.rewind()?;
 
-                let rom_id = RomId::from_read(&mut converted_reader);
+                let rom_id = RomId::calculate_id(&mut converted_reader)?;
                 converted_reader.rewind()?;
 
                 Ok((rom_id, Some(converted_reader)))
             }
             _ => {
-                let rom_id = RomId::from_read(rom_file);
+                let rom_id = RomId::calculate_id(rom_file)?;
 
                 Ok((rom_id, None))
             }
         }
     } else {
-        Ok((RomId::from_read(rom_file), None))
+        Ok((RomId::calculate_id(rom_file)?, None))
     }
 }

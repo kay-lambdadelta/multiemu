@@ -11,14 +11,17 @@ use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex, atomic::AtomicBool},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use task::M6502Task;
 
-pub mod decoder;
-pub mod instruction;
-pub mod interpret;
-pub mod task;
+mod decoder;
+mod instruction;
+mod interpret;
+mod task;
 
 pub const RESET_VECTOR: usize = 0xfffc;
 const PAGE_SIZE: usize = 256;
@@ -105,6 +108,23 @@ pub enum LoadStep {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StoreStep {
+    // The CPU is putting the contents of this latch into memory
+    Data {
+        /// The CPU is storing a byte of data
+        value: u8,
+    },
+    PushStack {
+        /// The CPU is pushing a byte to the stack
+        data: u8,
+    },
+    /// The CPU is putting the contents of the address bus onto the program counter ("jump")
+    BusToProgram,
+    /// The CPU is relatively modifying the program counter
+    AddToProgram { value: i8 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionMode {
     /// Resets the processor
     Reset,
@@ -118,12 +138,12 @@ pub enum ExecutionMode {
         latch: ArrayVec<u8, 2>,
         queue: VecDeque<LoadStep>,
     },
-    Store {
-        value: u8,
-    },
     /// Execute this instruction
     Execute {
         instruction: M6502InstructionSet,
+    },
+    Store {
+        queue: VecDeque<StoreStep>,
     },
 }
 
@@ -207,9 +227,22 @@ impl Default for ProcessorState {
     }
 }
 
+#[derive(Debug)]
 pub struct M6502 {
     state: Mutex<ProcessorState>,
-    pub rdy: Arc<AtomicBool>,
+    rdy: Arc<AtomicBool>,
+}
+
+impl M6502 {
+    pub fn set_rdy(&self, rdy: bool) {
+        if rdy {
+            tracing::debug!("RDY went high, resuming execution");
+        } else {
+            tracing::debug!("RDY went low, pausing execution");
+        }
+
+        self.rdy.store(rdy, Ordering::Relaxed);
+    }
 }
 
 impl Component for M6502 {

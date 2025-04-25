@@ -10,7 +10,7 @@ pub struct MemoryViewerState {}
 impl MemoryViewerState {
     pub fn run(
         &mut self,
-        output: &mut Option<UiOutput>,
+        _output: &mut Option<UiOutput>,
         ui: &mut egui::Ui,
         machine: Option<&Machine>,
     ) {

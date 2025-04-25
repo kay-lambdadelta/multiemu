@@ -8,7 +8,7 @@ use multiemu_machine::{
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
-use palette::Srgba;
+use palette::{Srgb, Srgba};
 use serde::{Deserialize, Serialize};
 use std::{
     cell::{OnceCell, RefCell},
@@ -25,7 +25,7 @@ mod vulkan;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Chip8DisplaySnapshot {
-    screen_buffer: DMatrix<Srgba<u8>>,
+    screen_buffer: DMatrix<Srgb<u8>>,
 }
 
 pub struct Chip8Display {
@@ -125,8 +125,8 @@ impl FromConfig for Chip8Display {
 trait Chip8DisplayBackend: Downcast {
     fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool;
     fn clear_display(&self);
-    fn save_screen_contents(&self) -> DMatrix<Srgba<u8>>;
-    fn load_screen_contents(&self, buffer: DMatrix<Srgba<u8>>);
+    fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
+    fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);
     fn commit_display(&self);
 }
 

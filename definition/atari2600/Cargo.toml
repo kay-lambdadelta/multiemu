@@ -21,6 +21,10 @@ serde = { workspace = true }
 num = { workspace = true }
 petgraph = { workspace = true }
 nalgebra = { workspace = true }
+palette = { workspace = true }
+arc-swap = { workspace = true }
+downcast-rs = { workspace = true }
+codes-iso-3166 = { workspace = true }
 
 [build-dependencies]
 multiemu-macros = { workspace = true }
@@ -28,9 +32,6 @@ cfg_aliases = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
 vulkano = { workspace = true, optional = true }
-
-[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
-criterion = { workspace = true }
 
 [features]
 vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]

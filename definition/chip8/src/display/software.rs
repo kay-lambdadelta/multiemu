@@ -4,7 +4,7 @@ use multiemu_machine::display::backend::{
     software::{SoftwareComponentFramebuffer, SoftwareRendering},
 };
 use nalgebra::{DMatrix, Point2};
-use palette::Srgba;
+use palette::{Srgb, Srgba};
 use std::{
     cell::RefCell,
     sync::{Arc, Mutex},
@@ -29,16 +29,16 @@ impl Chip8DisplayBackend for SoftwareState {
         staging_buffer.fill(Srgba::new(0, 0, 0, 255));
     }
 
-    fn save_screen_contents(&self) -> DMatrix<Srgba<u8>> {
+    fn save_screen_contents(&self) -> DMatrix<Srgb<u8>> {
         let staging_buffer = self.staging_buffer.borrow();
 
-        staging_buffer.clone()
+        staging_buffer.map(|pixel| Srgb::new(pixel.red, pixel.green, pixel.blue))
     }
 
-    fn load_screen_contents(&self, buffer: DMatrix<Srgba<u8>>) {
+    fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>) {
         let mut staging_buffer = self.staging_buffer.borrow_mut();
 
-        staging_buffer.clone_from(&buffer);
+        *staging_buffer = buffer.map(|pixel| Srgba::new(pixel.red, pixel.green, pixel.blue, 0xff));
     }
 
     fn commit_display(&self) {
@@ -53,7 +53,7 @@ pub fn set_display_data(
     display: &Chip8Display,
     _initialization_data: Arc<<SoftwareRendering as RenderBackend>::ComponentInitializationData>,
 ) -> SoftwareComponentFramebuffer {
-    let staging_buffer = DMatrix::from_element(64, 32, Srgba::new(0, 0, 0, 255));
+    let staging_buffer = DMatrix::from_element(64, 32, Srgba::new(0, 0, 0, 0xff));
     let framebuffer = Arc::new(Mutex::new(staging_buffer.clone()));
 
     let _ = display.state.set(Box::new(SoftwareState {

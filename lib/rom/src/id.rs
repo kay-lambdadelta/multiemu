@@ -15,10 +15,10 @@ impl RomId {
         Self(data)
     }
 
-    pub fn from_read(mut data: impl Read) -> Self {
+    pub fn calculate_id(mut data: impl Read) -> Result<Self, std::io::Error> {
         let mut hasher = Sha1::new();
-        std::io::copy(&mut data, &mut hasher).unwrap();
-        Self(hasher.finalize().into())
+        std::io::copy(&mut data, &mut hasher)?;
+        Ok(Self(hasher.finalize().into()))
     }
 }
 

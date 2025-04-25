@@ -89,6 +89,8 @@ vulkan = [
     "dep:vulkano",
     "multiemu-machine/vulkan",
     "multiemu-definition-chip8/vulkan",
+    "multiemu-definition-nes/vulkan",
+    "multiemu-definition-atari2600/vulkan",
 ]
 
 [package.metadata.deb]

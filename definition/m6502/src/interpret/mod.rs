@@ -2,11 +2,12 @@ use super::{
     FlagRegister, ProcessorState,
     instruction::{M6502InstructionSet, Opcode},
 };
-use crate::{ExecutionMode, instruction::AddressingMode, task::M6502Task};
+use crate::{ExecutionMode, StoreStep, instruction::AddressingMode, task::M6502Task};
 use bitvec::{prelude::Msb0, view::BitView};
 use enumflags2::BitFlag;
 use multiemu_machine::memory::memory_translation_table::MemoryTranslationTable;
 use num::traits::{FromBytes, ToBytes};
+use std::collections::VecDeque;
 
 const STACK_BASE_ADDRESS: usize = 0x0100;
 const INTERRUPT_VECTOR: usize = 0xfffe;
@@ -124,7 +125,9 @@ impl M6502Task {
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
                 } else {
-                    state.execution_mode = Some(ExecutionMode::Store { value });
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                    });
                 }
             }
             Opcode::Asr => {
@@ -142,59 +145,89 @@ impl M6502Task {
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
                 } else {
-                    state.execution_mode = Some(ExecutionMode::Store { value });
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                    });
                 }
             }
             Opcode::Bcc => {
                 let value: i8 = self.load(state, &instruction, memory_translation_table);
 
                 if !state.flags.contains(FlagRegister::Carry) {
-                    state.program = state.program.wrapping_add_signed(value as i16);
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                    });
                 }
             }
             Opcode::Bcs => {
                 let value: i8 = self.load(state, &instruction, memory_translation_table);
 
                 if state.flags.contains(FlagRegister::Carry) {
-                    state.program = state.program.wrapping_add_signed(value as i16);
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                    });
                 }
             }
             Opcode::Beq => {
                 let value: i8 = self.load(state, &instruction, memory_translation_table);
 
                 if state.flags.contains(FlagRegister::Zero) {
-                    state.program = state.program.wrapping_add_signed(value as i16);
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                    });
                 }
             }
-            Opcode::Bit => todo!(),
+            Opcode::Bit => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+                let value_bits = value.view_bits::<Msb0>();
+
+                let result = state.a & value;
+
+                state.flags.set(FlagRegister::Negative, value_bits[7]);
+                state.flags.set(FlagRegister::Overflow, value_bits[6]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+            }
             Opcode::Bmi => {
                 let value: i8 = self.load(state, &instruction, memory_translation_table);
 
                 if state.flags.contains(FlagRegister::Negative) {
-                    state.program = state.program.wrapping_add_signed(value as i16);
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                    });
                 }
             }
             Opcode::Bne => {
                 let value: i8 = self.load(state, &instruction, memory_translation_table);
 
                 if !state.flags.contains(FlagRegister::Zero) {
-                    state.program = state.program.wrapping_add_signed(value as i16);
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                    });
                 }
             }
             Opcode::Bpl => {
                 let value: i8 = self.load(state, &instruction, memory_translation_table);
 
                 if !state.flags.contains(FlagRegister::Negative) {
-                    state.program = state.program.wrapping_add_signed(value as i16);
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                    });
                 }
             }
             Opcode::Brk => {
                 let new_stack = state.stack.wrapping_sub(2);
+                let program_bytes = state.program.to_le_bytes();
 
                 let _ = memory_translation_table.write_le_value(
                     new_stack as usize + STACK_BASE_ADDRESS,
                     self.config.assigned_address_space,
-                    state.program,
+                    program_bytes[0],
+                );
+
+                let _ = memory_translation_table.write_le_value(
+                    new_stack as usize + STACK_BASE_ADDRESS + 1,
+                    self.config.assigned_address_space,
+                    program_bytes[1],
                 );
 
                 // https://www.nesdev.org/wiki/Status_flags
@@ -204,35 +237,40 @@ impl M6502Task {
 
                 let new_stack = new_stack.wrapping_sub(1);
 
-                let _ = memory_translation_table.write(
+                let _ = memory_translation_table.write_le_value(
                     new_stack as usize + STACK_BASE_ADDRESS,
                     self.config.assigned_address_space,
-                    std::array::from_ref(&flags.bits()),
+                    flags.bits(),
                 );
 
-                let mut interrupt_location = [0; 2];
+                let program = [
+                    memory_translation_table
+                        .read_le_value(INTERRUPT_VECTOR, self.config.assigned_address_space)
+                        .unwrap_or_default(),
+                    memory_translation_table
+                        .read_le_value(INTERRUPT_VECTOR + 1, self.config.assigned_address_space)
+                        .unwrap_or_default(),
+                ];
+                state.program = u16::from_le_bytes(program);
 
-                let _ = memory_translation_table.read(
-                    INTERRUPT_VECTOR,
-                    self.config.assigned_address_space,
-                    &mut interrupt_location,
-                );
-
-                state.program = u16::from_le_bytes(interrupt_location);
                 state.stack = new_stack;
             }
             Opcode::Bvc => {
                 let value: i8 = self.load(state, &instruction, memory_translation_table);
 
                 if !state.flags.contains(FlagRegister::Overflow) {
-                    state.program = state.program.wrapping_add_signed(value as i16);
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                    });
                 }
             }
             Opcode::Bvs => {
                 let value: i8 = self.load(state, &instruction, memory_translation_table);
 
                 if state.flags.contains(FlagRegister::Overflow) {
-                    state.program = state.program.wrapping_add_signed(value as i16);
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                    });
                 }
             }
             Opcode::Clc => {
@@ -247,7 +285,17 @@ impl M6502Task {
             Opcode::Clv => {
                 state.flags.remove(FlagRegister::Overflow);
             }
-            Opcode::Cmp => todo!(),
+            Opcode::Cmp => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+
+                let result = state.a.wrapping_sub(value);
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.set(FlagRegister::Carry, state.a >= value);
+            }
             Opcode::Cpx => {
                 let value: u8 = self.load(state, &instruction, memory_translation_table);
 
@@ -284,7 +332,9 @@ impl M6502Task {
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = result;
                 } else {
-                    state.execution_mode = Some(ExecutionMode::Store { value: result });
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::Data { value: result }]),
+                    });
                 }
             }
             Opcode::Dex => {
@@ -329,7 +379,9 @@ impl M6502Task {
                     .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
                 state.flags.set(FlagRegister::Zero, result == 0);
 
-                state.execution_mode = Some(ExecutionMode::Store { value: result });
+                state.execution_mode = Some(ExecutionMode::Store {
+                    queue: VecDeque::from_iter([StoreStep::Data { value: result }]),
+                });
             }
             Opcode::Inx => {
                 let result = state.x.wrapping_add(1);
@@ -357,8 +409,31 @@ impl M6502Task {
 
                 state.execution_mode = Some(ExecutionMode::Jammed);
             }
-            Opcode::Jmp => todo!(),
-            Opcode::Jsr => todo!(),
+            Opcode::Jmp => {
+                let value = match instruction.addressing_mode {
+                    Some(AddressingMode::Absolute) | Some(AddressingMode::AbsoluteIndirect) => {
+                        state.address_bus
+                    }
+                    _ => unreachable!(),
+                };
+
+                state.program = value;
+            }
+            Opcode::Jsr => {
+                let program_bytes = state.program.to_le_bytes();
+
+                state.execution_mode = Some(ExecutionMode::Store {
+                    queue: VecDeque::from_iter([
+                        StoreStep::PushStack {
+                            data: program_bytes[1],
+                        },
+                        StoreStep::PushStack {
+                            data: program_bytes[0],
+                        },
+                        StoreStep::BusToProgram,
+                    ]),
+                })
+            }
             Opcode::Las => todo!(),
             Opcode::Lax => {
                 let value: u8 = self.load(state, &instruction, memory_translation_table);
@@ -410,7 +485,9 @@ impl M6502Task {
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
                 } else {
-                    state.execution_mode = Some(ExecutionMode::Store { value });
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                    });
                 }
             }
             Opcode::Nop => {
@@ -431,15 +508,9 @@ impl M6502Task {
                 state.a = result;
             }
             Opcode::Pha => {
-                let new_stack = state.stack.wrapping_sub(1);
-
-                let _ = memory_translation_table.write(
-                    new_stack as usize + STACK_BASE_ADDRESS,
-                    self.config.assigned_address_space,
-                    &state.a.to_le_bytes(),
-                );
-
-                state.stack = new_stack;
+                state.execution_mode = Some(ExecutionMode::Store {
+                    queue: VecDeque::from_iter([StoreStep::PushStack { data: state.a }]),
+                });
             }
             Opcode::Php => {
                 let mut flags = state.flags;
@@ -447,41 +518,32 @@ impl M6502Task {
                 flags.insert(FlagRegister::__Unused);
                 flags.insert(FlagRegister::Break);
 
-                let new_stack = state.stack.wrapping_sub(1);
-
-                let _ = memory_translation_table.write(
-                    new_stack as usize + STACK_BASE_ADDRESS,
-                    self.config.assigned_address_space,
-                    &flags.bits().to_ne_bytes(),
-                );
-
-                state.stack = new_stack;
+                state.execution_mode = Some(ExecutionMode::Store {
+                    queue: VecDeque::from_iter([StoreStep::PushStack { data: flags.bits() }]),
+                });
             }
             Opcode::Pla => {
-                let mut value = 0;
-
-                let _ = memory_translation_table.read(
-                    state.stack as usize + STACK_BASE_ADDRESS,
-                    self.config.assigned_address_space,
-                    std::array::from_mut(&mut value),
-                );
+                state.a = memory_translation_table
+                    .read_le_value(
+                        state.stack as usize + STACK_BASE_ADDRESS,
+                        self.config.assigned_address_space,
+                    )
+                    .unwrap_or_default();
 
                 state
                     .flags
-                    .set(FlagRegister::Negative, value.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, value == 0);
+                    .set(FlagRegister::Negative, state.a.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, state.a == 0);
 
-                state.a = value;
                 state.stack = state.stack.wrapping_add(1);
             }
             Opcode::Plp => {
-                let mut value = 0;
-
-                let _ = memory_translation_table.read(
-                    state.stack as usize + STACK_BASE_ADDRESS,
-                    self.config.assigned_address_space,
-                    std::array::from_mut(&mut value),
-                );
+                let value = memory_translation_table
+                    .read_le_value(
+                        state.stack as usize + STACK_BASE_ADDRESS,
+                        self.config.assigned_address_space,
+                    )
+                    .unwrap_or_default();
 
                 state.flags = FlagRegister::from_bits(value).unwrap();
                 state.stack = state.stack.wrapping_add(1);
@@ -502,7 +564,9 @@ impl M6502Task {
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
                 } else {
-                    state.execution_mode = Some(ExecutionMode::Store { value });
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                    });
                 }
             }
             Opcode::Ror => {
@@ -520,21 +584,21 @@ impl M6502Task {
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
                 } else {
-                    state.execution_mode = Some(ExecutionMode::Store { value });
+                    state.execution_mode = Some(ExecutionMode::Store {
+                        queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                    });
                 }
             }
             Opcode::Rra => todo!(),
             Opcode::Rti => todo!(),
             Opcode::Rts => {
-                let mut address = [0; 2];
+                state.program = memory_translation_table
+                    .read_le_value(
+                        state.stack as usize + STACK_BASE_ADDRESS,
+                        self.config.assigned_address_space,
+                    )
+                    .unwrap_or_default();
 
-                let _ = memory_translation_table.read(
-                    state.stack as usize + STACK_BASE_ADDRESS,
-                    self.config.assigned_address_space,
-                    &mut address,
-                );
-
-                state.program = u16::from_le_bytes(address);
                 state.stack = state.stack.wrapping_add(2);
             }
             Opcode::Sax => {
@@ -542,7 +606,43 @@ impl M6502Task {
 
                 self.store(state, &instruction, memory_translation_table, value);
             }
-            Opcode::Sbc => todo!(),
+            Opcode::Sbc => {
+                let value: u8 = self.load(state, &instruction, memory_translation_table);
+
+                if state.flags.contains(FlagRegister::Decimal)
+                    && self.config.kind.supports_decimal()
+                {
+                } else {
+                    let carry = state.flags.contains(FlagRegister::Carry) as u8;
+
+                    let (first_operation_result, first_operation_overflow) =
+                        state.a.overflowing_sub(value);
+
+                    let (second_operation_result, second_operation_overflow) =
+                        first_operation_result.overflowing_sub(carry);
+
+                    state.flags.set(
+                        FlagRegister::Overflow,
+                        // If it overflowed at any point this is set
+                        first_operation_overflow || second_operation_overflow,
+                    );
+
+                    state.flags.set(
+                        FlagRegister::Carry,
+                        first_operation_overflow || second_operation_overflow,
+                    );
+
+                    state.flags.set(
+                        FlagRegister::Negative,
+                        second_operation_result.view_bits::<Msb0>()[0],
+                    );
+                    state
+                        .flags
+                        .set(FlagRegister::Zero, second_operation_result == 0);
+
+                    state.a = second_operation_result;
+                }
+            }
             Opcode::Sbx => todo!(),
             Opcode::Sec => {
                 state.flags.insert(FlagRegister::Carry);
@@ -622,7 +722,19 @@ impl M6502Task {
                 state.a = result;
             }
             Opcode::Xaa => {
+                tracing::warn!("Program used XAA instruction which is highly unpredictable");
+
                 let value: u8 = self.load(state, &instruction, memory_translation_table);
+                let random_value: u8 = rand::random();
+
+                let result = (state.a & random_value) & state.x & value;
+
+                state
+                    .flags
+                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
+                state.flags.set(FlagRegister::Zero, value == 0);
+
+                state.a = result;
             }
         }
     }

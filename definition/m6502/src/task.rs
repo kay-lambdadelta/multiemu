@@ -1,6 +1,6 @@
 use crate::{
-    ExecutionMode, LoadStep, M6502, M6502Config, RESET_VECTOR, decoder::M6502InstructionDecoder,
-    instruction::AddressingMode,
+    ExecutionMode, LoadStep, M6502, M6502Config, RESET_VECTOR, StoreStep,
+    decoder::M6502InstructionDecoder, instruction::AddressingMode,
 };
 use arrayvec::ArrayVec;
 use multiemu_machine::{
@@ -24,7 +24,7 @@ impl Task<M6502> for M6502Task {
         let mut state = target.state.lock().unwrap();
 
         while period != 0 {
-            if !target.rdy.load(Ordering::SeqCst) {
+            if !target.rdy.load(Ordering::Relaxed) {
                 period -= 1;
                 continue;
             }
@@ -42,6 +42,8 @@ impl Task<M6502> for M6502Task {
 
                     tracing::debug!("Decoded instruction: {:#?}", instruction);
 
+                    state.address_bus =
+                        state.program.wrapping_add(identifiying_bytes_length as u16);
                     state.program = state.program.wrapping_add(
                         identifiying_bytes_length as u16
                             + instruction
@@ -49,7 +51,6 @@ impl Task<M6502> for M6502Task {
                                 .map(|mode| mode.added_instruction_length())
                                 .unwrap_or(0),
                     );
-                    state.address_bus = state.program;
 
                     let latch = ArrayVec::new();
 
@@ -181,12 +182,15 @@ impl Task<M6502> for M6502Task {
                 } => {
                     match queue.pop_front() {
                         Some(LoadStep::Data) => {
-                            let mut byte = 0;
-                            let _ = self.essentials.memory_translation_table().read(
-                                state.address_bus as usize,
-                                self.config.assigned_address_space,
-                                std::array::from_mut(&mut byte),
-                            );
+                            let byte = self
+                                .essentials
+                                .memory_translation_table()
+                                .read_le_value(
+                                    state.address_bus as usize,
+                                    self.config.assigned_address_space,
+                                )
+                                .unwrap_or_default();
+
                             latch.push(byte);
                             state.address_bus = state.address_bus.wrapping_add(1);
 
@@ -231,26 +235,63 @@ impl Task<M6502> for M6502Task {
                     period -= 1;
                 }
                 ExecutionMode::Reset => {
-                    let program = self
-                        .essentials
-                        .memory_translation_table()
-                        .read_le_value(RESET_VECTOR, self.config.assigned_address_space)
-                        .unwrap_or_default();
+                    let program = [
+                        self.essentials
+                            .memory_translation_table()
+                            .read_le_value(RESET_VECTOR, self.config.assigned_address_space)
+                            .unwrap_or_default(),
+                        self.essentials
+                            .memory_translation_table()
+                            .read_le_value(RESET_VECTOR + 1, self.config.assigned_address_space)
+                            .unwrap_or_default(),
+                    ];
 
-                    state.program = program;
+                    state.program = u16::from_le_bytes(program);
                     state.execution_mode = Some(ExecutionMode::Fetch);
 
                     period -= 1;
                 }
-                ExecutionMode::Store { value } => {
-                    let _ = self.essentials.memory_translation_table().write(
-                        state.address_bus as usize,
-                        self.config.assigned_address_space,
-                        std::array::from_ref(&value),
-                    );
-                    state.execution_mode = Some(ExecutionMode::Fetch);
+                ExecutionMode::Store { mut queue } => {
+                    match queue.pop_front() {
+                        Some(StoreStep::BusToProgram) => {
+                            state.program = state.address_bus;
+                            period -= 1;
+                        }
+                        Some(StoreStep::Data { value }) => {
+                            let _ = self.essentials.memory_translation_table().write_le_value(
+                                state.address_bus as usize,
+                                self.config.assigned_address_space,
+                                value,
+                            );
+                            state.address_bus = state.address_bus.wrapping_add(1);
 
-                    period -= 1;
+                            period -= 1;
+                        }
+                        Some(StoreStep::PushStack { data }) => {
+                            state.stack = state.stack.wrapping_sub(1);
+                            let _ = self.essentials.memory_translation_table().write_le_value(
+                                state.stack as usize,
+                                self.config.assigned_address_space,
+                                data,
+                            );
+
+                            period -= 1;
+                        }
+                        Some(StoreStep::AddToProgram { value }) => {
+                            state.program = state.program.wrapping_add_signed(value as i16);
+
+                            period -= 1;
+                        }
+                        _ => {
+                            unreachable!()
+                        }
+                    }
+
+                    if queue.is_empty() {
+                        state.execution_mode = Some(ExecutionMode::Fetch);
+                    } else {
+                        state.execution_mode = Some(ExecutionMode::Store { queue });
+                    }
                 }
                 ExecutionMode::Execute { instruction } => {
                     state.execution_mode = Some(ExecutionMode::Fetch);

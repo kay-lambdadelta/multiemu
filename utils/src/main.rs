@@ -67,5 +67,8 @@ fn main() {
         }) => {
             rom::export::rom_export(path, symlink, style).unwrap();
         }
+        Cli::Rom(RomAction::Verify) => {
+            rom::verify::rom_verify().unwrap();
+        }
     }
 }

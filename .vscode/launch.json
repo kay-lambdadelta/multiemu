@@ -21,7 +21,7 @@
             },
             "args": [
                 "run-external",
-                "roms/caveexplorer.ch8"
+                "/home/lambdadelta/Roms/Atari - 2600/Donkey Kong (USA)/Donkey Kong (USA).a26"
             ],
             "cwd": "${workspaceFolder}"
         },

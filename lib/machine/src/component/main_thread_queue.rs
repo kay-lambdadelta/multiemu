@@ -11,6 +11,7 @@ struct QueuedCallback {
 pub struct MainThreadExecutor(SegQueue<QueuedCallback>);
 
 impl MainThreadExecutor {
+    // Waits for the main thread to execute the callback
     pub fn wait_on_main<'a>(&'a self, callback: impl FnOnce() + Send + 'a) {
         IS_MAIN_THREAD.with(|is_main_thread| {
             assert!(!*is_main_thread.borrow(), "This is for workers only");

@@ -218,7 +218,7 @@ impl<RS: RenderingBackendState> Runtime<RS> {
 
         // Drop old machine otherwise it will segfault when we try to use the new vulkan context
         self.mode = RuntimeMode::Gui(None);
-        
+
         self.egui_context = egui::Context::default();
         setup_theme(&self.egui_context);
         self.was_egui_context_reset = true;

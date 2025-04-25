@@ -1,11 +1,11 @@
 use super::system::GameSystem;
-use crate::id::RomId;
 use camino::Utf8PathBuf;
-use isolang::Language;
+use codes_iso_639::part_3::LanguageCode;
+use codes_iso_3166::part_1::CountryCode;
 use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use std::collections::BTreeSet;
+use serde_with::{DisplayFromStr, serde_as};
+use std::collections::HashSet;
 
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -15,9 +15,11 @@ pub struct RomInfoV0 {
     pub file_name: Utf8PathBuf,
     pub system: GameSystem,
     #[serde(default)]
-    pub languages: BTreeSet<Language>,
+    #[serde_as(as = "HashSet<DisplayFromStr>")]
+    pub languages: HashSet<LanguageCode>,
     #[serde(default)]
-    pub dependencies: BTreeSet<RomId>,
+    #[serde_as(as = "HashSet<DisplayFromStr>")]
+    pub regions: HashSet<CountryCode>,
 }
 
 impl Value for RomInfoV0 {

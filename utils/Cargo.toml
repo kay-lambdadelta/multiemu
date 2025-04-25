@@ -16,7 +16,8 @@ clap = { workspace = true }
 serde = { workspace = true }
 serde_with = { workspace = true }
 redb = { workspace = true }
-isolang = { workspace = true }
+codes-iso-639 = { workspace = true }
+codes-iso-3166 = { workspace = true }
 scc = { workspace = true }
 strum = { workspace = true }
 quick-xml = { version = "0.37", features = ["serialize"] }
