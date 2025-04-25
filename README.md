@@ -29,3 +29,7 @@ Everything in this workspace will maintain the MSRV of debian sid. It will most 
 ## UI
 
 Note that the application being EGUI based is most likely a temporary arrangement, its just for prototyping because EGUI is the least involved when writing a renderer
+
+## System Support
+
+The emulator has a operational chip8 machine, along with a half finished atari 2600 and a NES machine. Planned beyond those is the Gameboy and other intel 8080/z80 based consoles.
