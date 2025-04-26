@@ -9,7 +9,7 @@ use multiemu_machine::memory::memory_translation_table::MemoryTranslationTable;
 use num::traits::{FromBytes, ToBytes};
 use std::collections::VecDeque;
 
-const STACK_BASE_ADDRESS: usize = 0x0100;
+pub const STACK_BASE_ADDRESS: usize = 0x0100;
 const INTERRUPT_VECTOR: usize = 0xfffe;
 
 #[cfg(test)]
@@ -425,10 +425,10 @@ impl M6502Task {
                 state.execution_mode = Some(ExecutionMode::Store {
                     queue: VecDeque::from_iter([
                         StoreStep::PushStack {
-                            data: program_bytes[1],
+                            data: program_bytes[0],
                         },
                         StoreStep::PushStack {
-                            data: program_bytes[0],
+                            data: program_bytes[1],
                         },
                         StoreStep::BusToProgram,
                     ]),
@@ -592,14 +592,23 @@ impl M6502Task {
             Opcode::Rra => todo!(),
             Opcode::Rti => todo!(),
             Opcode::Rts => {
-                state.program = memory_translation_table
-                    .read_le_value(
-                        state.stack as usize + STACK_BASE_ADDRESS,
-                        self.config.assigned_address_space,
-                    )
-                    .unwrap_or_default();
+                let program = [
+                    memory_translation_table
+                        .read_le_value(
+                            STACK_BASE_ADDRESS + state.stack as usize,
+                            self.config.assigned_address_space,
+                        )
+                        .unwrap_or_default(),
+                    memory_translation_table
+                        .read_le_value(
+                            STACK_BASE_ADDRESS + state.stack.wrapping_add(1) as usize,
+                            self.config.assigned_address_space,
+                        )
+                        .unwrap_or_default(),
+                ];
 
                 state.stack = state.stack.wrapping_add(2);
+                state.program = u16::from_le_bytes(program);
             }
             Opcode::Sax => {
                 let value = state.a & state.x;

@@ -1,6 +1,6 @@
 use crate::{
     ExecutionMode, LoadStep, M6502, M6502Config, RESET_VECTOR, StoreStep,
-    decoder::M6502InstructionDecoder, instruction::AddressingMode,
+    decoder::M6502InstructionDecoder, instruction::AddressingMode, interpret::STACK_BASE_ADDRESS,
 };
 use arrayvec::ArrayVec;
 use multiemu_machine::{
@@ -205,7 +205,7 @@ impl Task<M6502> for M6502Task {
                                     state.address_bus = latch[0] as u16;
                                 }
                                 2 => {
-                                    let latch = [latch[1], latch[0]];
+                                    let latch = [latch[0], latch[1]];
                                     state.address_bus = u16::from_le_bytes(latch);
                                 }
                                 _ => {
@@ -270,7 +270,7 @@ impl Task<M6502> for M6502Task {
                         Some(StoreStep::PushStack { data }) => {
                             state.stack = state.stack.wrapping_sub(1);
                             let _ = self.essentials.memory_translation_table().write_le_value(
-                                state.stack as usize,
+                                STACK_BASE_ADDRESS + state.stack as usize,
                                 self.config.assigned_address_space,
                                 data,
                             );

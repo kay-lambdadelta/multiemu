@@ -2333,6 +2333,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_with",
+ "tracing",
 ]
 
 [[package]]
@@ -3255,6 +3256,7 @@ dependencies = [
  "hashbrown 0.15.2",
  "indexmap 2.9.0",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]

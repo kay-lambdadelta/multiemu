@@ -79,11 +79,19 @@ struct BusInfo {
     width: u8,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct MemoryTranslationTable {
     current_memory_id: MemoryId,
     bus_info: HashMap<AddressSpaceId, BusInfo, FxBuildHasher>,
     memories: Vec<Box<dyn Memory>>,
+}
+
+impl Debug for MemoryTranslationTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemoryTranslationTable")
+            .field("memories", &self.bus_info)
+            .finish()
+    }
 }
 
 impl MemoryTranslationTable {
@@ -111,11 +119,19 @@ impl MemoryTranslationTable {
         self.memories.insert(id, memory);
 
         for (addresses, address_space) in mappings {
-            self.bus_info
+            let bus_info = self
+                .bus_info
                 .get_mut(&address_space)
-                .expect("Non existant address space")
-                .members
-                .insert(addresses, id);
+                .expect("Non existant address space");
+
+            assert!(
+                !bus_info.members.overlaps(&addresses),
+                "Addresses {:x?} conflict with already existing bus infrastructure {:x?}",
+                addresses,
+                bus_info
+            );
+
+            bus_info.members.insert(addresses, id);
         }
     }
 
@@ -204,7 +220,9 @@ impl MemoryTranslationTable {
                         } => {
                             assert!(
                                 !component_assignment_range.contains(&redirect_address),
-                                "Component attempted to redirect to itself"
+                                "Component attempted to redirect to itself {:x?} -> {:x}",
+                                component_assignment_range,
+                                redirect_address,
                             );
 
                             needed_accesses.push((
@@ -335,7 +353,9 @@ impl MemoryTranslationTable {
                         } => {
                             assert!(
                                 !component_assignment_range.contains(&redirect_address),
-                                "Component attempted to redirect to itself"
+                                "Component attempted to redirect to itself {:x?} -> {:x}",
+                                component_assignment_range,
+                                redirect_address,
                             );
 
                             needed_accesses.push((
@@ -444,7 +464,9 @@ impl MemoryTranslationTable {
                         } => {
                             assert!(
                                 !component_assignment_range.contains(&redirect_address),
-                                "Component attempted to redirect to itself"
+                                "Component attempted to redirect to itself {:x?} -> {:x}",
+                                component_assignment_range,
+                                redirect_address,
                             );
 
                             needed_accesses.push((

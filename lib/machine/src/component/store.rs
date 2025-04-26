@@ -109,7 +109,6 @@ impl ComponentStore {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) + Send,
     ) {
-        tracing::trace!("Interacting with component {:?}", component_id);
         let is_main_thread = IS_MAIN_THREAD.with(|is_main_thread| *is_main_thread.borrow());
 
         self.component_location
@@ -145,7 +144,6 @@ impl ComponentStore {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component),
     ) {
-        tracing::trace!("Interacting with component {:?}", component_id);
         let is_main_thread = IS_MAIN_THREAD.with(|is_main_thread| *is_main_thread.borrow());
 
         self.component_location

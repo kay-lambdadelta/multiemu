@@ -4,11 +4,21 @@ use multiemu_machine::memory::{
 use rangemap::RangeInclusiveMap;
 
 #[derive(Debug)]
-pub struct RawCartridgeMemoryCallback {
-    pub rom: [u8; 0x1000],
+pub struct BankingCartridgeMemoryCallback<const BANK_SIZE: usize> {
+    rom: Vec<u8>,
 }
 
-impl Memory for RawCartridgeMemoryCallback {
+impl<const BANK_SIZE: usize> BankingCartridgeMemoryCallback<BANK_SIZE> {
+    pub fn new(rom: Vec<u8>) -> Self {
+        assert!(
+            rom.len() % BANK_SIZE == 0,
+            "ROM size must be a multiple of BANK_SIZE"
+        );
+        Self { rom }
+    }
+}
+
+impl<const BANK_SIZE: usize> Memory for BankingCartridgeMemoryCallback<BANK_SIZE> {
     fn read_memory(
         &self,
         address: usize,

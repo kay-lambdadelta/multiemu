@@ -132,19 +132,16 @@ pub enum ExecutionMode {
     Jammed,
     /// Fetch and decode instruction
     Fetch,
-    /// Fetches and decodes the next instruction
+    /// Loads data required for the instruction
     Load {
         instruction: M6502InstructionSet,
         latch: ArrayVec<u8, 2>,
         queue: VecDeque<LoadStep>,
     },
     /// Execute this instruction
-    Execute {
-        instruction: M6502InstructionSet,
-    },
-    Store {
-        queue: VecDeque<StoreStep>,
-    },
+    Execute { instruction: M6502InstructionSet },
+    /// Stores data for the instruction
+    Store { queue: VecDeque<StoreStep> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

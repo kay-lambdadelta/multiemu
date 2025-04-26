@@ -30,7 +30,7 @@ static COLOR_PALETTE: LazyLock<SMatrix<Srgb<u8>, 16, 8>> = LazyLock::new(|| {
 
     for (i, color) in BASE_COLOR_PALETTE.iter().enumerate() {
         for sat in 0..8 {
-            let saturation = (sat as f32) / 7.0;
+            let saturation = 1.0 - (sat as f32) / 7.0;
             let hsl = Hsl::new(color.hue, saturation, color.lightness);
 
             palette[(i, sat)] = Srgb::from_color(hsl).into_format();

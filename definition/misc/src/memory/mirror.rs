@@ -34,6 +34,25 @@ impl FromConfig for MirrorMemory {
         config: Self::Config,
         _quirks: Self::Quirks,
     ) {
+        for (claimed_range, target) in config.assigned_ranges.iter() {
+            tracing::debug!(
+                "Setting up redirect from {:x?} to {:x}",
+                claimed_range,
+                target
+            );
+        }
+
+        for (claimed_range, _) in config.assigned_ranges.iter() {
+            for redirect in config.assigned_ranges.iter().map(|(_, target)| target) {
+                assert!(
+                    !claimed_range.contains(redirect),
+                    "Range {:x?} conflicts with redirect {:x} (components cannot redirect to themselves)",
+                    claimed_range,
+                    redirect,
+                )
+            }
+        }
+
         let assigned_address_space = config.assigned_address_space;
         let assigned_ranges = config.assigned_ranges.clone();
 

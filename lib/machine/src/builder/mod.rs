@@ -205,6 +205,8 @@ impl MachineBuilder {
         // Create the scheduler
         let scheduler = Scheduler::new(self.essentials.component_store().clone(), tasks);
 
+        tracing::debug!("Memory Translation Table {:#x?}", memory_translation_table);
+
         Machine {
             scheduler,
             component_store: self.essentials.component_store().clone(),

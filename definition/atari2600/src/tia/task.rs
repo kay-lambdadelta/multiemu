@@ -26,10 +26,10 @@ impl<R: Region> Task<Tia<R>> for TiaTask {
                         processor.set_rdy(true);
                     });
                 }
+            }
 
-                if state_guard.scanline >= R::TOTAL_SCANLINES {
-                    state_guard.scanline = 0;
-                }
+            if state_guard.scanline >= R::TOTAL_SCANLINES {
+                state_guard.scanline = 0;
             }
 
             target.display_backend.get().unwrap().draw(

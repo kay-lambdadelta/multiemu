@@ -5,7 +5,7 @@ use multiemu_machine::display::backend::{
     vulkan::{VulkanComponentFramebuffer, VulkanRendering},
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
-use palette::Srgba;
+use palette::{Srgb, Srgba};
 use std::sync::Arc;
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
@@ -44,20 +44,24 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
         staging_buffer_view[(position.x as usize, position.y as usize)] = color;
     }
 
-    fn save_screen_contents(&self) -> DMatrix<Srgba<u8>> {
+    fn save_screen_contents(&self) -> DMatrix<Srgb<u8>> {
         let staging_buffer = self.staging_buffer.read().unwrap();
 
-        DMatrix::from_row_slice(
+        DMatrix::from_row_iterator(
             SCANLINE_LENGTH as usize,
             R::TOTAL_SCANLINES as usize,
-            &staging_buffer,
+            staging_buffer
+                .iter()
+                .map(|color| Srgb::new(color.red, color.green, color.blue)),
         )
     }
 
-    fn load_screen_contents(&self, buffer: DMatrix<Srgba<u8>>) {
+    fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>) {
         let mut staging_buffer = self.staging_buffer.write().unwrap();
 
-        staging_buffer.copy_from_slice(buffer.as_slice());
+        for (source, destination) in buffer.iter().zip(staging_buffer.iter_mut()) {
+            *destination = Srgba::new(source.red, source.green, source.blue, 0xff);
+        }
     }
 
     fn commit_display(&self) {

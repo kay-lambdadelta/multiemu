@@ -89,25 +89,25 @@ impl SwchaCallback for JoystickSwchaCallback {
         );
 
         player2.set(
-            4,
+            0,
             self.gamepads[1]
                 .get(Input::Gamepad(GamepadInput::LeftStickUp))
                 .as_digital(None),
         );
         player2.set(
-            5,
+            1,
             self.gamepads[1]
                 .get(Input::Gamepad(GamepadInput::LeftStickDown))
                 .as_digital(None),
         );
         player2.set(
-            6,
+            2,
             self.gamepads[1]
                 .get(Input::Gamepad(GamepadInput::LeftStickLeft))
                 .as_digital(None),
         );
         player2.set(
-            7,
+            3,
             self.gamepads[1]
                 .get(Input::Gamepad(GamepadInput::LeftStickRight))
                 .as_digital(None),

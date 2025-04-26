@@ -1,3 +1,4 @@
+use banking::BankingCartridgeMemoryCallback;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
@@ -9,6 +10,7 @@ use std::sync::Arc;
 
 use crate::CPU_ADDRESS_SPACE;
 
+mod banking;
 mod raw;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -67,12 +69,23 @@ impl FromConfig for Atari2600Cartridge {
 
         let component_builder = match cart_type {
             CartType::Raw => component_builder.insert_memory(
-                [(0xf000..=0xffff, CPU_ADDRESS_SPACE)],
-                RawCartridgeMemoryCallback { rom: rom_bytes },
+                [(0x1000..=0x1fff, CPU_ADDRESS_SPACE)],
+                RawCartridgeMemoryCallback {
+                    rom: rom_bytes.try_into().unwrap(),
+                },
             ),
-            CartType::Banking1k => todo!(),
-            CartType::Banking2k => todo!(),
-            CartType::Banking4k => todo!(),
+            CartType::Banking1k => component_builder.insert_memory(
+                [(0x1000..=0x1fff, CPU_ADDRESS_SPACE)],
+                BankingCartridgeMemoryCallback::<0x1000>::new(rom_bytes),
+            ),
+            CartType::Banking2k => component_builder.insert_memory(
+                [(0x1000..=0x1fff, CPU_ADDRESS_SPACE)],
+                BankingCartridgeMemoryCallback::<0x2000>::new(rom_bytes),
+            ),
+            CartType::Banking4k => component_builder.insert_memory(
+                [(0x1000..=0x1fff, CPU_ADDRESS_SPACE)],
+                BankingCartridgeMemoryCallback::<0x4000>::new(rom_bytes),
+            ),
         };
 
         component_builder.build_global(Self {});
