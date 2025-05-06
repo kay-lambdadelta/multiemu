@@ -46,9 +46,9 @@ impl Machine {
         }
     }
 
-    pub fn framebuffers<R: RenderBackend>(&self) -> &HashMap<ComponentId, R::ComponentFramebuffer> {
+    pub fn framebuffers<R: RenderBackend>(&self) -> &HashMap<ComponentId, Arc<R::ComponentFramebuffer>> {
         self.framebuffers
-            .downcast_ref::<HashMap<ComponentId, R::ComponentFramebuffer>>()
+            .downcast_ref::<HashMap<ComponentId, Arc<R::ComponentFramebuffer>>>()
             .expect("Different rendering backend requested framebuffers than what this machine was built for")
     }
 }
