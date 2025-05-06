@@ -1,4 +1,4 @@
-name: Rust
+name: Test
 
 on:
   push:
@@ -10,8 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,3 +21,11 @@ jobs:
     - uses: actions/checkout@v4
     - name: Run tests
       run: cargo test --verbose
+  windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run tests
+      run: cargo test --verbose
+
