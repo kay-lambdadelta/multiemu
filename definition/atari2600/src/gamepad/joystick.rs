@@ -27,7 +27,7 @@ impl FromConfig for Atari2600Joystick {
         _quirks: Self::Quirks,
     ) {
         let m6532_riot: ComponentRef<M6532Riot> = essentials
-            .component_store()
+            .component_store
             .get(&config.m6532_riot)
             .expect("Couldn't find m6532_riot");
 
@@ -37,11 +37,13 @@ impl FromConfig for Atari2600Joystick {
         let component_builder =
             component_builder.insert_gamepads([player1_gamepad.clone(), player2_gamepad.clone()]);
 
-        m6532_riot.interact(|riot| {
-            riot.install_swcha(JoystickSwchaCallback {
-                gamepads: [player1_gamepad, player2_gamepad],
-            });
-        });
+        m6532_riot
+            .interact(|riot| {
+                riot.install_swcha(JoystickSwchaCallback {
+                    gamepads: [player1_gamepad, player2_gamepad],
+                });
+            })
+            .unwrap();
 
         component_builder.build_global(Self);
     }

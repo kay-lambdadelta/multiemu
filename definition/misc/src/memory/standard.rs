@@ -2,8 +2,8 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
     memory::{
-        AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
-        callbacks::Memory,
+        AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
+        callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
     },
 };
@@ -11,17 +11,17 @@ use multiemu_rom::{id::RomId, manager::RomRequirement};
 use rand::RngCore;
 use rangemap::RangeInclusiveMap;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    io::Read,
+    io::{Read, Write},
     ops::RangeInclusive,
     sync::{Arc, RwLock},
 };
+use versions::SemVer;
 
-const PAGE_SIZE: usize = 4096;
+const PAGE_SIZE: usize = 4096 - size_of::<RwLock<()>>();
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StandardMemoryInitialContents {
     Value {
         value: u8,
@@ -37,25 +37,18 @@ pub enum StandardMemoryInitialContents {
     Random,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StandardMemoryConfig {
-    // If the buffer is readable
     pub readable: bool,
-    // If the buffer is writable
     pub writable: bool,
     // The maximum word size
     pub max_word_size: usize,
     // Memory region this buffer will be mapped to
     pub assigned_range: RangeInclusive<usize>,
     /// Address space this exists on
-    pub assigned_address_space: AddressSpaceId,
+    pub assigned_address_space: AddressSpaceHandle,
     // Initial contents
     pub initial_contents: Vec<StandardMemoryInitialContents>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StandardMemorySnapshot {
-    pub memory: Vec<u8>,
 }
 
 pub struct StandardMemory {
@@ -65,6 +58,29 @@ pub struct StandardMemory {
 impl Component for StandardMemory {
     fn reset(&self) {
         self.memory_operation_callbacks.initialize_buffer();
+    }
+
+    fn load(
+        &self,
+        entry: &mut dyn Read,
+        version: SemVer,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(version, SemVer::new("1.0.0").unwrap());
+
+        for chunk in self.memory_operation_callbacks.buffer.iter() {
+            let mut buffer = chunk.write().unwrap();
+            entry.read_exact(buffer.as_mut_slice())?;
+        }
+
+        Ok(())
+    }
+
+    fn save(&self, entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
+        for chunk in self.memory_operation_callbacks.buffer.iter() {
+            entry.write_all(chunk.read().unwrap().as_slice())?;
+        }
+
+        Ok(SemVer::new("1.0.0").unwrap())
     }
 }
 
@@ -95,16 +111,29 @@ impl FromConfig for StandardMemory {
         let assigned_address_space = config.assigned_address_space;
 
         let memory_operation_callbacks = Arc::new(MemoryCallbacks {
-            config,
+            config: config.clone(),
             buffer: buffer.into_iter().collect(),
             essentials,
         });
         memory_operation_callbacks.initialize_buffer();
 
-        component_builder = component_builder.insert_memory(
-            [(assigned_range.clone(), assigned_address_space)],
-            memory_operation_callbacks.clone(),
-        );
+        component_builder = match (config.readable, config.writable) {
+            (true, true) => component_builder.insert_rw_memory::<MemoryCallbacks>(
+                memory_operation_callbacks.clone(),
+                [(assigned_address_space, assigned_range)],
+            ),
+            (true, false) => component_builder.insert_read_memory::<MemoryCallbacks>(
+                memory_operation_callbacks.clone(),
+                [(assigned_address_space, assigned_range)],
+            ),
+            (false, true) => component_builder.insert_write_memory::<MemoryCallbacks>(
+                memory_operation_callbacks.clone(),
+                [(assigned_address_space, assigned_range)],
+            ),
+            (false, false) => {
+                panic!("What?");
+            }
+        };
 
         component_builder.build_global(Self {
             memory_operation_callbacks,
@@ -119,11 +148,11 @@ struct MemoryCallbacks {
     essentials: Arc<RuntimeEssentials>,
 }
 
-impl Memory for MemoryCallbacks {
+impl ReadMemory for MemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
@@ -132,14 +161,6 @@ impl Memory for MemoryCallbacks {
             "Invalid memory access size {}",
             buffer.len()
         );
-
-        if !self.config.readable {
-            errors.insert(
-                address..=(address + (buffer.len() - 1)),
-                ReadMemoryRecord::Denied,
-            );
-            return;
-        }
 
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
             let invalid_before_range = address..=end_address;
@@ -164,10 +185,42 @@ impl Memory for MemoryCallbacks {
         self.read_internal(address, buffer);
     }
 
+    fn preview_memory(
+        &self,
+        address: usize,
+        _address_space: AddressSpaceHandle,
+        buffer: &mut [u8],
+        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
+    ) {
+        if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
+            let invalid_before_range = address..=end_address;
+
+            if !invalid_before_range.is_empty() {
+                errors.insert(invalid_before_range, PreviewMemoryRecord::Denied);
+            }
+        }
+
+        if let Some(start_address) = self.config.assigned_range.end().checked_add(1) {
+            let invalid_after_range = start_address..=address;
+
+            if !invalid_after_range.is_empty() {
+                errors.insert(invalid_after_range, PreviewMemoryRecord::Denied);
+            }
+        }
+
+        if !errors.is_empty() {
+            return;
+        }
+
+        self.read_internal(address, buffer);
+    }
+}
+
+impl WriteMemory for MemoryCallbacks {
     fn write_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &[u8],
         errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
@@ -176,14 +229,6 @@ impl Memory for MemoryCallbacks {
             "Invalid memory access size {}",
             buffer.len()
         );
-
-        if !self.config.writable {
-            errors.insert(
-                address..=(address + (buffer.len() - 1)),
-                WriteMemoryRecord::Denied,
-            );
-            return;
-        }
 
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
             let invalid_before_range = address..=end_address;
@@ -207,44 +252,6 @@ impl Memory for MemoryCallbacks {
 
         // Shoved off in a helper function to prevent duplicated logic
         self.write_internal(address, buffer);
-    }
-
-    fn preview_memory(
-        &self,
-        address: usize,
-        _address_space: AddressSpaceId,
-        buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
-    ) {
-        if !self.config.readable {
-            errors.insert(
-                address..=(address + (buffer.len() - 1)),
-                PreviewMemoryRecord::Denied,
-            );
-            return;
-        }
-
-        if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
-            let invalid_before_range = address..=end_address;
-
-            if !invalid_before_range.is_empty() {
-                errors.insert(invalid_before_range, PreviewMemoryRecord::Denied);
-            }
-        }
-
-        if let Some(start_address) = self.config.assigned_range.end().checked_add(1) {
-            let invalid_after_range = start_address..=address;
-
-            if !invalid_after_range.is_empty() {
-                errors.insert(invalid_after_range, PreviewMemoryRecord::Denied);
-            }
-        }
-
-        if !errors.is_empty() {
-            return;
-        }
-
-        self.read_internal(address, buffer);
     }
 }
 
@@ -350,11 +357,11 @@ impl MemoryCallbacks {
                 StandardMemoryInitialContents::Rom { rom_id, offset } => {
                     let mut rom_file = self
                         .essentials
-                        .rom_manager()
+                        .rom_manager
                         .open(
                             *rom_id,
                             RomRequirement::Required,
-                            &self.essentials.environment().roms_directory,
+                            &self.essentials.environment.read().unwrap().roms_directory,
                         )
                         .unwrap();
 
@@ -395,68 +402,70 @@ mod test {
 
     use super::*;
 
-    const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
-
     #[test]
     fn initialization() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
 
-        let machine = MachineBuilder::new(
+        let (cpu_address_space, machine) = MachineBuilder::new(
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
             shader_cache.clone(),
         )
-        .insert_address_space(ADDRESS_SPACE, 64)
-        .insert_component::<StandardMemory>(
-            "workram",
-            StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..=3,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-            },
-        )
-        .build::<SoftwareRendering>(Default::default());
+        .insert_address_space("cpu", 64);
+
+        let machine = machine
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..=3,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 4];
 
         machine
             .memory_translation_table
-            .read(0, ADDRESS_SPACE, &mut buffer)
+            .read(0, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
-        let machine = MachineBuilder::new(
+        let (cpu_address_space, machine) = MachineBuilder::new(
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
             shader_cache.clone(),
         )
-        .insert_address_space(ADDRESS_SPACE, 64)
-        .insert_component::<StandardMemory>(
-            "workram",
-            StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..=3,
-                assigned_address_space: ADDRESS_SPACE,
-                initial_contents: vec![StandardMemoryInitialContents::Array {
-                    value: Cow::Borrowed(&[0xff; 4]),
-                    offset: 0,
-                }],
-            },
-        )
-        .build::<SoftwareRendering>(Default::default());
+        .insert_address_space("cpu", 64);
+
+        let machine = machine
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..=3,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: vec![StandardMemoryInitialContents::Array {
+                        value: Cow::Borrowed(&[0xff; 4]),
+                        offset: 0,
+                    }],
+                },
+            )
+            .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 4];
 
         machine
             .memory_translation_table
-            .read(0, ADDRESS_SPACE, &mut buffer)
+            .read(0, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
     }
@@ -467,28 +476,28 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
 
-        let machine =
+        let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space(ADDRESS_SPACE, 64)
-                .insert_component::<StandardMemory>(
-                    "workram",
-                    StandardMemoryConfig {
-                        max_word_size: 8,
-                        readable: true,
-                        writable: true,
-                        assigned_range: 0..=7,
-                        assigned_address_space: ADDRESS_SPACE,
-                        initial_contents: vec![StandardMemoryInitialContents::Value {
-                            value: 0xff,
-                        }],
-                    },
-                )
-                .build::<SoftwareRendering>(Default::default());
+                .insert_address_space("cpu", 64);
+
+        let machine = machine
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..=7,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0; 8];
 
         machine
             .memory_translation_table
-            .read(0, ADDRESS_SPACE, &mut buffer)
+            .read(0, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
@@ -499,28 +508,29 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
 
-        let machine =
+        let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space(ADDRESS_SPACE, 64)
-                .insert_component::<StandardMemory>(
-                    "workram",
-                    StandardMemoryConfig {
-                        max_word_size: 8,
-                        readable: true,
-                        writable: true,
-                        assigned_range: 0..=7,
-                        assigned_address_space: ADDRESS_SPACE,
-                        initial_contents: vec![StandardMemoryInitialContents::Value {
-                            value: 0xff,
-                        }],
-                    },
-                )
-                .build::<SoftwareRendering>(Default::default());
+                .insert_address_space("cpu", 64);
+
+        let machine = machine
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..=7,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .build::<SoftwareRendering>(Default::default());
+
         let buffer = [0; 8];
 
         machine
             .memory_translation_table
-            .write(0, ADDRESS_SPACE, &buffer)
+            .write(0, cpu_address_space, &buffer)
             .unwrap();
     }
 
@@ -530,33 +540,33 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
 
-        let machine =
+        let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space(ADDRESS_SPACE, 64)
-                .insert_component::<StandardMemory>(
-                    "workram",
-                    StandardMemoryConfig {
-                        max_word_size: 8,
-                        readable: true,
-                        writable: true,
-                        assigned_range: 0..=7,
-                        assigned_address_space: ADDRESS_SPACE,
-                        initial_contents: vec![StandardMemoryInitialContents::Value {
-                            value: 0xff,
-                        }],
-                    },
-                )
-                .build::<SoftwareRendering>(Default::default());
+                .insert_address_space("cpu", 64);
+
+        let machine = machine
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..=7,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .build::<SoftwareRendering>(Default::default());
         let mut buffer = [0xff; 8];
 
         machine
             .memory_translation_table
-            .write(0, ADDRESS_SPACE, &buffer)
+            .write(0, cpu_address_space, &buffer)
             .unwrap();
         buffer.fill(0);
         machine
             .memory_translation_table
-            .read(0, ADDRESS_SPACE, &mut buffer)
+            .read(0, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
@@ -567,70 +577,70 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
 
-        let machine =
+        let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space(ADDRESS_SPACE, 64)
-                .insert_component::<StandardMemory>(
-                    "workram",
-                    StandardMemoryConfig {
-                        max_word_size: 8,
-                        readable: true,
-                        writable: true,
-                        assigned_range: 0..=0xffff,
-                        assigned_address_space: ADDRESS_SPACE,
-                        initial_contents: vec![StandardMemoryInitialContents::Value {
-                            value: 0xff,
-                        }],
-                    },
-                )
-                .build::<SoftwareRendering>(Default::default());
+                .insert_address_space("cpu", 64);
+
+        let machine = machine
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..=0xffff,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .build::<SoftwareRendering>(Default::default());
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];
             machine
                 .memory_translation_table
-                .write(i, ADDRESS_SPACE, &buffer)
+                .write(i, cpu_address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
                 .memory_translation_table
-                .read(i, ADDRESS_SPACE, &mut buffer)
+                .read(i, cpu_address_space, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 1]);
 
             let mut buffer = [0xff; 2];
             machine
                 .memory_translation_table
-                .write(i, ADDRESS_SPACE, &buffer)
+                .write(i, cpu_address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
                 .memory_translation_table
-                .read(i, ADDRESS_SPACE, &mut buffer)
+                .read(i, cpu_address_space, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 2]);
 
             let mut buffer = [0xff; 4];
             machine
                 .memory_translation_table
-                .write(i, ADDRESS_SPACE, &buffer)
+                .write(i, cpu_address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
                 .memory_translation_table
-                .read(i, ADDRESS_SPACE, &mut buffer)
+                .read(i, cpu_address_space, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 4]);
 
             let mut buffer = [0xff; 8];
             machine
                 .memory_translation_table
-                .write(i, ADDRESS_SPACE, &buffer)
+                .write(i, cpu_address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
                 .memory_translation_table
-                .read(i, ADDRESS_SPACE, &mut buffer)
+                .read(i, cpu_address_space, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 8]);
         }

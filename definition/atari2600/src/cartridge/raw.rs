@@ -1,5 +1,5 @@
 use multiemu_machine::memory::{
-    AddressSpaceId, callbacks::Memory, memory_translation_table::ReadMemoryRecord,
+    AddressSpaceHandle, callbacks::ReadMemory, memory_translation_table::ReadMemoryRecord,
 };
 use rangemap::RangeInclusiveMap;
 
@@ -8,11 +8,11 @@ pub struct RawCartridgeMemoryCallback {
     pub rom: [u8; 0x1000],
 }
 
-impl Memory for RawCartridgeMemoryCallback {
+impl ReadMemory for RawCartridgeMemoryCallback {
     fn read_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {

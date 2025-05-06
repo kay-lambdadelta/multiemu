@@ -15,6 +15,6 @@ codes-iso-639 = { workspace = true }
 codes-iso-3166 = { workspace = true }
 indexmap = { workspace = true }
 camino = { workspace = true }
+bincode = { workspace = true }
 data-encoding = "2.9"
 sha1 = "0.10"
-bincode = { version = "2.0", features = ["serde"] }

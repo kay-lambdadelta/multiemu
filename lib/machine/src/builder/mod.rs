@@ -2,12 +2,11 @@ use crate::{
     Machine,
     component::{Component, ComponentId, FromConfig, RuntimeEssentials, store::ComponentStore},
     display::{backend::RenderBackend, shader::ShaderCache},
-    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
+    memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
 };
 use display::{BackendSpecificData, DisplayMetadata};
 use input::InputMetadata;
-use memory::MemoryMetadata;
 use multiemu_config::Environment;
 use multiemu_rom::{manager::RomManager, system::GameSystem};
 use std::{
@@ -26,7 +25,6 @@ pub mod task;
 #[derive(Default)]
 /// Overall data extracted from components needed for machine initialization
 pub struct ComponentMetadata {
-    pub memory: Option<MemoryMetadata>,
     pub task: Option<TaskMetadata>,
     pub display: Option<DisplayMetadata>,
     pub input: Option<InputMetadata>,
@@ -35,10 +33,8 @@ pub struct ComponentMetadata {
 /// Builder to produce a machine, definition crates will want to use this
 pub struct MachineBuilder {
     essentials: Arc<RuntimeEssentials>,
-    environment: Arc<RwLock<Environment>>,
     current_component_id: ComponentId,
     pub component_metadata: HashMap<ComponentId, ComponentMetadata>,
-    memory_busses: HashMap<AddressSpaceId, u8>,
     game_system: GameSystem,
 }
 
@@ -52,13 +48,13 @@ impl MachineBuilder {
         MachineBuilder {
             current_component_id: ComponentId(0),
             component_metadata: HashMap::new(),
-            memory_busses: HashMap::new(),
-            essentials: Arc::new(RuntimeEssentials::new(
+            essentials: Arc::new(RuntimeEssentials {
+                component_store: Arc::default(),
                 rom_manager,
-                environment.clone(),
+                environment,
                 shader_cache,
-            )),
-            environment,
+                memory_translation_table: MemoryTranslationTable::default(),
+            }),
             game_system,
         }
     }
@@ -105,9 +101,13 @@ impl MachineBuilder {
     }
 
     /// Insert the required information to construct a address space
-    pub fn insert_address_space(mut self, address_space_id: AddressSpaceId, width: u8) -> Self {
-        self.memory_busses.insert(address_space_id, width);
-        self
+    pub fn insert_address_space(self, name: &'static str, width: u8) -> (AddressSpaceHandle, Self) {
+        let id = self
+            .essentials
+            .memory_translation_table
+            .insert_address_space(name, width);
+
+        (id, self)
     }
 
     /// Build the machine
@@ -115,30 +115,6 @@ impl MachineBuilder {
         mut self,
         display_component_initialization_data: Arc<R::ComponentInitializationData>,
     ) -> Machine {
-        let mut memory_translation_table = MemoryTranslationTable::default();
-
-        // Populate the memory translation table with address spaces
-        for (address_space_id, width) in self.memory_busses.drain() {
-            memory_translation_table.insert_address_space(address_space_id, width);
-        }
-
-        // Populate the memory translation table with callbacks
-        for memory_metadata in self
-            .component_metadata
-            .iter_mut()
-            .filter_map(|(_, metadata)| {
-                if let Some(as_memory) = &mut metadata.memory {
-                    Some(as_memory)
-                } else {
-                    None
-                }
-            })
-        {
-            for (addresses, memory) in memory_metadata.memories.drain(..) {
-                memory_translation_table.insert_memory(addresses, memory);
-            }
-        }
-
         let mut framebuffers = HashMap::new();
         let mut tasks = Vec::new();
         let mut all_gamepads = Vec::default();
@@ -147,7 +123,7 @@ impl MachineBuilder {
             if let Some(mut display_metadata) = component_metadata.display {
                 // Initialize all the display components
                 self.essentials
-                    .component_store()
+                    .component_store
                     .interact_dyn_local(component_id, |component| {
                         // Call the display callback
                         let framebuffer = (display_metadata
@@ -161,7 +137,8 @@ impl MachineBuilder {
                         );
 
                         framebuffers.insert(component_id, framebuffer);
-                    });
+                    })
+                    .unwrap();
             }
 
             // Gather the tasks
@@ -175,7 +152,7 @@ impl MachineBuilder {
             }
 
             if let Some(input_metadata) = component_metadata.input {
-                let mut environment_guard = self.environment.write().unwrap();
+                let mut environment_guard = self.essentials.environment.write().unwrap();
 
                 for gamepad in input_metadata.gamepads {
                     // Update the environment with default gamepad bounds
@@ -197,20 +174,18 @@ impl MachineBuilder {
             }
         }
 
-        // Finalize the memory translation table
-        let memory_translation_table = Arc::new(memory_translation_table);
-        self.essentials
-            .set_memory_translation_table(memory_translation_table.clone());
-
         // Create the scheduler
-        let scheduler = Scheduler::new(self.essentials.component_store().clone(), tasks);
+        let scheduler = Scheduler::new(self.essentials.component_store.clone(), tasks);
 
-        tracing::debug!("Memory Translation Table {:#x?}", memory_translation_table);
+        tracing::debug!(
+            "Memory Translation Table {:#x?}",
+            self.essentials.memory_translation_table
+        );
 
         Machine {
             scheduler,
-            component_store: self.essentials.component_store().clone(),
-            memory_translation_table,
+            component_store: self.essentials.component_store.clone(),
+            memory_translation_table: self.essentials.memory_translation_table.clone(),
             framebuffers: Box::new(framebuffers),
             virtual_gamepads: all_gamepads
                 .into_iter()
@@ -229,7 +204,7 @@ impl MachineBuilder {
     }
 
     pub fn component_store(&self) -> &ComponentStore {
-        self.essentials.component_store()
+        &self.essentials.component_store
     }
 }
 
@@ -247,7 +222,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
     pub fn build(self, component: C) {
         self.machine_builder
             .essentials
-            .component_store()
+            .component_store
             .insert_component(self.manifest_name, self.component_id, component);
 
         self.machine_builder
@@ -264,7 +239,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
     {
         self.machine_builder
             .essentials
-            .component_store()
+            .component_store
             .insert_component_global(self.manifest_name, self.component_id, component);
 
         self.machine_builder

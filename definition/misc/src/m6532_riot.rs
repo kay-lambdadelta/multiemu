@@ -2,8 +2,8 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
     memory::{
-        AddressSpaceId,
-        callbacks::Memory,
+        AddressSpaceHandle,
+        callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
     },
 };
@@ -13,16 +13,18 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::{
     fmt::Debug,
+    io::{Read, Write},
     num::NonZero,
     sync::{
         Arc, OnceLock, RwLock,
         atomic::{AtomicU8, Ordering},
     },
 };
+use versions::SemVer;
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
-pub struct M6532RiotSnapshot {
+pub struct Snapshot {
     swacnt: u8,
     swbcnt: u8,
     intim: u8,
@@ -96,6 +98,67 @@ impl Component for M6532Riot {
         // I dunno what to do with the handlers
         // The components that installed the handlers will be reset too so its probably fine
     }
+
+    fn save(&self, mut entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
+        let snapshot = Snapshot {
+            swacnt: self.registers.swacnt.load(Ordering::Relaxed),
+            swbcnt: self.registers.swbcnt.load(Ordering::Relaxed),
+            intim: self.registers.intim.load(Ordering::Relaxed),
+            instat: self.registers.instat.load(Ordering::Relaxed),
+            tim1t: self.registers.tim1t.load(Ordering::Relaxed),
+            tim8t: self.registers.tim8t.load(Ordering::Relaxed),
+            tim64t: self.registers.tim64t.load(Ordering::Relaxed),
+            t1024t: self.registers.t1024t.load(Ordering::Relaxed),
+            ram: *self.ram.read().unwrap(),
+        };
+
+        bincode::serde::encode_into_std_write(snapshot, &mut entry, bincode::config::standard())?;
+
+        Ok(SemVer::new("1.0.0").unwrap())
+    }
+
+    fn load(
+        &self,
+        mut entry: &mut dyn Read,
+        version: SemVer,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            version,
+            SemVer::new("1.0.0").unwrap(),
+            "Incompatible snapshot version"
+        );
+
+        let snapshot: Snapshot =
+            bincode::serde::decode_from_std_read(&mut entry, bincode::config::standard())?;
+
+        self.registers
+            .swacnt
+            .store(snapshot.swacnt, Ordering::Relaxed);
+        self.registers
+            .swbcnt
+            .store(snapshot.swbcnt, Ordering::Relaxed);
+        self.registers
+            .intim
+            .store(snapshot.intim, Ordering::Relaxed);
+        self.registers
+            .instat
+            .store(snapshot.instat, Ordering::Relaxed);
+        self.registers
+            .tim1t
+            .store(snapshot.tim1t, Ordering::Relaxed);
+        self.registers
+            .tim8t
+            .store(snapshot.tim8t, Ordering::Relaxed);
+        self.registers
+            .tim64t
+            .store(snapshot.tim64t, Ordering::Relaxed);
+        self.registers
+            .t1024t
+            .store(snapshot.t1024t, Ordering::Relaxed);
+        self.ram.write().unwrap().copy_from_slice(&snapshot.ram);
+
+        Ok(())
+    }
 }
 
 impl FromConfig for M6532Riot {
@@ -129,11 +192,12 @@ impl FromConfig for M6532Riot {
 
         let component_builder = {
             let assigned_ranges = [(
-                config.ram_assigned_address..=config.ram_assigned_address + 127,
                 config.assigned_address_space,
+                config.ram_assigned_address..=config.ram_assigned_address + 127,
             )];
 
-            component_builder.insert_memory(assigned_ranges, memory_callbacks.clone())
+            component_builder
+                .insert_rw_memory::<RamMemoryCallbacks>(memory_callbacks.clone(), assigned_ranges)
         };
 
         let component_builder = {
@@ -141,12 +205,12 @@ impl FromConfig for M6532Riot {
                 registers: registers.clone(),
             });
 
-            component_builder.insert_memory(
-                [(
-                    config.registers_assigned_address..=config.registers_assigned_address,
-                    config.assigned_address_space,
-                )],
+            component_builder.insert_rw_memory::<SwchaMemoryCallback>(
                 swcha,
+                [(
+                    config.assigned_address_space,
+                    config.registers_assigned_address..=config.registers_assigned_address,
+                )],
             )
         };
 
@@ -155,12 +219,12 @@ impl FromConfig for M6532Riot {
                 registers: registers.clone(),
             });
 
-            component_builder.insert_memory(
-                [(
-                    config.registers_assigned_address + 1..=config.registers_assigned_address + 1,
-                    config.assigned_address_space,
-                )],
+            component_builder.insert_rw_memory::<SwchbMemoryCallback>(
                 swchb,
+                [(
+                    config.assigned_address_space,
+                    config.registers_assigned_address + 1..=config.registers_assigned_address + 1,
+                )],
             )
         };
 
@@ -214,7 +278,7 @@ pub struct M6532RiotConfig {
     pub frequency: Ratio<u32>,
     pub ram_assigned_address: usize,
     pub registers_assigned_address: usize,
-    pub assigned_address_space: AddressSpaceId,
+    pub assigned_address_space: AddressSpaceHandle,
 }
 
 #[derive(Debug)]
@@ -223,11 +287,11 @@ struct RamMemoryCallbacks {
     ram: Arc<RwLock<[u8; 128]>>,
 }
 
-impl Memory for RamMemoryCallbacks {
+impl ReadMemory for RamMemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
@@ -237,23 +301,10 @@ impl Memory for RamMemoryCallbacks {
         buffer.copy_from_slice(&memory[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))]);
     }
 
-    fn write_memory(
-        &self,
-        address: usize,
-        _address_space: AddressSpaceId,
-        buffer: &[u8],
-        _errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
-        let mut memory = self.ram.write().unwrap();
-        let adjusted_offset = address - self.config.ram_assigned_address;
-
-        memory[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))].copy_from_slice(buffer);
-    }
-
     fn preview_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         _errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
     ) {
@@ -264,26 +315,43 @@ impl Memory for RamMemoryCallbacks {
     }
 }
 
+impl WriteMemory for RamMemoryCallbacks {
+    fn write_memory(
+        &self,
+        address: usize,
+        _address_space: AddressSpaceHandle,
+        buffer: &[u8],
+        _errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
+    ) {
+        let mut memory = self.ram.write().unwrap();
+        let adjusted_offset = address - self.config.ram_assigned_address;
+
+        memory[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))].copy_from_slice(buffer);
+    }
+}
+
 #[derive(Debug)]
 struct SwchaMemoryCallback {
     registers: Arc<Registers>,
 }
 
-impl Memory for SwchaMemoryCallback {
+impl ReadMemory for SwchaMemoryCallback {
     fn read_memory(
         &self,
         _address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
         buffer[0] = self.registers.swcha.get().unwrap().read_memory();
     }
+}
 
+impl WriteMemory for SwchaMemoryCallback {
     fn write_memory(
         &self,
         _address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &[u8],
         _errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
@@ -296,21 +364,23 @@ struct SwchbMemoryCallback {
     registers: Arc<Registers>,
 }
 
-impl Memory for SwchbMemoryCallback {
+impl ReadMemory for SwchbMemoryCallback {
     fn read_memory(
         &self,
         _address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
         buffer[0] = self.registers.swchb.get().unwrap().read_memory();
     }
+}
 
+impl WriteMemory for SwchbMemoryCallback {
     fn write_memory(
         &self,
         _address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &[u8],
         _errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {

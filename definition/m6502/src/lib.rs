@@ -5,25 +5,27 @@ use instruction::M6502InstructionSet;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
-    memory::AddressSpaceId,
+    memory::AddressSpaceHandle,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
+    io::{Read, Write},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
 use task::M6502Task;
+use versions::SemVer;
 
 mod decoder;
 mod instruction;
 mod interpret;
 mod task;
 
-pub const RESET_VECTOR: usize = 0xfffc;
+const RESET_VECTOR: usize = 0xfffc;
 const PAGE_SIZE: usize = 256;
 
 // Addressing modes vs load steps
@@ -184,7 +186,7 @@ pub enum FlagRegister {
 #[derive(Debug)]
 pub struct M6502Config {
     pub frequency: Ratio<u32>,
-    pub assigned_address_space: AddressSpaceId,
+    pub assigned_address_space: AddressSpaceHandle,
     pub kind: M6502Kind,
 }
 
@@ -243,8 +245,34 @@ impl M6502 {
 }
 
 impl Component for M6502 {
-    fn reset(&self) {
-        todo!()
+    fn save(&self, mut entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
+        let snapshot = Snapshot {
+            state: self.state.lock().unwrap().clone(),
+            rdy: self.rdy.load(Ordering::Relaxed),
+        };
+
+        bincode::serde::encode_into_std_write(snapshot, &mut entry, bincode::config::standard())?;
+
+        Ok(SemVer::new("1.0.0").unwrap())
+    }
+    fn load(
+        &self,
+        mut entry: &mut dyn Read,
+        version: SemVer,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            version,
+            SemVer::new("1.0.0").unwrap(),
+            "Incompatible snapshot version"
+        );
+
+        let snapshot: Snapshot =
+            bincode::serde::decode_from_std_read(&mut entry, bincode::config::standard())?;
+
+        *self.state.lock().unwrap() = snapshot.state;
+        self.rdy.store(snapshot.rdy, Ordering::Relaxed);
+
+        Ok(())
     }
 }
 
@@ -280,4 +308,10 @@ impl FromConfig for M6502 {
                 rdy,
             });
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Snapshot {
+    rdy: bool,
+    state: ProcessorState,
 }

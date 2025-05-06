@@ -22,9 +22,11 @@ impl<R: Region> Task<Tia<R>> for TiaTask {
                 state_guard.scanline += 1;
 
                 if std::mem::replace(&mut state_guard.reset_rdy_on_scanline_end, false) {
-                    self.processor.interact(|processor| {
-                        processor.set_rdy(true);
-                    });
+                    self.processor
+                        .interact(|processor| {
+                            processor.set_rdy(true);
+                        })
+                        .unwrap();
                 }
             }
 

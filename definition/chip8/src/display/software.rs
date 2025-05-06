@@ -52,7 +52,7 @@ impl Chip8DisplayBackend for SoftwareState {
 pub fn set_display_data(
     display: &Chip8Display,
     _initialization_data: Arc<<SoftwareRendering as RenderBackend>::ComponentInitializationData>,
-) -> SoftwareComponentFramebuffer {
+) -> Arc<SoftwareComponentFramebuffer> {
     let staging_buffer = DMatrix::from_element(64, 32, Srgba::new(0, 0, 0, 0xff));
     let framebuffer = Arc::new(Mutex::new(staging_buffer.clone()));
 

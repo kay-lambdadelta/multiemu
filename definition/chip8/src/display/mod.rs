@@ -12,19 +12,21 @@ use palette::{Srgb, Srgba};
 use serde::{Deserialize, Serialize};
 use std::{
     cell::{OnceCell, RefCell},
+    io::{Read, Write},
     ops::Deref,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
+use versions::SemVer;
 
 mod software;
 #[cfg(all(feature = "vulkan", platform_desktop))]
 mod vulkan;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Chip8DisplaySnapshot {
+struct Snapshot {
     screen_buffer: DMatrix<Srgb<u8>>,
 }
 
@@ -66,6 +68,33 @@ impl Chip8Display {
 impl Component for Chip8Display {
     fn reset(&self) {
         self.clear_display();
+    }
+
+    fn save(&self, mut entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
+        let snapshot = Snapshot {
+            screen_buffer: self.state.get().unwrap().save_screen_contents(),
+        };
+
+        bincode::serde::encode_into_std_write(snapshot, &mut entry, bincode::config::standard())?;
+
+        Ok(SemVer::new("1.0.0").unwrap())
+    }
+
+    fn load(
+        &self,
+        mut entry: &mut dyn Read,
+        version: SemVer,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(version, SemVer::new("1.0.0").unwrap());
+
+        let snapshot: Snapshot =
+            bincode::serde::decode_from_std_read(&mut entry, bincode::config::standard())?;
+
+        self.state
+            .get()
+            .unwrap()
+            .load_screen_contents(snapshot.screen_buffer);
+        Ok(())
     }
 }
 

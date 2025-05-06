@@ -3,6 +3,7 @@ use mapper::construct_mapper;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
+    memory::AddressSpaceHandle,
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,8 @@ impl Component for NesCartridge {}
 
 #[derive(Debug)]
 pub struct NesCartridgeConfig {
+    pub cpu_address_space: AddressSpaceHandle,
+    pub ppu_address_space: AddressSpaceHandle,
     pub rom: RomId,
 }
 
@@ -44,11 +47,11 @@ impl FromConfig for NesCartridge {
         _quirks: Self::Quirks,
     ) {
         let mut rom_file = essentials
-            .rom_manager()
+            .rom_manager
             .open(
                 config.rom,
                 RomRequirement::Required,
-                &essentials.environment().roms_directory,
+                &essentials.environment.read().unwrap().roms_directory,
             )
             .unwrap();
 
@@ -59,7 +62,12 @@ impl FromConfig for NesCartridge {
         let ines = Arc::new(INes::parse(&rom).unwrap());
         tracing::debug!("Parsed ROM as {:#?}", ines);
 
-        let component_builder = construct_mapper(component_builder, ines.clone());
+        let component_builder = construct_mapper(
+            component_builder,
+            ines.clone(),
+            config.cpu_address_space,
+            config.ppu_address_space,
+        );
         component_builder.build_global(Self { rom: ines });
     }
 }

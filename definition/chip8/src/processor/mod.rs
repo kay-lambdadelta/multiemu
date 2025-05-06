@@ -9,6 +9,7 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
     input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
+    memory::AddressSpaceHandle,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
@@ -110,14 +111,19 @@ impl Component for Chip8Processor {
     }
 }
 
+#[derive(Debug)]
+pub struct Chip8ProcessorConfig {
+    pub cpu_address_space: AddressSpaceHandle,
+}
+
 impl FromConfig for Chip8Processor {
-    type Config = ();
+    type Config = Chip8ProcessorConfig;
     type Quirks = Chip8ProcessorQuirks;
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
         essentials: Arc<RuntimeEssentials>,
-        _config: Self::Config,
+        config: Self::Config,
         quirks: Self::Quirks,
     ) where
         Self: Sized,
@@ -137,12 +143,14 @@ impl FromConfig for Chip8Processor {
             },
         );
 
-        let display_component = essentials.component_store().get("display").unwrap();
+        let display_component = essentials.component_store.get("display").unwrap();
 
         let mut vsync = None;
-        display_component.interact(|component: &Chip8Display| {
-            vsync = Some(component.vsync_occurred.clone());
-        });
+        display_component
+            .interact(|component: &Chip8Display| {
+                vsync = Some(component.vsync_occurred.clone());
+            })
+            .unwrap();
 
         component_builder
             .insert_gamepads([virtual_gamepad.clone()])
@@ -153,11 +161,12 @@ impl FromConfig for Chip8Processor {
                     virtual_gamepad,
                     vsync_occurred: vsync.unwrap(),
                     display_component,
-                    timer_component: essentials.component_store().get("timer").unwrap(),
-                    audio_component: essentials.component_store().get("audio").unwrap(),
+                    timer_component: essentials.component_store.get("timer").unwrap(),
+                    audio_component: essentials.component_store.get("audio").unwrap(),
                     essentials,
                     quirks,
                     mode,
+                    config,
                 },
             )
             .build_global(Self { state });

@@ -1,10 +1,8 @@
 use super::{
-    Chip8KeyCode, Chip8Processor, Chip8ProcessorQuirks, ExecutionState,
+    Chip8KeyCode, Chip8Processor, Chip8ProcessorConfig, Chip8ProcessorQuirks, ExecutionState,
     decoder::Chip8InstructionDecoder,
 };
-use crate::{
-    CPU_ADDRESS_SPACE, Chip8Kind, audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer,
-};
+use crate::{Chip8Kind, audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer};
 use crossbeam::atomic::AtomicCell;
 use multiemu_machine::{
     component::{RuntimeEssentials, component_ref::ComponentRef},
@@ -35,6 +33,7 @@ pub(crate) struct Chip8ProcessorTask {
     pub display_component: ComponentRef<Chip8Display>,
     pub timer_component: ComponentRef<Chip8Timer>,
     pub audio_component: ComponentRef<Chip8Audio>,
+    pub config: Chip8ProcessorConfig,
 }
 
 impl Task<Chip8Processor> for Chip8ProcessorTask {
@@ -49,8 +48,8 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
                             .instruction_decoder
                             .decode(
                                 state.registers.program as usize,
-                                CPU_ADDRESS_SPACE,
-                                self.essentials.memory_translation_table(),
+                                self.config.cpu_address_space,
+                                &self.essentials.memory_translation_table,
                             )
                             .expect("Failed to decode instruction");
 

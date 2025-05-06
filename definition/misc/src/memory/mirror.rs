@@ -2,21 +2,60 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
     memory::{
-        AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
-        callbacks::Memory,
-        memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
+        AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
+        callbacks::{ReadMemory, WriteMemory},
+        memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
     },
 };
 use rangemap::RangeInclusiveMap;
-use std::sync::Arc;
+use std::{collections::HashMap, ops::RangeInclusive, sync::Arc};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PermissionSpace {
+    Read,
+    Write,
+}
+
+#[allow(clippy::type_complexity)]
+#[derive(Debug, Default)]
 pub struct MirrorMemoryConfig {
-    pub readable: bool,
-    pub writable: bool,
-    pub assigned_ranges: RangeInclusiveMap<usize, usize>,
-    /// Address space this exists on
-    pub assigned_address_space: AddressSpaceId,
+    assigned_ranges: HashMap<
+        PermissionSpace,
+        HashMap<AddressSpaceHandle, RangeInclusiveMap<usize, (AddressSpaceHandle, usize)>>,
+    >,
+}
+
+impl MirrorMemoryConfig {
+    pub fn insert_range(
+        mut self,
+        source_addresses: RangeInclusive<usize>,
+        source_address_space: AddressSpaceHandle,
+        destination_addresses: RangeInclusive<usize>,
+        destination_address_space: AddressSpaceHandle,
+        permissions: impl IntoIterator<Item = PermissionSpace>,
+    ) -> Self {
+        assert_eq!(
+            source_addresses.clone().count(),
+            destination_addresses.clone().count(),
+            "Addresses do not actually represent the same space"
+        );
+
+        for permission in permissions {
+            let map = self
+                .assigned_ranges
+                .entry(permission)
+                .or_default()
+                .entry(source_address_space)
+                .or_default();
+
+            map.insert(
+                source_addresses.clone(),
+                (destination_address_space, *destination_addresses.start()),
+            );
+        }
+
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -29,39 +68,64 @@ impl FromConfig for MirrorMemory {
     type Quirks = ();
 
     fn from_config(
-        component_builder: ComponentBuilder<Self>,
+        mut component_builder: ComponentBuilder<Self>,
         _essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
         _quirks: Self::Quirks,
     ) {
-        for (claimed_range, target) in config.assigned_ranges.iter() {
-            tracing::debug!(
-                "Setting up redirect from {:x?} to {:x}",
-                claimed_range,
-                target
-            );
-        }
-
-        for (claimed_range, _) in config.assigned_ranges.iter() {
-            for redirect in config.assigned_ranges.iter().map(|(_, target)| target) {
-                assert!(
-                    !claimed_range.contains(redirect),
-                    "Range {:x?} conflicts with redirect {:x} (components cannot redirect to themselves)",
-                    claimed_range,
-                    redirect,
-                )
+        // TODO: A bit complex
+        for (
+            permission,
+            source_address_space,
+            source_addresses,
+            destination_address_space,
+            destination_address,
+        ) in config
+            .assigned_ranges
+            .into_iter()
+            .flat_map(|(permission, map)| {
+                map.into_iter()
+                    .flat_map(move |(source_address_space, map)| {
+                        map.into_iter().map(
+                            move |(
+                                source_addresses,
+                                (destination_address_space, destination_address),
+                            )| {
+                                (
+                                    permission,
+                                    source_address_space,
+                                    source_addresses,
+                                    destination_address_space,
+                                    destination_address,
+                                )
+                            },
+                        )
+                    })
+            })
+        {
+            match permission {
+                PermissionSpace::Read => {
+                    component_builder = component_builder.insert_read_memory(
+                        MemoryCallbacks {
+                            source_addresses: source_addresses.clone(),
+                            destination_address,
+                            destination_address_space,
+                        },
+                        [(source_address_space, source_addresses)],
+                    );
+                }
+                PermissionSpace::Write => {
+                    component_builder = component_builder.insert_write_memory(
+                        MemoryCallbacks {
+                            source_addresses: source_addresses.clone(),
+                            destination_address,
+                            destination_address_space,
+                        },
+                        [(source_address_space, source_addresses)],
+                    );
+                }
             }
         }
-
-        let assigned_address_space = config.assigned_address_space;
-        let assigned_ranges = config.assigned_ranges.clone();
-
-        let component_builder = component_builder.insert_memory(
-            assigned_ranges
-                .iter()
-                .map(|(range, _)| (range.clone(), assigned_address_space)),
-            MemoryCallbacks { config },
-        );
 
         component_builder.build_global(Self);
     }
@@ -69,14 +133,16 @@ impl FromConfig for MirrorMemory {
 
 #[derive(Debug)]
 struct MemoryCallbacks {
-    config: MirrorMemoryConfig,
+    source_addresses: RangeInclusive<usize>,
+    destination_address: usize,
+    destination_address_space: AddressSpaceHandle,
 }
 
-impl Memory for MemoryCallbacks {
+impl ReadMemory for MemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
@@ -86,37 +152,45 @@ impl Memory for MemoryCallbacks {
             buffer.len()
         );
 
-        if !self.config.readable {
-            errors.insert(
-                address..=(address + (buffer.len() - 1)),
-                ReadMemoryRecord::Denied,
-            );
-            return;
-        }
-
         let affected_range = address..=(address + (buffer.len() - 1));
-
-        let redirect_base_address = self
-            .config
-            .assigned_ranges
-            .get(affected_range.start())
-            .unwrap();
-
-        let adjusted_redirect_base_address =
-            redirect_base_address + (address - affected_range.start());
+        let adjusted_destination_address =
+            self.destination_address + (address - self.source_addresses.start());
 
         errors.insert(
             affected_range,
             ReadMemoryRecord::Redirect {
-                address: adjusted_redirect_base_address,
+                address: adjusted_destination_address,
+                address_space: self.destination_address_space,
             },
         );
     }
 
+    fn preview_memory(
+        &self,
+        address: usize,
+        _address_space: AddressSpaceHandle,
+        buffer: &mut [u8],
+        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
+    ) {
+        let affected_range = address..=(address + (buffer.len() - 1));
+        let adjusted_destination_address =
+            self.destination_address + (address - self.source_addresses.start());
+
+        errors.insert(
+            affected_range,
+            PreviewMemoryRecord::Redirect {
+                address: adjusted_destination_address,
+                address_space: self.destination_address_space,
+            },
+        );
+    }
+}
+
+impl WriteMemory for MemoryCallbacks {
     fn write_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &[u8],
         errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
@@ -126,28 +200,15 @@ impl Memory for MemoryCallbacks {
             buffer.len()
         );
 
-        if !self.config.writable {
-            errors.insert(
-                address..=(address + (buffer.len() - 1)),
-                WriteMemoryRecord::Denied,
-            );
-            return;
-        }
-
-        let affected_range = address..=(address + buffer.len() - 1);
-
-        let redirect_base_address = self
-            .config
-            .assigned_ranges
-            .get(affected_range.start())
-            .unwrap();
-        let adjusted_redirect_base_address =
-            redirect_base_address + (address - affected_range.start());
+        let affected_range = address..=(address + (buffer.len() - 1));
+        let adjusted_destination_address =
+            self.destination_address + (address - affected_range.start());
 
         errors.insert(
             affected_range,
             WriteMemoryRecord::Redirect {
-                address: adjusted_redirect_base_address,
+                address: adjusted_destination_address,
+                address_space: self.destination_address_space,
             },
         );
     }
@@ -156,61 +217,55 @@ impl Memory for MemoryCallbacks {
 #[cfg(test)]
 mod test {
     use crate::memory::{
-        mirror::{MirrorMemory, MirrorMemoryConfig},
+        mirror::{MirrorMemory, MirrorMemoryConfig, PermissionSpace},
         standard::{StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents},
     };
     use multiemu_config::Environment;
     use multiemu_machine::{
         builder::MachineBuilder,
         display::{backend::software::SoftwareRendering, shader::ShaderCache},
-        memory::AddressSpaceId,
     };
     use multiemu_rom::{manager::RomManager, system::GameSystem};
-    use rangemap::RangeInclusiveMap;
     use std::sync::{Arc, RwLock};
-
-    const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
 
     #[test]
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
-
-        let machine =
+        let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space(ADDRESS_SPACE, 64)
-                .insert_component::<StandardMemory>(
-                    "workram",
-                    StandardMemoryConfig {
-                        max_word_size: 8,
-                        readable: true,
-                        writable: true,
-                        assigned_range: 0..=0xffff,
-                        assigned_address_space: ADDRESS_SPACE,
-                        initial_contents: vec![StandardMemoryInitialContents::Value {
-                            value: 0xff,
-                        }],
-                    },
-                )
-                .insert_component::<MirrorMemory>(
-                    "workram-mirror",
-                    MirrorMemoryConfig {
-                        readable: true,
-                        writable: true,
-                        assigned_ranges: RangeInclusiveMap::from_iter([(
-                            0x10000..=0x1ffff,
-                            0x0000,
-                        )]),
-                        assigned_address_space: ADDRESS_SPACE,
-                    },
-                )
-                .build::<SoftwareRendering>(Default::default());
+                .insert_address_space("cpu", 64);
+
+        let machine = machine
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..=7,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .insert_component::<MirrorMemory>(
+                "workram-mirror",
+                MirrorMemoryConfig::default().insert_range(
+                    0x10000..=0x1ffff,
+                    cpu_address_space,
+                    0x0000..=0xffff,
+                    cpu_address_space,
+                    [PermissionSpace::Read, PermissionSpace::Write],
+                ),
+            )
+            .build::<SoftwareRendering>(Default::default());
+
         let mut buffer = [0; 8];
 
         machine
             .memory_translation_table
-            .read(0x10000, ADDRESS_SPACE, &mut buffer)
+            .read(0x10000, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
@@ -221,40 +276,39 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = Arc::new(ShaderCache::default());
 
-        let machine =
+        let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space(ADDRESS_SPACE, 64)
-                .insert_component::<StandardMemory>(
-                    "workram",
-                    StandardMemoryConfig {
-                        max_word_size: 8,
-                        readable: true,
-                        writable: true,
-                        assigned_range: 0..=0xffff,
-                        assigned_address_space: ADDRESS_SPACE,
-                        initial_contents: vec![StandardMemoryInitialContents::Value {
-                            value: 0xff,
-                        }],
-                    },
-                )
-                .insert_component::<MirrorMemory>(
-                    "workram-mirror",
-                    MirrorMemoryConfig {
-                        readable: true,
-                        writable: true,
-                        assigned_ranges: RangeInclusiveMap::from_iter([(
-                            0x10000..=0x1ffff,
-                            0x0000,
-                        )]),
-                        assigned_address_space: ADDRESS_SPACE,
-                    },
-                )
-                .build::<SoftwareRendering>(Default::default());
+                .insert_address_space("cpu", 64);
+
+        let machine = machine
+            .insert_component::<StandardMemory>(
+                "workram",
+                StandardMemoryConfig {
+                    max_word_size: 8,
+                    readable: true,
+                    writable: true,
+                    assigned_range: 0..=7,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                },
+            )
+            .insert_component::<MirrorMemory>(
+                "workram-mirror",
+                MirrorMemoryConfig::default().insert_range(
+                    0x10000..=0x1ffff,
+                    cpu_address_space,
+                    0x0000..=0xffff,
+                    cpu_address_space,
+                    [PermissionSpace::Read, PermissionSpace::Write],
+                ),
+            )
+            .build::<SoftwareRendering>(Default::default());
+
         let buffer = [0; 8];
 
         machine
             .memory_translation_table
-            .write(0x10000, ADDRESS_SPACE, &buffer)
+            .write(0x10000, cpu_address_space, &buffer)
             .unwrap();
     }
 }

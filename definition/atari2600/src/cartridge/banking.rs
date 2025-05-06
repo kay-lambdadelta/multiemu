@@ -1,5 +1,5 @@
 use multiemu_machine::memory::{
-    AddressSpaceId, callbacks::Memory, memory_translation_table::ReadMemoryRecord,
+    AddressSpaceHandle, callbacks::ReadMemory, memory_translation_table::ReadMemoryRecord,
 };
 use rangemap::RangeInclusiveMap;
 
@@ -18,11 +18,11 @@ impl<const BANK_SIZE: usize> BankingCartridgeMemoryCallback<BANK_SIZE> {
     }
 }
 
-impl<const BANK_SIZE: usize> Memory for BankingCartridgeMemoryCallback<BANK_SIZE> {
+impl<const BANK_SIZE: usize> ReadMemory for BankingCartridgeMemoryCallback<BANK_SIZE> {
     fn read_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {

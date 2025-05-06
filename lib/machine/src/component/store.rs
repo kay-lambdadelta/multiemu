@@ -10,6 +10,14 @@ use std::{
     sync::Arc,
 };
 
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("Could not find component")]
+    ComponentNotFound,
+    #[error("Component could not be interact with due to its position")]
+    ComponentUnreachable,
+}
+
 enum ComponentLocation {
     MainThread,
     Global(Arc<dyn Component + Send + Sync>),
@@ -38,6 +46,12 @@ where
     component_ids: scc::HashMap<Cow<'static, str>, ComponentId, FxBuildHasher>,
     component_location: scc::HashMap<ComponentId, ComponentLocation, FxBuildHasher>,
     pub main_thread_queue: Arc<MainThreadExecutor>,
+}
+
+impl Default for ComponentStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ComponentStore {
@@ -108,33 +122,38 @@ impl ComponentStore {
         &self,
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) + Send,
-    ) {
+    ) -> Result<(), Error> {
         let is_main_thread = IS_MAIN_THREAD.with(|is_main_thread| *is_main_thread.borrow());
 
         self.component_location
-            .read(&component_id, |_, location| match location {
-                ComponentLocation::MainThread => {
-                    if is_main_thread {
-                        MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
-                            let thread_component_store = thread_component_store.borrow();
-                            let component = thread_component_store.get(&component_id).unwrap();
-                            callback(component.as_ref());
-                        });
-                    } else {
-                        self.main_thread_queue.wait_on_main(|| {
+            .read(&component_id, |_, location| {
+                match location {
+                    ComponentLocation::MainThread => {
+                        if is_main_thread {
                             MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
                                 let thread_component_store = thread_component_store.borrow();
                                 let component = thread_component_store.get(&component_id).unwrap();
                                 callback(component.as_ref());
                             });
-                        });
+                        } else {
+                            self.main_thread_queue.wait_on_main(|| {
+                                MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
+                                    let thread_component_store = thread_component_store.borrow();
+                                    let component =
+                                        thread_component_store.get(&component_id).unwrap();
+                                    callback(component.as_ref());
+                                });
+                            });
+                        }
+                    }
+                    ComponentLocation::Global(component) => {
+                        callback(component.as_ref());
                     }
                 }
-                ComponentLocation::Global(component) => {
-                    callback(component.as_ref());
-                }
+
+                Ok(())
             })
-            .expect("Could not locate component");
+            .ok_or(Error::ComponentNotFound)?
     }
 
     #[inline]
@@ -143,27 +162,31 @@ impl ComponentStore {
         &self,
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component),
-    ) {
+    ) -> Result<(), Error> {
         let is_main_thread = IS_MAIN_THREAD.with(|is_main_thread| *is_main_thread.borrow());
 
         self.component_location
-            .read(&component_id, |_, location| match location {
-                ComponentLocation::MainThread => {
-                    if is_main_thread {
-                        MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
-                            let thread_component_store = thread_component_store.borrow();
-                            let component = thread_component_store.get(&component_id).unwrap();
-                            callback(component.as_ref());
-                        });
-                    } else {
-                        panic!("Could not interact with component")
+            .read(&component_id, |_, location| {
+                match location {
+                    ComponentLocation::MainThread => {
+                        if is_main_thread {
+                            MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
+                                let thread_component_store = thread_component_store.borrow();
+                                let component = thread_component_store.get(&component_id).unwrap();
+                                callback(component.as_ref());
+                            });
+                        } else {
+                            return Err(Error::ComponentUnreachable);
+                        }
+                    }
+                    ComponentLocation::Global(component) => {
+                        callback(component.as_ref());
                     }
                 }
-                ComponentLocation::Global(component) => {
-                    callback(component.as_ref());
-                }
+
+                Ok(())
             })
-            .expect("Could not locate component");
+            .ok_or(Error::ComponentNotFound)?
     }
 
     #[inline]
@@ -171,11 +194,11 @@ impl ComponentStore {
         &self,
         component_id: ComponentId,
         callback: impl FnOnce(&C) + Send,
-    ) {
+    ) -> Result<(), Error> {
         self.interact_dyn(component_id, |component| {
             let component = component.as_any().downcast_ref::<C>().unwrap();
             callback(component);
-        });
+        })
     }
 
     #[inline]
@@ -183,11 +206,11 @@ impl ComponentStore {
         &self,
         component_id: ComponentId,
         callback: impl FnOnce(&C),
-    ) {
+    ) -> Result<(), Error> {
         self.interact_dyn_local(component_id, |component| {
             let component = component.as_any().downcast_ref::<C>().unwrap();
             callback(component);
-        });
+        })
     }
 
     #[inline]
@@ -195,10 +218,10 @@ impl ComponentStore {
         &self,
         manifest_name: &str,
         callback: impl FnOnce(&C) + Send,
-    ) {
+    ) -> Result<(), Error> {
         let component_id = *self.component_ids.get(manifest_name).unwrap().get();
 
-        self.interact(component_id, callback);
+        self.interact(component_id, callback)
     }
 
     #[inline]
@@ -206,10 +229,10 @@ impl ComponentStore {
         &self,
         manifest_name: &str,
         callback: impl FnOnce(&C),
-    ) {
+    ) -> Result<(), Error> {
         let component_id = *self.component_ids.get(manifest_name).unwrap().get();
 
-        self.interact_local(component_id, callback);
+        self.interact_local(component_id, callback)
     }
 
     pub fn get<C: Component>(self: &Arc<Self>, manifest_name: &str) -> Option<ComponentRef<C>> {

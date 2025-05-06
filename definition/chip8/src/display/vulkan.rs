@@ -93,7 +93,7 @@ impl Chip8DisplayBackend for VulkanState {
 pub fn set_display_data(
     display: &Chip8Display,
     initialization_data: Arc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
-) -> VulkanComponentFramebuffer {
+) -> Arc<VulkanComponentFramebuffer> {
     let staging_buffer = Buffer::from_iter(
         initialization_data.memory_allocator.clone(),
         BufferCreateInfo {

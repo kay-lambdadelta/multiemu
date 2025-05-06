@@ -123,6 +123,7 @@ impl FromStr for NameMetadataExtractor {
                 if let Some(region) = match part {
                     "usa" => Some(CountryCode::US),
                     "japan" => Some(CountryCode::JP),
+                    // FIXME: Is this what they mean?
                     "europe" => Some(CountryCode::EU),
                     "china" => Some(CountryCode::CN),
                     "korea" => Some(CountryCode::KR),
@@ -139,6 +140,7 @@ impl FromStr for NameMetadataExtractor {
                 } {
                     regions.insert(region);
 
+                    // No-Intro doesn't seem to mark language when its the """default""" language of the region so we will do this hack
                     if let Some(administrative_language) = region.administrative_language() {
                         languages.insert(administrative_language);
                     }

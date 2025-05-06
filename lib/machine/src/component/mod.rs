@@ -9,8 +9,10 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     any::Any,
     fmt::Debug,
-    sync::{Arc, OnceLock, RwLock, RwLockReadGuard},
+    io::{Read, Write},
+    sync::{Arc, RwLock},
 };
+use versions::SemVer;
 
 pub mod component_ref;
 pub mod main_thread_queue;
@@ -19,68 +21,27 @@ pub mod store;
 /// Stuff every component optionally needs
 #[derive(Debug)]
 pub struct RuntimeEssentials {
-    memory_translation_table: OnceLock<Arc<MemoryTranslationTable>>,
-    component_store: Arc<ComponentStore>,
-    rom_manager: Arc<RomManager>,
-    environment: Arc<RwLock<Environment>>,
-    shader_cache: Arc<ShaderCache>,
-}
-
-impl RuntimeEssentials {
-    pub(crate) fn new(
-        rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: Arc<ShaderCache>,
-    ) -> Self {
-        Self {
-            memory_translation_table: OnceLock::new(),
-            component_store: Arc::new(ComponentStore::new()),
-            rom_manager,
-            environment,
-            shader_cache,
-        }
-    }
-
-    pub(crate) fn set_memory_translation_table(
-        &self,
-        memory_translation_table: Arc<MemoryTranslationTable>,
-    ) {
-        if self
-            .memory_translation_table
-            .set(memory_translation_table)
-            .is_err()
-        {
-            panic!("Memory translation table already set");
-        }
-    }
-
-    /// The memory translation table is late initalized so you cannot call this within componentbuilder
-    pub fn memory_translation_table(&self) -> &Arc<MemoryTranslationTable> {
-        self.memory_translation_table
-            .get()
-            .expect("Memory translation table not initialized yet")
-    }
-
-    pub fn component_store(&self) -> &Arc<ComponentStore> {
-        &self.component_store
-    }
-
-    pub fn rom_manager(&self) -> &Arc<RomManager> {
-        &self.rom_manager
-    }
-
-    pub fn environment(&self) -> RwLockReadGuard<'_, Environment> {
-        self.environment.read().unwrap()
-    }
-
-    pub fn shader_cache(&self) -> &Arc<ShaderCache> {
-        &self.shader_cache
-    }
+    pub component_store: Arc<ComponentStore>,
+    pub rom_manager: Arc<RomManager>,
+    pub environment: Arc<RwLock<Environment>>,
+    pub shader_cache: Arc<ShaderCache>,
+    pub memory_translation_table: MemoryTranslationTable,
 }
 
 // Basic supertrait for all components
+#[allow(unused)]
 pub trait Component: Any + Downcast {
     fn reset(&self) {}
+    fn save(&self, entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
+        Ok(SemVer::new("1.0.0").unwrap())
+    }
+    fn load(
+        &self,
+        entry: &mut dyn Read,
+        version: SemVer,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
 }
 
 // An initializable component

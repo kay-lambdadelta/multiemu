@@ -36,7 +36,7 @@ impl Task<M6502> for M6502Task {
                         .decode(
                             state.program as usize,
                             self.config.assigned_address_space,
-                            self.essentials.memory_translation_table(),
+                            &self.essentials.memory_translation_table,
                         )
                         .unwrap();
 
@@ -184,7 +184,7 @@ impl Task<M6502> for M6502Task {
                         Some(LoadStep::Data) => {
                             let byte = self
                                 .essentials
-                                .memory_translation_table()
+                                .memory_translation_table
                                 .read_le_value(
                                     state.address_bus as usize,
                                     self.config.assigned_address_space,
@@ -237,11 +237,11 @@ impl Task<M6502> for M6502Task {
                 ExecutionMode::Reset => {
                     let program = [
                         self.essentials
-                            .memory_translation_table()
+                            .memory_translation_table
                             .read_le_value(RESET_VECTOR, self.config.assigned_address_space)
                             .unwrap_or_default(),
                         self.essentials
-                            .memory_translation_table()
+                            .memory_translation_table
                             .read_le_value(RESET_VECTOR + 1, self.config.assigned_address_space)
                             .unwrap_or_default(),
                     ];
@@ -258,7 +258,7 @@ impl Task<M6502> for M6502Task {
                             period -= 1;
                         }
                         Some(StoreStep::Data { value }) => {
-                            let _ = self.essentials.memory_translation_table().write_le_value(
+                            let _ = self.essentials.memory_translation_table.write_le_value(
                                 state.address_bus as usize,
                                 self.config.assigned_address_space,
                                 value,
@@ -269,7 +269,7 @@ impl Task<M6502> for M6502Task {
                         }
                         Some(StoreStep::PushStack { data }) => {
                             state.stack = state.stack.wrapping_sub(1);
-                            let _ = self.essentials.memory_translation_table().write_le_value(
+                            let _ = self.essentials.memory_translation_table.write_le_value(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 self.config.assigned_address_space,
                                 data,

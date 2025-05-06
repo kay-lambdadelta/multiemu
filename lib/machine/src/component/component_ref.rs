@@ -1,4 +1,7 @@
-use super::{Component, ComponentId, store::ComponentStore};
+use super::{
+    Component, ComponentId,
+    store::{ComponentStore, Error},
+};
 use std::{any::TypeId, fmt::Debug, sync::Arc};
 
 #[derive(Clone)]
@@ -29,7 +32,8 @@ impl<C: Component + Debug> Debug for ComponentRef<C> {
 
         self.interact(|component| {
             s.push_str(&format!("{:?}", component));
-        });
+        })
+        .unwrap();
 
         f.debug_struct("ComponentRef")
             .field("component", &s)
@@ -68,7 +72,7 @@ impl<C: Component> ComponentRef<C> {
         }
     }
 
-    pub fn interact(&self, callback: impl FnOnce(&C) + Send) {
+    pub fn interact(&self, callback: impl FnOnce(&C) + Send) -> Result<(), Error> {
         match &self.location {
             ComponentLocation::Here(component) => {
                 let component = component
@@ -77,9 +81,11 @@ impl<C: Component> ComponentRef<C> {
                     .expect("Component type mismatch");
 
                 callback(component);
+
+                Ok(())
             }
             ComponentLocation::Elsewhere(component_id) => {
-                self.store.interact::<C>(*component_id, callback);
+                self.store.interact::<C>(*component_id, callback)
             }
         }
     }

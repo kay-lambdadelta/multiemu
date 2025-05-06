@@ -2,8 +2,8 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
     memory::{
-        AddressSpaceId, VALID_MEMORY_ACCESS_SIZES,
-        callbacks::Memory,
+        AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
+        callbacks::ReadMemory,
         memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord},
     },
 };
@@ -19,17 +19,13 @@ pub struct RomMemoryConfig {
     /// Memory region this buffer will be mapped to
     pub assigned_range: RangeInclusive<usize>,
     /// Address space this exists on
-    pub assigned_address_space: AddressSpaceId,
+    pub assigned_address_space: AddressSpaceHandle,
 }
 
 #[derive(Debug)]
 pub struct RomMemory;
 
-impl Component for RomMemory {
-    fn reset(&self) {
-        // This is basically a stateless component so there isn't any need to reset
-    }
-}
+impl Component for RomMemory {}
 
 impl FromConfig for RomMemory {
     type Config = RomMemoryConfig;
@@ -42,11 +38,11 @@ impl FromConfig for RomMemory {
         _quirks: Self::Quirks,
     ) {
         let rom_file = essentials
-            .rom_manager()
+            .rom_manager
             .open(
                 config.rom,
                 RomRequirement::Required,
-                &essentials.environment().roms_directory,
+                &essentials.environment.read().unwrap().roms_directory,
             )
             .unwrap();
 
@@ -58,12 +54,12 @@ impl FromConfig for RomMemory {
         #[cfg(not(platform_desktop))]
         let rom = File::open(rom_file).unwrap();
 
-        let memory_operation_callbacks = Arc::new(MemoryCallbacks { config, rom });
+        let memory_operation_callbacks = MemoryCallbacks { config, rom };
 
         component_builder
-            .insert_memory(
-                [(assigned_range, assigned_address_space)],
+            .insert_read_memory(
                 memory_operation_callbacks,
+                [(assigned_address_space, assigned_range)],
             )
             .build_global(Self);
     }
@@ -79,11 +75,11 @@ struct MemoryCallbacks {
     rom: File,
 }
 
-impl Memory for MemoryCallbacks {
+impl ReadMemory for MemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
@@ -109,7 +105,7 @@ impl Memory for MemoryCallbacks {
     fn preview_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         _errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
     ) {

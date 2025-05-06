@@ -4,6 +4,8 @@ use multiemu_definition_m6502::M6502;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
+    display::backend::software::SoftwareRendering,
+    memory::AddressSpaceHandle,
 };
 use nalgebra::{DMatrix, Point2};
 use palette::Srgb;
@@ -22,8 +24,6 @@ mod software;
 mod task;
 #[cfg(all(feature = "vulkan", platform_desktop))]
 mod vulkan;
-
-use crate::CPU_ADDRESS_SPACE;
 
 const HBLANK_LENGTH: u8 = 68;
 const VISIBLE_SCANLINE_LENGTH: u8 = 160;
@@ -119,6 +119,7 @@ pub struct Tia<R: Region> {
 #[derive(Debug, Clone)]
 pub struct TiaConfig {
     pub processor_name: &'static str,
+    pub cpu_address_space: AddressSpaceHandle,
 }
 
 impl<R: Region> Component for Tia<R> {}
@@ -135,20 +136,17 @@ impl<R: Region> FromConfig for Tia<R> {
     ) {
         let state = Arc::new(Mutex::new(State::default()));
         let processor = essentials
-            .component_store()
+            .component_store
             .get::<M6502>(config.processor_name)
             .expect("M6502 component not found");
 
         let component_builder = component_builder
-            .insert_memory(
-                [
-                    (0x000..=0x00d, CPU_ADDRESS_SPACE),
-                    (0x030..=0x03d, CPU_ADDRESS_SPACE),
-                ],
+            .insert_rw_memory(
                 MemoryCallback {
                     state: state.clone(),
                     processor: processor.clone(),
                 },
+                [(config.cpu_address_space, 0x000..=0x03f)],
             )
             .insert_task(
                 R::frequency(),
@@ -158,7 +156,8 @@ impl<R: Region> FromConfig for Tia<R> {
             )
             .insert_task(R::REFRESH_RATE, move |display: &Tia<R>, _period| {
                 display.display_backend.get().unwrap().commit_display();
-            });
+            })
+            .set_display_config::<SoftwareRendering>(None, None, software::set_display_data);
 
         #[cfg(all(feature = "vulkan", platform_desktop))]
         let component_builder = {

@@ -28,7 +28,7 @@ impl ContextExtensionSpecification for VulkanContextExtensionSpecification {
     }
 }
 
-pub type VulkanComponentFramebuffer = Arc<ArcSwap<Image>>;
+pub type VulkanComponentFramebuffer = ArcSwap<Image>;
 
 impl RenderBackend for VulkanRendering {
     const GRAPHICS_API: GraphicsApi = GraphicsApi::Vulkan;

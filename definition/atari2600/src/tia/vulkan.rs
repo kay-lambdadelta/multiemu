@@ -36,8 +36,8 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
 
         let mut staging_buffer_view = DMatrixViewMut::from_slice(
             staging_buffer.as_mut(),
-            R::TOTAL_SCANLINES as usize,
             SCANLINE_LENGTH as usize,
+            R::TOTAL_SCANLINES as usize,
         );
 
         let color = Srgba::new(real_color.red, real_color.green, real_color.blue, 0xff);
@@ -95,7 +95,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
 pub fn set_display_data<R: Region>(
     display: &Tia<R>,
     initialization_data: Arc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
-) -> VulkanComponentFramebuffer {
+) -> Arc<VulkanComponentFramebuffer> {
     let staging_buffer = Buffer::from_iter(
         initialization_data.memory_allocator.clone(),
         BufferCreateInfo {
@@ -107,7 +107,7 @@ pub fn set_display_data<R: Region>(
             ..Default::default()
         },
         std::iter::repeat_n(
-            Srgba::new(0, 0, 0, 0),
+            Srgba::new(0, 0, 0, 0xff),
             SCANLINE_LENGTH as usize * R::TOTAL_SCANLINES as usize,
         ),
     )

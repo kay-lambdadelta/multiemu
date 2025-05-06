@@ -4,7 +4,7 @@ use group1::decode_group1_space_instruction;
 use group2::decode_group2_space_instruction;
 use group3::decode_group3_space_instruction;
 use multiemu_machine::{
-    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
+    memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
     processor::decoder::InstructionDecoder,
 };
 use std::ops::Range;
@@ -27,7 +27,7 @@ impl InstructionDecoder for M6502InstructionDecoder {
     fn decode(
         &self,
         address: usize,
-        address_space: AddressSpaceId,
+        address_space: AddressSpaceHandle,
         memory_translation_table: &MemoryTranslationTable,
     ) -> Option<(Self::InstructionSet, u8)> {
         let byte: u8 = memory_translation_table

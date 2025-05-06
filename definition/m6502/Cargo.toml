@@ -17,6 +17,8 @@ rand = { workspace = true }
 serde = { workspace = true }
 tracing = { workspace = true }
 arrayvec = { workspace = true }
+versions = { workspace = true }
+bincode = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64", target_arch = "s390x")))'.dependencies]
 # cranelift = { workspace = true, optional = true }

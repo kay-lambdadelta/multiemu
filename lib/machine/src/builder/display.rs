@@ -15,7 +15,10 @@ pub struct BackendSpecificData<R: RenderBackend> {
     pub required_extensions: R::ContextExtensionSpecification,
     /// Callback for when display data is initialized per above specifications
     pub set_display_callback: Box<
-        dyn FnOnce(&dyn Component, Arc<R::ComponentInitializationData>) -> R::ComponentFramebuffer,
+        dyn FnOnce(
+            &dyn Component,
+            Arc<R::ComponentInitializationData>,
+        ) -> Arc<R::ComponentFramebuffer>,
     >,
 }
 
@@ -33,7 +36,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
         set_display_callback: impl FnOnce(
             &C,
             Arc<R::ComponentInitializationData>,
-        ) -> R::ComponentFramebuffer
+        ) -> Arc<R::ComponentFramebuffer>
         + 'static,
     ) -> Self {
         let backend_specific_data = &mut self

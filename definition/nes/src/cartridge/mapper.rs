@@ -1,10 +1,10 @@
 use super::NesCartridge;
-use crate::{CPU_ADDRESS_SPACE, INes};
+use crate::INes;
 use multiemu_machine::{
     builder::ComponentBuilder,
     memory::{
-        AddressSpaceId,
-        callbacks::Memory,
+        AddressSpaceHandle,
+        callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
     },
 };
@@ -16,20 +16,22 @@ struct MemoryCallbacks {
     bus_conflict: bool,
 }
 
-impl Memory for MemoryCallbacks {
+impl ReadMemory for MemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
-        address_space: AddressSpaceId,
+        address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {
     }
+}
 
+impl WriteMemory for MemoryCallbacks {
     fn write_memory(
         &self,
         address: usize,
-        address_space: AddressSpaceId,
+        address_space: AddressSpaceHandle,
         buffer: &[u8],
         errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
@@ -50,6 +52,8 @@ impl Memory for MemoryCallbacks {
 pub fn construct_mapper(
     component_builder: ComponentBuilder<NesCartridge>,
     ines: Arc<INes>,
+    cpu_address_space: AddressSpaceHandle,
+    ppu_address_space: AddressSpaceHandle,
 ) -> ComponentBuilder<NesCartridge> {
     match ines.mapper {
         000 => {}
@@ -60,8 +64,8 @@ pub fn construct_mapper(
         bus_conflict: false,
     });
 
-    component_builder.insert_memory(
-        [(0x8000..=0xffff, CPU_ADDRESS_SPACE)],
+    component_builder.insert_rw_memory::<MemoryCallbacks>(
         memory_callbacks.clone(),
+        [(cpu_address_space, 0x8000..=0xffff)],
     )
 }

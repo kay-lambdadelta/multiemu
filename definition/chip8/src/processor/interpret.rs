@@ -4,7 +4,7 @@ use super::{
     instruction::{Chip8InstructionSet, InstructionSetChip8},
     task::Chip8ProcessorTask,
 };
-use crate::{CHIP8_FONT, CPU_ADDRESS_SPACE, Chip8Kind};
+use crate::{CHIP8_FONT, Chip8Kind};
 use arrayvec::ArrayVec;
 use bitvec::{
     field::BitField,
@@ -14,6 +14,8 @@ use bitvec::{
 use nalgebra::Point2;
 use rand::Rng;
 use std::sync::atomic::Ordering;
+
+// Instruction interpreting can be clean and easy due to the chip8 enforcing 1 cycle = 1 instruction
 
 impl Chip8ProcessorTask {
     pub(super) fn interpret_instruction(
@@ -26,9 +28,11 @@ impl Chip8ProcessorTask {
         match instruction {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Sys { syscall }) => match syscall {
                 0x0e0 => {
-                    self.display_component.interact(|component| {
-                        component.clear_display();
-                    });
+                    self.display_component
+                        .interact(|component| {
+                            component.clear_display();
+                        })
+                        .unwrap();
                 }
                 0x0ee => {
                     if let Some(address) = state.stack.pop() {
@@ -242,10 +246,10 @@ impl Chip8ProcessorTask {
                 let mut cursor = 0;
                 for buffer_section in buffer.chunks_mut(2) {
                     self.essentials
-                        .memory_translation_table()
+                        .memory_translation_table
                         .read(
                             state.registers.index as usize + cursor,
-                            CPU_ADDRESS_SPACE,
+                            self.config.cpu_address_space,
                             buffer_section,
                         )
                         .unwrap();
@@ -257,10 +261,12 @@ impl Chip8ProcessorTask {
                     state.registers.work_registers[coordinate_registers.y as usize],
                 );
 
-                self.display_component.interact(|display_component| {
-                    state.registers.work_registers[0xf] =
-                        display_component.draw_sprite(position, &buffer) as u8;
-                });
+                self.display_component
+                    .interact(|display_component| {
+                        state.registers.work_registers[0xf] =
+                            display_component.draw_sprite(position, &buffer) as u8;
+                    })
+                    .unwrap();
                 state.execution_state = ExecutionState::AwaitingVsync;
                 self.vsync_occurred.store(false, Ordering::Relaxed);
             }
@@ -285,9 +291,11 @@ impl Chip8ProcessorTask {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Moved { register }) => {
                 let mut delay_timer_value = 0;
 
-                self.timer_component.interact(|timer_component| {
-                    delay_timer_value = timer_component.get();
-                });
+                self.timer_component
+                    .interact(|timer_component| {
+                        delay_timer_value = timer_component.get();
+                    })
+                    .unwrap();
 
                 state.registers.work_registers[register as usize] = delay_timer_value;
             }
@@ -297,16 +305,20 @@ impl Chip8ProcessorTask {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loadd { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                self.timer_component.interact(|timer_component| {
-                    timer_component.set(register_value);
-                });
+                self.timer_component
+                    .interact(|timer_component| {
+                        timer_component.set(register_value);
+                    })
+                    .unwrap();
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loads { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                self.audio_component.interact(|audio_component| {
-                    audio_component.set(register_value);
-                });
+                self.audio_component
+                    .interact(|audio_component| {
+                        audio_component.set(register_value);
+                    })
+                    .unwrap();
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Addi { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
@@ -321,38 +333,39 @@ impl Chip8ProcessorTask {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Bcd { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
                 let [hundreds, tens, ones] = bcd_encode(register_value);
-                let memory_translation_table = self.essentials.memory_translation_table();
 
-                memory_translation_table
-                    .write(
+                self.essentials
+                    .memory_translation_table
+                    .write_le_value(
                         state.registers.index as usize,
-                        CPU_ADDRESS_SPACE,
-                        std::array::from_ref(&hundreds),
+                        self.config.cpu_address_space,
+                        hundreds,
                     )
                     .unwrap();
-                memory_translation_table
-                    .write(
+                self.essentials
+                    .memory_translation_table
+                    .write_le_value(
                         state.registers.index as usize + 1,
-                        CPU_ADDRESS_SPACE,
-                        std::array::from_ref(&tens),
+                        self.config.cpu_address_space,
+                        tens,
                     )
                     .unwrap();
-                memory_translation_table
-                    .write(
+                self.essentials
+                    .memory_translation_table
+                    .write_le_value(
                         state.registers.index as usize + 2,
-                        CPU_ADDRESS_SPACE,
-                        std::array::from_ref(&ones),
+                        self.config.cpu_address_space,
+                        ones,
                     )
                     .unwrap();
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Save { count }) => {
-                let memory_translation_table = self.essentials.memory_translation_table();
-
                 for i in 0..=count {
-                    memory_translation_table
+                    self.essentials
+                        .memory_translation_table
                         .write(
                             state.registers.index as usize + i as usize,
-                            CPU_ADDRESS_SPACE,
+                            self.config.cpu_address_space,
                             &state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();
@@ -364,13 +377,12 @@ impl Chip8ProcessorTask {
                 }
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Restore { count }) => {
-                let memory_translation_table = self.essentials.memory_translation_table();
-
                 for i in 0..=count {
-                    memory_translation_table
+                    self.essentials
+                        .memory_translation_table
                         .read(
                             state.registers.index as usize + i as usize,
-                            CPU_ADDRESS_SPACE,
+                            self.config.cpu_address_space,
                             &mut state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();

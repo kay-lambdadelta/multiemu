@@ -23,7 +23,7 @@ impl M6502Task {
         state: &mut ProcessorState,
         instruction: M6502InstructionSet,
     ) {
-        let memory_translation_table = self.essentials.memory_translation_table();
+        let memory_translation_table = &self.essentials.memory_translation_table;
 
         match instruction.opcode {
             Opcode::Adc => {

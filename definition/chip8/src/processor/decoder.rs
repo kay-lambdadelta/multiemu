@@ -1,7 +1,7 @@
 use super::instruction::{Chip8InstructionSet, InstructionSetChip8, Register};
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use multiemu_machine::{
-    memory::{AddressSpaceId, memory_translation_table::MemoryTranslationTable},
+    memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
     processor::decoder::InstructionDecoder,
 };
 use nalgebra::Point2;
@@ -15,7 +15,7 @@ impl InstructionDecoder for Chip8InstructionDecoder {
     fn decode(
         &self,
         cursor: usize,
-        address_space: AddressSpaceId,
+        address_space: AddressSpaceHandle,
         memory_translation_table: &MemoryTranslationTable,
     ) -> Option<(Chip8InstructionSet, u8)> {
         let mut instruction = [0; 2];
@@ -243,6 +243,8 @@ fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // TODO: I find it unlikely the instruction decoding machinery is bad but make tests anyway
 
     #[test]
     pub fn syscall() {

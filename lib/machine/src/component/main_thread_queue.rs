@@ -82,18 +82,18 @@ mod test {
         let worker = std::thread::spawn({
             let queue = queue.clone();
             let left_to_execute = left_to_execute.clone();
-            left_to_execute.fetch_add(1, Ordering::SeqCst);
+            left_to_execute.fetch_add(1, Ordering::Relaxed);
 
             move || {
                 queue.wait_on_main(|| {
                     std::thread::sleep(Duration::from_millis(100));
                 });
 
-                left_to_execute.fetch_sub(1, Ordering::SeqCst);
+                left_to_execute.fetch_sub(1, Ordering::Relaxed);
             }
         });
 
-        while left_to_execute.load(Ordering::SeqCst) != 0 {
+        while left_to_execute.load(Ordering::Relaxed) != 0 {
             queue.main_thread_poll();
             std::thread::yield_now();
         }
@@ -101,7 +101,7 @@ mod test {
         worker.join().unwrap();
 
         // Ensure the task executed
-        assert_eq!(executed_tasks.load(Ordering::SeqCst), 0);
+        assert_eq!(executed_tasks.load(Ordering::Relaxed), 0);
         assert_eq!(queue.0.len(), 0);
     }
 }

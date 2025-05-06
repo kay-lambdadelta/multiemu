@@ -6,7 +6,6 @@ use multiemu_definition_misc::memory::standard::{
 use multiemu_machine::{
     builder::MachineBuilder,
     display::{backend::software::SoftwareRendering, shader::ShaderCache},
-    memory::AddressSpaceId,
 };
 use multiemu_rom::{manager::RomManager, system::GameSystem};
 use std::{
@@ -14,15 +13,16 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
-
 fn criterion_benchmark(c: &mut Criterion) {
     let environment = Arc::new(RwLock::new(Environment::default()));
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
     let shader_cache = Arc::new(ShaderCache::default());
 
-    let machine = MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-        .insert_address_space(ADDRESS_SPACE, 64)
+    let (cpu_address_space, machine) =
+        MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
+            .insert_address_space("cpu", 64);
+
+    let machine = machine
         .insert_component::<StandardMemory>(
             "workram",
             StandardMemoryConfig {
@@ -30,7 +30,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 readable: true,
                 writable: true,
                 assigned_range: 0..=0xffff,
-                assigned_address_space: ADDRESS_SPACE,
+                assigned_address_space: cpu_address_space,
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
         )
@@ -41,7 +41,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             machine
                 .memory_translation_table
-                .read(0x1000, ADDRESS_SPACE, black_box(&mut buffer))
+                .read(0x1000, cpu_address_space, black_box(&mut buffer))
                 .unwrap();
         })
     });
@@ -51,7 +51,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             machine
                 .memory_translation_table
-                .read(0x1000, ADDRESS_SPACE, black_box(&mut buffer))
+                .read(0x1000, cpu_address_space, black_box(&mut buffer))
                 .unwrap();
         })
     });
@@ -61,7 +61,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             machine
                 .memory_translation_table
-                .read(0x1000, ADDRESS_SPACE, black_box(&mut buffer))
+                .read(0x1000, cpu_address_space, black_box(&mut buffer))
                 .unwrap();
         })
     });
@@ -71,7 +71,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             machine
                 .memory_translation_table
-                .read(0x1000, ADDRESS_SPACE, black_box(&mut buffer))
+                .read(0x1000, cpu_address_space, black_box(&mut buffer))
                 .unwrap();
         })
     });

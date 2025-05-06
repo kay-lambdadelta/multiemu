@@ -32,8 +32,8 @@ indexmap = { workspace = true }
 itertools = { workspace = true }
 ringbuffer = { workspace = true }
 rayon = { workspace = true }
-arc-swap = { workspace = true }
 naga = { workspace = true, features = ["spv-out", "glsl-out"] }
+arc-swap = { workspace = true }
 fxhash = "0.2"
 
 [build-dependencies]

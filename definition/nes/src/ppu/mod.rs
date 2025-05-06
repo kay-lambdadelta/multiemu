@@ -1,19 +1,19 @@
-use super::CPU_ADDRESS_SPACE;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
-    memory::AddressSpaceId,
 };
-use std::{ops::Range, sync::Arc};
+use std::sync::Arc;
 
 mod software;
 #[cfg(all(feature = "vulkan", platform_desktop))]
 mod vulkan;
 
-const ASSIGNED_AREAS: [(AddressSpaceId, Range<usize>); 2] = [
+/*
+const ASSIGNED_AREAS: [(AddressSpaceHandle, Range<usize>); 2] = [
     (CPU_ADDRESS_SPACE, 0x2000..0x2008),
     (CPU_ADDRESS_SPACE, 0x4014..0x4015),
 ];
+*/
 
 // We store ppu state registers in normal struct sizes for easier gpu access
 

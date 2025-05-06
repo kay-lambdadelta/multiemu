@@ -11,8 +11,8 @@ use multiemu_definition_m6502::M6502;
 use multiemu_machine::{
     component::component_ref::ComponentRef,
     memory::{
-        AddressSpaceId,
-        callbacks::Memory,
+        AddressSpaceHandle,
+        callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
     },
 };
@@ -94,11 +94,11 @@ pub struct MemoryCallback {
     pub processor: ComponentRef<M6502>,
 }
 
-impl Memory for MemoryCallback {
+impl WriteMemory for MemoryCallback {
     fn write_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &[u8],
         errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
     ) {
@@ -159,7 +159,8 @@ impl Memory for MemoryCallback {
                 }
                 WriteRegisters::Wsync => {
                     self.processor
-                        .interact(|processor| processor.set_rdy(false));
+                        .interact(|processor| processor.set_rdy(false))
+                        .unwrap();
                     state_guard.reset_rdy_on_scanline_end = true;
                 }
                 WriteRegisters::Rsync => {
@@ -330,7 +331,7 @@ impl Memory for MemoryCallback {
                         state_guard.missiles[1].position = ObjectPosition::LockedToPlayer;
                     }
                 }
-                WriteRegisters::Hmove => todo!(),
+                WriteRegisters::Hmove => {}
                 WriteRegisters::Hmclr => {
                     state_guard.players[0].motion = 0;
                     state_guard.players[1].motion = 0;
@@ -349,11 +350,13 @@ impl Memory for MemoryCallback {
             );
         }
     }
+}
 
+impl ReadMemory for MemoryCallback {
     fn read_memory(
         &self,
         address: usize,
-        _address_space: AddressSpaceId,
+        _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
         errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
     ) {

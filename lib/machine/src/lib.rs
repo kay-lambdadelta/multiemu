@@ -21,7 +21,7 @@ pub mod scheduler;
 pub struct Machine {
     pub scheduler: Scheduler,
     pub component_store: Arc<ComponentStore>,
-    pub memory_translation_table: Arc<MemoryTranslationTable>,
+    pub memory_translation_table: MemoryTranslationTable,
     pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>>,
     pub game_system: GameSystem,
     framebuffers: Box<dyn Any>,

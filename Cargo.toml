@@ -33,7 +33,7 @@ nalgebra = { version = "0.33", features = [
     "convert-bytemuck",
     "rayon",
 ] }
-bytemuck = { version = "1.22", features = ["derive"] }
+bytemuck = { version = "1.23", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
@@ -59,8 +59,9 @@ criterion = "0.5"
 uuid = { version = "1.16", features = ["v4", "serde"] }
 ringbuffer = "0.15"
 petgraph = { version = "0.8", features = ["serde-1"] }
-arc-swap = "1.7"
 camino = { version = "1.1", features = ["serde1"] }
+bincode = { version = "2.0", features = ["serde"] }
+arc-swap = "1.7"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }

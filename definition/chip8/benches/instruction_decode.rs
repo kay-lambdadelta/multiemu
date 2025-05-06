@@ -7,7 +7,6 @@ use multiemu_definition_misc::memory::standard::{
 use multiemu_machine::{
     builder::MachineBuilder,
     display::{backend::software::SoftwareRendering, shader::ShaderCache},
-    memory::AddressSpaceId,
     processor::decoder::InstructionDecoder,
 };
 use multiemu_rom::{manager::RomManager, system::GameSystem};
@@ -16,40 +15,40 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-const ADDRESS_SPACE: AddressSpaceId = AddressSpaceId::new(0);
-
 fn criterion_benchmark(c: &mut Criterion) {
     let environment = Arc::new(RwLock::new(Environment::default()));
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
     let shader_cache = Arc::new(ShaderCache::default());
 
-    let machine = MachineBuilder::new(
+    let (cpu_address_space, machine) = MachineBuilder::new(
         GameSystem::Unknown,
         rom_manager.clone(),
         environment.clone(),
         shader_cache.clone(),
     )
-    .insert_address_space(ADDRESS_SPACE, 64)
-    .insert_component::<StandardMemory>(
-        "workram",
-        StandardMemoryConfig {
-            max_word_size: 8,
-            readable: true,
-            writable: true,
-            assigned_range: 0x0000..=0xffff,
-            assigned_address_space: ADDRESS_SPACE,
-            initial_contents: vec![StandardMemoryInitialContents::Random],
-        },
-    )
-    .build::<SoftwareRendering>(Default::default());
+    .insert_address_space("cpu", 64);
+
+    let machine = machine
+        .insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0x0000..=0xffff,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Random],
+            },
+        )
+        .build::<SoftwareRendering>(Default::default());
     let decoder = Chip8InstructionDecoder;
 
     c.bench_function("decode", |b| {
         b.iter(|| {
             let address = rand::random_range(0..0x5000);
             let _ = decoder.decode(
-                address,
-                ADDRESS_SPACE,
+                black_box(address),
+                cpu_address_space,
                 black_box(&machine.memory_translation_table),
             );
         })

@@ -217,21 +217,23 @@ impl Scheduler {
                     let queued_task_count = queued_task_count.clone();
                     let component_store = self.component_store.as_ref();
                     let task_info = self.tasks.get(&task_id).unwrap();
-                    queued_task_count.fetch_add(1, Ordering::SeqCst);
+                    queued_task_count.fetch_add(1, Ordering::Relaxed);
 
                     // Send execution task to the other thread
                     move |_| {
-                        component_store.interact_dyn(task_info.component_id, |component| {
-                            let mut task = task_info.task.lock().unwrap();
-                            task(component, time_slice);
-                            queued_task_count.fetch_sub(1, Ordering::SeqCst);
-                        });
+                        component_store
+                            .interact_dyn(task_info.component_id, |component| {
+                                let mut task = task_info.task.lock().unwrap();
+                                task(component, time_slice);
+                                queued_task_count.fetch_sub(1, Ordering::Relaxed);
+                            })
+                            .unwrap();
                     }
                 });
             }
 
             // Wait for all tasks spawned to end
-            while queued_task_count.load(Ordering::SeqCst) != 0 {
+            while queued_task_count.load(Ordering::Relaxed) != 0 {
                 self.component_store.main_thread_queue.main_thread_poll();
                 // Yield during polling loop
                 std::thread::yield_now();
