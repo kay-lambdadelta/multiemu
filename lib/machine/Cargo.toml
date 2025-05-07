@@ -34,7 +34,7 @@ ringbuffer = { workspace = true }
 rayon = { workspace = true }
 naga = { workspace = true, features = ["spv-out", "glsl-out"] }
 arc-swap = { workspace = true }
-fxhash = "0.2"
+rustc-hash = { workspace = true }
 
 [build-dependencies]
 multiemu-macros = { workspace = true }

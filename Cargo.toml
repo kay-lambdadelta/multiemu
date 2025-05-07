@@ -62,6 +62,7 @@ petgraph = { version = "0.8", features = ["serde-1"] }
 camino = { version = "1.1", features = ["serde1"] }
 bincode = { version = "2.0", features = ["serde"] }
 arc-swap = "1.7"
+rustc-hash = "2.1"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }
@@ -76,3 +77,8 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
 debug = true
+lto = "fat"
+
+[profile.release]
+debug = true
+lto = "fat"

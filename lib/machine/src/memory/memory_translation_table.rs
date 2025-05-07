@@ -2,15 +2,14 @@ use super::{
     Address, AddressSpaceHandle,
     callbacks::{ReadMemory, WriteMemory},
 };
-use crate::memory::{MAX_MEMORY_ACCESS_SIZE, VALID_MEMORY_ACCESS_SIZES};
-use arrayvec::ArrayVec;
+use crate::memory::VALID_MEMORY_ACCESS_SIZES;
 use bitvec::{field::BitField, order::Lsb0};
-use fxhash::FxBuildHasher;
 use num::traits::{FromBytes, ToBytes};
 use rangemap::RangeInclusiveMap;
+use rustc_hash::FxBuildHasher;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BinaryHeap, HashMap},
+    collections::{BinaryHeap, HashMap},
     fmt::Debug,
     ops::RangeInclusive,
     sync::{Arc, RwLock},
@@ -116,8 +115,8 @@ pub struct MemoryTranslationTableImpl {
     current_memory_id: u16,
     free_memory_handles: BinaryHeap<MemoryHandle>,
 
-    read_memories: BTreeMap<MemoryHandle, Arc<dyn ReadMemory>>,
-    write_memories: BTreeMap<MemoryHandle, Arc<dyn WriteMemory>>,
+    read_memories: HashMap<MemoryHandle, Arc<dyn ReadMemory>, FxBuildHasher>,
+    write_memories: HashMap<MemoryHandle, Arc<dyn WriteMemory>, FxBuildHasher>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -256,11 +255,8 @@ impl MemoryTranslationTable {
         );
         let impl_guard = self.0.read().unwrap();
 
-        let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
-            address,
-            address_space,
-            (0..=buffer.len() - 1),
-        )]);
+        let mut needed_accesses =
+            Vec::from_iter([(address, address_space, (0..=buffer.len() - 1))]);
 
         while let Some((address, address_space, buffer_subrange)) = needed_accesses.pop() {
             let address_space_info = impl_guard
@@ -399,11 +395,8 @@ impl MemoryTranslationTable {
         );
         let impl_guard = self.0.write().unwrap();
 
-        let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
-            address,
-            address_space,
-            (0..=(buffer.len() - 1)),
-        )]);
+        let mut needed_accesses =
+            Vec::from_iter([(address, address_space, (0..=(buffer.len() - 1)))]);
 
         while let Some((address, address_space, buffer_subrange)) = needed_accesses.pop() {
             let address_space_info = impl_guard
@@ -526,11 +519,8 @@ impl MemoryTranslationTable {
     ) -> Result<(), PreviewMemoryOperationError> {
         let impl_guard = self.0.write().unwrap();
 
-        let mut needed_accesses = ArrayVec::<_, { MAX_MEMORY_ACCESS_SIZE }>::from_iter([(
-            address,
-            address_space,
-            (0..=(buffer.len() - 1)),
-        )]);
+        let mut needed_accesses =
+            Vec::from_iter([(address, address_space, (0..=(buffer.len() - 1)))]);
 
         while let Some((address, address_space, buffer_subrange)) = needed_accesses.pop() {
             let address_space_info = impl_guard

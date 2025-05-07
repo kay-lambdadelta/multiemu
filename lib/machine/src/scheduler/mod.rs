@@ -1,7 +1,7 @@
 use crate::component::{Component, ComponentId, store::ComponentStore};
-use fxhash::FxBuildHasher;
 use itertools::Itertools;
 use num::{ToPrimitive, integer::lcm, rational::Ratio};
+use rustc_hash::FxBuildHasher;
 use std::{
     collections::HashMap,
     fmt::Debug,

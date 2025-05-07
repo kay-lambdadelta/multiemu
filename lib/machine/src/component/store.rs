@@ -1,7 +1,8 @@
+use rustc_hash::FxBuildHasher;
+
 use super::{
     Component, ComponentId, component_ref::ComponentRef, main_thread_queue::MainThreadExecutor,
 };
-use fxhash::FxBuildHasher;
 use std::{
     borrow::Cow,
     cell::{LazyCell, RefCell},
