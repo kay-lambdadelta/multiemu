@@ -11,7 +11,7 @@ multiemu-macros = { path = "lib/macros" }
 multiemu-audio = { path = "lib/audio" }
 
 multiemu-definition-misc = { path = "definition/misc" }
-multiemu-definition-m6502 = { path = "definition/m6502" }
+multiemu-definition-mos6502 = { path = "definition/mos6502" }
 multiemu-definition-chip8 = { path = "definition/chip8" }
 multiemu-definition-nes = { path = "definition/nes" }
 multiemu-definition-i8080 = { path = "definition/i8080" }
@@ -42,8 +42,6 @@ vulkano = { version = "0.35", default-features = false }
 crossbeam = "0.8"
 scc = "2.3"
 enumflags2 = { version = "0.7", features = ["serde"] }
-# TODO: Remove this when trait upcasting is stable
-downcast-rs = "2.0"
 rand = "0.9"
 palette = { version = "0.7", features = ["bytemuck", "serializing"] }
 memmap2 = "0.9"

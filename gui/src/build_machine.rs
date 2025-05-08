@@ -13,7 +13,7 @@ pub fn build_machine(
     user_specified_roms: Vec<RomId>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
-    shader_cache: Arc<ShaderCache>,
+    shader_cache: ShaderCache,
 ) -> MachineBuilder {
     match game_system {
         GameSystem::Atari(AtariSystem::Atari2600) => multiemu_definition_atari2600::manifest(

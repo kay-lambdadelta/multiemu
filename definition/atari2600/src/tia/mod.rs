@@ -1,6 +1,5 @@
-use downcast_rs::Downcast;
 use memory::MemoryCallback;
-use multiemu_definition_m6502::M6502;
+use multiemu_definition_mos6502::Mos6502;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
@@ -137,17 +136,18 @@ impl<R: Region> FromConfig for Tia<R> {
         let state = Arc::new(Mutex::new(State::default()));
         let processor = essentials
             .component_store
-            .get::<M6502>(config.processor_name)
-            .expect("M6502 component not found");
+            .get::<Mos6502>(config.processor_name)
+            .expect("MOS 6502 component not found");
+
+        essentials.memory_translation_table.insert_memory(
+            MemoryCallback {
+                state: state.clone(),
+                processor: processor.clone(),
+            },
+            [(config.cpu_address_space, 0x000..=0x03f)],
+        );
 
         let component_builder = component_builder
-            .insert_rw_memory(
-                MemoryCallback {
-                    state: state.clone(),
-                    processor: processor.clone(),
-                },
-                [(config.cpu_address_space, 0x000..=0x03f)],
-            )
             .insert_task(
                 R::frequency(),
                 TiaTask {
@@ -176,7 +176,7 @@ impl<R: Region> FromConfig for Tia<R> {
     }
 }
 
-trait TiaDisplayBackend<R: Region>: Downcast {
+trait TiaDisplayBackend<R: Region> {
     fn draw(&self, position: Point2<u16>, hue: u8, luminosity: u8);
     fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
     fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);

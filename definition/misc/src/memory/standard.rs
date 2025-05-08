@@ -52,7 +52,7 @@ pub struct StandardMemoryConfig {
 }
 
 pub struct StandardMemory {
-    memory_operation_callbacks: Arc<MemoryCallbacks>,
+    memory_operation_callbacks: Arc<StandardMemoryCallbacks>,
 }
 
 impl Component for StandardMemory {
@@ -89,7 +89,7 @@ impl FromConfig for StandardMemory {
     type Quirks = ();
 
     fn from_config(
-        mut component_builder: ComponentBuilder<Self>,
+        component_builder: ComponentBuilder<Self>,
         essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
         _quirks: Self::Quirks,
@@ -110,23 +110,23 @@ impl FromConfig for StandardMemory {
         let assigned_range = config.assigned_range.clone();
         let assigned_address_space = config.assigned_address_space;
 
-        let memory_operation_callbacks = Arc::new(MemoryCallbacks {
+        let memory_operation_callbacks = Arc::new(StandardMemoryCallbacks {
             config: config.clone(),
             buffer: buffer.into_iter().collect(),
-            essentials,
+            essentials: essentials.clone(),
         });
         memory_operation_callbacks.initialize_buffer();
 
-        component_builder = match (config.readable, config.writable) {
-            (true, true) => component_builder.insert_rw_memory::<MemoryCallbacks>(
+        match (config.readable, config.writable) {
+            (true, true) => essentials.memory_translation_table.insert_memory(
                 memory_operation_callbacks.clone(),
                 [(assigned_address_space, assigned_range)],
             ),
-            (true, false) => component_builder.insert_read_memory::<MemoryCallbacks>(
+            (true, false) => essentials.memory_translation_table.insert_read_memory(
                 memory_operation_callbacks.clone(),
                 [(assigned_address_space, assigned_range)],
             ),
-            (false, true) => component_builder.insert_write_memory::<MemoryCallbacks>(
+            (false, true) => essentials.memory_translation_table.insert_write_memory(
                 memory_operation_callbacks.clone(),
                 [(assigned_address_space, assigned_range)],
             ),
@@ -142,13 +142,13 @@ impl FromConfig for StandardMemory {
 }
 
 #[derive(Debug)]
-struct MemoryCallbacks {
+struct StandardMemoryCallbacks {
     config: StandardMemoryConfig,
     buffer: Vec<RwLock<[u8; PAGE_SIZE]>>,
     essentials: Arc<RuntimeEssentials>,
 }
 
-impl ReadMemory for MemoryCallbacks {
+impl ReadMemory for StandardMemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
@@ -216,7 +216,7 @@ impl ReadMemory for MemoryCallbacks {
     }
 }
 
-impl WriteMemory for MemoryCallbacks {
+impl WriteMemory for StandardMemoryCallbacks {
     fn write_memory(
         &self,
         address: usize,
@@ -255,7 +255,7 @@ impl WriteMemory for MemoryCallbacks {
     }
 }
 
-impl MemoryCallbacks {
+impl StandardMemoryCallbacks {
     /// Writes unchecked internally
     fn write_internal(&self, address: usize, buffer: &[u8]) {
         let requested_range = address - self.config.assigned_range.start()

@@ -18,7 +18,7 @@ use std::{
 fn criterion_benchmark(c: &mut Criterion) {
     let environment = Arc::new(RwLock::new(Environment::default()));
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-    let shader_cache = Arc::new(ShaderCache::default());
+    let shader_cache = ShaderCache::default();
 
     let (cpu_address_space, machine) = MachineBuilder::new(
         GameSystem::Unknown,

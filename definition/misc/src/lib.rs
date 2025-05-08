@@ -1,2 +1,2 @@
-pub mod m6532_riot;
 pub mod memory;
+pub mod mos6532_riot;

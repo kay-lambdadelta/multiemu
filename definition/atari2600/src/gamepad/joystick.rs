@@ -1,5 +1,5 @@
 use bitvec::{prelude::Lsb0, view::BitView};
-use multiemu_definition_misc::m6532_riot::{M6532Riot, SwchaCallback};
+use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use multiemu_input::{Input, VirtualGamepadName, gamepad::GamepadInput};
 use multiemu_machine::{
     builder::ComponentBuilder,
@@ -26,7 +26,7 @@ impl FromConfig for Atari2600Joystick {
         config: Self::Config,
         _quirks: Self::Quirks,
     ) {
-        let m6532_riot: ComponentRef<M6532Riot> = essentials
+        let m6532_riot: ComponentRef<Mos6532Riot> = essentials
             .component_store
             .get(&config.m6532_riot)
             .expect("Couldn't find m6532_riot");

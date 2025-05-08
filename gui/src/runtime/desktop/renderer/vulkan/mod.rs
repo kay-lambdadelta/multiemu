@@ -63,7 +63,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
     fn new(
         display_api_handle: Self::DisplayApiHandle,
         environment: Arc<RwLock<Environment>>,
-        shader_cache: Arc<ShaderCache>,
+        shader_cache: ShaderCache,
         preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
     ) -> Result<Self, Box<dyn std::error::Error>> {

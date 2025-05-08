@@ -4,6 +4,7 @@ use super::{
     Component, ComponentId, component_ref::ComponentRef, main_thread_queue::MainThreadExecutor,
 };
 use std::{
+    any::Any,
     borrow::Cow,
     cell::{LazyCell, RefCell},
     collections::HashMap,
@@ -197,7 +198,7 @@ impl ComponentStore {
         callback: impl FnOnce(&C) + Send,
     ) -> Result<(), Error> {
         self.interact_dyn(component_id, |component| {
-            let component = component.as_any().downcast_ref::<C>().unwrap();
+            let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
             callback(component);
         })
     }
@@ -209,7 +210,7 @@ impl ComponentStore {
         callback: impl FnOnce(&C),
     ) -> Result<(), Error> {
         self.interact_dyn_local(component_id, |component| {
-            let component = component.as_any().downcast_ref::<C>().unwrap();
+            let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
             callback(component);
         })
     }

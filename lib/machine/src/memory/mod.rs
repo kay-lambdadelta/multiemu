@@ -17,3 +17,7 @@ pub type Address = usize;
 pub const PAGE_SIZE: usize = 4096;
 pub const VALID_MEMORY_ACCESS_SIZES: &[usize] = &[1, 2, 4, 8];
 pub const MAX_MEMORY_ACCESS_SIZE: usize = 8;
+
+/// What layer this memory callback belongs to
+pub type MemoryLayer = u8;
+pub const DEFAULT_MEMORY_LAYER: u8 = 0;

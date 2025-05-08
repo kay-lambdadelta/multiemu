@@ -63,12 +63,12 @@ pub trait SwchbCallback: Debug + Send + Sync + 'static {
     fn write_memory(&self, value: u8);
 }
 
-pub struct M6532Riot {
+pub struct Mos6532Riot {
     ram: Arc<RwLock<[u8; 128]>>,
     registers: Arc<Registers>,
 }
 
-impl M6532Riot {
+impl Mos6532Riot {
     pub fn install_swcha(&self, callback: impl SwchaCallback) {
         if self.registers.swcha.set(Box::new(callback)).is_err() {
             panic!("SWCHA already set");
@@ -82,7 +82,7 @@ impl M6532Riot {
     }
 }
 
-impl Component for M6532Riot {
+impl Component for Mos6532Riot {
     fn reset(&self) {
         self.ram.write().unwrap().fill(0);
 
@@ -161,13 +161,13 @@ impl Component for M6532Riot {
     }
 }
 
-impl FromConfig for M6532Riot {
+impl FromConfig for Mos6532Riot {
     type Config = M6532RiotConfig;
     type Quirks = ();
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
-        _essentials: Arc<RuntimeEssentials>,
+        essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
         _quirks: Self::Quirks,
     ) {
@@ -190,43 +190,38 @@ impl FromConfig for M6532Riot {
             t1024t: AtomicU8::new(0),
         });
 
-        let component_builder = {
-            let assigned_ranges = [(
+        let assigned_ranges = [(
+            config.assigned_address_space,
+            config.ram_assigned_address..=config.ram_assigned_address + 127,
+        )];
+
+        essentials
+            .memory_translation_table
+            .insert_memory(memory_callbacks.clone(), assigned_ranges);
+
+        let swcha = Arc::new(SwchaMemoryCallback {
+            registers: registers.clone(),
+        });
+
+        essentials.memory_translation_table.insert_memory(
+            swcha,
+            [(
                 config.assigned_address_space,
-                config.ram_assigned_address..=config.ram_assigned_address + 127,
-            )];
+                config.registers_assigned_address..=config.registers_assigned_address,
+            )],
+        );
 
-            component_builder
-                .insert_rw_memory::<RamMemoryCallbacks>(memory_callbacks.clone(), assigned_ranges)
-        };
+        let swchb = Arc::new(SwchbMemoryCallback {
+            registers: registers.clone(),
+        });
 
-        let component_builder = {
-            let swcha = Arc::new(SwchaMemoryCallback {
-                registers: registers.clone(),
-            });
-
-            component_builder.insert_rw_memory::<SwchaMemoryCallback>(
-                swcha,
-                [(
-                    config.assigned_address_space,
-                    config.registers_assigned_address..=config.registers_assigned_address,
-                )],
-            )
-        };
-
-        let component_builder = {
-            let swchb = Arc::new(SwchbMemoryCallback {
-                registers: registers.clone(),
-            });
-
-            component_builder.insert_rw_memory::<SwchbMemoryCallback>(
-                swchb,
-                [(
-                    config.assigned_address_space,
-                    config.registers_assigned_address + 1..=config.registers_assigned_address + 1,
-                )],
-            )
-        };
+        essentials.memory_translation_table.insert_memory(
+            swchb,
+            [(
+                config.assigned_address_space,
+                config.registers_assigned_address + 1..=config.registers_assigned_address + 1,
+            )],
+        );
 
         let component_builder = {
             // Make the timers operate

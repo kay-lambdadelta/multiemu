@@ -1,29 +1,13 @@
-use super::{
-    Address, AddressSpaceHandle,
-    callbacks::{ReadMemory, WriteMemory},
+use super::{MemoryHandle, MemoryTranslationTable, StoredCallback};
+use crate::memory::{
+    Address, AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES, callbacks::ReadMemory,
 };
-use crate::memory::VALID_MEMORY_ACCESS_SIZES;
-use bitvec::{field::BitField, order::Lsb0};
-use num::traits::{FromBytes, ToBytes};
+use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
-use rustc_hash::FxBuildHasher;
-use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BinaryHeap, HashMap},
-    fmt::Debug,
-    ops::RangeInclusive,
-    sync::{Arc, RwLock},
-};
+use std::ops::RangeInclusive;
 use thiserror::Error;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub struct MemoryHandle(u16);
-
-impl MemoryHandle {
-    pub(crate) const fn new(id: u16) -> Self {
-        Self(id)
-    }
-}
+pub struct ReadMemoryErrorAccumulator();
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ReadMemoryOperationErrorFailureType {
@@ -37,17 +21,16 @@ pub struct ReadMemoryOperationError(
     RangeInclusiveMap<Address, ReadMemoryOperationErrorFailureType>,
 );
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum WriteMemoryOperationErrorFailureType {
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ReadMemoryRecord {
+    /// Memory could not be read
     Denied,
-    OutOfBus,
+    /// Memory redirects somewhere else
+    Redirect {
+        address: Address,
+        address_space: AddressSpaceHandle,
+    },
 }
-
-#[derive(Error, Debug)]
-#[error("Write operation failed: {0:#?}")]
-pub struct WriteMemoryOperationError(
-    RangeInclusiveMap<Address, WriteMemoryOperationErrorFailureType>,
-);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PreviewMemoryOperationErrorFailureType {
@@ -63,28 +46,6 @@ pub struct PreviewMemoryOperationError(
 );
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ReadMemoryRecord {
-    /// Memory could not be read
-    Denied,
-    /// Memory redirects somewhere else
-    Redirect {
-        address: Address,
-        address_space: AddressSpaceHandle,
-    },
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum WriteMemoryRecord {
-    /// Memory could not be written
-    Denied,
-    /// Memory redirects somewhere else
-    Redirect {
-        address: Address,
-        address_space: AddressSpaceHandle,
-    },
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PreviewMemoryRecord {
     /// Memory denied
     Denied,
@@ -97,145 +58,33 @@ pub enum PreviewMemoryRecord {
     Impossible,
 }
 
-#[derive(Debug)]
-struct AddressSpaceInfo {
-    width_mask: Address,
-    #[allow(unused)]
-    name: &'static str,
-    read_members: RangeInclusiveMap<Address, MemoryHandle>,
-    write_members: RangeInclusiveMap<Address, MemoryHandle>,
-}
-
-#[derive(Debug, Default)]
-pub struct MemoryTranslationTableImpl {
-    current_address_space_id: u16,
-    address_spaces: HashMap<AddressSpaceHandle, AddressSpaceInfo, FxBuildHasher>,
-    free_address_space_handles: BinaryHeap<AddressSpaceHandle>,
-
-    current_memory_id: u16,
-    free_memory_handles: BinaryHeap<MemoryHandle>,
-
-    read_memories: HashMap<MemoryHandle, Arc<dyn ReadMemory>, FxBuildHasher>,
-    write_memories: HashMap<MemoryHandle, Arc<dyn WriteMemory>, FxBuildHasher>,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct MemoryTranslationTable(Arc<RwLock<MemoryTranslationTableImpl>>);
-
 impl MemoryTranslationTable {
-    pub fn insert_address_space(&self, name: &'static str, width: u8) -> AddressSpaceHandle {
-        let mut impl_guard = self.0.write().unwrap();
-
-        let id = if let Some(id) = impl_guard.free_address_space_handles.pop() {
-            id
-        } else {
-            let id = impl_guard.current_address_space_id;
-            impl_guard.current_address_space_id = impl_guard
-                .current_address_space_id
-                .checked_add(1)
-                .expect("Too many address spaces");
-
-            AddressSpaceHandle::new(id)
-        };
-
-        let mut mask = bitvec::bitvec![usize, Lsb0; 0; usize::BITS as usize];
-        mask[..width as usize].fill(true);
-        let width_mask = mask.load();
-
-        impl_guard.address_spaces.insert(
-            id,
-            AddressSpaceInfo {
-                width_mask,
-                name,
-                read_members: RangeInclusiveMap::default(),
-                write_members: RangeInclusiveMap::default(),
-            },
-        );
-
-        id
-    }
-
-    pub fn remove_address_space(&self, address_space: AddressSpaceHandle) {
-        let mut impl_guard = self.0.write().unwrap();
-
-        impl_guard.address_spaces.remove(&address_space);
-        impl_guard.free_address_space_handles.push(address_space);
-    }
-
-    pub fn insert_read_memory(
+    pub fn insert_read_memory<M: ReadMemory>(
         &self,
-        memory: Arc<dyn ReadMemory>,
+        memory: M,
         mappings: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
-    ) {
+    ) -> MemoryHandle {
         let mut impl_guard = self.0.write().unwrap();
 
-        let id = if let Some(id) = impl_guard.free_memory_handles.pop() {
-            id
-        } else {
-            let id = impl_guard.current_memory_id;
-            impl_guard.current_memory_id = impl_guard
-                .current_memory_id
-                .checked_add(1)
-                .expect("Too many memories");
+        let id = MemoryHandle::new(impl_guard.current_memory_id);
+        impl_guard.current_memory_id = impl_guard
+            .current_memory_id
+            .checked_add(1)
+            .expect("Too many memories");
 
-            MemoryHandle::new(id)
-        };
-
-        impl_guard.read_memories.insert(id, memory);
+        impl_guard
+            .memories
+            .insert(id, StoredCallback::Read(Box::new(memory)));
 
         for (address_space, addresses) in mappings {
             let address_spaces = impl_guard
                 .address_spaces
                 .get_mut(&address_space)
                 .expect("Non existant address space");
-
-            assert!(
-                !address_spaces.read_members.overlaps(&addresses),
-                "Addresses {:x?} conflict with already existing bus infrastructure {:x?}",
-                addresses,
-                address_spaces
-            );
-
             address_spaces.read_members.insert(addresses, id);
         }
-    }
 
-    pub fn insert_write_memory(
-        &self,
-        memory: Arc<dyn WriteMemory>,
-        mappings: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
-    ) {
-        let mut impl_guard = self.0.write().unwrap();
-
-        let id = if let Some(id) = impl_guard.free_memory_handles.pop() {
-            id
-        } else {
-            let id = impl_guard.current_memory_id;
-            impl_guard.current_memory_id = impl_guard
-                .current_memory_id
-                .checked_add(1)
-                .expect("Too many memories");
-
-            MemoryHandle::new(id)
-        };
-
-        impl_guard.write_memories.insert(id, memory);
-
-        for (address_space, addresses) in mappings {
-            let address_spaces = impl_guard
-                .address_spaces
-                .get_mut(&address_space)
-                .expect("Non existant address space");
-
-            assert!(
-                !address_spaces.write_members.overlaps(&addresses),
-                "Addresses {:x?} conflict with already existing bus infrastructure {:x?}",
-                addresses,
-                address_spaces
-            );
-
-            address_spaces.write_members.insert(addresses, id);
-        }
+        id
     }
 
     /// Step through the memory translation table to fill the buffer with data
@@ -282,8 +131,15 @@ impl MemoryTranslationTable {
                 .overlapping(accessing_range.clone())
             {
                 let memory = impl_guard
-                    .read_memories
+                    .memories
                     .get(memory_id)
+                    .and_then(|memory| match memory {
+                        StoredCallback::Read(memory) => Some(memory.as_ref()),
+                        StoredCallback::ReadWrite(memory) => {
+                            Some(memory.as_ref() as &dyn ReadMemory)
+                        }
+                        _ => None,
+                    })
                     .expect("Non existant memory");
 
                 did_handle = true;
@@ -378,138 +234,6 @@ impl MemoryTranslationTable {
         Ok(T::from_be_bytes(&buffer))
     }
 
-    /// Step through the memory translation table to give a set of components the buffer
-    ///
-    /// Contents of the buffer upon failure are usually component specific
-    #[inline]
-    pub fn write(
-        &self,
-        address: usize,
-        address_space: AddressSpaceHandle,
-        buffer: &[u8],
-    ) -> Result<(), WriteMemoryOperationError> {
-        assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
-            "Invalid memory access size {}",
-            buffer.len()
-        );
-        let impl_guard = self.0.write().unwrap();
-
-        let mut needed_accesses =
-            Vec::from_iter([(address, address_space, (0..=(buffer.len() - 1)))]);
-
-        while let Some((address, address_space, buffer_subrange)) = needed_accesses.pop() {
-            let address_space_info = impl_guard
-                .address_spaces
-                .get(&address_space)
-                .expect("Non existant address space");
-
-            // Cut off address
-            let address = address & address_space_info.width_mask;
-
-            tracing::debug!(
-                "Writing to address {:#04x} from address space {:?}",
-                address,
-                address_space
-            );
-
-            let accessing_range =
-                (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
-            let mut did_handle = false;
-
-            for (component_assignment_range, memory_id) in address_space_info
-                .write_members
-                .overlapping(accessing_range.clone())
-            {
-                let memory = impl_guard
-                    .write_memories
-                    .get(memory_id)
-                    .expect("Non existant memory");
-
-                did_handle = true;
-                let mut errors = RangeInclusiveMap::default();
-
-                let overlap_start = accessing_range
-                    .start()
-                    .max(component_assignment_range.start());
-
-                memory.write_memory(
-                    *overlap_start,
-                    address_space,
-                    &buffer[buffer_subrange.clone()],
-                    &mut errors,
-                );
-
-                let mut detected_errors = RangeInclusiveMap::default();
-
-                for (range, error) in errors {
-                    match error {
-                        WriteMemoryRecord::Denied => {
-                            tracing::error!(
-                                "Write memory operation operation denied at {:#04x?}",
-                                range
-                            );
-
-                            detected_errors
-                                .insert(range, WriteMemoryOperationErrorFailureType::Denied);
-                        }
-                        WriteMemoryRecord::Redirect {
-                            address: redirect_address,
-                            address_space: redirect_address_space,
-                        } => {
-                            assert!(
-                                !component_assignment_range.contains(&redirect_address)
-                                    && address_space == redirect_address_space,
-                                "Component attempted to redirect to itself {:x?} -> {:x}",
-                                component_assignment_range,
-                                redirect_address,
-                            );
-
-                            needed_accesses.push((
-                                redirect_address,
-                                redirect_address_space,
-                                (range.start() - address)..=(range.end() - address),
-                            ));
-                        }
-                    }
-                }
-
-                if !detected_errors.is_empty() {
-                    return Err(WriteMemoryOperationError(detected_errors));
-                }
-            }
-
-            if !did_handle {
-                return Err(WriteMemoryOperationError(RangeInclusiveMap::from_iter([(
-                    accessing_range,
-                    WriteMemoryOperationErrorFailureType::OutOfBus,
-                )])));
-            }
-        }
-
-        Ok(())
-    }
-
-    #[inline]
-    pub fn write_le_value<T: ToBytes>(
-        &self,
-        address: usize,
-        address_space: AddressSpaceHandle,
-        value: T,
-    ) -> Result<(), WriteMemoryOperationError> {
-        self.write(address, address_space, value.to_le_bytes().as_ref())
-    }
-
-    #[inline]
-    pub fn write_be_value<T: ToBytes>(
-        &self,
-        address: usize,
-        address_space: AddressSpaceHandle,
-        value: T,
-    ) -> Result<(), WriteMemoryOperationError> {
-        self.write(address, address_space, value.to_be_bytes().as_ref())
-    }
-
     #[inline]
     pub fn preview(
         &self,
@@ -539,8 +263,15 @@ impl MemoryTranslationTable {
                 .overlapping(accessing_range.clone())
             {
                 let memory = impl_guard
-                    .read_memories
+                    .memories
                     .get(memory_id)
+                    .and_then(|memory| match memory {
+                        StoredCallback::Read(memory) => Some(memory.as_ref()),
+                        StoredCallback::ReadWrite(memory) => {
+                            Some(memory.as_ref() as &dyn ReadMemory)
+                        }
+                        _ => None,
+                    })
                     .expect("Non existant memory");
 
                 did_handle = true;

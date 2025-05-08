@@ -1,11 +1,20 @@
+use std::fmt::Debug;
+
 use multiemu_machine::memory::{
     AddressSpaceHandle, callbacks::ReadMemory, memory_translation_table::ReadMemoryRecord,
 };
 use rangemap::RangeInclusiveMap;
 
-#[derive(Debug)]
 pub struct RawCartridgeMemoryCallback {
     pub rom: [u8; 0x1000],
+}
+
+impl Debug for RawCartridgeMemoryCallback {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RawCartridgeMemoryCallback")
+            .field("rom", &"[..]")
+            .finish()
+    }
 }
 
 impl ReadMemory for RawCartridgeMemoryCallback {

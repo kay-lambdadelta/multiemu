@@ -2,11 +2,11 @@ use cartridge::{Atari2600Cartridge, Atari2600CartridgeConfig};
 use codes_iso_3166::part_1::CountryCode;
 use gamepad::joystick::{Atari2600Joystick, Atari2600JoystickConfig};
 use multiemu_config::Environment;
-use multiemu_definition_m6502::{M6502, M6502Config, M6502Kind};
 use multiemu_definition_misc::{
-    m6532_riot::{M6532Riot, M6532RiotConfig},
     memory::mirror::{MirrorMemory, MirrorMemoryConfig, PermissionSpace},
+    mos6532_riot::{M6532RiotConfig, Mos6532Riot},
 };
+use multiemu_definition_mos6502::{Mos6502, Mos6502Config, Mos6502Kind};
 use multiemu_machine::{builder::MachineBuilder, display::shader::ShaderCache};
 use multiemu_rom::{
     id::RomId,
@@ -40,7 +40,7 @@ pub fn manifest(
     user_specified_roms: Vec<RomId>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
-    shader_cache: Arc<ShaderCache>,
+    shader_cache: ShaderCache,
 ) -> MachineBuilder {
     let machine = MachineBuilder::new(
         GameSystem::Atari(AtariSystem::Atari2600),
@@ -83,35 +83,52 @@ pub fn manifest(
         RegionSelection::Pal
     };
 
-    let machine = machine
-        .insert_component::<Atari2600Cartridge>(
-            "cartridge",
-            Atari2600CartridgeConfig {
-                rom: user_specified_roms[0],
-                cpu_address_space,
+    let machine = machine.insert_component::<Atari2600Cartridge>(
+        "cartridge",
+        Atari2600CartridgeConfig {
+            rom: user_specified_roms[0],
+            cpu_address_space,
+        },
+    );
+
+    let machine = machine.insert_component::<MirrorMemory>(
+        "tia_write_mirror",
+        tia_write_register_mirror_ranges().fold(
+            MirrorMemoryConfig::default(),
+            |config, source_addresses| {
+                config.insert_range(
+                    source_addresses,
+                    cpu_address_space,
+                    0x0000..=0x003f,
+                    cpu_address_space,
+                    [PermissionSpace::Write],
+                )
             },
-        )
-        // The mirrors.... yipee.........
-        .insert_component::<MirrorMemory>(
-            "m6532_riot_mirrors",
-            riot_register_mirror_ranges()
-                .chain(riot_ram_mirror_ranges())
-                .fold(
-                    MirrorMemoryConfig::default(),
-                    |config, (source_addresses, destination_addresses)| {
-                        config.insert_range(
-                            source_addresses,
-                            cpu_address_space,
-                            destination_addresses,
-                            cpu_address_space,
-                            [PermissionSpace::Read, PermissionSpace::Write],
-                        )
-                    },
-                ),
-        )
-        .insert_component::<MirrorMemory>(
-            "tia_write_mirror",
-            tia_write_register_mirror_ranges().fold(
+        ),
+    );
+
+    let machine = machine.insert_component::<MirrorMemory>(
+        "tia_read_mirror",
+        tia_read_register_mirror_ranges().fold(
+            MirrorMemoryConfig::default(),
+            |config, source_addresses| {
+                config.insert_range(
+                    source_addresses,
+                    cpu_address_space,
+                    0x0000..=0x000f,
+                    cpu_address_space,
+                    [PermissionSpace::Read],
+                )
+            },
+        ),
+    );
+
+    // The mirrors.... yipee.........
+    let machine = machine.insert_component::<MirrorMemory>(
+        "mos6532_riot_mirrors",
+        riot_register_mirror_ranges()
+            .chain(riot_ram_mirror_ranges())
+            .fold(
                 MirrorMemoryConfig::default(),
                 |config, (source_addresses, destination_addresses)| {
                     config.insert_range(
@@ -119,38 +136,23 @@ pub fn manifest(
                         cpu_address_space,
                         destination_addresses,
                         cpu_address_space,
-                        [PermissionSpace::Write],
+                        [PermissionSpace::Read, PermissionSpace::Write],
                     )
                 },
             ),
-        )
-        .insert_component::<MirrorMemory>(
-            "tia_read_mirror",
-            tia_read_register_mirror_ranges().fold(
-                MirrorMemoryConfig::default(),
-                |config, (source_addresses, destination_addresses)| {
-                    config.insert_range(
-                        source_addresses,
-                        cpu_address_space,
-                        destination_addresses,
-                        cpu_address_space,
-                        [PermissionSpace::Read],
-                    )
-                },
-            ),
-        );
+    );
 
     match region {
         RegionSelection::Ntsc => machine
-            .insert_component::<M6502>(
+            .insert_component::<Mos6502>(
                 "mos_6502",
-                M6502Config {
+                Mos6502Config {
                     frequency: Ntsc::frequency() / Ratio::from_integer(3),
-                    kind: M6502Kind::M6507,
+                    kind: Mos6502Kind::M6507,
                     assigned_address_space: cpu_address_space,
                 },
             )
-            .insert_component::<M6532Riot>(
+            .insert_component::<Mos6532Riot>(
                 "m6532_riot",
                 M6532RiotConfig {
                     frequency: Ntsc::frequency() / Ratio::from_integer(3),
@@ -167,15 +169,15 @@ pub fn manifest(
                 },
             ),
         RegionSelection::Pal => machine
-            .insert_component::<M6502>(
+            .insert_component::<Mos6502>(
                 "mos_6502",
-                M6502Config {
+                Mos6502Config {
                     frequency: Pal::frequency() / Ratio::from_integer(3),
-                    kind: M6502Kind::M6507,
+                    kind: Mos6502Kind::M6507,
                     assigned_address_space: cpu_address_space,
                 },
             )
-            .insert_component::<M6532Riot>(
+            .insert_component::<Mos6532Riot>(
                 "m6532_riot",
                 M6532RiotConfig {
                     frequency: Pal::frequency() / Ratio::from_integer(3),
@@ -204,19 +206,17 @@ pub fn manifest(
 // These three functions hardcode mirror addresses instead of trying to mechanically replicate partial address decoding
 // Which would be difficult, painful, and require inefficient changes to the memory translation table
 
-fn tia_read_register_mirror_ranges()
--> impl Iterator<Item = (RangeInclusive<usize>, RangeInclusive<usize>)> {
+fn tia_read_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<usize>> {
     (1..64).map(|i| {
         let base = i * 0x10;
-        (base..=base + 0x0f, 0x0000..=0x000f)
+        base..=base + 0x0f
     })
 }
 
-fn tia_write_register_mirror_ranges()
--> impl Iterator<Item = (RangeInclusive<usize>, RangeInclusive<usize>)> {
+fn tia_write_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<usize>> {
     (1..32).map(|i| {
         let base = i * 0x40;
-        (base..=base + 0x3f, 0x0000..=0x003f)
+        base..=base + 0x3f
     })
 }
 

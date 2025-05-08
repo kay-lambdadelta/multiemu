@@ -51,7 +51,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
                 preferred_extensions: preferred_extensions.unwrap_or_default(),
                 required_extensions: required_extensions.unwrap_or_default(),
                 set_display_callback: Box::new(move |component, initialization_data| {
-                    let component = component.as_any().downcast_ref::<C>().unwrap();
+                    let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
                     set_display_callback(component, initialization_data)
                 }),
             }),

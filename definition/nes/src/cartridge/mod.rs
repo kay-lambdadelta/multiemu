@@ -62,8 +62,8 @@ impl FromConfig for NesCartridge {
         let ines = Arc::new(INes::parse(&rom).unwrap());
         tracing::debug!("Parsed ROM as {:#?}", ines);
 
-        let component_builder = construct_mapper(
-            component_builder,
+        construct_mapper(
+            &essentials.memory_translation_table,
             ines.clone(),
             config.cpu_address_space,
             config.ppu_address_space,

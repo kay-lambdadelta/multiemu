@@ -1,6 +1,6 @@
 use crate::{
-    ExecutionMode, LoadStep, M6502, M6502Config, RESET_VECTOR, StoreStep,
-    decoder::M6502InstructionDecoder, instruction::AddressingMode, interpret::STACK_BASE_ADDRESS,
+    ExecutionMode, LoadStep, Mos6502, Mos6502Config, RESET_VECTOR, StoreStep,
+    decoder::Mos6502InstructionDecoder, instruction::AddressingMode, interpret::STACK_BASE_ADDRESS,
 };
 use arrayvec::ArrayVec;
 use multiemu_machine::{
@@ -12,14 +12,14 @@ use std::{
     sync::{Arc, atomic::Ordering},
 };
 
-pub struct M6502Task {
+pub struct Mos6502Task {
     pub essentials: Arc<RuntimeEssentials>,
-    pub instruction_decoder: M6502InstructionDecoder,
-    pub config: Arc<M6502Config>,
+    pub instruction_decoder: Mos6502InstructionDecoder,
+    pub config: Arc<Mos6502Config>,
 }
 
-impl Task<M6502> for M6502Task {
-    fn run(&mut self, target: &M6502, period: NonZero<u32>) {
+impl Task<Mos6502> for Mos6502Task {
+    fn run(&mut self, target: &Mos6502, period: NonZero<u32>) {
         let mut period = period.get();
         let mut state = target.state.lock().unwrap();
 

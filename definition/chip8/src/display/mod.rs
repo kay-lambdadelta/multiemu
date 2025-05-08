@@ -1,6 +1,5 @@
 use super::Chip8Kind;
 use bitvec::{order::Msb0, view::BitView};
-use downcast_rs::Downcast;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
@@ -151,7 +150,7 @@ impl FromConfig for Chip8Display {
     }
 }
 
-trait Chip8DisplayBackend: Downcast {
+trait Chip8DisplayBackend {
     fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool;
     fn clear_display(&self);
     fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;

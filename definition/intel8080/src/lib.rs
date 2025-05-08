@@ -52,17 +52,17 @@ enum I8080FlagRegister {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum I8080Kind {
-    I8080,
-    Z80,
-    Lr35902,
+    Intel8080,
+    Zilog80,
+    SharpLr35902,
 }
 
 #[derive(Debug)]
-pub struct I8080 {
+pub struct Intel8080 {
     config: I8080Config,
 }
 
-impl Component for I8080 {}
+impl Component for Intel8080 {}
 
 #[derive(Debug)]
 pub struct I8080Config {
@@ -72,24 +72,24 @@ pub struct I8080Config {
 impl I8080Config {
     pub fn lr35902() -> Self {
         Self {
-            kind: I8080Kind::Lr35902,
+            kind: I8080Kind::SharpLr35902,
         }
     }
 
     pub fn z80() -> Self {
         Self {
-            kind: I8080Kind::Z80,
+            kind: I8080Kind::Zilog80,
         }
     }
 
     pub fn i8080() -> Self {
         Self {
-            kind: I8080Kind::I8080,
+            kind: I8080Kind::Intel8080,
         }
     }
 }
 
-impl FromConfig for I8080 {
+impl FromConfig for Intel8080 {
     type Config = I8080Config;
     type Quirks = ();
 

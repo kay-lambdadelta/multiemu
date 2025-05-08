@@ -57,14 +57,15 @@ impl<T: ShaderFormat> Debug for Shader<T> {
     }
 }
 
-#[derive(Debug, Default)]
+#[allow(clippy::type_complexity)]
+#[derive(Clone, Debug, Default)]
 pub struct ShaderCache(
-    scc::HashCache<(Cow<'static, str>, SemVer, TypeId), Box<dyn Any + Send + Sync>>,
+    Arc<scc::HashCache<(Cow<'static, str>, SemVer, TypeId), Box<dyn Any + Send + Sync>>>,
 );
 
 impl ShaderCache {
     pub fn new(capacity: usize) -> Self {
-        Self(scc::HashCache::with_capacity(0, capacity))
+        Self(Arc::new(scc::HashCache::with_capacity(0, capacity)))
     }
 }
 

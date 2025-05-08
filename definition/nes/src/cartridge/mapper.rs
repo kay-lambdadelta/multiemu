@@ -1,22 +1,18 @@
-use super::NesCartridge;
 use crate::INes;
-use multiemu_machine::{
-    builder::ComponentBuilder,
-    memory::{
-        AddressSpaceHandle,
-        callbacks::{ReadMemory, WriteMemory},
-        memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
-    },
+use multiemu_machine::memory::{
+    AddressSpaceHandle,
+    callbacks::{ReadMemory, WriteMemory},
+    memory_translation_table::{MemoryTranslationTable, ReadMemoryRecord, WriteMemoryRecord},
 };
 use rangemap::RangeInclusiveMap;
 use std::sync::Arc;
 
 #[derive(Debug)]
-struct MemoryCallbacks {
+struct NesCartidgeMemoryCallbacks {
     bus_conflict: bool,
 }
 
-impl ReadMemory for MemoryCallbacks {
+impl ReadMemory for NesCartidgeMemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
@@ -27,7 +23,7 @@ impl ReadMemory for MemoryCallbacks {
     }
 }
 
-impl WriteMemory for MemoryCallbacks {
+impl WriteMemory for NesCartidgeMemoryCallbacks {
     fn write_memory(
         &self,
         address: usize,
@@ -50,22 +46,22 @@ impl WriteMemory for MemoryCallbacks {
 }
 
 pub fn construct_mapper(
-    component_builder: ComponentBuilder<NesCartridge>,
+    memory_translation_table: &MemoryTranslationTable,
     ines: Arc<INes>,
     cpu_address_space: AddressSpaceHandle,
-    ppu_address_space: AddressSpaceHandle,
-) -> ComponentBuilder<NesCartridge> {
+    _ppu_address_space: AddressSpaceHandle,
+) {
     match ines.mapper {
         000 => {}
         _ => unimplemented!(),
     }
 
-    let memory_callbacks = Arc::new(MemoryCallbacks {
+    let memory_callbacks = Arc::new(NesCartidgeMemoryCallbacks {
         bus_conflict: false,
     });
 
-    component_builder.insert_rw_memory::<MemoryCallbacks>(
+    memory_translation_table.insert_memory(
         memory_callbacks.clone(),
         [(cpu_address_space, 0x8000..=0xffff)],
-    )
+    );
 }

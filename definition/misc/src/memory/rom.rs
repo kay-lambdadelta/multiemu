@@ -56,12 +56,12 @@ impl FromConfig for RomMemory {
 
         let memory_operation_callbacks = MemoryCallbacks { config, rom };
 
-        component_builder
-            .insert_read_memory(
-                memory_operation_callbacks,
-                [(assigned_address_space, assigned_range)],
-            )
-            .build_global(Self);
+        essentials.memory_translation_table.insert_read_memory(
+            memory_operation_callbacks,
+            [(assigned_address_space, assigned_range)],
+        );
+
+        component_builder.build_global(Self);
     }
 }
 

@@ -110,7 +110,7 @@ impl VulkanEguiRenderer {
         memory_allocator: Arc<StandardMemoryAllocator>,
         command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
         descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
-        shader_cache: Arc<ShaderCache>,
+        shader_cache: ShaderCache,
         output_format: Format,
     ) -> Self {
         let render_pass = single_pass_renderpass!(

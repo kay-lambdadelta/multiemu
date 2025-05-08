@@ -99,7 +99,7 @@ pub struct Runtime<RS: RenderingBackendState> {
     pub rom_manager: Arc<RomManager>,
     pub egui_context: egui::Context,
     windowing_context: Option<WindowingContext<RS>>,
-    shader_cache: Arc<ShaderCache>,
+    shader_cache: ShaderCache,
     menu_state: MenuState,
     previous_frame_render_time: Duration,
     previous_frame_time: Duration,
@@ -115,7 +115,7 @@ impl<RS: RenderingBackendState> Runtime<RS> {
         let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
         let gamepad_mapping = HashMap::new();
         let mode = RuntimeMode::Gui(None);
-        let shader_cache = Arc::new(ShaderCache::new(12));
+        let shader_cache = ShaderCache::new(12);
 
         Self {
             mode,

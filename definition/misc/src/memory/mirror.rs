@@ -68,8 +68,8 @@ impl FromConfig for MirrorMemory {
     type Quirks = ();
 
     fn from_config(
-        mut component_builder: ComponentBuilder<Self>,
-        _essentials: Arc<RuntimeEssentials>,
+        component_builder: ComponentBuilder<Self>,
+        essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
         _quirks: Self::Quirks,
     ) {
@@ -105,8 +105,8 @@ impl FromConfig for MirrorMemory {
         {
             match permission {
                 PermissionSpace::Read => {
-                    component_builder = component_builder.insert_read_memory(
-                        MemoryCallbacks {
+                    essentials.memory_translation_table.insert_read_memory(
+                        MirrorMemoryCallbacks {
                             source_addresses: source_addresses.clone(),
                             destination_address,
                             destination_address_space,
@@ -115,8 +115,8 @@ impl FromConfig for MirrorMemory {
                     );
                 }
                 PermissionSpace::Write => {
-                    component_builder = component_builder.insert_write_memory(
-                        MemoryCallbacks {
+                    essentials.memory_translation_table.insert_write_memory(
+                        MirrorMemoryCallbacks {
                             source_addresses: source_addresses.clone(),
                             destination_address,
                             destination_address_space,
@@ -132,13 +132,13 @@ impl FromConfig for MirrorMemory {
 }
 
 #[derive(Debug)]
-struct MemoryCallbacks {
+struct MirrorMemoryCallbacks {
     source_addresses: RangeInclusive<usize>,
     destination_address: usize,
     destination_address_space: AddressSpaceHandle,
 }
 
-impl ReadMemory for MemoryCallbacks {
+impl ReadMemory for MirrorMemoryCallbacks {
     fn read_memory(
         &self,
         address: usize,
@@ -186,7 +186,7 @@ impl ReadMemory for MemoryCallbacks {
     }
 }
 
-impl WriteMemory for MemoryCallbacks {
+impl WriteMemory for MirrorMemoryCallbacks {
     fn write_memory(
         &self,
         address: usize,

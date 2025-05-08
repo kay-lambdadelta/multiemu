@@ -180,16 +180,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_definition_m6502'",
+            "name": "Debug unit tests in library 'multiemu_definition_mos6502'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=multiemu-definition-m6502"
+                    "--package=multiemu-definition-mos6502"
                 ],
                 "filter": {
-                    "name": "multiemu_definition_m6502",
+                    "name": "multiemu_definition_mos6502",
                     "kind": "lib"
                 }
             },
@@ -205,7 +205,7 @@
                     "test",
                     "--no-run",
                     "--bench=instruction_decode",
-                    "--package=multiemu-definition-m6502"
+                    "--package=multiemu-definition-mos6502"
                 ],
                 "filter": {
                     "name": "instruction_decode",

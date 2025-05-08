@@ -1,7 +1,7 @@
 use arrayvec::ArrayVec;
-use decoder::M6502InstructionDecoder;
+use decoder::Mos6502InstructionDecoder;
 use enumflags2::{BitFlags, bitflags};
-use instruction::M6502InstructionSet;
+use instruction::Mos6502InstructionSet;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, FromConfig, RuntimeEssentials},
@@ -17,7 +17,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use task::M6502Task;
+use task::Mos6502Task;
 use versions::SemVer;
 
 mod decoder;
@@ -136,29 +136,29 @@ pub enum ExecutionMode {
     Fetch,
     /// Loads data required for the instruction
     Load {
-        instruction: M6502InstructionSet,
+        instruction: Mos6502InstructionSet,
         latch: ArrayVec<u8, 2>,
         queue: VecDeque<LoadStep>,
     },
     /// Execute this instruction
-    Execute { instruction: M6502InstructionSet },
+    Execute { instruction: Mos6502InstructionSet },
     /// Stores data for the instruction
     Store { queue: VecDeque<StoreStep> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum M6502Kind {
+pub enum Mos6502Kind {
     /// Standard
-    M6502,
+    Mos6502,
     /// Slimmed down atari 2600 version
     M6507,
     /// NES version
     R2A0x,
 }
 
-impl M6502Kind {
+impl Mos6502Kind {
     pub fn supports_decimal(&self) -> bool {
-        !matches!(self, M6502Kind::R2A0x)
+        !matches!(self, Mos6502Kind::R2A0x)
     }
 }
 
@@ -184,10 +184,10 @@ pub enum FlagRegister {
 }
 
 #[derive(Debug)]
-pub struct M6502Config {
+pub struct Mos6502Config {
     pub frequency: Ratio<u32>,
     pub assigned_address_space: AddressSpaceHandle,
-    pub kind: M6502Kind,
+    pub kind: Mos6502Kind,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -227,12 +227,12 @@ impl Default for ProcessorState {
 }
 
 #[derive(Debug)]
-pub struct M6502 {
+pub struct Mos6502 {
     state: Mutex<ProcessorState>,
     rdy: Arc<AtomicBool>,
 }
 
-impl M6502 {
+impl Mos6502 {
     pub fn set_rdy(&self, rdy: bool) {
         if rdy {
             tracing::debug!("RDY went high, resuming execution");
@@ -244,7 +244,7 @@ impl M6502 {
     }
 }
 
-impl Component for M6502 {
+impl Component for Mos6502 {
     fn save(&self, mut entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
         let snapshot = Snapshot {
             state: self.state.lock().unwrap().clone(),
@@ -277,13 +277,13 @@ impl Component for M6502 {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct M6502Quirks {
+pub struct Mos6502Quirks {
     pub broken_ror: bool,
 }
 
-impl FromConfig for M6502 {
-    type Config = M6502Config;
-    type Quirks = M6502Quirks;
+impl FromConfig for Mos6502 {
+    type Config = Mos6502Config;
+    type Quirks = Mos6502Quirks;
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
@@ -297,9 +297,9 @@ impl FromConfig for M6502 {
         component_builder
             .insert_task(
                 config.frequency,
-                M6502Task {
+                Mos6502Task {
                     essentials: essentials.clone(),
-                    instruction_decoder: M6502InstructionDecoder,
+                    instruction_decoder: Mos6502InstructionDecoder,
                     config: config.clone(),
                 },
             )

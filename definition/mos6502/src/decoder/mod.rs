@@ -1,4 +1,4 @@
-use super::instruction::{AddressingMode, M6502InstructionSet};
+use super::instruction::{AddressingMode, Mos6502InstructionSet};
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use group1::decode_group1_space_instruction;
 use group2::decode_group2_space_instruction;
@@ -19,10 +19,10 @@ mod undocumented;
 // https://www.pagetable.com/c64ref/6502/
 
 #[derive(Debug, Default)]
-pub struct M6502InstructionDecoder;
+pub struct Mos6502InstructionDecoder;
 
-impl InstructionDecoder for M6502InstructionDecoder {
-    type InstructionSet = M6502InstructionSet;
+impl InstructionDecoder for Mos6502InstructionDecoder {
+    type InstructionSet = Mos6502InstructionSet;
 
     fn decode(
         &self,
@@ -56,7 +56,7 @@ impl InstructionDecoder for M6502InstructionDecoder {
 
         result.map(|(opcode, addressing_mode)| {
             (
-                M6502InstructionSet {
+                Mos6502InstructionSet {
                     opcode,
                     addressing_mode,
                 },

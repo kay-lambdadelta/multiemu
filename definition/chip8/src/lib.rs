@@ -40,7 +40,7 @@ pub fn manifest(
     user_specified_roms: Vec<RomId>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
-    shader_cache: Arc<ShaderCache>,
+    shader_cache: ShaderCache,
 ) -> MachineBuilder {
     let machine = MachineBuilder::new(
         GameSystem::Other(OtherSystem::Chip8),

@@ -3,11 +3,11 @@ use std::sync::{Arc, RwLock};
 pub use cartridge::ines::INes;
 use cartridge::{NesCartridge, NesCartridgeConfig, ines::TimingMode};
 use multiemu_config::Environment;
-use multiemu_definition_m6502::{M6502, M6502Config, M6502Kind};
 use multiemu_definition_misc::memory::{
     mirror::{MirrorMemory, MirrorMemoryConfig, PermissionSpace},
     standard::{StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents},
 };
+use multiemu_definition_mos6502::{Mos6502, Mos6502Config, Mos6502Kind};
 use multiemu_machine::{builder::MachineBuilder, display::shader::ShaderCache};
 use multiemu_rom::{
     id::RomId,
@@ -25,7 +25,7 @@ pub fn manifest(
     user_specified_roms: Vec<RomId>,
     rom_manager: Arc<RomManager>,
     environment: Arc<RwLock<Environment>>,
-    shader_cache: Arc<ShaderCache>,
+    shader_cache: ShaderCache,
 ) -> MachineBuilder {
     let machine = multiemu_machine::builder::MachineBuilder::new(
         GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem),
@@ -85,12 +85,12 @@ pub fn manifest(
         TimingMode::Dendy => 1773448,
     });
 
-    machine.insert_component::<M6502>(
+    machine.insert_component::<Mos6502>(
         "processor",
-        M6502Config {
+        Mos6502Config {
             frequency: processor_frequency,
             assigned_address_space: cpu_address_space,
-            kind: M6502Kind::R2A0x,
+            kind: Mos6502Kind::R2A0x,
         },
     )
 }

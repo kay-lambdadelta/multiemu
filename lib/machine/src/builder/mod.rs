@@ -19,8 +19,8 @@ use task::TaskMetadata;
 
 pub mod display;
 pub mod input;
-pub mod memory;
 pub mod task;
+pub mod memory;
 
 #[derive(Default)]
 /// Overall data extracted from components needed for machine initialization
@@ -43,7 +43,7 @@ impl MachineBuilder {
         game_system: GameSystem,
         rom_manager: Arc<RomManager>,
         environment: Arc<RwLock<Environment>>,
-        shader_cache: Arc<ShaderCache>,
+        shader_cache: ShaderCache,
     ) -> Self {
         MachineBuilder {
             current_component_id: ComponentId(0),

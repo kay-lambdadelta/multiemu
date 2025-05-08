@@ -203,12 +203,12 @@ impl Display for Opcode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct M6502InstructionSet {
+pub struct Mos6502InstructionSet {
     pub opcode: Opcode,
     pub addressing_mode: Option<AddressingMode>,
 }
 
-impl M6502InstructionSet {
+impl Mos6502InstructionSet {
     pub fn is_addressing_mode_valid(&self) -> bool {
         match self.opcode {
             Opcode::Adc => todo!(),
@@ -290,7 +290,7 @@ impl M6502InstructionSet {
     }
 }
 
-impl InstructionSet for M6502InstructionSet {
+impl InstructionSet for Mos6502InstructionSet {
     type Opcode = Opcode;
     type AddressingMode = AddressingMode;
 }

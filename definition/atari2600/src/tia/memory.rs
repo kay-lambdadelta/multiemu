@@ -7,7 +7,7 @@ use bitvec::{
     order::{Lsb0, Msb0},
     view::BitView,
 };
-use multiemu_definition_m6502::M6502;
+use multiemu_definition_mos6502::Mos6502;
 use multiemu_machine::{
     component::component_ref::ComponentRef,
     memory::{
@@ -91,7 +91,7 @@ enum WriteRegisters {
 #[derive(Debug)]
 pub struct MemoryCallback {
     pub state: Arc<Mutex<State>>,
-    pub processor: ComponentRef<M6502>,
+    pub processor: ComponentRef<Mos6502>,
 }
 
 impl WriteMemory for MemoryCallback {

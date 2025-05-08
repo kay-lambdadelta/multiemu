@@ -2,7 +2,11 @@ use super::{
     Component, ComponentId,
     store::{ComponentStore, Error},
 };
-use std::{any::TypeId, fmt::Debug, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    fmt::Debug,
+    sync::Arc,
+};
 
 #[derive(Clone)]
 enum ComponentLocation {
@@ -75,8 +79,7 @@ impl<C: Component> ComponentRef<C> {
     pub fn interact(&self, callback: impl FnOnce(&C) + Send) -> Result<(), Error> {
         match &self.location {
             ComponentLocation::Here(component) => {
-                let component = component
-                    .as_any()
+                let component = (component.as_ref() as &dyn Any)
                     .downcast_ref::<C>()
                     .expect("Component type mismatch");
 

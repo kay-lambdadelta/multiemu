@@ -30,7 +30,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
     fn new(
         display_api_handle: Self::DisplayApiHandle,
         environment: Arc<RwLock<Environment>>,
-        _shader_cache: Arc<ShaderCache>,
+        _shader_cache: ShaderCache,
         _preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
         _required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
     ) -> Result<Self, Box<dyn std::error::Error>> {

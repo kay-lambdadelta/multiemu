@@ -1,7 +1,7 @@
 use super::ComponentBuilder;
 use crate::{component::Component, scheduler::task::Task};
 use num::rational::Ratio;
-use std::num::NonZero;
+use std::{any::Any, num::NonZero};
 
 #[derive(Default)]
 pub struct TaskMetadata {
@@ -19,7 +19,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
         task_metatada.tasks.push((
             frequency,
             Box::new(move |component, period| {
-                let component = component.as_any().downcast_ref::<C>().unwrap();
+                let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
                 callback.run(component, period);
             }),
         ));

@@ -1,8 +1,8 @@
 use super::{
     FlagRegister, ProcessorState,
-    instruction::{M6502InstructionSet, Opcode},
+    instruction::{Mos6502InstructionSet, Opcode},
 };
-use crate::{ExecutionMode, StoreStep, instruction::AddressingMode, task::M6502Task};
+use crate::{ExecutionMode, StoreStep, instruction::AddressingMode, task::Mos6502Task};
 use bitvec::{prelude::Msb0, view::BitView};
 use enumflags2::BitFlag;
 use multiemu_machine::memory::memory_translation_table::MemoryTranslationTable;
@@ -17,11 +17,11 @@ mod tests;
 
 // NOTE: https://www.pagetable.com/c64ref/6502
 
-impl M6502Task {
+impl Mos6502Task {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,
-        instruction: M6502InstructionSet,
+        instruction: Mos6502InstructionSet,
     ) {
         let memory_translation_table = &self.essentials.memory_translation_table;
 
@@ -751,7 +751,7 @@ impl M6502Task {
     fn load<T: FromBytes<Bytes = [u8; 1]> + Default>(
         &self,
         state: &mut ProcessorState,
-        instruction: &M6502InstructionSet,
+        instruction: &Mos6502InstructionSet,
         memory_translation_table: &MemoryTranslationTable,
     ) -> T {
         match instruction.addressing_mode {
@@ -779,7 +779,7 @@ impl M6502Task {
     fn store<T: ToBytes<Bytes = [u8; 1]>>(
         &self,
         state: &mut ProcessorState,
-        instruction: &M6502InstructionSet,
+        instruction: &Mos6502InstructionSet,
         memory_translation_table: &MemoryTranslationTable,
         value: T,
     ) {

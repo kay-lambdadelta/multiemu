@@ -1,5 +1,5 @@
 [package]
-name = "multiemu-definition-m6502"
+name = "multiemu-definition-mos6502"
 version = "0.1.0"
 edition = "2024"
 

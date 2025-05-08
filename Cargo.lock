@@ -1251,12 +1251,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
-name = "downcast-rs"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea8a8b81cacc08888170eef4d13b775126db426d0b348bee9d18c2c1eaf123cf"
-
-[[package]]
 name = "doxygen-rs"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2217,11 +2211,10 @@ dependencies = [
  "bitvec",
  "cfg_aliases",
  "codes-iso-3166",
- "downcast-rs 2.0.1",
  "enumflags2",
  "multiemu-config",
- "multiemu-definition-m6502",
  "multiemu-definition-misc",
+ "multiemu-definition-mos6502",
  "multiemu-input",
  "multiemu-machine",
  "multiemu-macros",
@@ -2239,6 +2232,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "multiemu-definition-atarilynx"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+ "bitvec",
+ "cfg_aliases",
+ "enumflags2",
+ "indexmap 2.9.0",
+ "multiemu-config",
+ "multiemu-definition-misc",
+ "multiemu-definition-mos6502",
+ "multiemu-input",
+ "multiemu-machine",
+ "multiemu-macros",
+ "multiemu-rom",
+ "nalgebra",
+ "num",
+ "palette",
+ "petgraph",
+ "rangemap",
+ "serde",
+ "strum 0.27.1",
+ "thiserror 2.0.12",
+ "tracing",
+]
+
+[[package]]
 name = "multiemu-definition-chip8"
 version = "0.1.0"
 dependencies = [
@@ -2250,7 +2270,6 @@ dependencies = [
  "cfg_aliases",
  "criterion",
  "crossbeam",
- "downcast-rs 2.0.1",
  "multiemu-config",
  "multiemu-definition-misc",
  "multiemu-input",
@@ -2287,30 +2306,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "multiemu-definition-m6502"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "bincode",
- "bitvec",
- "bytemuck",
- "cfg_aliases",
- "enumflags2",
- "indexmap 2.9.0",
- "multiemu-config",
- "multiemu-definition-misc",
- "multiemu-machine",
- "multiemu-macros",
- "multiemu-rom",
- "num",
- "rand 0.9.1",
- "serde",
- "strum 0.27.1",
- "tracing",
- "versions",
-]
-
-[[package]]
 name = "multiemu-definition-misc"
 version = "0.1.0"
 dependencies = [
@@ -2335,6 +2330,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "multiemu-definition-mos6502"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "bincode",
+ "bitvec",
+ "bytemuck",
+ "cfg_aliases",
+ "enumflags2",
+ "indexmap 2.9.0",
+ "multiemu-config",
+ "multiemu-definition-misc",
+ "multiemu-machine",
+ "multiemu-macros",
+ "multiemu-rom",
+ "num",
+ "rand 0.9.1",
+ "serde",
+ "strum 0.27.1",
+ "tracing",
+ "versions",
+]
+
+[[package]]
 name = "multiemu-definition-nes"
 version = "0.1.0"
 dependencies = [
@@ -2343,8 +2362,8 @@ dependencies = [
  "criterion",
  "enumflags2",
  "multiemu-config",
- "multiemu-definition-m6502",
  "multiemu-definition-misc",
+ "multiemu-definition-mos6502",
  "multiemu-input",
  "multiemu-machine",
  "multiemu-macros",
@@ -2427,7 +2446,6 @@ dependencies = [
  "bitvec",
  "cfg_aliases",
  "crossbeam",
- "downcast-rs 2.0.1",
  "enumflags2",
  "indexmap 2.9.0",
  "itertools 0.14.0",
@@ -4759,7 +4777,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe770181423e5fc79d3e2a7f4410b7799d5aab1de4372853de3c6aa13ca24121"
 dependencies = [
  "cc",
- "downcast-rs 1.2.1",
+ "downcast-rs",
  "rustix 0.38.44",
  "scoped-tls",
  "smallvec",
