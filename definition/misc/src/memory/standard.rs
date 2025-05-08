@@ -406,7 +406,7 @@ mod test {
     fn initialization() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = Arc::new(ShaderCache::default());
+        let shader_cache = ShaderCache::default();
 
         let (cpu_address_space, machine) = MachineBuilder::new(
             GameSystem::Unknown,
@@ -474,7 +474,7 @@ mod test {
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = Arc::new(ShaderCache::default());
+        let shader_cache = ShaderCache::default();
 
         let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
@@ -506,7 +506,7 @@ mod test {
     fn basic_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = Arc::new(ShaderCache::default());
+        let shader_cache = ShaderCache::default();
 
         let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
@@ -538,7 +538,7 @@ mod test {
     fn basic_read_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = Arc::new(ShaderCache::default());
+        let shader_cache = ShaderCache::default();
 
         let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
@@ -575,7 +575,7 @@ mod test {
     fn extensive() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = Arc::new(ShaderCache::default());
+        let shader_cache = ShaderCache::default();
 
         let (cpu_address_space, machine) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
