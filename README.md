@@ -22,10 +22,6 @@ Feature specific dependencies (all features are enabled by default)
 | -------- | ------- | -------                  |
 | Debian   | `vulkan` | libvulkan-dev           |
 
-## MSRV
-
-Everything in this workspace will maintain the MSRV of debian sid. It will most likely compile with a few versions down, but this program is only actively tested on debian sid.
-
 ## UI
 
 Note that the application being EGUI based is most likely a temporary arrangement, its just for prototyping because EGUI is the least involved when writing a renderer
