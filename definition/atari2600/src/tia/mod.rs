@@ -155,6 +155,7 @@ impl<R: Region> FromConfig for Tia<R> {
                 },
             )
             .insert_task(R::REFRESH_RATE, move |display: &Tia<R>, _period| {
+                tracing::debug!("Commiting framebuffer");
                 display.display_backend.get().unwrap().commit_display();
             })
             .set_display_config::<SoftwareRendering>(None, None, software::set_display_data);

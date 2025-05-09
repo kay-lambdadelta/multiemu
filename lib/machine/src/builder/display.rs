@@ -3,7 +3,7 @@ use crate::{component::Component, display::backend::RenderBackend};
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    sync::Arc,
+    rc::Rc,
 };
 
 #[allow(clippy::type_complexity)]
@@ -17,8 +17,8 @@ pub struct BackendSpecificData<R: RenderBackend> {
     pub set_display_callback: Box<
         dyn FnOnce(
             &dyn Component,
-            Arc<R::ComponentInitializationData>,
-        ) -> Arc<R::ComponentFramebuffer>,
+            Rc<R::ComponentInitializationData>,
+        ) -> Rc<R::ComponentFramebuffer>,
     >,
 }
 
@@ -35,8 +35,8 @@ impl<C: Component> ComponentBuilder<'_, C> {
         required_extensions: Option<R::ContextExtensionSpecification>,
         set_display_callback: impl FnOnce(
             &C,
-            Arc<R::ComponentInitializationData>,
-        ) -> Arc<R::ComponentFramebuffer>
+            Rc<R::ComponentInitializationData>,
+        ) -> Rc<R::ComponentFramebuffer>
         + 'static,
     ) -> Self {
         let backend_specific_data = &mut self

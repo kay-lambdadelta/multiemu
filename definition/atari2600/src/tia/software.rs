@@ -5,15 +5,12 @@ use multiemu_machine::display::backend::{
 };
 use nalgebra::{DMatrix, Point2};
 use palette::{Srgb, Srgba};
-use std::{
-    cell::RefCell,
-    sync::{Arc, Mutex},
-};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug)]
 pub struct SoftwareState {
     pub staging_buffer: RefCell<DMatrix<Srgba<u8>>>,
-    pub framebuffer: Arc<Mutex<DMatrix<Srgba<u8>>>>,
+    pub framebuffer: Rc<RefCell<DMatrix<Srgba<u8>>>>,
 }
 
 impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
@@ -40,7 +37,7 @@ impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
 
     fn commit_display(&self) {
         let staging_buffer = self.staging_buffer.borrow_mut();
-        let mut framebuffer = self.framebuffer.lock().unwrap();
+        let mut framebuffer = self.framebuffer.borrow_mut();
 
         framebuffer.copy_from(&staging_buffer);
     }
@@ -48,14 +45,14 @@ impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
 
 pub fn set_display_data<R: Region>(
     display: &Tia<R>,
-    _initialization_data: Arc<<SoftwareRendering as RenderBackend>::ComponentInitializationData>,
-) -> Arc<SoftwareComponentFramebuffer> {
+    _initialization_data: Rc<<SoftwareRendering as RenderBackend>::ComponentInitializationData>,
+) -> Rc<SoftwareComponentFramebuffer> {
     let staging_buffer = DMatrix::from_element(
         SCANLINE_LENGTH as usize,
         R::TOTAL_SCANLINES as usize,
         Srgba::new(0, 0, 0, 0xff),
     );
-    let framebuffer = Arc::new(Mutex::new(staging_buffer.clone()));
+    let framebuffer = Rc::new(RefCell::new(staging_buffer.clone()));
 
     let _ = display.display_backend.set(Box::new(SoftwareState {
         staging_buffer: RefCell::new(staging_buffer),

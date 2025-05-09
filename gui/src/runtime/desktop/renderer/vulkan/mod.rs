@@ -13,7 +13,10 @@ use multiemu_machine::{
     },
 };
 use nalgebra::Vector2;
-use std::sync::{Arc, RwLock};
+use std::{
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
 use vulkano::{
     Validated, VulkanError, VulkanLibrary,
     command_buffer::{
@@ -218,8 +221,8 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
     fn component_initialization_data(
         &self,
-    ) -> Arc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData> {
-        Arc::new(VulkanComponentInitializationData {
+    ) -> Rc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData> {
+        Rc::new(VulkanComponentInitializationData {
             device: self.device.clone(),
             queues: self.queues_for_components.clone(),
             memory_allocator: self.memory_allocator.clone(),

@@ -6,11 +6,8 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     num::NonZero,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
-    time::{Duration, Instant},
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
 type TaskId = u16;
@@ -120,18 +117,13 @@ impl Scheduler {
 
     pub fn run(&mut self) {
         // TODO: This should actually be calculating how much time is between frames minus draw time
-        let mut ticks_this_pass: u32 = 0;
-        let timestamp = Instant::now();
+        let alloted_ticks_this_pass: u32 = (self.allotted_time.as_nanos()
+            / self.tick_real_time.as_nanos())
+        .try_into()
+        .unwrap();
+        let old_current_tick = self.current_tick;
 
-        loop {
-            let did_overstep_real_time = self.allotted_time < timestamp.elapsed();
-            let did_overstep_virtual_time =
-                self.allotted_time < (self.tick_real_time * ticks_this_pass);
-
-            if did_overstep_virtual_time || did_overstep_real_time {
-                break;
-            }
-
+        while (self.current_tick.wrapping_sub(old_current_tick)) < alloted_ticks_this_pass {
             let to_run: Vec<_> = self
                 .tasks
                 .iter()
@@ -151,12 +143,15 @@ impl Scheduler {
             if to_run.len() == 1 {
                 let to_run_info = to_run[0];
                 let time_slice = to_run_info.tick_rate;
-
                 self.run_task([(to_run_info.task_id, NonZero::new(time_slice).unwrap())]);
 
-                self.current_tick =
-                    self.current_tick.wrapping_add(time_slice) % self.common_denominator;
-                ticks_this_pass = ticks_this_pass.saturating_add(time_slice);
+                let time_slice_occupying_time = time_slice * to_run_info.tick_rate;
+                self.current_tick = self
+                    .current_tick
+                    .checked_add(time_slice_occupying_time)
+                    .unwrap()
+                    % self.common_denominator;
+
                 continue;
             }
 
@@ -168,8 +163,8 @@ impl Scheduler {
             {
                 // Nothing is set to run here
                 0 => {
-                    self.current_tick = self.current_tick.wrapping_add(1) % self.common_denominator;
-                    ticks_this_pass = ticks_this_pass.saturating_add(1);
+                    self.current_tick =
+                        self.current_tick.checked_add(1).unwrap() % self.common_denominator;
                 }
                 // Full efficient batching
                 1 => {
@@ -180,13 +175,15 @@ impl Scheduler {
                     if let Some(time_slice) = NonZero::new(time_slice) {
                         self.run_task([(to_run_info.task_id, time_slice)]);
 
-                        self.current_tick = self.current_tick.wrapping_add(time_slice.get())
+                        let time_slice_occupying_time = time_slice.get() * to_run_info.tick_rate;
+                        self.current_tick = self
+                            .current_tick
+                            .checked_add(time_slice_occupying_time)
+                            .unwrap()
                             % self.common_denominator;
-                        ticks_this_pass = ticks_this_pass.saturating_add(time_slice.get());
                     } else {
                         self.current_tick =
-                            self.current_tick.wrapping_add(1) % self.common_denominator;
-                        ticks_this_pass = ticks_this_pass.saturating_add(1);
+                            self.current_tick.checked_add(1).unwrap() % self.common_denominator;
                     }
                 }
                 // Conflicted components
@@ -199,8 +196,8 @@ impl Scheduler {
                         None
                     }));
 
-                    self.current_tick = self.current_tick.wrapping_add(1) % self.common_denominator;
-                    ticks_this_pass = ticks_this_pass.saturating_add(1);
+                    self.current_tick =
+                        self.current_tick.checked_add(1).unwrap() % self.common_denominator;
                 }
             }
         }
@@ -208,39 +205,15 @@ impl Scheduler {
 
     #[inline]
     fn run_task(&mut self, to_run: impl IntoIterator<Item = (TaskId, NonZero<u32>)>) {
-        // Indicator the main thread should give up
-        let queued_task_count = Arc::new(AtomicUsize::new(0));
-
-        rayon::in_place_scope(|scope| {
-            for (task_id, time_slice) in to_run {
-                scope.spawn({
-                    let queued_task_count = queued_task_count.clone();
-                    let component_store = self.component_store.as_ref();
-                    let task_info = self.tasks.get(&task_id).unwrap();
-                    queued_task_count.fetch_add(1, Ordering::Relaxed);
-
-                    // Send execution task to the other thread
-                    move |_| {
-                        component_store
-                            .interact_dyn(task_info.component_id, |component| {
-                                let mut task = task_info.task.lock().unwrap();
-                                task(component, time_slice);
-                                queued_task_count.fetch_sub(1, Ordering::Relaxed);
-                            })
-                            .unwrap();
-                    }
-                });
-            }
-
-            // Wait for all tasks spawned to end
-            while queued_task_count.load(Ordering::Relaxed) != 0 {
-                self.component_store.main_thread_queue.main_thread_poll();
-                // Yield during polling loop
-                std::thread::yield_now();
-            }
-
-            // join
-        });
+        for (task_id, time_slice) in to_run {
+            let task_info = self.tasks.get(&task_id).unwrap();
+            self.component_store
+                .interact_dyn(task_info.component_id, |component| {
+                    let mut task = task_info.task.lock().unwrap();
+                    task(component, time_slice);
+                })
+                .unwrap();
+        }
     }
 
     pub fn slow_down(&mut self) {

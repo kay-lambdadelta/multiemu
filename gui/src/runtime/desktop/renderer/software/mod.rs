@@ -12,7 +12,10 @@ use multiemu_machine::{
 use nalgebra::{DMatrixViewMut, Vector2};
 use palette::{Srgba, cast::Packed, rgb::channels::Argb};
 use softbuffer::{Context, Surface};
-use std::sync::{Arc, RwLock};
+use std::{
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
 use winit::window::Window;
 
 pub struct SoftwareRenderingRuntime {
@@ -56,8 +59,8 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
 
     fn component_initialization_data(
         &self,
-    ) -> Arc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData> {
-        Arc::default()
+    ) -> Rc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData> {
+        Rc::default()
     }
 
     fn redraw(&mut self, machine: &Machine) {
@@ -82,7 +85,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
 
         for (_, framebuffer) in machine.framebuffers::<Self::RenderBackend>().iter() {
             if integer_scaling {
-                let framebuffer = framebuffer.lock().unwrap();
+                let framebuffer = framebuffer.borrow();
 
                 let component_display_buffer_size =
                     Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();
@@ -119,7 +122,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                     }
                 }
             } else {
-                let framebuffer = framebuffer.lock().unwrap();
+                let framebuffer = framebuffer.borrow();
 
                 let component_display_buffer_size =
                     Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();

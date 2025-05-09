@@ -6,7 +6,7 @@ use multiemu_machine::display::backend::{
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
 use palette::{Srgb, Srgba};
-use std::{ops::DerefMut, sync::Arc};
+use std::{ops::DerefMut, rc::Rc, sync::Arc};
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
     command_buffer::{
@@ -25,7 +25,7 @@ pub struct VulkanState {
     pub staging_buffer: Subbuffer<[Srgba<u8>]>,
     pub queue: Arc<Queue>,
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-    pub render_image: Arc<ArcSwap<Image>>,
+    pub render_image: Rc<ArcSwap<Image>>,
 }
 
 impl Chip8DisplayBackend for VulkanState {
@@ -92,8 +92,8 @@ impl Chip8DisplayBackend for VulkanState {
 
 pub fn set_display_data(
     display: &Chip8Display,
-    initialization_data: Arc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
-) -> Arc<VulkanComponentFramebuffer> {
+    initialization_data: Rc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
+) -> Rc<VulkanComponentFramebuffer> {
     let staging_buffer = Buffer::from_iter(
         initialization_data.memory_allocator.clone(),
         BufferCreateInfo {
@@ -108,7 +108,7 @@ pub fn set_display_data(
     )
     .unwrap();
 
-    let render_image = Arc::new(ArcSwap::new(
+    let render_image = Rc::new(ArcSwap::new(
         Image::new(
             initialization_data.memory_allocator.clone(),
             ImageCreateInfo {

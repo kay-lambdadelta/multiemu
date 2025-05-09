@@ -19,6 +19,7 @@ multiemu-audio = { workspace = true }
 multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
 multiemu-definition-atari2600 = { workspace = true }
+multiemu-definition-atarilynx = { workspace = true }
 naga = { workspace = true }
 tracing = { workspace = true }
 strum = { workspace = true }
@@ -91,6 +92,7 @@ vulkan = [
     "multiemu-definition-chip8/vulkan",
     "multiemu-definition-nes/vulkan",
     "multiemu-definition-atari2600/vulkan",
+    "multiemu-definition-atarilynx/vulkan",
 ]
 
 [package.metadata.deb]

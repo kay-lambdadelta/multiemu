@@ -13,14 +13,15 @@ use std::{
     any::TypeId,
     collections::HashMap,
     marker::PhantomData,
+    rc::Rc,
     sync::{Arc, RwLock},
 };
 use task::TaskMetadata;
 
 pub mod display;
 pub mod input;
-pub mod task;
 pub mod memory;
+pub mod task;
 
 #[derive(Default)]
 /// Overall data extracted from components needed for machine initialization
@@ -113,7 +114,7 @@ impl MachineBuilder {
     /// Build the machine
     pub fn build<R: RenderBackend>(
         mut self,
-        display_component_initialization_data: Arc<R::ComponentInitializationData>,
+        display_component_initialization_data: Rc<R::ComponentInitializationData>,
     ) -> Machine {
         let mut framebuffers = HashMap::new();
         let mut tasks = Vec::new();
@@ -176,11 +177,6 @@ impl MachineBuilder {
 
         // Create the scheduler
         let scheduler = Scheduler::new(self.essentials.component_store.clone(), tasks);
-
-        tracing::debug!(
-            "Memory Translation Table {:#x?}",
-            self.essentials.memory_translation_table
-        );
 
         Machine {
             scheduler,

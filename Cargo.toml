@@ -16,6 +16,7 @@ multiemu-definition-chip8 = { path = "definition/chip8" }
 multiemu-definition-nes = { path = "definition/nes" }
 multiemu-definition-i8080 = { path = "definition/i8080" }
 multiemu-definition-atari2600 = { path = "definition/atari2600" }
+multiemu-definition-atarilynx = { path = "definition/atarilynx" }
 
 # External dependencies
 naga = { version = "25.0", features = ["wgsl-in"] }
@@ -43,7 +44,11 @@ crossbeam = "0.8"
 scc = "2.3"
 enumflags2 = { version = "0.7", features = ["serde"] }
 rand = "0.9"
-palette = { version = "0.7", features = ["bytemuck", "serializing"] }
+palette = { version = "0.7", default-features = false, features = [
+    "std",
+    "bytemuck",
+    "serializing",
+] }
 memmap2 = "0.9"
 clap = { version = "4.5", features = ["derive"] }
 indexmap = { version = "2.9", features = ["serde"] }
@@ -75,4 +80,7 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
 debug = true
-lto = "fat"
+
+# TODO: Remove when 1.0 release
+[profile.release]
+debug = true

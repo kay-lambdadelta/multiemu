@@ -5,7 +5,7 @@ use input::{VirtualGamepadId, virtual_gamepad::VirtualGamepad};
 use memory::memory_translation_table::MemoryTranslationTable;
 use multiemu_rom::system::GameSystem;
 use scheduler::Scheduler;
-use std::{any::Any, collections::HashMap, sync::Arc, time::Duration};
+use std::{any::Any, collections::HashMap, rc::Rc, sync::Arc, time::Duration};
 
 pub mod audio;
 pub mod builder;
@@ -48,9 +48,9 @@ impl Machine {
 
     pub fn framebuffers<R: RenderBackend>(
         &self,
-    ) -> &HashMap<ComponentId, Arc<R::ComponentFramebuffer>> {
+    ) -> &HashMap<ComponentId, Rc<R::ComponentFramebuffer>> {
         self.framebuffers
-            .downcast_ref::<HashMap<ComponentId, Arc<R::ComponentFramebuffer>>>()
+            .downcast_ref::<HashMap<ComponentId, Rc<R::ComponentFramebuffer>>>()
             .expect("Different rendering backend requested framebuffers than what this machine was built for")
     }
 }

@@ -6,7 +6,11 @@ use multiemu_config::Environment;
 use multiemu_rom::manager::RomManager;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
-    any::Any, borrow::Cow, fmt::Debug, io::{Read, Write}, sync::{Arc, RwLock}
+    any::Any,
+    borrow::Cow,
+    fmt::Debug,
+    io::{Read, Write},
+    sync::{Arc, RwLock},
 };
 use versions::SemVer;
 

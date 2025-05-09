@@ -3,7 +3,7 @@ use crate::display::RenderBackend;
 use multiemu_config::graphics::GraphicsApi;
 use nalgebra::DMatrix;
 use palette::Srgba;
-use std::sync::Mutex;
+use std::cell::RefCell;
 
 /// Marker trait for software rendering, this should be the one used in tests and as a fallback
 pub struct SoftwareRendering;
@@ -20,7 +20,7 @@ impl ContextExtensionSpecification for SoftwareContextExtentionSpecification {
     }
 }
 
-pub type SoftwareComponentFramebuffer = Mutex<DMatrix<Srgba<u8>>>;
+pub type SoftwareComponentFramebuffer = RefCell<DMatrix<Srgba<u8>>>;
 
 impl RenderBackend for SoftwareRendering {
     const GRAPHICS_API: GraphicsApi = GraphicsApi::Software;

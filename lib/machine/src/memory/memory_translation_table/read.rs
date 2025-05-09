@@ -161,7 +161,7 @@ impl MemoryTranslationTable {
                 for (range, error) in errors {
                     match error {
                         ReadMemoryRecord::Denied => {
-                            tracing::error!(
+                            tracing::debug!(
                                 "Read memory operation operation denied at {:#04x?}",
                                 range
                             );
