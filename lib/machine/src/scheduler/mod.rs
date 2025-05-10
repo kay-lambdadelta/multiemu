@@ -147,9 +147,9 @@ impl Scheduler {
                 .min_by_key(|to_run| to_run.run_indication);
 
             if to_run.len() == 1 {
-                let to_run_now = to_run[0];
+                let to_run_now = to_run_now.next().unwrap();
                 let time_slice = to_run_now.task_info.relative_tick_rate;
-                self.run_task([(&to_run_now, NonZero::new(time_slice).unwrap())]);
+                self.run_task([(to_run_now, NonZero::new(time_slice).unwrap())]);
 
                 let time_slice_occupying_time =
                     time_slice * to_run_now.task_info.relative_tick_rate;
