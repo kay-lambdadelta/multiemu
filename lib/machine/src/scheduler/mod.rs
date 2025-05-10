@@ -1,6 +1,10 @@
 use crate::component::{Component, ComponentId, store::ComponentStore};
 use itertools::Itertools;
-use num::{ToPrimitive, integer::lcm, rational::Ratio};
+use num::{
+    ToPrimitive,
+    integer::{gcd, lcm},
+    rational::Ratio,
+};
 use rustc_hash::FxBuildHasher;
 use std::{
     collections::HashMap,
@@ -40,7 +44,7 @@ impl Debug for StoredTask {
 #[derive(Debug)]
 pub struct Scheduler {
     current_tick: u32,
-    common_denominator: u32,
+    rollover_tick: u32,
     tick_real_time: Duration,
     allotted_time: Duration,
     component_store: Arc<ComponentStore>,
@@ -65,9 +69,10 @@ impl Scheduler {
                 let task_id = task_id.try_into().expect("Too many tasks");
 
                 tracing::debug!(
-                    "Task {} needs to run every {:?}",
+                    "Task {} has a frequency of {} (period of {:?})",
                     task_id,
-                    Duration::from_secs_f64(frequency.recip().to_f64().unwrap()),
+                    frequency,
+                    Duration::from_secs_f64(frequency.recip().to_f64().unwrap())
                 );
 
                 (
@@ -81,33 +86,32 @@ impl Scheduler {
             })
             .collect();
 
-        let common_denominator = tasks
-            .values()
-            .map(|task| *task.frequency.denom())
-            .fold(1, lcm);
-
-        let common_numerator = tasks
-            .values()
-            .map(|task| *task.frequency.numer())
-            .fold(1, lcm);
-
-        let full_cycle = common_denominator / common_numerator;
-        let tick_real_time = Duration::from_secs_f64(
-            Ratio::new(common_numerator, common_denominator)
-                .to_f64()
-                .unwrap(),
+        let common = Ratio::new(
+            tasks
+                .values()
+                .map(|task| *task.frequency.numer())
+                .fold(1, gcd),
+            tasks
+                .values()
+                .map(|task| *task.frequency.denom())
+                .fold(1, lcm),
         );
 
+        tracing::info!("System frequency is {}", common);
+
+        let tick_real_time = Duration::from_secs_f64(common.to_f64().unwrap());
+        let full_cycle = common.recip().to_integer();
+
         tracing::debug!(
-            "Schedule ticks take {:?} and restarts at tick {}, a full cycle takes {:?}",
+            "Schedule ticks take {:?} and rolls over at tick {}, a full cycle takes {:?}",
             tick_real_time,
-            common_denominator,
+            full_cycle,
             tick_real_time * full_cycle as u32
         );
 
         Self {
             current_tick: 0,
-            common_denominator,
+            rollover_tick: full_cycle,
             tick_real_time,
             allotted_time: Duration::from_secs_f64(Ratio::new(1, 60).to_f64().unwrap()),
             component_store,
@@ -128,7 +132,7 @@ impl Scheduler {
                 .tasks
                 .iter()
                 .map(|(task_id, stored_task)| {
-                    let factor = self.common_denominator / stored_task.frequency.denom();
+                    let factor = self.rollover_tick / stored_task.frequency.denom();
                     let tick_rate = stored_task.frequency.numer() * factor;
 
                     ToRun {
@@ -150,7 +154,7 @@ impl Scheduler {
                     .current_tick
                     .checked_add(time_slice_occupying_time)
                     .unwrap()
-                    % self.common_denominator;
+                    % self.rollover_tick;
 
                 continue;
             }
@@ -164,7 +168,7 @@ impl Scheduler {
                 // Nothing is set to run here
                 0 => {
                     self.current_tick =
-                        self.current_tick.checked_add(1).unwrap() % self.common_denominator;
+                        self.current_tick.checked_add(1).unwrap() % self.rollover_tick;
                 }
                 // Full efficient batching
                 1 => {
@@ -180,10 +184,10 @@ impl Scheduler {
                             .current_tick
                             .checked_add(time_slice_occupying_time)
                             .unwrap()
-                            % self.common_denominator;
+                            % self.rollover_tick;
                     } else {
                         self.current_tick =
-                            self.current_tick.checked_add(1).unwrap() % self.common_denominator;
+                            self.current_tick.checked_add(1).unwrap() % self.rollover_tick;
                     }
                 }
                 // Conflicted components
@@ -197,7 +201,7 @@ impl Scheduler {
                     }));
 
                     self.current_tick =
-                        self.current_tick.checked_add(1).unwrap() % self.common_denominator;
+                        self.current_tick.checked_add(1).unwrap() % self.rollover_tick;
                 }
             }
         }
@@ -234,7 +238,7 @@ impl Scheduler {
         self.allotted_time = self
             .allotted_time
             .saturating_add(Duration::from_nanos(500))
-            .min(self.tick_real_time * self.common_denominator);
+            .min(self.tick_real_time * self.rollover_tick);
 
         tracing::trace!(
             "Alotted time for scheduler moved up to {:?}",
