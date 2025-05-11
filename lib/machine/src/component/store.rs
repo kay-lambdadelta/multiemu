@@ -215,28 +215,6 @@ impl ComponentStore {
         })
     }
 
-    #[inline]
-    pub fn interact_by_name<C: Component>(
-        &self,
-        manifest_name: &str,
-        callback: impl FnOnce(&C) + Send,
-    ) -> Result<(), Error> {
-        let component_id = *self.component_ids.get(manifest_name).unwrap().get();
-
-        self.interact(component_id, callback)
-    }
-
-    #[inline]
-    pub fn interact_by_name_local<C: Component>(
-        &self,
-        manifest_name: &str,
-        callback: impl FnOnce(&C),
-    ) -> Result<(), Error> {
-        let component_id = *self.component_ids.get(manifest_name).unwrap().get();
-
-        self.interact_local(component_id, callback)
-    }
-
     pub fn get<C: Component>(self: &Arc<Self>, manifest_name: &str) -> Option<ComponentRef<C>> {
         let component_id = *self.component_ids.get(manifest_name).unwrap().get();
 

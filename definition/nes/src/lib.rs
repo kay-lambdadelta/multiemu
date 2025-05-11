@@ -34,48 +34,44 @@ pub fn manifest(
         shader_cache.clone(),
     );
 
-    let (cpu_address_space, machine) = machine.insert_address_space("cpu", 16);
-    let (ppu_address_space, machine) = machine.insert_address_space("ppu", 16);
+    let (machine, cpu_address_space) = machine.insert_address_space("cpu", 16);
+    let (machine, ppu_address_space) = machine.insert_address_space("ppu", 16);
 
-    let machine = machine
-        .insert_component::<NesCartridge>(
-            "cartridge",
-            NesCartridgeConfig {
-                rom: user_specified_roms[0],
-                cpu_address_space,
-                ppu_address_space,
-            },
-        )
-        .insert_component::<StandardMemory>(
-            "workram",
-            StandardMemoryConfig {
-                readable: true,
-                writable: true,
-                max_word_size: 2,
-                assigned_range: 0x0000..=0x07ff,
-                assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Random],
-            },
-        )
-        .insert_component::<MirrorMemory>(
-            "workram-mirror",
-            MirrorMemoryConfig::default().insert_range(
-                0x0800..=0x0fff,
-                cpu_address_space,
-                0x0000..=0x07ff,
-                cpu_address_space,
-                [PermissionSpace::Read, PermissionSpace::Write],
-            ),
-        )
-        .insert_default_component::<NesPpu>("ppu");
+    let (machine, cartridge) = machine.insert_component::<NesCartridge>(
+        "cartridge",
+        NesCartridgeConfig {
+            rom: user_specified_roms[0],
+            cpu_address_space,
+            ppu_address_space,
+        },
+    );
+    let (machine, _) = machine.insert_component::<StandardMemory>(
+        "workram",
+        StandardMemoryConfig {
+            readable: true,
+            writable: true,
+            max_word_size: 2,
+            assigned_range: 0x0000..=0x07ff,
+            assigned_address_space: cpu_address_space,
+            initial_contents: vec![StandardMemoryInitialContents::Random],
+        },
+    );
+    let (machine, _) = machine.insert_component::<MirrorMemory>(
+        "workram-mirror",
+        MirrorMemoryConfig::default().insert_range(
+            0x0800..=0x0fff,
+            cpu_address_space,
+            0x0000..=0x07ff,
+            cpu_address_space,
+            [PermissionSpace::Read, PermissionSpace::Write],
+        ),
+    );
+    let (machine, _) = machine.insert_default_component::<NesPpu>("ppu");
 
     // Grab the timing mode
     let mut timing_mode = TimingMode::Ntsc;
-    machine
-        .component_store()
-        .interact_by_name_local::<NesCartridge>("cartridge", |cart| {
-            timing_mode = cart.rom().timing_mode
-        })
+    cartridge
+        .interact(|cart| timing_mode = cart.rom().timing_mode)
         .unwrap();
 
     let processor_frequency = Ratio::from_integer(match timing_mode {
@@ -84,13 +80,14 @@ pub fn manifest(
         TimingMode::Multi => 1789773,
         TimingMode::Dendy => 1773448,
     });
-
-    machine.insert_component::<Mos6502>(
+    let (machine, _) = machine.insert_component::<Mos6502>(
         "processor",
         Mos6502Config {
             frequency: processor_frequency,
             assigned_address_space: cpu_address_space,
             kind: Mos6502Kind::R2A0x,
         },
-    )
+    );
+
+    machine
 }

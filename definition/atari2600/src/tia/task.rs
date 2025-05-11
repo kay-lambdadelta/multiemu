@@ -11,10 +11,9 @@ pub struct TiaTask {
 impl<R: Region> Task<Tia<R>> for TiaTask {
     fn run(&mut self, target: &Tia<R>, period: NonZero<u32>) {
         let period = period.get();
-
         let mut state_guard = target.state.lock().unwrap();
 
-        for cycle in 0..period {
+        for _ in 0..period {
             state_guard.horizontal_timer += 1;
 
             if state_guard.horizontal_timer >= SCANLINE_LENGTH {
@@ -35,8 +34,9 @@ impl<R: Region> Task<Tia<R>> for TiaTask {
             }
 
             target.display_backend.get().unwrap().draw(
+                &state_guard,
                 Point2::new(state_guard.horizontal_timer as u16, state_guard.scanline),
-                4,
+                3,
                 7,
             );
         }

@@ -133,10 +133,7 @@ impl MemoryTranslationTable {
                 for (range, error) in errors {
                     match error {
                         WriteMemoryRecord::Denied => {
-                            tracing::debug!(
-                                "Write memory operation denied at {:#04x?}",
-                                range
-                            );
+                            tracing::debug!("Write memory operation denied at {:#04x?}", range);
 
                             detected_errors
                                 .insert(range, WriteMemoryOperationErrorFailureType::Denied);

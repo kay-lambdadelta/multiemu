@@ -61,7 +61,6 @@ itertools = "0.14"
 criterion = "0.5"
 uuid = { version = "1.16", features = ["v4", "serde"] }
 ringbuffer = "0.15"
-petgraph = { version = "0.8", features = ["serde-1"] }
 camino = { version = "1.1", features = ["serde1"] }
 bincode = { version = "2.0", features = ["serde"] }
 arc-swap = "1.7"

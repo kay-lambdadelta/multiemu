@@ -131,20 +131,12 @@ impl Scheduler {
         let old_current_tick = self.current_tick;
 
         while (self.current_tick.wrapping_sub(old_current_tick)) < alloted_ticks_this_pass {
-            let to_run: Vec<_> = self
-                .tasks
-                .iter()
-                .map(|task| ToRun {
-                    run_indication: self.current_tick % task.relative_tick_rate,
-                    task_info: task,
-                })
-                .collect();
+            let to_run = self.tasks.iter().map(|task| ToRun {
+                run_indication: self.current_tick % task.relative_tick_rate,
+                task_info: task,
+            });
 
-            let mut to_run_now = to_run.iter().filter(|to_run| to_run.run_indication == 0);
-            let to_run_next = to_run
-                .iter()
-                .filter(|to_run| to_run.run_indication != 0)
-                .min_by_key(|to_run| to_run.run_indication);
+            let mut to_run_now = to_run.clone().filter(|to_run| to_run.run_indication == 0);
 
             if to_run.len() == 1 {
                 let to_run_now = to_run_now.next().unwrap();
@@ -163,11 +155,7 @@ impl Scheduler {
             }
 
             // do the different scenarios for how many should run this turn
-            match to_run
-                .iter()
-                .filter(|to_run| to_run.run_indication == 0)
-                .count()
-            {
+            match to_run_now.clone().count() {
                 // Nothing is set to run here
                 0 => {
                     self.current_tick =
@@ -175,7 +163,10 @@ impl Scheduler {
                 }
                 // Full efficient batching
                 1 => {
-                    let to_run_next = to_run_next.unwrap();
+                    let to_run_next = to_run
+                        .filter(|to_run| to_run.run_indication != 0)
+                        .min_by_key(|to_run| to_run.run_indication)
+                        .unwrap();
                     let to_run_now = to_run_now.next().unwrap();
 
                     let batch_size =
@@ -211,7 +202,7 @@ impl Scheduler {
     }
 
     #[inline]
-    fn run_task<'a>(&self, to_run: impl IntoIterator<Item = (&'a ToRun<'a>, NonZero<u32>)>) {
+    fn run_task<'a>(&self, to_run: impl IntoIterator<Item = (ToRun<'a>, NonZero<u32>)>) {
         for (to_run, time_slice) in to_run {
             self.component_store
                 .interact_dyn(to_run.task_info.component_id, |component| {

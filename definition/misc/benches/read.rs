@@ -18,23 +18,22 @@ fn criterion_benchmark(c: &mut Criterion) {
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
     let shader_cache = ShaderCache::default();
 
-    let (cpu_address_space, machine) =
+    let (machine, cpu_address_space) =
         MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
             .insert_address_space("cpu", 64);
 
-    let machine = machine
-        .insert_component::<StandardMemory>(
-            "workram",
-            StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0..=0xffff,
-                assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-            },
-        )
-        .build::<SoftwareRendering>(Default::default());
+    let (machine, _) = machine.insert_component::<StandardMemory>(
+        "workram",
+        StandardMemoryConfig {
+            max_word_size: 8,
+            readable: true,
+            writable: true,
+            assigned_range: 0..=0xffff,
+            assigned_address_space: cpu_address_space,
+            initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+        },
+    );
+    let machine = machine.build::<SoftwareRendering>(Default::default());
 
     let mut buffer = [0; 1];
     c.bench_function("read1", |b| {

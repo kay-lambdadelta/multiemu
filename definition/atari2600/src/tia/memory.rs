@@ -16,9 +16,11 @@ use multiemu_machine::{
         memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
     },
 };
-use petgraph::prelude::UnGraphMap;
 use rangemap::RangeInclusiveMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex},
+};
 use strum::FromRepr;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr)]
@@ -415,7 +417,10 @@ impl ReadMemory for MemoryCallback {
                 ReadRegisters::Cxblpf => {
                     let collision = state_guard
                         .collision_matrix
-                        .contains_edge(ObjectId::Ball, ObjectId::Playfield);
+                        .get(&ObjectId::Ball)
+                        .map(|set| set.contains(&ObjectId::Playfield))
+                        .unwrap_or(false);
+
                     let buffer_bits = buffer.view_bits_mut::<Msb0>();
 
                     buffer_bits.set(0, collision);
@@ -451,10 +456,17 @@ impl MemoryCallback {
         buffer: &mut [u8],
         pair1: [ObjectId; 2],
         pair2: [ObjectId; 2],
-        collision_matrix: &UnGraphMap<ObjectId, ()>,
+        collision_matrix: &HashMap<ObjectId, HashSet<ObjectId>>,
     ) {
-        let collision1 = collision_matrix.contains_edge(pair1[0], pair1[1]);
-        let collision2 = collision_matrix.contains_edge(pair2[0], pair2[1]);
+        let collision1 = collision_matrix
+            .get(&pair1[0])
+            .map(|set| set.contains(&pair1[1]))
+            .unwrap_or(false);
+
+        let collision2 = collision_matrix
+            .get(&pair2[0])
+            .map(|set| set.contains(&pair2[1]))
+            .unwrap_or(false);
 
         let buffer_bits = buffer.view_bits_mut::<Msb0>();
 

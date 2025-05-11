@@ -20,7 +20,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
     let shader_cache = ShaderCache::default();
 
-    let (cpu_address_space, machine) = MachineBuilder::new(
+    let (machine, cpu_address_space) = MachineBuilder::new(
         GameSystem::Unknown,
         rom_manager.clone(),
         environment.clone(),
@@ -28,19 +28,19 @@ fn criterion_benchmark(c: &mut Criterion) {
     )
     .insert_address_space("cpu", 64);
 
-    let machine = machine
-        .insert_component::<StandardMemory>(
-            "workram",
-            StandardMemoryConfig {
-                max_word_size: 8,
-                readable: true,
-                writable: true,
-                assigned_range: 0x0000..=0xffff,
-                assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Random],
-            },
-        )
-        .build::<SoftwareRendering>(Default::default());
+    let (machine, _) = machine.insert_component::<StandardMemory>(
+        "workram",
+        StandardMemoryConfig {
+            max_word_size: 8,
+            readable: true,
+            writable: true,
+            assigned_range: 0x0000..=0xffff,
+            assigned_address_space: cpu_address_space,
+            initial_contents: vec![StandardMemoryInitialContents::Random],
+        },
+    );
+    let machine = machine.build::<SoftwareRendering>(Default::default());
+
     let decoder = Chip8InstructionDecoder;
 
     c.bench_function("decode", |b| {

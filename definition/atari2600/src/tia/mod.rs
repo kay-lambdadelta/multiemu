@@ -1,3 +1,4 @@
+use color::TiaColor;
 use memory::MemoryCallback;
 use multiemu_definition_mos6502::Mos6502;
 use multiemu_machine::{
@@ -8,15 +9,16 @@ use multiemu_machine::{
 };
 use nalgebra::{DMatrix, Point2};
 use palette::Srgb;
-use petgraph::prelude::UnGraphMap;
 use region::Region;
 use serde::{Deserialize, Serialize};
 use std::{
     cell::OnceCell,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 use task::TiaTask;
 
+mod color;
 mod memory;
 pub mod region;
 mod software;
@@ -59,7 +61,7 @@ pub enum InputControl {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct State {
-    collision_matrix: UnGraphMap<ObjectId, ()>,
+    collision_matrix: HashMap<ObjectId, HashSet<ObjectId>>,
     in_vsync: bool,
     in_vblank: bool,
     reset_rdy_on_scanline_end: bool,
@@ -76,6 +78,7 @@ struct Missile {
     position: ObjectPosition,
     enabled: bool,
     motion: i8,
+    color: TiaColor,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -91,6 +94,7 @@ struct Ball {
     enabled: bool,
     delay_enable_change: DelayEnableChangeBall,
     motion: i8,
+    color: TiaColor,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -103,11 +107,11 @@ pub enum DelayChangeGraphicPlayer {
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Player {
     position: ObjectPosition,
-    color: u8,
     graphic: u8,
     mirror: bool,
     delay_change_graphic: DelayChangeGraphicPlayer,
     motion: i8,
+    color: TiaColor,
 }
 
 pub struct Tia<R: Region> {
@@ -178,7 +182,7 @@ impl<R: Region> FromConfig for Tia<R> {
 }
 
 trait TiaDisplayBackend<R: Region> {
-    fn draw(&self, position: Point2<u16>, hue: u8, luminosity: u8);
+    fn draw(&self, state: &State, position: Point2<u16>, hue: u8, luminosity: u8);
     fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
     fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);
     fn commit_display(&self);

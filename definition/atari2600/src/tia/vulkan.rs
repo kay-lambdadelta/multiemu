@@ -1,4 +1,4 @@
-use super::{SCANLINE_LENGTH, Tia, TiaDisplayBackend, region::Region};
+use super::{SCANLINE_LENGTH, State, Tia, TiaDisplayBackend, region::Region};
 use arc_swap::ArcSwap;
 use multiemu_machine::display::backend::{
     RenderBackend,
@@ -29,7 +29,7 @@ pub struct VulkanState {
 }
 
 impl<R: Region> TiaDisplayBackend<R> for VulkanState {
-    fn draw(&self, position: Point2<u16>, hue: u8, luminosity: u8) {
+    fn draw(&self, state: &State, position: Point2<u16>, hue: u8, luminosity: u8) {
         let real_color = R::color_to_srgb(hue, luminosity);
 
         let mut staging_buffer = self.staging_buffer.write().unwrap();

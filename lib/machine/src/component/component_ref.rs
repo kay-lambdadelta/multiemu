@@ -11,12 +11,13 @@ use std::{
 #[derive(Clone)]
 enum ComponentLocation {
     Here(Arc<dyn Component + Send + Sync>),
-    Elsewhere(ComponentId),
+    Elsewhere,
 }
 
 pub struct ComponentRef<C: Component> {
     location: ComponentLocation,
     store: Arc<ComponentStore>,
+    component_id: ComponentId,
     _phantom: std::marker::PhantomData<C>,
 }
 
@@ -25,6 +26,7 @@ impl<C: Component> Clone for ComponentRef<C> {
         Self {
             location: self.location.clone(),
             store: self.store.clone(),
+            component_id: self.component_id,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -41,6 +43,7 @@ impl<C: Component + Debug> Debug for ComponentRef<C> {
 
         f.debug_struct("ComponentRef")
             .field("component", &s)
+            .field("component_id", &self.component_id)
             .finish()
     }
 }
@@ -65,12 +68,14 @@ impl<C: Component> ComponentRef<C> {
             Self {
                 location: ComponentLocation::Here(component),
                 store: component_store,
+                component_id,
                 _phantom: std::marker::PhantomData,
             }
         } else {
             Self {
-                location: ComponentLocation::Elsewhere(component_id),
+                location: ComponentLocation::Elsewhere,
                 store: component_store,
+                component_id,
                 _phantom: std::marker::PhantomData,
             }
         }
@@ -87,9 +92,7 @@ impl<C: Component> ComponentRef<C> {
 
                 Ok(())
             }
-            ComponentLocation::Elsewhere(component_id) => {
-                self.store.interact::<C>(*component_id, callback)
-            }
+            ComponentLocation::Elsewhere => self.store.interact::<C>(self.component_id, callback),
         }
     }
 }

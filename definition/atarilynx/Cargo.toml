@@ -19,7 +19,6 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 num = { workspace = true }
-petgraph = { workspace = true }
 nalgebra = { workspace = true }
 palette = { workspace = true }
 arc-swap = { workspace = true }

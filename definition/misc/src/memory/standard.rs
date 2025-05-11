@@ -4,7 +4,9 @@ use multiemu_machine::{
     memory::{
         AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
         callbacks::{ReadMemory, WriteMemory},
-        memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
+        memory_translation_table::{
+            MemoryHandle, PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
+        },
     },
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
@@ -53,6 +55,7 @@ pub struct StandardMemoryConfig {
 
 pub struct StandardMemory {
     memory_operation_callbacks: Arc<StandardMemoryCallbacks>,
+    pub memory_handle: MemoryHandle,
 }
 
 impl Component for StandardMemory {
@@ -117,7 +120,7 @@ impl FromConfig for StandardMemory {
         });
         memory_operation_callbacks.initialize_buffer();
 
-        match (config.readable, config.writable) {
+        let memory_handle = match (config.readable, config.writable) {
             (true, true) => essentials.memory_translation_table.insert_memory(
                 memory_operation_callbacks.clone(),
                 [(assigned_address_space, assigned_range)],
@@ -137,6 +140,7 @@ impl FromConfig for StandardMemory {
 
         component_builder.build_global(Self {
             memory_operation_callbacks,
+            memory_handle,
         });
     }
 }
@@ -408,7 +412,7 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (cpu_address_space, machine) = MachineBuilder::new(
+        let (machine, cpu_address_space) = MachineBuilder::new(
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
@@ -416,19 +420,19 @@ mod test {
         )
         .insert_address_space("cpu", 64);
 
-        let machine = machine
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=3,
-                    assigned_address_space: cpu_address_space,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let (machine, _) = machine.insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=3,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+            },
+        );
+        let machine = machine.build::<SoftwareRendering>(Default::default());
+
         let mut buffer = [0; 4];
 
         machine
@@ -437,7 +441,7 @@ mod test {
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
-        let (cpu_address_space, machine) = MachineBuilder::new(
+        let (machine, cpu_address_space) = MachineBuilder::new(
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
@@ -445,22 +449,22 @@ mod test {
         )
         .insert_address_space("cpu", 64);
 
-        let machine = machine
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=3,
-                    assigned_address_space: cpu_address_space,
-                    initial_contents: vec![StandardMemoryInitialContents::Array {
-                        value: Cow::Borrowed(&[0xff; 4]),
-                        offset: 0,
-                    }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let (machine, _) = machine.insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=3,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Array {
+                    value: Cow::Borrowed(&[0xff; 4]),
+                    offset: 0,
+                }],
+            },
+        );
+        let machine = machine.build::<SoftwareRendering>(Default::default());
+
         let mut buffer = [0; 4];
 
         machine
@@ -476,23 +480,23 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (cpu_address_space, machine) =
+        let (machine, cpu_address_space) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
                 .insert_address_space("cpu", 64);
 
-        let machine = machine
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=7,
-                    assigned_address_space: cpu_address_space,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let (machine, _) = machine.insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=7,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+            },
+        );
+        let machine = machine.build::<SoftwareRendering>(Default::default());
+
         let mut buffer = [0; 8];
 
         machine
@@ -508,23 +512,22 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (cpu_address_space, machine) =
+        let (machine, cpu_address_space) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
                 .insert_address_space("cpu", 64);
 
-        let machine = machine
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=7,
-                    assigned_address_space: cpu_address_space,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let (machine, _) = machine.insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=7,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+            },
+        );
+        let machine = machine.build::<SoftwareRendering>(Default::default());
 
         let buffer = [0; 8];
 
@@ -540,23 +543,23 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (cpu_address_space, machine) =
+        let (machine, cpu_address_space) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
                 .insert_address_space("cpu", 64);
 
-        let machine = machine
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=7,
-                    assigned_address_space: cpu_address_space,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let (machine, _) = machine.insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=7,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+            },
+        );
+        let machine = machine.build::<SoftwareRendering>(Default::default());
+
         let mut buffer = [0xff; 8];
 
         machine
@@ -577,23 +580,22 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (cpu_address_space, machine) =
+        let (machine, cpu_address_space) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
                 .insert_address_space("cpu", 64);
 
-        let machine = machine
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=0xffff,
-                    assigned_address_space: cpu_address_space,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let (machine, _) = machine.insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=0xffff,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+            },
+        );
+        let machine = machine.build::<SoftwareRendering>(Default::default());
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];

@@ -24,9 +24,9 @@ pub fn manifest(
         shader_cache,
     );
 
-    let (cpu_address_space, machine) = machine.insert_address_space("cpu", 16);
+    let (machine, cpu_address_space) = machine.insert_address_space("cpu", 16);
 
-    let machine = machine.insert_component::<RomMemory>(
+    let (machine, _) = machine.insert_component::<RomMemory>(
         "bootstrap",
         RomMemoryConfig {
             // "[BIOS] Atari Lynx (World).lyx"

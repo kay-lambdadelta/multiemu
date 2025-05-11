@@ -233,33 +233,33 @@ mod test {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
-        let (cpu_address_space, machine) =
+        let (machine, cpu_address_space) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
                 .insert_address_space("cpu", 64);
 
-        let machine = machine
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=7,
-                    assigned_address_space: cpu_address_space,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .insert_component::<MirrorMemory>(
-                "workram-mirror",
-                MirrorMemoryConfig::default().insert_range(
-                    0x10000..=0x1ffff,
-                    cpu_address_space,
-                    0x0000..=0xffff,
-                    cpu_address_space,
-                    [PermissionSpace::Read, PermissionSpace::Write],
-                ),
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let (machine, _) = machine.insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=7,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+            },
+        );
+
+        let (machine, _) = machine.insert_component::<MirrorMemory>(
+            "workram-mirror",
+            MirrorMemoryConfig::default().insert_range(
+                0x10000..=0x1ffff,
+                cpu_address_space,
+                0x0000..=0xffff,
+                cpu_address_space,
+                [PermissionSpace::Read, PermissionSpace::Write],
+            ),
+        );
+        let machine = machine.build::<SoftwareRendering>(Default::default());
 
         let mut buffer = [0; 8];
 
@@ -276,33 +276,33 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (cpu_address_space, machine) =
+        let (machine, cpu_address_space) =
             MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
                 .insert_address_space("cpu", 64);
 
-        let machine = machine
-            .insert_component::<StandardMemory>(
-                "workram",
-                StandardMemoryConfig {
-                    max_word_size: 8,
-                    readable: true,
-                    writable: true,
-                    assigned_range: 0..=7,
-                    assigned_address_space: cpu_address_space,
-                    initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
-                },
-            )
-            .insert_component::<MirrorMemory>(
-                "workram-mirror",
-                MirrorMemoryConfig::default().insert_range(
-                    0x10000..=0x1ffff,
-                    cpu_address_space,
-                    0x0000..=0xffff,
-                    cpu_address_space,
-                    [PermissionSpace::Read, PermissionSpace::Write],
-                ),
-            )
-            .build::<SoftwareRendering>(Default::default());
+        let (machine, _) = machine.insert_component::<StandardMemory>(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=7,
+                assigned_address_space: cpu_address_space,
+                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+            },
+        );
+        let (machine, _) = machine.insert_component::<MirrorMemory>(
+            "workram-mirror",
+            MirrorMemoryConfig::default().insert_range(
+                0x10000..=0x1ffff,
+                cpu_address_space,
+                0x0000..=0xffff,
+                cpu_address_space,
+                [PermissionSpace::Read, PermissionSpace::Write],
+            ),
+        );
+
+        let machine = machine.build::<SoftwareRendering>(Default::default());
 
         let buffer = [0; 8];
 

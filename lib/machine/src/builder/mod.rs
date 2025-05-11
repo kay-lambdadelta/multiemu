@@ -1,6 +1,9 @@
 use crate::{
     Machine,
-    component::{Component, ComponentId, FromConfig, RuntimeEssentials, store::ComponentStore},
+    component::{
+        Component, ComponentId, FromConfig, RuntimeEssentials, component_ref::ComponentRef,
+        store::ComponentStore,
+    },
     display::{backend::RenderBackend, shader::ShaderCache},
     memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
@@ -61,11 +64,12 @@ impl MachineBuilder {
     }
 
     /// Insert a component into the machine
+    #[inline]
     pub fn insert_component<C: FromConfig>(
         mut self,
         manifest_name: &'static str,
         config: C::Config,
-    ) -> Self {
+    ) -> (Self, ComponentRef<C>) {
         assert!(
             manifest_name.chars().all(|c| !c.is_whitespace()),
             "Invalid manifest name"
@@ -89,11 +93,16 @@ impl MachineBuilder {
             .checked_add(1)
             .expect("Too many components");
 
-        self
+        let component_ref = self.essentials.component_store.get(manifest_name).unwrap();
+
+        (self, component_ref)
     }
 
     /// Insert a component with a default config
-    pub fn insert_default_component<C: FromConfig>(self, manifest_name: &'static str) -> Self
+    pub fn insert_default_component<C: FromConfig>(
+        self,
+        manifest_name: &'static str,
+    ) -> (Self, ComponentRef<C>)
     where
         C::Config: Default,
     {
@@ -102,13 +111,13 @@ impl MachineBuilder {
     }
 
     /// Insert the required information to construct a address space
-    pub fn insert_address_space(self, name: &'static str, width: u8) -> (AddressSpaceHandle, Self) {
+    pub fn insert_address_space(self, name: &'static str, width: u8) -> (Self, AddressSpaceHandle) {
         let id = self
             .essentials
             .memory_translation_table
             .insert_address_space(name, width);
 
-        (id, self)
+        (self, id)
     }
 
     /// Build the machine

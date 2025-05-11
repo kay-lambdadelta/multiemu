@@ -49,31 +49,33 @@ pub fn manifest(
         shader_cache,
     );
 
-    let (cpu_address_space, machine) = machine.insert_address_space("cpu", 12);
+    let (machine, cpu_address_space) = machine.insert_address_space("cpu", 12);
+
+    let (machine, _) = machine.insert_default_component::<Chip8Timer>("timer");
+    let (machine, _) = machine.insert_default_component::<Chip8Audio>("audio");
+    let (machine, _) = machine.insert_default_component::<Chip8Display>("display");
+    let (machine, _) = machine
+        .insert_component::<Chip8Processor>("cpu", Chip8ProcessorConfig { cpu_address_space });
+    let (machine, _) = machine.insert_component::<StandardMemory>(
+        "workram",
+        StandardMemoryConfig {
+            readable: true,
+            writable: true,
+            max_word_size: 2,
+            assigned_range: 0x000..=0xfff,
+            assigned_address_space: cpu_address_space,
+            initial_contents: vec![
+                StandardMemoryInitialContents::Array {
+                    value: Cow::Borrowed(bytemuck::cast_slice(&CHIP8_FONT)),
+                    offset: 0x000,
+                },
+                StandardMemoryInitialContents::Rom {
+                    rom_id: user_specified_roms[0],
+                    offset: 0x200,
+                },
+            ],
+        },
+    );
 
     machine
-        .insert_default_component::<Chip8Timer>("timer")
-        .insert_default_component::<Chip8Audio>("audio")
-        .insert_default_component::<Chip8Display>("display")
-        .insert_component::<Chip8Processor>("cpu", Chip8ProcessorConfig { cpu_address_space })
-        .insert_component::<StandardMemory>(
-            "workram",
-            StandardMemoryConfig {
-                readable: true,
-                writable: true,
-                max_word_size: 2,
-                assigned_range: 0x000..=0xfff,
-                assigned_address_space: cpu_address_space,
-                initial_contents: vec![
-                    StandardMemoryInitialContents::Array {
-                        value: Cow::Borrowed(bytemuck::cast_slice(&CHIP8_FONT)),
-                        offset: 0x000,
-                    },
-                    StandardMemoryInitialContents::Rom {
-                        rom_id: user_specified_roms[0],
-                        offset: 0x200,
-                    },
-                ],
-            },
-        )
 }
