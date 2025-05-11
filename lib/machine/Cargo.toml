@@ -34,6 +34,9 @@ rayon = { workspace = true }
 naga = { workspace = true, features = ["spv-out", "glsl-out"] }
 arc-swap = { workspace = true }
 rustc-hash = { workspace = true }
+data-encoding = { workspace = true }
+bincode = { workspace = true }
+sha2 = "0.10"
 
 [build-dependencies]
 multiemu-macros = { workspace = true }

@@ -3,6 +3,7 @@ use super::ShaderFormat;
 pub struct SpirvShader;
 
 impl ShaderFormat for SpirvShader {
+    const NAME: &'static str = "spirv";
     type Representation = Vec<u32>;
 
     fn compile(

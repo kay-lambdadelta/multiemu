@@ -16,5 +16,5 @@ codes-iso-3166 = { workspace = true }
 indexmap = { workspace = true }
 camino = { workspace = true }
 bincode = { workspace = true }
-data-encoding = "2.9"
+data-encoding = { workspace = true }
 sha1 = "0.10"

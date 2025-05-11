@@ -19,7 +19,7 @@ multiemu-definition-atari2600 = { path = "definition/atari2600" }
 multiemu-definition-atarilynx = { path = "definition/atarilynx" }
 
 # External dependencies
-naga = { version = "25.0", features = ["wgsl-in"] }
+naga = { version = "25.0", features = ["wgsl-in", "serialize", "deserialize"] }
 strum = { version = "0.27", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -65,6 +65,8 @@ camino = { version = "1.1", features = ["serde1"] }
 bincode = { version = "2.0", features = ["serde"] }
 arc-swap = "1.7"
 rustc-hash = "2.1"
+ron = "0.10"
+data-encoding = "2.9"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }

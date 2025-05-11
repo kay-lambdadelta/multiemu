@@ -3,10 +3,7 @@ use multiemu_config::{Environment, input::Hotkey};
 use multiemu_input::{GamepadId, Input, InputState};
 use multiemu_machine::{
     Machine,
-    display::{
-        backend::RenderBackend,
-        shader::ShaderCache,
-    },
+    display::{backend::RenderBackend, shader::ShaderCache},
     input::VirtualGamepadId,
 };
 use multiemu_rom::{
@@ -113,7 +110,7 @@ impl<RS: RenderingBackendState> Runtime<RS> {
         let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
         let gamepad_mapping = HashMap::new();
         let mode = RuntimeMode::Gui(None);
-        let shader_cache = ShaderCache::new(12);
+        let shader_cache = ShaderCache::new(environment.clone());
 
         Self {
             mode,
@@ -194,9 +191,9 @@ impl<RS: RenderingBackendState> Runtime<RS> {
             self.shader_cache.clone(),
         );
 
-        let  preferred_extensions = machine_builder
+        let preferred_extensions = machine_builder
             .preferred_display_extensions::<<RS as RenderingBackendState>::RenderBackend>();
-        let  required_extensions = machine_builder
+        let required_extensions = machine_builder
             .required_display_extensions::<<RS as RenderingBackendState>::RenderBackend>();
 
         // Drop old machine otherwise it will segfault when we try to use the new vulkan context

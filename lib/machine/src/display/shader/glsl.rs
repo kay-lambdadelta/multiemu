@@ -5,6 +5,7 @@ use versions::SemVer;
 pub struct GlslShader;
 
 impl ShaderFormat for GlslShader {
+    const NAME: &'static str = "glsl";
     type Representation = String;
 
     fn compile(

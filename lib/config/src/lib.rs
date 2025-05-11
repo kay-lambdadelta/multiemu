@@ -84,6 +84,9 @@ pub struct Environment {
     #[serde_inline_default(STORAGE_DIRECTORY.join("roms"))]
     /// Directory where emulator will store imported roms
     pub roms_directory: PathBuf,
+    #[serde_inline_default(STORAGE_DIRECTORY.join("shader-cache"))]
+    /// Directory where emulator will store cached shaders
+    pub shader_cache_directory: PathBuf,
 }
 
 impl Default for Environment {
@@ -99,6 +102,7 @@ impl Default for Environment {
             save_directory: STORAGE_DIRECTORY.join("saves"),
             snapshot_directory: STORAGE_DIRECTORY.join("snapshot"),
             roms_directory: STORAGE_DIRECTORY.join("roms"),
+            shader_cache_directory: STORAGE_DIRECTORY.join("shader-cache"),
             processor_execution_mode: ProcessorExecutionMode::default(),
         }
     }
