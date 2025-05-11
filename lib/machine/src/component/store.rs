@@ -47,7 +47,7 @@ where
 {
     component_ids: scc::HashMap<Cow<'static, str>, ComponentId, FxBuildHasher>,
     component_location: scc::HashMap<ComponentId, ComponentLocation, FxBuildHasher>,
-    pub main_thread_queue: Arc<MainThreadExecutor>,
+    pub(crate) main_thread_queue: Arc<MainThreadExecutor>,
 }
 
 impl Default for ComponentStore {
@@ -57,7 +57,6 @@ impl Default for ComponentStore {
 }
 
 impl ComponentStore {
-    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         IS_MAIN_THREAD.with(|is_main_thread| {
             *is_main_thread.borrow_mut() = true;
@@ -215,7 +214,10 @@ impl ComponentStore {
         })
     }
 
-    pub fn get<C: Component>(self: &Arc<Self>, manifest_name: &str) -> Option<ComponentRef<C>> {
+    pub(crate) fn get<C: Component>(
+        self: &Arc<Self>,
+        manifest_name: &str,
+    ) -> Option<ComponentRef<C>> {
         let component_id = *self.component_ids.get(manifest_name).unwrap().get();
 
         let component = if let ComponentLocation::Global(component) =

@@ -1,4 +1,4 @@
-use crate::{Chip8InstructionDecoder, display::Chip8Display};
+use crate::{audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer, Chip8InstructionDecoder};
 
 use super::Chip8Kind;
 use arrayvec::ArrayVec;
@@ -7,7 +7,7 @@ use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_i
 use instruction::Register;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, FromConfig, RuntimeEssentials, component_ref::ComponentRef},
     input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
     memory::AddressSpaceHandle,
 };
@@ -114,6 +114,9 @@ impl Component for Chip8Processor {
 #[derive(Debug)]
 pub struct Chip8ProcessorConfig {
     pub cpu_address_space: AddressSpaceHandle,
+    pub display: ComponentRef<Chip8Display>,
+    pub audio: ComponentRef<Chip8Audio>,
+    pub timer: ComponentRef<Chip8Timer>,
 }
 
 impl FromConfig for Chip8Processor {
@@ -143,15 +146,6 @@ impl FromConfig for Chip8Processor {
             },
         );
 
-        let display_component = essentials.component_store.get("display").unwrap();
-
-        let mut vsync = None;
-        display_component
-            .interact(|component: &Chip8Display| {
-                vsync = Some(component.vsync_occurred.clone());
-            })
-            .unwrap();
-
         component_builder
             .insert_gamepads([virtual_gamepad.clone()])
             .insert_task(
@@ -159,10 +153,6 @@ impl FromConfig for Chip8Processor {
                 Chip8ProcessorTask {
                     instruction_decoder: Chip8InstructionDecoder,
                     virtual_gamepad,
-                    vsync_occurred: vsync.unwrap(),
-                    display_component,
-                    timer_component: essentials.component_store.get("timer").unwrap(),
-                    audio_component: essentials.component_store.get("audio").unwrap(),
                     essentials,
                     quirks,
                     mode,

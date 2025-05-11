@@ -93,7 +93,7 @@ enum WriteRegisters {
 #[derive(Debug)]
 pub struct MemoryCallback {
     pub state: Arc<Mutex<State>>,
-    pub processor: ComponentRef<Mos6502>,
+    pub cpu: ComponentRef<Mos6502>,
 }
 
 impl WriteMemory for MemoryCallback {
@@ -160,7 +160,7 @@ impl WriteMemory for MemoryCallback {
                     };
                 }
                 WriteRegisters::Wsync => {
-                    self.processor
+                    self.cpu
                         .interact(|processor| processor.set_rdy(false))
                         .unwrap();
                     state_guard.reset_rdy_on_scanline_end = true;

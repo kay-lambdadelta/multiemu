@@ -1,4 +1,4 @@
-use crate::component::{Component, ComponentId, store::ComponentStore};
+use crate::component::{store::ComponentStore, Component, ComponentId};
 use itertools::Itertools;
 use num::{
     ToPrimitive,
@@ -49,7 +49,7 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    pub fn new(
+    pub(crate) fn new(
         component_store: Arc<ComponentStore>,
         tasks: impl IntoIterator<
             Item = (

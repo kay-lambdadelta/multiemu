@@ -27,6 +27,14 @@ pub struct DisplayMetadata {
     pub backend_specific_data: HashMap<TypeId, Box<dyn Any>>,
 }
 
+impl DisplayMetadata {
+    pub fn get_backend_specific_data<R: RenderBackend>(&self) -> Option<&BackendSpecificData<R>> {
+        self.backend_specific_data
+            .get(&TypeId::of::<R>())
+            .and_then(|data| data.downcast_ref::<BackendSpecificData<R>>())
+    }
+}
+
 impl<C: Component> ComponentBuilder<'_, C> {
     // Set your config for a given render backend
     pub fn set_display_config<R: RenderBackend>(

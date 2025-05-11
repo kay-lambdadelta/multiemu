@@ -51,11 +51,18 @@ pub fn manifest(
 
     let (machine, cpu_address_space) = machine.insert_address_space("cpu", 12);
 
-    let (machine, _) = machine.insert_default_component::<Chip8Timer>("timer");
-    let (machine, _) = machine.insert_default_component::<Chip8Audio>("audio");
-    let (machine, _) = machine.insert_default_component::<Chip8Display>("display");
-    let (machine, _) = machine
-        .insert_component::<Chip8Processor>("cpu", Chip8ProcessorConfig { cpu_address_space });
+    let (machine, timer) = machine.insert_default_component::<Chip8Timer>("timer");
+    let (machine, audio) = machine.insert_default_component::<Chip8Audio>("audio");
+    let (machine, display) = machine.insert_default_component::<Chip8Display>("display");
+    let (machine, _) = machine.insert_component::<Chip8Processor>(
+        "cpu",
+        Chip8ProcessorConfig {
+            cpu_address_space,
+            timer,
+            audio,
+            display,
+        },
+    );
     let (machine, _) = machine.insert_component::<StandardMemory>(
         "workram",
         StandardMemoryConfig {

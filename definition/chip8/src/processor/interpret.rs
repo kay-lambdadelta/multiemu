@@ -13,7 +13,6 @@ use bitvec::{
 };
 use nalgebra::Point2;
 use rand::Rng;
-use std::sync::atomic::Ordering;
 
 // Instruction interpreting can be clean and easy due to the chip8 enforcing 1 cycle = 1 instruction
 
@@ -28,7 +27,8 @@ impl Chip8ProcessorTask {
         match instruction {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Sys { syscall }) => match syscall {
                 0x0e0 => {
-                    self.display_component
+                    self.config
+                        .display
                         .interact(|component| {
                             component.clear_display();
                         })
@@ -261,14 +261,14 @@ impl Chip8ProcessorTask {
                     state.registers.work_registers[coordinate_registers.y as usize],
                 );
 
-                self.display_component
+                self.config
+                    .display
                     .interact(|display_component| {
                         state.registers.work_registers[0xf] =
                             display_component.draw_sprite(position, &buffer) as u8;
                     })
                     .unwrap();
                 state.execution_state = ExecutionState::AwaitingVsync;
-                self.vsync_occurred.store(false, Ordering::Relaxed);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Skpr { key }) => {
                 let key = Chip8KeyCode(state.registers.work_registers[key as usize]);
@@ -290,8 +290,8 @@ impl Chip8ProcessorTask {
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Moved { register }) => {
                 let mut delay_timer_value = 0;
-
-                self.timer_component
+                self.config
+                    .timer
                     .interact(|timer_component| {
                         delay_timer_value = timer_component.get();
                     })
@@ -305,7 +305,8 @@ impl Chip8ProcessorTask {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loadd { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                self.timer_component
+                self.config
+                    .timer
                     .interact(|timer_component| {
                         timer_component.set(register_value);
                     })
@@ -314,7 +315,8 @@ impl Chip8ProcessorTask {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loads { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                self.audio_component
+                self.config
+                    .audio
                     .interact(|audio_component| {
                         audio_component.set(register_value);
                     })

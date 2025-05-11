@@ -249,7 +249,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         )
         .unwrap();
 
-        for (_, framebuffer) in machine.framebuffers::<Self::RenderBackend>().iter() {
+        for framebuffer in machine.framebuffers::<Self::RenderBackend>().iter() {
             command_buffer
                 .blit_image(BlitImageInfo {
                     src_image_layout: ImageLayout::TransferSrcOptimal,

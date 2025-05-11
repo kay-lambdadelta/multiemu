@@ -83,7 +83,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             .graphics_setting
             .integer_scaling;
 
-        for (_, framebuffer) in machine.framebuffers::<Self::RenderBackend>().iter() {
+        for framebuffer in machine.framebuffers::<Self::RenderBackend>().iter() {
             if integer_scaling {
                 let framebuffer = framebuffer.borrow();
 

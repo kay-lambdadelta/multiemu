@@ -2,20 +2,15 @@ use super::{
     Chip8KeyCode, Chip8Processor, Chip8ProcessorConfig, Chip8ProcessorQuirks, ExecutionState,
     decoder::Chip8InstructionDecoder,
 };
-use crate::{Chip8Kind, audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer};
+use crate::Chip8Kind;
 use crossbeam::atomic::AtomicCell;
 use multiemu_machine::{
-    component::{RuntimeEssentials, component_ref::ComponentRef},
-    input::virtual_gamepad::VirtualGamepad,
-    processor::decoder::InstructionDecoder,
-    scheduler::task::Task,
+    component::RuntimeEssentials, input::virtual_gamepad::VirtualGamepad,
+    processor::decoder::InstructionDecoder, scheduler::task::Task,
 };
 use std::{
     num::NonZero,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, atomic::Ordering},
 };
 
 pub(crate) struct Chip8ProcessorTask {
@@ -29,10 +24,6 @@ pub(crate) struct Chip8ProcessorTask {
     pub quirks: Arc<Chip8ProcessorQuirks>,
     // What chip8 mode we are currently in
     pub mode: Arc<AtomicCell<Chip8Kind>>,
-    pub vsync_occurred: Arc<AtomicBool>,
-    pub display_component: ComponentRef<Chip8Display>,
-    pub timer_component: ComponentRef<Chip8Timer>,
-    pub audio_component: ComponentRef<Chip8Audio>,
     pub config: Chip8ProcessorConfig,
 }
 
@@ -103,7 +94,16 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
                         }
                     }
                     ExecutionState::AwaitingVsync => {
-                        if self.vsync_occurred.swap(false, Ordering::Relaxed) {
+                        let mut vsync_occured = false;
+                        self.config
+                            .display
+                            .interact(|display| {
+                                vsync_occured =
+                                    display.vsync_occurred.swap(false, Ordering::Relaxed);
+                            })
+                            .unwrap();
+
+                        if vsync_occured {
                             state.execution_state = ExecutionState::Normal;
                             break 'main;
                         }

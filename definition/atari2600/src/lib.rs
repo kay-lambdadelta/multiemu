@@ -142,9 +142,9 @@ pub fn manifest(
             ),
     );
 
-    let machine = match region {
+    let (machine, mos6532_riot) = match region {
         RegionSelection::Ntsc => {
-            let (machine, _) = machine.insert_component::<Mos6502>(
+            let (machine, cpu) = machine.insert_component::<Mos6502>(
                 "mos_6502",
                 Mos6502Config {
                     frequency: Ntsc::frequency() / Ratio::from_integer(3),
@@ -153,8 +153,8 @@ pub fn manifest(
                 },
             );
 
-            let (machine, _) = machine.insert_component::<Mos6532Riot>(
-                "m6532_riot",
+            let (machine, mos6532_riot) = machine.insert_component::<Mos6532Riot>(
+                "mos6532_riot",
                 M6532RiotConfig {
                     frequency: Ntsc::frequency() / Ratio::from_integer(3),
                     ram_assigned_address: 0x080,
@@ -166,15 +166,15 @@ pub fn manifest(
             let (machine, _) = machine.insert_component::<Tia<Ntsc>>(
                 "tia",
                 TiaConfig {
-                    processor_name: "mos_6502",
+                    cpu,
                     cpu_address_space,
                 },
             );
 
-            machine
+            (machine, mos6532_riot)
         }
         RegionSelection::Pal => {
-            let (machine, _) = machine.insert_component::<Mos6502>(
+            let (machine, cpu) = machine.insert_component::<Mos6502>(
                 "mos_6502",
                 Mos6502Config {
                     frequency: Pal::frequency() / Ratio::from_integer(3),
@@ -183,8 +183,8 @@ pub fn manifest(
                 },
             );
 
-            let (machine, _) = machine.insert_component::<Mos6532Riot>(
-                "m6532_riot",
+            let (machine, mos6532_riot) = machine.insert_component::<Mos6532Riot>(
+                "mos6532_riot",
                 M6532RiotConfig {
                     frequency: Pal::frequency() / Ratio::from_integer(3),
                     ram_assigned_address: 0x080,
@@ -196,21 +196,19 @@ pub fn manifest(
             let (machine, _) = machine.insert_component::<Tia<Pal>>(
                 "tia",
                 TiaConfig {
-                    processor_name: "mos_6502",
+                    cpu,
                     cpu_address_space,
                 },
             );
 
-            machine
+            (machine, mos6532_riot)
         }
         RegionSelection::Secam => todo!(),
     };
 
     let (machine, _) = machine.insert_component::<Atari2600Joystick>(
         "joystick",
-        Atari2600JoystickConfig {
-            m6532_riot: "m6532_riot".into(),
-        },
+        Atari2600JoystickConfig { mos6532_riot },
     );
 
     machine

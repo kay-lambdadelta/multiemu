@@ -10,13 +10,9 @@ use num::rational::Ratio;
 use palette::{Srgb, Srgba};
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::{OnceCell, RefCell},
-    io::{Read, Write},
-    ops::Deref,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
+    cell::{OnceCell, RefCell}, fmt::Debug, io::{Read, Write}, ops::Deref, sync::{
+        atomic::{AtomicBool, Ordering}, Arc, Mutex
+    }
 };
 use versions::SemVer;
 
@@ -29,6 +25,7 @@ struct Snapshot {
     screen_buffer: DMatrix<Srgb<u8>>,
 }
 
+#[derive(Debug)]
 pub struct Chip8Display {
     state: OnceCell<Box<dyn Chip8DisplayBackend>>,
     modified: RefCell<bool>,
@@ -43,7 +40,7 @@ impl Chip8Display {
             position,
             sprite.len()
         );
-
+        self.vsync_occurred.store(false, Ordering::Relaxed);
         let mode = self.mode.lock().unwrap();
 
         let position = match mode.deref() {
@@ -150,7 +147,7 @@ impl FromConfig for Chip8Display {
     }
 }
 
-trait Chip8DisplayBackend {
+trait Chip8DisplayBackend: Debug {
     fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool;
     fn clear_display(&self);
     fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;

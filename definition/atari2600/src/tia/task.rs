@@ -5,7 +5,7 @@ use nalgebra::Point2;
 use std::num::NonZero;
 
 pub struct TiaTask {
-    pub processor: ComponentRef<Mos6502>,
+    pub cpu: ComponentRef<Mos6502>,
 }
 
 impl<R: Region> Task<Tia<R>> for TiaTask {
@@ -21,7 +21,7 @@ impl<R: Region> Task<Tia<R>> for TiaTask {
                 state_guard.scanline += 1;
 
                 if std::mem::replace(&mut state_guard.reset_rdy_on_scanline_end, false) {
-                    self.processor
+                    self.cpu
                         .interact(|processor| {
                             processor.set_rdy(true);
                         })

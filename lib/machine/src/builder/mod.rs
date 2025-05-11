@@ -4,7 +4,10 @@ use crate::{
         Component, ComponentId, FromConfig, RuntimeEssentials, component_ref::ComponentRef,
         store::ComponentStore,
     },
-    display::{backend::RenderBackend, shader::ShaderCache},
+    display::{
+        backend::{ContextExtensionSpecification, RenderBackend},
+        shader::ShaderCache,
+    },
     memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
 };
@@ -37,8 +40,9 @@ pub struct ComponentMetadata {
 /// Builder to produce a machine, definition crates will want to use this
 pub struct MachineBuilder {
     essentials: Arc<RuntimeEssentials>,
+    component_store: Arc<ComponentStore>,
     current_component_id: ComponentId,
-    pub component_metadata: HashMap<ComponentId, ComponentMetadata>,
+    component_metadata: HashMap<ComponentId, ComponentMetadata>,
     game_system: GameSystem,
 }
 
@@ -51,9 +55,9 @@ impl MachineBuilder {
     ) -> Self {
         MachineBuilder {
             current_component_id: ComponentId(0),
+            component_store: Arc::default(),
             component_metadata: HashMap::new(),
             essentials: Arc::new(RuntimeEssentials {
-                component_store: Arc::default(),
                 rom_manager,
                 environment,
                 shader_cache,
@@ -61,6 +65,44 @@ impl MachineBuilder {
             }),
             game_system,
         }
+    }
+
+    pub fn required_display_extensions<R: RenderBackend>(
+        &self,
+    ) -> R::ContextExtensionSpecification {
+        self.component_metadata
+            .iter()
+            .filter_map(|(_, item)| item.display.as_ref())
+            .fold(
+                R::ContextExtensionSpecification::default(),
+                |extensions, item| {
+                    extensions.combine(
+                        item.get_backend_specific_data::<R>()
+                            .expect("Missing data from this component for this backend, most likely a bug")
+                            .required_extensions
+                            .clone(),
+                    )
+                },
+            )
+    }
+
+    pub fn preferred_display_extensions<R: RenderBackend>(
+        &self,
+    ) -> R::ContextExtensionSpecification {
+        self.component_metadata
+            .iter()
+            .filter_map(|(_, item)| item.display.as_ref())
+            .fold(
+                R::ContextExtensionSpecification::default(),
+                |extensions, item| {
+                    extensions.combine(
+                        item.get_backend_specific_data::<R>()
+                            .expect("Missing data from this component for this backend, most likely a bug")
+                            .preferred_extensions
+                            .clone(),
+                    )
+                },
+            )
     }
 
     /// Insert a component into the machine
@@ -93,7 +135,7 @@ impl MachineBuilder {
             .checked_add(1)
             .expect("Too many components");
 
-        let component_ref = self.essentials.component_store.get(manifest_name).unwrap();
+        let component_ref = self.component_store.get(manifest_name).unwrap();
 
         (self, component_ref)
     }
@@ -125,15 +167,14 @@ impl MachineBuilder {
         mut self,
         display_component_initialization_data: Rc<R::ComponentInitializationData>,
     ) -> Machine {
-        let mut framebuffers = HashMap::new();
+        let mut framebuffers = Vec::new();
         let mut tasks = Vec::new();
         let mut all_gamepads = Vec::default();
 
         for (component_id, component_metadata) in self.component_metadata.drain() {
             if let Some(mut display_metadata) = component_metadata.display {
                 // Initialize all the display components
-                self.essentials
-                    .component_store
+                self.component_store
                     .interact_dyn_local(component_id, |component| {
                         // Call the display callback
                         let framebuffer = (display_metadata
@@ -146,7 +187,7 @@ impl MachineBuilder {
                             display_component_initialization_data.clone(),
                         );
 
-                        framebuffers.insert(component_id, framebuffer);
+                        framebuffers.push(framebuffer);
                     })
                     .unwrap();
             }
@@ -185,11 +226,11 @@ impl MachineBuilder {
         }
 
         // Create the scheduler
-        let scheduler = Scheduler::new(self.essentials.component_store.clone(), tasks);
+        let scheduler = Scheduler::new(self.component_store.clone(), tasks);
 
         Machine {
             scheduler,
-            component_store: self.essentials.component_store.clone(),
+            component_store: self.component_store.clone(),
             memory_translation_table: self.essentials.memory_translation_table.clone(),
             framebuffers: Box::new(framebuffers),
             virtual_gamepads: all_gamepads
@@ -207,10 +248,6 @@ impl MachineBuilder {
             game_system: self.game_system,
         }
     }
-
-    pub fn component_store(&self) -> &ComponentStore {
-        &self.essentials.component_store
-    }
 }
 
 /// Struct passed into components for their initialization purposes
@@ -225,10 +262,11 @@ pub struct ComponentBuilder<'a, C: Component> {
 impl<C: Component> ComponentBuilder<'_, C> {
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
     pub fn build(self, component: C) {
-        self.machine_builder
-            .essentials
-            .component_store
-            .insert_component(self.manifest_name, self.component_id, component);
+        self.machine_builder.component_store.insert_component(
+            self.manifest_name,
+            self.component_id,
+            component,
+        );
 
         self.machine_builder
             .component_metadata
@@ -243,7 +281,6 @@ impl<C: Component> ComponentBuilder<'_, C> {
         C: Send + Sync,
     {
         self.machine_builder
-            .essentials
             .component_store
             .insert_component_global(self.manifest_name, self.component_id, component);
 

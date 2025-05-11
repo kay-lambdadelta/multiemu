@@ -5,19 +5,19 @@ use super::{
 use std::{
     any::{Any, TypeId},
     fmt::Debug,
-    sync::Arc,
+    sync::{Arc, Weak},
 };
 
 #[derive(Clone)]
 enum ComponentLocation {
     Here(Arc<dyn Component + Send + Sync>),
-    Elsewhere,
+    Elsewhere(ComponentId),
 }
 
 pub struct ComponentRef<C: Component> {
     location: ComponentLocation,
-    store: Arc<ComponentStore>,
-    component_id: ComponentId,
+    // Stop potential cycles
+    store: Weak<ComponentStore>,
     _phantom: std::marker::PhantomData<C>,
 }
 
@@ -26,7 +26,6 @@ impl<C: Component> Clone for ComponentRef<C> {
         Self {
             location: self.location.clone(),
             store: self.store.clone(),
-            component_id: self.component_id,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -43,7 +42,6 @@ impl<C: Component + Debug> Debug for ComponentRef<C> {
 
         f.debug_struct("ComponentRef")
             .field("component", &s)
-            .field("component_id", &self.component_id)
             .finish()
     }
 }
@@ -67,15 +65,13 @@ impl<C: Component> ComponentRef<C> {
 
             Self {
                 location: ComponentLocation::Here(component),
-                store: component_store,
-                component_id,
+                store: Arc::downgrade(&component_store),
                 _phantom: std::marker::PhantomData,
             }
         } else {
             Self {
-                location: ComponentLocation::Elsewhere,
-                store: component_store,
-                component_id,
+                location: ComponentLocation::Elsewhere(component_id),
+                store: Arc::downgrade(&component_store),
                 _phantom: std::marker::PhantomData,
             }
         }
@@ -92,7 +88,30 @@ impl<C: Component> ComponentRef<C> {
 
                 Ok(())
             }
-            ComponentLocation::Elsewhere => self.store.interact::<C>(self.component_id, callback),
+            ComponentLocation::Elsewhere(component_id) => self
+                .store
+                .upgrade()
+                .unwrap()
+                .interact::<C>(*component_id, callback),
+        }
+    }
+
+    pub fn interact_local(&self, callback: impl FnOnce(&C)) -> Result<(), Error> {
+        match &self.location {
+            ComponentLocation::Here(component) => {
+                let component = (component.as_ref() as &dyn Any)
+                    .downcast_ref::<C>()
+                    .expect("Component type mismatch");
+
+                callback(component);
+
+                Ok(())
+            }
+            ComponentLocation::Elsewhere(component_id) => self
+                .store
+                .upgrade()
+                .unwrap()
+                .interact_local::<C>(*component_id, callback),
         }
     }
 }

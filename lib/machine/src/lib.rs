@@ -1,5 +1,4 @@
 use crate::component::store::ComponentStore;
-use component::ComponentId;
 use display::backend::RenderBackend;
 use input::{VirtualGamepadId, virtual_gamepad::VirtualGamepad};
 use memory::memory_translation_table::MemoryTranslationTable;
@@ -45,11 +44,9 @@ impl Machine {
         }
     }
 
-    pub fn framebuffers<R: RenderBackend>(
-        &self,
-    ) -> &HashMap<ComponentId, Rc<R::ComponentFramebuffer>> {
+    pub fn framebuffers<R: RenderBackend>(&self) -> &Vec<Rc<R::ComponentFramebuffer>> {
         self.framebuffers
-            .downcast_ref::<HashMap<ComponentId, Rc<R::ComponentFramebuffer>>>()
+            .downcast_ref::<Vec<Rc<R::ComponentFramebuffer>>>()
             .expect("Different rendering backend requested framebuffers than what this machine was built for")
     }
 }

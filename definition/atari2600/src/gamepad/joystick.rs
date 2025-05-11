@@ -7,7 +7,6 @@ use multiemu_machine::{
     input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
 };
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     sync::Arc,
 };
@@ -22,22 +21,18 @@ impl FromConfig for Atari2600Joystick {
 
     fn from_config(
         component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
+        _essentials: Arc<RuntimeEssentials>,
         config: Self::Config,
         _quirks: Self::Quirks,
     ) {
-        let m6532_riot: ComponentRef<Mos6532Riot> = essentials
-            .component_store
-            .get(&config.m6532_riot)
-            .expect("Couldn't find m6532_riot");
-
         let player1_gamepad = create_gamepad();
         let player2_gamepad = create_gamepad();
 
         let component_builder =
             component_builder.insert_gamepads([player1_gamepad.clone(), player2_gamepad.clone()]);
 
-        m6532_riot
+        config
+            .mos6532_riot
             .interact(|riot| {
                 riot.install_swcha(JoystickSwchaCallback {
                     gamepads: [player1_gamepad, player2_gamepad],
@@ -51,7 +46,7 @@ impl FromConfig for Atari2600Joystick {
 
 #[derive(Debug)]
 pub struct Atari2600JoystickConfig {
-    pub m6532_riot: Cow<'static, str>,
+    pub mos6532_riot: ComponentRef<Mos6532Riot>,
 }
 
 #[derive(Debug)]

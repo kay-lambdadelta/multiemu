@@ -3,7 +3,7 @@ use memory::MemoryCallback;
 use multiemu_definition_mos6502::Mos6502;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, FromConfig, RuntimeEssentials, component_ref::ComponentRef},
     display::backend::software::SoftwareRendering,
     memory::AddressSpaceHandle,
 };
@@ -121,7 +121,7 @@ pub struct Tia<R: Region> {
 
 #[derive(Debug, Clone)]
 pub struct TiaConfig {
-    pub processor_name: &'static str,
+    pub cpu: ComponentRef<Mos6502>,
     pub cpu_address_space: AddressSpaceHandle,
 }
 
@@ -138,15 +138,10 @@ impl<R: Region> FromConfig for Tia<R> {
         _quirks: Self::Quirks,
     ) {
         let state = Arc::new(Mutex::new(State::default()));
-        let processor = essentials
-            .component_store
-            .get::<Mos6502>(config.processor_name)
-            .expect("MOS 6502 component not found");
-
         essentials.memory_translation_table.insert_memory(
             MemoryCallback {
                 state: state.clone(),
-                processor: processor.clone(),
+                cpu: config.cpu.clone(),
             },
             [(config.cpu_address_space, 0x000..=0x03f)],
         );
@@ -155,7 +150,7 @@ impl<R: Region> FromConfig for Tia<R> {
             .insert_task(
                 R::frequency(),
                 TiaTask {
-                    processor: processor.clone(),
+                    cpu: config.cpu.clone(),
                 },
             )
             .insert_task(R::REFRESH_RATE, move |display: &Tia<R>, _period| {

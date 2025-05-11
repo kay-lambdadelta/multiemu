@@ -63,6 +63,7 @@ pub trait SwchbCallback: Debug + Send + Sync + 'static {
     fn write_memory(&self, value: u8);
 }
 
+#[derive(Debug)]
 pub struct Mos6532Riot {
     ram: Arc<RwLock<[u8; 128]>>,
     registers: Arc<Registers>,

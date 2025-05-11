@@ -1,5 +1,5 @@
 use crate::{
-    ComponentStore, builder::ComponentBuilder, display::shader::ShaderCache,
+    builder::ComponentBuilder, display::shader::ShaderCache,
     memory::memory_translation_table::MemoryTranslationTable,
 };
 use multiemu_config::Environment;
@@ -15,13 +15,12 @@ use std::{
 use versions::SemVer;
 
 pub mod component_ref;
-pub mod main_thread_queue;
-pub mod store;
+pub(crate) mod main_thread_queue;
+pub(crate) mod store;
 
 /// Stuff every component optionally needs
 #[derive(Debug)]
 pub struct RuntimeEssentials {
-    pub component_store: Arc<ComponentStore>,
     pub rom_manager: Arc<RomManager>,
     pub environment: Arc<RwLock<Environment>>,
     pub shader_cache: ShaderCache,
@@ -61,7 +60,7 @@ pub trait FromConfig: Component + Sized {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ComponentId(pub u16);
+pub(crate) struct ComponentId(pub u16);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ComponentName(pub Cow<'static, str>);

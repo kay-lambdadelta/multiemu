@@ -3,9 +3,8 @@ use multiemu_config::{Environment, input::Hotkey};
 use multiemu_input::{GamepadId, Input, InputState};
 use multiemu_machine::{
     Machine,
-    builder::display::BackendSpecificData,
     display::{
-        backend::{ContextExtensionSpecification, RenderBackend},
+        backend::RenderBackend,
         shader::ShaderCache,
     },
     input::VirtualGamepadId,
@@ -17,7 +16,6 @@ use multiemu_rom::{
 };
 use nalgebra::Vector2;
 use std::{
-    any::TypeId,
     collections::HashMap,
     fmt::Debug,
     sync::{Arc, RwLock},
@@ -196,25 +194,10 @@ impl<RS: RenderingBackendState> Runtime<RS> {
             self.shader_cache.clone(),
         );
 
-        let mut preferred_extensions =
-            <RS::RenderBackend as RenderBackend>::ContextExtensionSpecification::default();
-        let mut required_extensions =
-            <RS::RenderBackend as RenderBackend>::ContextExtensionSpecification::default();
-
-        for (_component_id, component) in machine_builder.component_metadata.iter() {
-            if let Some(display) = &component.display {
-                let backend_specific_data = display
-                    .backend_specific_data
-                    .get(&TypeId::of::<RS::RenderBackend>())
-                    .and_then(|data| data.downcast_ref::<BackendSpecificData<RS::RenderBackend>>())
-                    .expect("Could not find display backend data for component");
-
-                preferred_extensions = preferred_extensions
-                    .combine(backend_specific_data.preferred_extensions.clone());
-                required_extensions =
-                    required_extensions.combine(backend_specific_data.required_extensions.clone());
-            }
-        }
+        let  preferred_extensions = machine_builder
+            .preferred_display_extensions::<<RS as RenderingBackendState>::RenderBackend>();
+        let  required_extensions = machine_builder
+            .required_display_extensions::<<RS as RenderingBackendState>::RenderBackend>();
 
         // Drop old machine otherwise it will segfault when we try to use the new vulkan context
         self.mode = RuntimeMode::Gui(None);
