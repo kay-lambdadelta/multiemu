@@ -13,7 +13,6 @@ pub mod component;
 pub mod display;
 pub mod input;
 pub mod memory;
-pub mod message;
 pub mod processor;
 pub mod scheduler;
 
