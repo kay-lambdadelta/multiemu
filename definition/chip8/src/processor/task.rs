@@ -108,6 +108,9 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
                             break 'main;
                         }
                     }
+                    ExecutionState::Halted => {
+                        // Do nothing
+                    }
                 }
             }
         }

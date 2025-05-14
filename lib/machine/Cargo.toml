@@ -27,7 +27,6 @@ nalgebra = { workspace = true }
 palette = { workspace = true }
 scc = { workspace = true }
 versions = { workspace = true }
-indexmap = { workspace = true }
 itertools = { workspace = true }
 ringbuffer = { workspace = true }
 rayon = { workspace = true }

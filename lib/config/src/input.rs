@@ -1,7 +1,6 @@
-use indexmap::IndexMap;
 use multiemu_input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, sync::LazyLock};
+use std::{collections::{BTreeMap, BTreeSet}, sync::LazyLock};
 use strum::EnumIter;
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]
@@ -14,7 +13,7 @@ pub enum Hotkey {
 }
 
 /// Default hotkeys for the application
-pub static DEFAULT_HOTKEYS: LazyLock<IndexMap<BTreeSet<Input>, Hotkey>> = LazyLock::new(|| {
+pub static DEFAULT_HOTKEYS: LazyLock<BTreeMap<BTreeSet<Input>, Hotkey>> = LazyLock::new(|| {
     [
         (
             [

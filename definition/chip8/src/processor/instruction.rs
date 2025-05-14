@@ -32,9 +32,8 @@ pub enum Register {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum InstructionSetChip8 {
-    Sys {
-        syscall: u16,
-    },
+    Clr,
+    Rtrn,
     Jump {
         address: u16,
     },
@@ -51,8 +50,8 @@ pub enum InstructionSetChip8 {
         immediate: u8,
     },
     Skre {
-        param_register_1: Register,
-        param_register_2: Register,
+        param_1: Register,
+        param_2: Register,
     },
     Load {
         register: Register,
@@ -63,8 +62,8 @@ pub enum InstructionSetChip8 {
         immediate: u8,
     },
     Move {
-        param_register_1: Register,
-        param_register_2: Register,
+        param_1: Register,
+        param_2: Register,
     },
     Or {
         destination: Register,
@@ -99,8 +98,8 @@ pub enum InstructionSetChip8 {
         value: Register,
     },
     Skrne {
-        param_register_1: Register,
-        param_register_2: Register,
+        param_1: Register,
+        param_2: Register,
     },
     Loadi {
         value: u16,
@@ -113,7 +112,7 @@ pub enum InstructionSetChip8 {
         immediate: u8,
     },
     Draw {
-        coordinate_registers: Point2<Register>,
+        coordinates: Point2<Register>,
         height: u8,
     },
     Skpr {
@@ -152,7 +151,17 @@ pub enum InstructionSetChip8 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ScrollDirection {
+    Left,
+    Right,
+    Down { amount: u8 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum InstructionSetSuperChip8 {
+    Lores,
+    Hires,
+    Scroll { direction: ScrollDirection },
     Scrd { amount: u8 },
     Scrr,
     Scrl,

@@ -7,7 +7,6 @@ license = "GPL-3.0-or-later"
 [dependencies]
 multiemu-input = { workspace = true }
 multiemu-rom = { workspace = true }
-indexmap = { workspace = true }
 serde = { workspace = true }
 serde_with = { workspace = true }
 serde-inline-default = { workspace = true }

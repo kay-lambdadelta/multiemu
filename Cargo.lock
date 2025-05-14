@@ -2180,7 +2180,6 @@ version = "0.1.0"
 dependencies = [
  "cfg_aliases",
  "dirs",
- "indexmap 2.9.0",
  "multiemu-input",
  "multiemu-macros",
  "multiemu-rom",
@@ -2226,7 +2225,6 @@ dependencies = [
  "bitvec",
  "cfg_aliases",
  "enumflags2",
- "indexmap 2.9.0",
  "multiemu-config",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
@@ -2326,7 +2324,6 @@ dependencies = [
  "bytemuck",
  "cfg_aliases",
  "enumflags2",
- "indexmap 2.9.0",
  "multiemu-config",
  "multiemu-definition-misc",
  "multiemu-machine",
@@ -2382,7 +2379,6 @@ dependencies = [
  "egui_extras",
  "gilrs",
  "image",
- "indexmap 2.9.0",
  "itertools 0.14.0",
  "multiemu-audio",
  "multiemu-config",
@@ -2437,7 +2433,6 @@ dependencies = [
  "crossbeam",
  "data-encoding",
  "enumflags2",
- "indexmap 2.9.0",
  "itertools 0.14.0",
  "multiemu-audio",
  "multiemu-config",
@@ -2469,7 +2464,6 @@ dependencies = [
 name = "multiemu-macros"
 version = "0.1.0"
 dependencies = [
- "indexmap 2.9.0",
  "proc-macro2",
  "quote",
  "syn",
@@ -2484,7 +2478,6 @@ dependencies = [
  "codes-iso-3166",
  "codes-iso-639",
  "data-encoding",
- "indexmap 2.9.0",
  "redb",
  "scc",
  "serde",
@@ -4192,9 +4185,9 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "tempfile"
-version = "3.19.1"
+version = "3.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7437ac7763b9b123ccf33c338a5cc1bac6f69b45a136c19bdd8a65e3916435bf"
+checksum = "e8a64e3985349f2441a1a9ef0b853f869006c3855f2cda6862a94d26ebb9d6a1"
 dependencies = [
  "fastrand",
  "getrandom 0.3.3",

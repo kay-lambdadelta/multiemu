@@ -1,4 +1,3 @@
-use crate::component::store::ComponentStore;
 use display::backend::RenderBackend;
 use input::{VirtualGamepadId, virtual_gamepad::VirtualGamepad};
 use memory::memory_translation_table::MemoryTranslationTable;
@@ -18,7 +17,6 @@ pub mod scheduler;
 #[non_exhaustive]
 pub struct Machine {
     pub scheduler: Scheduler,
-    pub component_store: Arc<ComponentStore>,
     pub memory_translation_table: MemoryTranslationTable,
     pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>>,
     pub game_system: GameSystem,

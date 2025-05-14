@@ -1,3 +1,4 @@
+use std::{borrow::Cow, sync::{Arc, RwLock}};
 use audio::Chip8Audio;
 use display::Chip8Display;
 use font::CHIP8_FONT;
@@ -14,10 +15,6 @@ use multiemu_rom::{
 pub use processor::decoder::Chip8InstructionDecoder;
 use processor::{Chip8Processor, Chip8ProcessorConfig};
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Cow,
-    sync::{Arc, RwLock},
-};
 use timer::Chip8Timer;
 
 mod audio;

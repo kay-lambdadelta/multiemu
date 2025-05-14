@@ -24,7 +24,6 @@ bincode = { workspace = true }
 # cranelift = { workspace = true, optional = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
-indexmap = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 
 [build-dependencies]

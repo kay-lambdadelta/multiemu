@@ -1,4 +1,4 @@
-use crate::component::{store::ComponentStore, Component, ComponentId};
+use crate::component::{Component, ComponentId, store::ComponentStore};
 use itertools::Itertools;
 use num::{
     ToPrimitive,

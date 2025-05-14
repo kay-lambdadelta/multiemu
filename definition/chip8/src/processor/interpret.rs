@@ -4,7 +4,7 @@ use super::{
     instruction::{Chip8InstructionSet, InstructionSetChip8},
     task::Chip8ProcessorTask,
 };
-use crate::{CHIP8_FONT, Chip8Kind};
+use crate::{CHIP8_FONT, Chip8Kind, processor::instruction::InstructionSetSuperChip8};
 use arrayvec::ArrayVec;
 use bitvec::{
     field::BitField,
@@ -25,27 +25,22 @@ impl Chip8ProcessorTask {
         tracing::trace!("Interpreting instruction: {:x?}", instruction);
 
         match instruction {
-            Chip8InstructionSet::Chip8(InstructionSetChip8::Sys { syscall }) => match syscall {
-                0x0e0 => {
-                    self.config
-                        .display
-                        .interact(|component| {
-                            component.clear_display();
-                        })
-                        .unwrap();
+            Chip8InstructionSet::Chip8(InstructionSetChip8::Clr) => {
+                self.config
+                    .display
+                    .interact(|component| {
+                        component.clear_display();
+                    })
+                    .unwrap();
+            }
+            Chip8InstructionSet::Chip8(InstructionSetChip8::Rtrn) => {
+                if let Some(address) = state.stack.pop() {
+                    state.registers.program = address;
+                } else {
+                    tracing::error!("Stack underflow");
+                    state.registers.program = 0x200;
                 }
-                0x0ee => {
-                    if let Some(address) = state.stack.pop() {
-                        state.registers.program = address;
-                    } else {
-                        tracing::error!("Stack underflow");
-                        state.registers.program = 0x200;
-                    }
-                }
-                _ => {
-                    tracing::warn!("Unknown syscall: {:#04x}", syscall);
-                }
-            },
+            }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Jump { address }) => {
                 state.registers.program = address;
             }
@@ -74,16 +69,11 @@ impl Chip8ProcessorTask {
                     state.registers.program = state.registers.program.wrapping_add(2);
                 }
             }
-            Chip8InstructionSet::Chip8(InstructionSetChip8::Skre {
-                param_register_1,
-                param_register_2,
-            }) => {
-                let param_register_1_value =
-                    state.registers.work_registers[param_register_1 as usize];
-                let param_register_2_value =
-                    state.registers.work_registers[param_register_2 as usize];
+            Chip8InstructionSet::Chip8(InstructionSetChip8::Skre { param_1, param_2 }) => {
+                let param_1_value = state.registers.work_registers[param_1 as usize];
+                let param_2_value = state.registers.work_registers[param_2 as usize];
 
-                if param_register_1_value == param_register_2_value {
+                if param_1_value == param_2_value {
                     state.registers.program = state.registers.program.wrapping_add(2);
                 }
             }
@@ -102,12 +92,9 @@ impl Chip8ProcessorTask {
                 state.registers.work_registers[register as usize] =
                     register_value.wrapping_add(immediate);
             }
-            Chip8InstructionSet::Chip8(InstructionSetChip8::Move {
-                param_register_1,
-                param_register_2,
-            }) => {
-                state.registers.work_registers[param_register_1 as usize] =
-                    state.registers.work_registers[param_register_2 as usize];
+            Chip8InstructionSet::Chip8(InstructionSetChip8::Move { param_1, param_2 }) => {
+                state.registers.work_registers[param_1 as usize] =
+                    state.registers.work_registers[param_2 as usize];
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Or {
                 destination,
@@ -202,16 +189,11 @@ impl Chip8ProcessorTask {
                 state.registers.work_registers[register as usize] = destination_value << 1;
                 state.registers.work_registers[0xf] = overflow as u8;
             }
-            Chip8InstructionSet::Chip8(InstructionSetChip8::Skrne {
-                param_register_1,
-                param_register_2,
-            }) => {
-                let param_register_1_value =
-                    state.registers.work_registers[param_register_1 as usize];
-                let param_register_2_value =
-                    state.registers.work_registers[param_register_2 as usize];
+            Chip8InstructionSet::Chip8(InstructionSetChip8::Skrne { param_1, param_2 }) => {
+                let param_1_value = state.registers.work_registers[param_1 as usize];
+                let param_2_value = state.registers.work_registers[param_2 as usize];
 
-                if param_register_1_value != param_register_2_value {
+                if param_1_value != param_2_value {
                     state.registers.program = state.registers.program.wrapping_add(2);
                 }
             }
@@ -237,7 +219,7 @@ impl Chip8ProcessorTask {
                     rand::rng().random::<u8>() & immediate;
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Draw {
-                coordinate_registers,
+                coordinates: coordinate_registers,
                 height,
             }) => {
                 let mut buffer =
@@ -395,7 +377,14 @@ impl Chip8ProcessorTask {
                     state.registers.index = state.registers.index.wrapping_add(count as u16 + 1);
                 }
             }
-            Chip8InstructionSet::SuperChip8(_) => todo!(),
+            Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Hires) => {}
+            Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Lores) => {}
+            Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scroll { direction }) => {}
+            Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scrd { amount }) => {}
+            Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scrr) => {}
+            Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scrl) => {}
+            Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Srpl { amount }) => {}
+            Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Rrpl { amount }) => {}
             Chip8InstructionSet::XoChip(_) => todo!(),
         }
     }

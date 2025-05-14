@@ -1,4 +1,4 @@
-use crate::{audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer, Chip8InstructionDecoder};
+use crate::{Chip8InstructionDecoder, audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer};
 
 use super::Chip8Kind;
 use arrayvec::ArrayVec;
@@ -36,6 +36,7 @@ enum ExecutionState {
         keys: Vec<Chip8KeyCode>,
     },
     AwaitingVsync,
+    Halted,
 }
 
 // This is extremely complex because the chip8 cpu has a lot of non cpu machinery

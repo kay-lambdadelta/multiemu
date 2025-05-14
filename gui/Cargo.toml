@@ -35,7 +35,6 @@ thiserror = { workspace = true }
 bitvec = { workspace = true }
 rangemap = { workspace = true }
 tracing-subscriber = { workspace = true }
-indexmap = { workspace = true }
 crossbeam = { workspace = true }
 palette = { workspace = true }
 uuid = { workspace = true }

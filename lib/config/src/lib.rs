@@ -3,7 +3,6 @@ use crate::{
     input::{DEFAULT_HOTKEYS, Hotkey},
 };
 use audio::AudioSettings;
-use indexmap::IndexMap;
 use multiemu_input::{Input, VirtualGamepadName};
 use multiemu_rom::system::GameSystem;
 use ron::ser::PrettyConfig;
@@ -11,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use serde_with::serde_as;
 use std::{
-    collections::BTreeSet,
-    fs::{File, create_dir_all},
+    collections::{BTreeMap, BTreeSet},
+    fs::{create_dir_all, File},
     io::Write,
     ops::Deref,
     path::PathBuf,
@@ -53,10 +52,10 @@ pub enum ProcessorExecutionMode {
 pub struct Environment {
     #[serde(default)]
     /// Gamepad configs populated by machines or edited by the user
-    pub gamepad_configs: IndexMap<GameSystem, IndexMap<VirtualGamepadName, IndexMap<Input, Input>>>,
+    pub gamepad_configs: BTreeMap<GameSystem, BTreeMap<VirtualGamepadName, BTreeMap<Input, Input>>>,
     #[serde_inline_default(DEFAULT_HOTKEYS.clone())]
     /// Hotkeys for the application
-    pub hotkeys: IndexMap<BTreeSet<Input>, Hotkey>,
+    pub hotkeys: BTreeMap<BTreeSet<Input>, Hotkey>,
     #[serde(default)]
     /// Graphics settings
     pub graphics_setting: GraphicsSettings,

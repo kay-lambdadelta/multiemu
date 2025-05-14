@@ -53,4 +53,4 @@ sample_impl!(int, u16);
 sample_impl!(int, u32);
 sample_impl!(int, u64);
 
-// TODO: Implement on nums Ratio?
+// TODO: Implement on num::Ratio?

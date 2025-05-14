@@ -11,6 +11,7 @@ use crate::{
     memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
 };
+use audio::AudioMetadata;
 use display::{BackendSpecificData, DisplayMetadata};
 use input::InputMetadata;
 use multiemu_config::Environment;
@@ -28,6 +29,7 @@ pub mod display;
 pub mod input;
 pub mod memory;
 pub mod task;
+pub mod audio;
 
 #[derive(Default)]
 /// Overall data extracted from components needed for machine initialization
@@ -35,6 +37,7 @@ pub struct ComponentMetadata {
     pub task: Option<TaskMetadata>,
     pub display: Option<DisplayMetadata>,
     pub input: Option<InputMetadata>,
+    pub audio: Option<AudioMetadata>,
 }
 
 /// Builder to produce a machine, definition crates will want to use this
@@ -230,7 +233,6 @@ impl MachineBuilder {
 
         Machine {
             scheduler,
-            component_store: self.component_store.clone(),
             memory_translation_table: self.essentials.memory_translation_table.clone(),
             framebuffers: Box::new(framebuffers),
             virtual_gamepads: all_gamepads

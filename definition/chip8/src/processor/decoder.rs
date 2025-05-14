@@ -1,4 +1,6 @@
-use super::instruction::{Chip8InstructionSet, InstructionSetChip8, Register};
+use super::instruction::{
+    Chip8InstructionSet, InstructionSetChip8, InstructionSetSuperChip8, Register, ScrollDirection,
+};
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use multiemu_machine::{
     memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
@@ -32,9 +34,32 @@ fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
 
     Some(match instruction_view[0..4].load::<u8>() {
         0x0 => {
-            let syscall = instruction_view[4..16].load_be::<u16>();
+            let syscall = [
+                instruction_view[4..8].load::<u8>(),
+                instruction_view[8..12].load::<u8>(),
+                instruction_view[12..16].load::<u8>(),
+            ];
 
-            Chip8InstructionSet::Chip8(InstructionSetChip8::Sys { syscall })
+            match syscall {
+                [0x0, 0xe, 0x0] => Chip8InstructionSet::Chip8(InstructionSetChip8::Clr),
+                [0x0, 0xe, 0xe] => Chip8InstructionSet::Chip8(InstructionSetChip8::Rtrn),
+                [0x0, 0xf, 0xe] => Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Lores),
+                [0x0, 0xf, 0xf] => Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Hires),
+                [0x0, 0xc, _] => Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scroll {
+                    direction: ScrollDirection::Down { amount: syscall[2] },
+                }),
+                [0x0, 0xf, 0xb] => {
+                    Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scroll {
+                        direction: ScrollDirection::Right,
+                    })
+                }
+                [0x0, 0xf, 0xc] => {
+                    Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scroll {
+                        direction: ScrollDirection::Right,
+                    })
+                }
+                _ => return None,
+            }
         }
         0x1 => {
             let address = instruction_view[4..16].load_be::<u16>();
@@ -65,12 +90,12 @@ fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
             })
         }
         0x5 => {
-            let param_register_1 = instruction_view[4..8].load::<u8>();
-            let param_register_2 = instruction_view[8..12].load::<u8>();
+            let param_1 = instruction_view[4..8].load::<u8>();
+            let param_2 = instruction_view[8..12].load::<u8>();
 
             Chip8InstructionSet::Chip8(InstructionSetChip8::Skre {
-                param_register_1: Register::from_repr(param_register_1).unwrap(),
-                param_register_2: Register::from_repr(param_register_2).unwrap(),
+                param_1: Register::from_repr(param_1).unwrap(),
+                param_2: Register::from_repr(param_2).unwrap(),
             })
         }
         0x6 => {
@@ -92,47 +117,47 @@ fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
             })
         }
         0x8 => {
-            let param_register_1 = instruction_view[4..8].load::<u8>();
-            let param_register_2 = instruction_view[8..12].load::<u8>();
+            let param_1 = instruction_view[4..8].load::<u8>();
+            let param_2 = instruction_view[8..12].load::<u8>();
 
             let specifier = instruction_view[12..16].load::<u8>();
 
             match specifier {
                 0x0 => Chip8InstructionSet::Chip8(InstructionSetChip8::Move {
-                    param_register_1: Register::from_repr(param_register_1).unwrap(),
-                    param_register_2: Register::from_repr(param_register_2).unwrap(),
+                    param_1: Register::from_repr(param_1).unwrap(),
+                    param_2: Register::from_repr(param_2).unwrap(),
                 }),
                 0x1 => Chip8InstructionSet::Chip8(InstructionSetChip8::Or {
-                    destination: Register::from_repr(param_register_1).unwrap(),
-                    source: Register::from_repr(param_register_2).unwrap(),
+                    destination: Register::from_repr(param_1).unwrap(),
+                    source: Register::from_repr(param_2).unwrap(),
                 }),
                 0x2 => Chip8InstructionSet::Chip8(InstructionSetChip8::And {
-                    destination: Register::from_repr(param_register_1).unwrap(),
-                    source: Register::from_repr(param_register_2).unwrap(),
+                    destination: Register::from_repr(param_1).unwrap(),
+                    source: Register::from_repr(param_2).unwrap(),
                 }),
                 0x3 => Chip8InstructionSet::Chip8(InstructionSetChip8::Xor {
-                    destination: Register::from_repr(param_register_1).unwrap(),
-                    source: Register::from_repr(param_register_2).unwrap(),
+                    destination: Register::from_repr(param_1).unwrap(),
+                    source: Register::from_repr(param_2).unwrap(),
                 }),
                 0x4 => Chip8InstructionSet::Chip8(InstructionSetChip8::Addr {
-                    destination: Register::from_repr(param_register_1).unwrap(),
-                    source: Register::from_repr(param_register_2).unwrap(),
+                    destination: Register::from_repr(param_1).unwrap(),
+                    source: Register::from_repr(param_2).unwrap(),
                 }),
                 0x5 => Chip8InstructionSet::Chip8(InstructionSetChip8::Sub {
-                    destination: Register::from_repr(param_register_1).unwrap(),
-                    source: Register::from_repr(param_register_2).unwrap(),
+                    destination: Register::from_repr(param_1).unwrap(),
+                    source: Register::from_repr(param_2).unwrap(),
                 }),
                 0x6 => Chip8InstructionSet::Chip8(InstructionSetChip8::Shr {
-                    register: Register::from_repr(param_register_1).unwrap(),
-                    value: Register::from_repr(param_register_2).unwrap(),
+                    register: Register::from_repr(param_1).unwrap(),
+                    value: Register::from_repr(param_2).unwrap(),
                 }),
                 0x7 => Chip8InstructionSet::Chip8(InstructionSetChip8::Subn {
-                    destination: Register::from_repr(param_register_1).unwrap(),
-                    source: Register::from_repr(param_register_2).unwrap(),
+                    destination: Register::from_repr(param_1).unwrap(),
+                    source: Register::from_repr(param_2).unwrap(),
                 }),
                 0xe => Chip8InstructionSet::Chip8(InstructionSetChip8::Shl {
-                    register: Register::from_repr(param_register_1).unwrap(),
-                    value: Register::from_repr(param_register_2).unwrap(),
+                    register: Register::from_repr(param_1).unwrap(),
+                    value: Register::from_repr(param_2).unwrap(),
                 }),
                 _ => {
                     return None;
@@ -140,13 +165,13 @@ fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
             }
         }
         0x9 => {
-            let param_register_1 = instruction_view[4..8].load::<u8>();
-            let param_register_2 = instruction_view[8..12].load::<u8>();
+            let param_1 = instruction_view[4..8].load::<u8>();
+            let param_2 = instruction_view[8..12].load::<u8>();
 
             match instruction_view[12..16].load::<u8>() {
                 0x0 => Chip8InstructionSet::Chip8(InstructionSetChip8::Skrne {
-                    param_register_1: Register::from_repr(param_register_1).unwrap(),
-                    param_register_2: Register::from_repr(param_register_2).unwrap(),
+                    param_1: Register::from_repr(param_1).unwrap(),
+                    param_2: Register::from_repr(param_2).unwrap(),
                 }),
                 _ => {
                     return None;
@@ -178,7 +203,7 @@ fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
             let height = instruction_view[12..16].load::<u8>();
 
             Chip8InstructionSet::Chip8(InstructionSetChip8::Draw {
-                coordinate_registers: Point2::new(
+                coordinates: Point2::new(
                     Register::from_repr(x_register).unwrap(),
                     Register::from_repr(y_register).unwrap(),
                 ),
@@ -238,21 +263,4 @@ fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
             unreachable!()
         }
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // TODO: I find it unlikely the instruction decoding machinery is bad but make tests anyway
-
-    #[test]
-    pub fn syscall() {
-        assert_eq!(
-            decode_instruction([0x00, 0x00]),
-            Some(Chip8InstructionSet::Chip8(InstructionSetChip8::Sys {
-                syscall: 0
-            }))
-        )
-    }
 }
