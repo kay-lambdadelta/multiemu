@@ -4,7 +4,10 @@ use super::{
     instruction::{Chip8InstructionSet, InstructionSetChip8},
     task::Chip8ProcessorTask,
 };
-use crate::{CHIP8_FONT, Chip8Kind, processor::instruction::InstructionSetSuperChip8};
+use crate::{
+    CHIP8_FONT, Chip8Kind, SupportedRenderApiChip8, display::Chip8DisplayBackend,
+    processor::instruction::InstructionSetSuperChip8,
+};
 use arrayvec::ArrayVec;
 use bitvec::{
     field::BitField,
@@ -16,7 +19,7 @@ use rand::Rng;
 
 // Instruction interpreting can be clean and easy due to the chip8 enforcing 1 cycle = 1 instruction
 
-impl Chip8ProcessorTask {
+impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,
@@ -156,7 +159,7 @@ impl Chip8ProcessorTask {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Shr { register, value }) => {
                 let mut destination_value = state.registers.work_registers[register as usize];
 
-                if self.mode.load() == Chip8Kind::Chip8 || self.quirks.always_shr_in_place {
+                if self.mode.load() == Chip8Kind::Chip8 || self.config.always_shr_in_place {
                     destination_value = state.registers.work_registers[value as usize];
                 }
 
@@ -227,8 +230,7 @@ impl Chip8ProcessorTask {
 
                 let mut cursor = 0;
                 for buffer_section in buffer.chunks_mut(2) {
-                    self.essentials
-                        .memory_translation_table
+                    self.memory_translation_table
                         .read(
                             state.registers.index as usize + cursor,
                             self.config.cpu_address_space,
@@ -318,24 +320,21 @@ impl Chip8ProcessorTask {
                 let register_value = state.registers.work_registers[register as usize];
                 let [hundreds, tens, ones] = bcd_encode(register_value);
 
-                self.essentials
-                    .memory_translation_table
+                self.memory_translation_table
                     .write_le_value(
                         state.registers.index as usize,
                         self.config.cpu_address_space,
                         hundreds,
                     )
                     .unwrap();
-                self.essentials
-                    .memory_translation_table
+                self.memory_translation_table
                     .write_le_value(
                         state.registers.index as usize + 1,
                         self.config.cpu_address_space,
                         tens,
                     )
                     .unwrap();
-                self.essentials
-                    .memory_translation_table
+                self.memory_translation_table
                     .write_le_value(
                         state.registers.index as usize + 2,
                         self.config.cpu_address_space,
@@ -345,8 +344,7 @@ impl Chip8ProcessorTask {
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Save { count }) => {
                 for i in 0..=count {
-                    self.essentials
-                        .memory_translation_table
+                    self.memory_translation_table
                         .write(
                             state.registers.index as usize + i as usize,
                             self.config.cpu_address_space,
@@ -362,8 +360,7 @@ impl Chip8ProcessorTask {
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Restore { count }) => {
                 for i in 0..=count {
-                    self.essentials
-                        .memory_translation_table
+                    self.memory_translation_table
                         .read(
                             state.registers.index as usize + i as usize,
                             self.config.cpu_address_space,

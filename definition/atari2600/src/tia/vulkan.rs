@@ -1,12 +1,13 @@
-use super::{SCANLINE_LENGTH, State, Tia, TiaDisplayBackend, region::Region};
-use arc_swap::ArcSwap;
-use multiemu_machine::display::backend::{
-    RenderBackend,
-    vulkan::{VulkanComponentFramebuffer, VulkanRendering},
+use super::{SCANLINE_LENGTH, State, SupportedRenderApiTia, TiaDisplayBackend, region::Region};
+use crate::tia::{__seal_supported_render_api_tia, __seal_tia_display_backend};
+use multiemu_machine::{
+    component::RuntimeEssentials,
+    display::backend::{ComponentFramebuffer, vulkan::VulkanRendering},
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
 use palette::{Srgb, Srgba};
-use std::{rc::Rc, sync::Arc};
+use sealed::sealed;
+use std::sync::Arc;
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
     command_buffer::{
@@ -25,10 +26,63 @@ pub struct VulkanState {
     pub staging_buffer: Subbuffer<[Srgba<u8>]>,
     pub queue: Arc<Queue>,
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-    pub render_image: Rc<ArcSwap<Image>>,
+    pub render_image: ComponentFramebuffer<VulkanRendering>,
 }
 
-impl<R: Region> TiaDisplayBackend<R> for VulkanState {
+#[sealed]
+impl<R: Region> TiaDisplayBackend<R, VulkanRendering> for VulkanState {
+    fn new(
+        essentials: &RuntimeEssentials<VulkanRendering>,
+    ) -> (Self, ComponentFramebuffer<VulkanRendering>) {
+        let component_initialization_data = essentials.render_initialization_data.get().unwrap();
+
+        let staging_buffer = Buffer::from_iter(
+            component_initialization_data.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::TRANSFER_SRC,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                ..Default::default()
+            },
+            std::iter::repeat_n(
+                Srgba::new(0, 0, 0, 0xff),
+                SCANLINE_LENGTH as usize * R::TOTAL_SCANLINES as usize,
+            ),
+        )
+        .unwrap();
+
+        let render_image = ComponentFramebuffer::new(
+            Image::new(
+                component_initialization_data.memory_allocator.clone(),
+                ImageCreateInfo {
+                    image_type: ImageType::Dim2d,
+                    format: Format::R8G8B8A8_SRGB,
+                    extent: [SCANLINE_LENGTH as u32, R::TOTAL_SCANLINES as u32, 1],
+                    usage: ImageUsage::TRANSFER_SRC
+                        | ImageUsage::TRANSFER_DST
+                        | ImageUsage::SAMPLED,
+                    ..Default::default()
+                },
+                AllocationCreateInfo::default(),
+            )
+            .unwrap(),
+        );
+
+        (
+            VulkanState {
+                queue: component_initialization_data.best_queue(),
+                command_buffer_allocator: component_initialization_data
+                    .command_buffer_allocator
+                    .clone(),
+                staging_buffer,
+                render_image: render_image.clone(),
+            },
+            render_image,
+        )
+    }
+
     fn draw(&self, state: &State, position: Point2<u16>, hue: u8, luminosity: u8) {
         let real_color = R::color_to_srgb(hue, luminosity);
 
@@ -76,7 +130,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
             // Copy the staging buffer to the image
             .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
                 self.staging_buffer.clone(),
-                self.render_image.load_full(),
+                self.render_image.load(),
             ))
             .unwrap();
 
@@ -92,48 +146,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
     }
 }
 
-pub fn set_display_data<R: Region>(
-    display: &Tia<R>,
-    initialization_data: Rc<<VulkanRendering as RenderBackend>::ComponentInitializationData>,
-) -> Rc<VulkanComponentFramebuffer> {
-    let staging_buffer = Buffer::from_iter(
-        initialization_data.memory_allocator.clone(),
-        BufferCreateInfo {
-            usage: BufferUsage::TRANSFER_SRC,
-            ..Default::default()
-        },
-        AllocationCreateInfo {
-            memory_type_filter: MemoryTypeFilter::HOST_RANDOM_ACCESS,
-            ..Default::default()
-        },
-        std::iter::repeat_n(
-            Srgba::new(0, 0, 0, 0xff),
-            SCANLINE_LENGTH as usize * R::TOTAL_SCANLINES as usize,
-        ),
-    )
-    .unwrap();
-
-    let render_image = Rc::new(ArcSwap::new(
-        Image::new(
-            initialization_data.memory_allocator.clone(),
-            ImageCreateInfo {
-                image_type: ImageType::Dim2d,
-                format: Format::R8G8B8A8_SRGB,
-                extent: [SCANLINE_LENGTH as u32, R::TOTAL_SCANLINES as u32, 1],
-                usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
-                ..Default::default()
-            },
-            AllocationCreateInfo::default(),
-        )
-        .unwrap(),
-    ));
-
-    let _ = display.display_backend.set(Box::new(VulkanState {
-        queue: initialization_data.best_queue(),
-        command_buffer_allocator: initialization_data.command_buffer_allocator.clone(),
-        staging_buffer,
-        render_image: render_image.clone(),
-    }));
-
-    render_image
+#[sealed]
+impl SupportedRenderApiTia for VulkanRendering {
+    type Backend<R: Region> = VulkanState;
 }

@@ -1,13 +1,15 @@
-use crate::{Chip8InstructionDecoder, audio::Chip8Audio, display::Chip8Display, timer::Chip8Timer};
-
 use super::Chip8Kind;
+use crate::{
+    Chip8InstructionDecoder, SupportedRenderApiChip8, audio::Chip8Audio, display::Chip8Display,
+    timer::Chip8Timer,
+};
 use arrayvec::ArrayVec;
 use crossbeam::atomic::AtomicCell;
 use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials, component_ref::ComponentRef},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
     input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
     memory::AddressSpaceHandle,
 };
@@ -58,23 +60,6 @@ impl Default for Chip8ProcessorRegisters {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct Chip8ProcessorQuirks {
-    pub frequency: Ratio<u32>,
-    pub force_mode: Option<Chip8Kind>,
-    pub always_shr_in_place: bool,
-}
-
-impl Default for Chip8ProcessorQuirks {
-    fn default() -> Self {
-        Self {
-            frequency: Ratio::from_integer(700),
-            force_mode: None,
-            always_shr_in_place: false,
-        }
-    }
-}
-
 #[derive(Debug)]
 // #[cfg_attr(jit, repr(C))]
 pub struct ProcessorState {
@@ -93,6 +78,7 @@ impl Default for ProcessorState {
     }
 }
 
+#[derive(Debug)]
 pub struct Chip8Processor {
     state: Mutex<ProcessorState>,
 }
@@ -113,30 +99,26 @@ impl Component for Chip8Processor {
 }
 
 #[derive(Debug)]
-pub struct Chip8ProcessorConfig {
+/// FIXME: This generic leakage is quite unacceptable, find a way to get rid of it while introducing minimal runtime casting
+pub struct Chip8ProcessorConfig<R: SupportedRenderApiChip8> {
     pub cpu_address_space: AddressSpaceHandle,
-    pub display: ComponentRef<Chip8Display>,
+    pub display: ComponentRef<Chip8Display<R>>,
     pub audio: ComponentRef<Chip8Audio>,
     pub timer: ComponentRef<Chip8Timer>,
+    pub frequency: Ratio<u32>,
+    pub force_mode: Option<Chip8Kind>,
+    pub always_shr_in_place: bool,
 }
 
-impl FromConfig for Chip8Processor {
-    type Config = Chip8ProcessorConfig;
-    type Quirks = Chip8ProcessorQuirks;
+impl<R: SupportedRenderApiChip8> ComponentConfig<R> for Chip8ProcessorConfig<R> {
+    type Component = Chip8Processor;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        quirks: Self::Quirks,
-    ) where
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>)
+    where
         Self: Sized,
     {
-        let quirks = Arc::new(quirks);
-        let mode = Arc::new(AtomicCell::new(
-            quirks.force_mode.unwrap_or(Chip8Kind::Chip8),
-        ));
-        let frequency = quirks.frequency;
+        let essentials = component_builder.essentials();
+        let mode = Arc::new(AtomicCell::new(self.force_mode.unwrap_or(Chip8Kind::Chip8)));
         let state = Mutex::new(ProcessorState::default());
 
         let virtual_gamepad = VirtualGamepad::new(
@@ -150,16 +132,15 @@ impl FromConfig for Chip8Processor {
         component_builder
             .insert_gamepads([virtual_gamepad.clone()])
             .insert_task(
-                frequency,
+                self.frequency,
                 Chip8ProcessorTask {
                     instruction_decoder: Chip8InstructionDecoder,
                     virtual_gamepad,
-                    essentials,
-                    quirks,
+                    memory_translation_table: essentials.memory_translation_table.clone(),
                     mode,
-                    config,
+                    config: self,
                 },
             )
-            .build_global(Self { state });
+            .build_global(Chip8Processor { state });
     }
 }

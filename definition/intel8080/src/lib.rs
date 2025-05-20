@@ -1,9 +1,9 @@
 use enumflags2::bitflags;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
 };
-use std::sync::Arc;
 
 // mod decode;
 // mod instruction;
@@ -50,8 +50,9 @@ enum I8080FlagRegister {
     Carry = 0b0000_0001,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum I8080Kind {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum Intel8080Kind {
+    #[default]
     Intel8080,
     Zilog80,
     SharpLr35902,
@@ -59,46 +60,40 @@ pub enum I8080Kind {
 
 #[derive(Debug)]
 pub struct Intel8080 {
-    config: I8080Config,
+    config: Intel8080Config,
 }
 
 impl Component for Intel8080 {}
 
-#[derive(Debug)]
-pub struct I8080Config {
-    pub kind: I8080Kind,
+#[derive(Default, Debug)]
+pub struct Intel8080Config {
+    pub kind: Intel8080Kind,
 }
 
-impl I8080Config {
+impl Intel8080Config {
     pub fn lr35902() -> Self {
         Self {
-            kind: I8080Kind::SharpLr35902,
+            kind: Intel8080Kind::SharpLr35902,
         }
     }
 
     pub fn z80() -> Self {
         Self {
-            kind: I8080Kind::Zilog80,
+            kind: Intel8080Kind::Zilog80,
         }
     }
 
     pub fn i8080() -> Self {
         Self {
-            kind: I8080Kind::Intel8080,
+            kind: Intel8080Kind::Intel8080,
         }
     }
 }
 
-impl FromConfig for Intel8080 {
-    type Config = I8080Config;
-    type Quirks = ();
+impl<R: RenderApi> ComponentConfig<R> for Intel8080Config {
+    type Component = Intel8080;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        _essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
         todo!()
     }
 }

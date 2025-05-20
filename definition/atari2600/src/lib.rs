@@ -1,32 +1,35 @@
-use cartridge::{Atari2600Cartridge, Atari2600CartridgeConfig};
+use cartridge::Atari2600CartridgeConfig;
 use codes_iso_3166::part_1::CountryCode;
-use gamepad::joystick::{Atari2600Joystick, Atari2600JoystickConfig};
+use gamepad::joystick::Atari2600JoystickConfig;
 use multiemu_config::Environment;
 use multiemu_definition_misc::{
-    memory::mirror::{MirrorMemory, MirrorMemoryConfig, PermissionSpace},
-    mos6532_riot::{M6532RiotConfig, Mos6532Riot},
+    memory::mirror::{MirrorMemoryConfig, PermissionSpace},
+    mos6532_riot::Mos6532RiotConfig,
 };
-use multiemu_definition_mos6502::{Mos6502, Mos6502Config, Mos6502Kind};
-use multiemu_machine::{builder::MachineBuilder, display::shader::ShaderCache};
+use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
+use multiemu_machine::{MachineFactory, builder::MachineBuilder, display::shader::ShaderCache};
 use multiemu_rom::{
     id::RomId,
     manager::{ROM_INFORMATION_TABLE, RomManager},
     system::{AtariSystem, GameSystem},
 };
 use num::rational::Ratio;
+use sealed::sealed;
 use std::{
+    marker::PhantomData,
     ops::RangeInclusive,
     sync::{Arc, RwLock},
 };
 use strum::Display;
 use tia::{
-    Tia, TiaConfig,
-    region::{Region, ntsc::Ntsc, pal::Pal},
+    SupportedRenderApiTia,
+    config::TiaConfig,
+    region::{Region, ntsc::Ntsc, pal::Pal, secam::Secam},
 };
 
 mod cartridge;
 mod gamepad;
-pub mod tia;
+mod tia;
 
 #[derive(Debug, Clone, Copy, Display, PartialEq, Eq, PartialOrd, Ord)]
 enum RegionSelection {
@@ -35,183 +38,230 @@ enum RegionSelection {
     Secam,
 }
 
-/// Construct a new atari 2600 machine
-pub fn manifest(
-    user_specified_roms: Vec<RomId>,
-    rom_manager: Arc<RomManager>,
-    environment: Arc<RwLock<Environment>>,
-    shader_cache: ShaderCache,
-) -> MachineBuilder {
-    let machine = MachineBuilder::new(
-        GameSystem::Atari(AtariSystem::Atari2600),
-        rom_manager.clone(),
-        environment,
-        shader_cache,
-    );
+#[sealed]
+// Smelly i know
+#[allow(private_bounds)]
+pub trait SupportedRenderApiAtari2600: SupportedRenderApiTia {}
 
-    assert_eq!(
-        user_specified_roms.len(),
-        1,
-        "Atari 2600 only requires 1 ROM"
-    );
+#[sealed]
+impl<A: SupportedRenderApiTia> SupportedRenderApiAtari2600 for A {}
 
-    // Atari 2600 CPU only has 13 address lines
-    let (machine, cpu_address_space) = machine.insert_address_space("cpu", 13);
+#[derive(Default, Debug)]
+pub struct Atari2600;
 
-    // Extract information on the rom loaded
-    let database_transaction = rom_manager.rom_information.begin_read().unwrap();
-    let table = database_transaction
-        .open_multimap_table(ROM_INFORMATION_TABLE)
-        .unwrap();
-    let rom_info = table
-        .get(&user_specified_roms[0])
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap()
-        .value();
+impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
+    fn construct(
+        &self,
+        user_specified_roms: Vec<RomId>,
+        rom_manager: Arc<RomManager>,
+        environment: Arc<RwLock<Environment>>,
+        shader_cache: ShaderCache,
+    ) -> MachineBuilder<R> {
+        let machine = MachineBuilder::new(
+            GameSystem::Atari(AtariSystem::Atari2600),
+            rom_manager.clone(),
+            environment,
+            shader_cache,
+        );
 
-    let region = if rom_info.regions.contains(&CountryCode::US)
-        || rom_info.regions.contains(&CountryCode::JP)
-    {
-        RegionSelection::Ntsc
-    } else if rom_info.regions.contains(&CountryCode::FR)
-        || rom_info.regions.contains(&CountryCode::SU)
-    {
-        RegionSelection::Secam
-    } else {
-        RegionSelection::Pal
-    };
+        assert_eq!(
+            user_specified_roms.len(),
+            1,
+            "Atari 2600 only requires 1 ROM"
+        );
 
-    let (machine, _) = machine.insert_component::<Atari2600Cartridge>(
-        "cartridge",
-        Atari2600CartridgeConfig {
-            rom: user_specified_roms[0],
-            cpu_address_space,
-        },
-    );
+        // Atari 2600 CPU only has 13 address lines
+        let (machine, cpu_address_space) = machine.insert_address_space("cpu", 13);
 
-    let (machine, _) = machine.insert_component::<MirrorMemory>(
-        "tia_write_mirror",
-        tia_write_register_mirror_ranges().fold(
-            MirrorMemoryConfig::default(),
-            |config, source_addresses| {
-                config.insert_range(
-                    source_addresses,
-                    cpu_address_space,
-                    0x0000..=0x003f,
-                    cpu_address_space,
-                    [PermissionSpace::Write],
-                )
+        // Extract information on the rom loaded
+        let database_transaction = rom_manager.rom_information.begin_read().unwrap();
+        let table = database_transaction
+            .open_multimap_table(ROM_INFORMATION_TABLE)
+            .unwrap();
+        let rom_info = table
+            .get(&user_specified_roms[0])
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .value();
+
+        let region = if rom_info.regions.contains(&CountryCode::US)
+            || rom_info.regions.contains(&CountryCode::JP)
+        {
+            RegionSelection::Ntsc
+        } else if rom_info.regions.contains(&CountryCode::FR)
+            || rom_info.regions.contains(&CountryCode::SU)
+        {
+            RegionSelection::Secam
+        } else {
+            RegionSelection::Pal
+        };
+
+        let (machine, _) = machine.insert_component(
+            "cartridge",
+            Atari2600CartridgeConfig {
+                rom: user_specified_roms[0],
+                cpu_address_space,
+                force_cart_type: None,
             },
-        ),
-    );
+        );
 
-    let (machine, _) = machine.insert_component::<MirrorMemory>(
-        "tia_read_mirror",
-        tia_read_register_mirror_ranges().fold(
-            MirrorMemoryConfig::default(),
-            |config, source_addresses| {
-                config.insert_range(
-                    source_addresses,
-                    cpu_address_space,
-                    0x0000..=0x000f,
-                    cpu_address_space,
-                    [PermissionSpace::Read],
-                )
-            },
-        ),
-    );
-
-    // The mirrors.... yipee.........
-    let (machine, _) = machine.insert_component::<MirrorMemory>(
-        "mos6532_riot_mirrors",
-        riot_register_mirror_ranges()
-            .chain(riot_ram_mirror_ranges())
-            .fold(
+        let (machine, _) = machine.insert_component(
+            "tia_write_mirror",
+            tia_write_register_mirror_ranges().fold(
                 MirrorMemoryConfig::default(),
-                |config, (source_addresses, destination_addresses)| {
+                |config, source_addresses| {
                     config.insert_range(
                         source_addresses,
                         cpu_address_space,
-                        destination_addresses,
+                        0x0000..=0x003f,
                         cpu_address_space,
-                        [PermissionSpace::Read, PermissionSpace::Write],
+                        [PermissionSpace::Write],
                     )
                 },
             ),
-    );
+        );
 
-    let (machine, mos6532_riot) = match region {
-        RegionSelection::Ntsc => {
-            let (machine, cpu) = machine.insert_component::<Mos6502>(
-                "mos_6502",
-                Mos6502Config {
-                    frequency: Ntsc::frequency() / Ratio::from_integer(3),
-                    kind: Mos6502Kind::M6507,
-                    assigned_address_space: cpu_address_space,
+        let (machine, _) = machine.insert_component(
+            "tia_read_mirror",
+            tia_read_register_mirror_ranges().fold(
+                MirrorMemoryConfig::default(),
+                |config, source_addresses| {
+                    config.insert_range(
+                        source_addresses,
+                        cpu_address_space,
+                        0x0000..=0x000f,
+                        cpu_address_space,
+                        [PermissionSpace::Read],
+                    )
                 },
-            );
+            ),
+        );
 
-            let (machine, mos6532_riot) = machine.insert_component::<Mos6532Riot>(
-                "mos6532_riot",
-                M6532RiotConfig {
-                    frequency: Ntsc::frequency() / Ratio::from_integer(3),
-                    ram_assigned_address: 0x080,
-                    registers_assigned_address: 0x280,
-                    assigned_address_space: cpu_address_space,
-                },
-            );
+        // The mirrors.... yipee.........
+        let (machine, _) = machine.insert_component(
+            "mos6532_riot_mirrors",
+            riot_register_mirror_ranges()
+                .chain(riot_ram_mirror_ranges())
+                .fold(
+                    MirrorMemoryConfig::default(),
+                    |config, (source_addresses, destination_addresses)| {
+                        config.insert_range(
+                            source_addresses,
+                            cpu_address_space,
+                            destination_addresses,
+                            cpu_address_space,
+                            [PermissionSpace::Read, PermissionSpace::Write],
+                        )
+                    },
+                ),
+        );
 
-            let (machine, _) = machine.insert_component::<Tia<Ntsc>>(
-                "tia",
-                TiaConfig {
-                    cpu,
-                    cpu_address_space,
-                },
-            );
+        let (machine, mos6532_riot) = match region {
+            RegionSelection::Ntsc => {
+                let (machine, cpu) = machine.insert_component(
+                    "mos_6502",
+                    Mos6502Config {
+                        frequency: Ntsc::frequency() / Ratio::from_integer(3),
+                        kind: Mos6502Kind::M6507,
+                        assigned_address_space: cpu_address_space,
+                        broken_ror: false,
+                    },
+                );
 
-            (machine, mos6532_riot)
-        }
-        RegionSelection::Pal => {
-            let (machine, cpu) = machine.insert_component::<Mos6502>(
-                "mos_6502",
-                Mos6502Config {
-                    frequency: Pal::frequency() / Ratio::from_integer(3),
-                    kind: Mos6502Kind::M6507,
-                    assigned_address_space: cpu_address_space,
-                },
-            );
+                let (machine, mos6532_riot) = machine.insert_component(
+                    "mos6532_riot",
+                    Mos6532RiotConfig {
+                        frequency: Ntsc::frequency() / Ratio::from_integer(3),
+                        ram_assigned_address: 0x080,
+                        registers_assigned_address: 0x280,
+                        assigned_address_space: cpu_address_space,
+                    },
+                );
 
-            let (machine, mos6532_riot) = machine.insert_component::<Mos6532Riot>(
-                "mos6532_riot",
-                M6532RiotConfig {
-                    frequency: Pal::frequency() / Ratio::from_integer(3),
-                    ram_assigned_address: 0x080,
-                    registers_assigned_address: 0x280,
-                    assigned_address_space: cpu_address_space,
-                },
-            );
+                let (machine, _) = machine.insert_component(
+                    "tia",
+                    TiaConfig::<Ntsc> {
+                        cpu,
+                        cpu_address_space,
+                        _phantom: PhantomData,
+                    },
+                );
 
-            let (machine, _) = machine.insert_component::<Tia<Pal>>(
-                "tia",
-                TiaConfig {
-                    cpu,
-                    cpu_address_space,
-                },
-            );
+                (machine, mos6532_riot)
+            }
+            RegionSelection::Pal => {
+                let (machine, cpu) = machine.insert_component(
+                    "mos_6502",
+                    Mos6502Config {
+                        frequency: Pal::frequency() / Ratio::from_integer(3),
+                        kind: Mos6502Kind::M6507,
+                        assigned_address_space: cpu_address_space,
+                        broken_ror: false,
+                    },
+                );
 
-            (machine, mos6532_riot)
-        }
-        RegionSelection::Secam => todo!(),
-    };
+                let (machine, mos6532_riot) = machine.insert_component(
+                    "mos6532_riot",
+                    Mos6532RiotConfig {
+                        frequency: Pal::frequency() / Ratio::from_integer(3),
+                        ram_assigned_address: 0x080,
+                        registers_assigned_address: 0x280,
+                        assigned_address_space: cpu_address_space,
+                    },
+                );
 
-    let (machine, _) = machine.insert_component::<Atari2600Joystick>(
-        "joystick",
-        Atari2600JoystickConfig { mos6532_riot },
-    );
+                let (machine, _) = machine.insert_component(
+                    "tia",
+                    TiaConfig::<Pal> {
+                        cpu,
+                        cpu_address_space,
+                        _phantom: PhantomData,
+                    },
+                );
 
-    machine
+                (machine, mos6532_riot)
+            }
+            RegionSelection::Secam => {
+                let (machine, cpu) = machine.insert_component(
+                    "mos_6502",
+                    Mos6502Config {
+                        frequency: Secam::frequency() / Ratio::from_integer(3),
+                        kind: Mos6502Kind::M6507,
+                        assigned_address_space: cpu_address_space,
+                        broken_ror: false,
+                    },
+                );
+
+                let (machine, mos6532_riot) = machine.insert_component(
+                    "mos6532_riot",
+                    Mos6532RiotConfig {
+                        frequency: Secam::frequency() / Ratio::from_integer(3),
+                        ram_assigned_address: 0x080,
+                        registers_assigned_address: 0x280,
+                        assigned_address_space: cpu_address_space,
+                    },
+                );
+
+                let (machine, _) = machine.insert_component(
+                    "tia",
+                    TiaConfig::<Secam> {
+                        cpu,
+                        cpu_address_space,
+                        _phantom: PhantomData,
+                    },
+                );
+
+                (machine, mos6532_riot)
+            }
+        };
+
+        let (machine, _) =
+            machine.insert_component("joystick", Atari2600JoystickConfig { mos6532_riot });
+
+        machine
+    }
 }
 
 // These three functions hardcode mirror addresses instead of trying to mechanically replicate partial address decoding

@@ -1,57 +1,56 @@
 use crate::{
     builder::ComponentBuilder,
     component::Component,
+    display::backend::RenderApi,
     memory::{
         AddressSpaceHandle,
         callbacks::{ReadMemory, WriteMemory},
+        memory_translation_table::MemoryHandle,
     },
 };
-use std::{ops::RangeInclusive, sync::Arc};
+use std::ops::RangeInclusive;
 
-impl<C: Component> ComponentBuilder<'_, C> {
+impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {
     /// Insert a callback into the memory translation table for reading
-    pub fn insert_read_memory<R: ReadMemory>(
+    pub fn insert_read_memory<M: ReadMemory>(
         self,
-        callback: impl Into<Arc<R>>,
+        callback: M,
         assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
-    ) -> Self {
-        self.machine_builder
+    ) -> (Self, MemoryHandle) {
+        let memory_handle = self
+            .machine_builder
             .essentials
             .memory_translation_table
-            .insert_read_memory(callback.into(), assigned_addresses);
-        self
+            .insert_read_memory(callback, assigned_addresses);
+
+        (self, memory_handle)
     }
 
-    pub fn insert_write_memory<W: WriteMemory>(
+    pub fn insert_write_memory<M: WriteMemory>(
         self,
-        callback: impl Into<Arc<W>>,
+        callback: M,
         assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
-    ) -> Self {
-        self.machine_builder
-            .essentials
-            .memory_translation_table
-            .insert_write_memory(callback.into(), assigned_addresses);
-
-        self
-    }
-
-    pub fn insert_rw_memory<RW: ReadMemory + WriteMemory>(
-        self,
-        callback: impl Into<Arc<RW>>,
-        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
-    ) -> Self {
-        let callback = callback.into();
-        let assigned_addresses: Vec<_> = assigned_addresses.into_iter().collect();
-
-        self.machine_builder
-            .essentials
-            .memory_translation_table
-            .insert_read_memory(callback.clone(), assigned_addresses.clone());
-        self.machine_builder
+    ) -> (Self, MemoryHandle) {
+        let memory_handle = self
+            .machine_builder
             .essentials
             .memory_translation_table
             .insert_write_memory(callback, assigned_addresses);
 
-        self
+        (self, memory_handle)
+    }
+
+    pub fn insert_memory<M: ReadMemory + WriteMemory>(
+        self,
+        callback: M,
+        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
+    ) -> (Self, MemoryHandle) {
+        let memory_handle = self
+            .machine_builder
+            .essentials
+            .memory_translation_table
+            .insert_memory(callback, assigned_addresses);
+
+        (self, memory_handle)
     }
 }

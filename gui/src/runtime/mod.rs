@@ -3,7 +3,7 @@ use multiemu_config::{Environment, input::Hotkey};
 use multiemu_input::{GamepadId, Input, InputState};
 use multiemu_machine::{
     Machine,
-    display::{backend::RenderBackend, shader::ShaderCache},
+    display::{RenderExtensions, backend::RenderApi, shader::ShaderCache},
     input::VirtualGamepadId,
 };
 use multiemu_rom::{
@@ -30,7 +30,7 @@ pub mod nintendo_3ds;
 pub use nintendo_3ds::renderer::software::SoftwareRenderingRuntime;
 
 use crate::{
-    build_machine::build_machine,
+    build_machine::MachineFactories,
     gui::menu::{MenuState, UiOutput},
     rendering_backend::{DisplayApiHandle, RenderingBackendState},
 };
@@ -60,8 +60,8 @@ pub trait Platform<RS: RenderingBackendState> {
     fn run(runtime: Runtime<RS>) -> Result<(), Box<dyn std::error::Error>>;
 }
 
-enum MaybeMachine {
-    Machine(Machine),
+enum MaybeMachine<R: RenderApi> {
+    Machine(Machine<R>),
     PendingMachine {
         game_system: GameSystem,
         user_specified_roms: Vec<RomId>,
@@ -73,12 +73,12 @@ pub struct WindowingContext<RS: RenderingBackendState> {
     state: RS,
 }
 
-enum RuntimeMode {
-    Machine(Machine),
-    Gui(Option<MaybeMachine>),
+enum RuntimeMode<R: RenderApi> {
+    Machine(Machine<R>),
+    Gui(Option<MaybeMachine<R>>),
 }
 
-impl Debug for RuntimeMode {
+impl<R: RenderApi> Debug for RuntimeMode<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RuntimeMode::Machine(_) => write!(f, "RuntimeMode::Machine"),
@@ -88,7 +88,7 @@ impl Debug for RuntimeMode {
 }
 
 pub struct Runtime<RS: RenderingBackendState> {
-    mode: RuntimeMode,
+    mode: RuntimeMode<RS::RenderApi>,
     gamepad_mapping: HashMap<GamepadId, VirtualGamepadId>,
     pub environment: Arc<RwLock<Environment>>,
     pub rom_manager: Arc<RomManager>,
@@ -101,10 +101,15 @@ pub struct Runtime<RS: RenderingBackendState> {
     previous_window_size: Vector2<u16>,
     currently_key_states: HashMap<GamepadId, HashMap<Input, InputState>>,
     was_egui_context_reset: bool,
+    machine_factories: MachineFactories<RS::RenderApi>,
 }
 
 impl<RS: RenderingBackendState> Runtime<RS> {
-    pub fn new(environment: Arc<RwLock<Environment>>, rom_manager: Arc<RomManager>) -> Self {
+    pub fn new(
+        environment: Arc<RwLock<Environment>>,
+        rom_manager: Arc<RomManager>,
+        machine_factories: MachineFactories<RS::RenderApi>,
+    ) -> Self {
         let egui_context = egui::Context::default();
         setup_theme(&egui_context);
         let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
@@ -126,6 +131,7 @@ impl<RS: RenderingBackendState> Runtime<RS> {
             previous_window_size: Vector2::zeros(),
             currently_key_states: HashMap::new(),
             was_egui_context_reset: false,
+            machine_factories,
         }
     }
 
@@ -140,11 +146,6 @@ impl<RS: RenderingBackendState> Runtime<RS> {
                 unreachable!("Display API handle should be set before the machine is created")
             }
             RuntimeMode::Gui(None) => {
-                let preferred_extensions =
-                    <RS::RenderBackend as RenderBackend>::ContextExtensionSpecification::default();
-                let required_extensions =
-                    <RS::RenderBackend as RenderBackend>::ContextExtensionSpecification::default();
-
                 self.egui_context = egui::Context::default();
                 setup_theme(&self.egui_context);
                 self.was_egui_context_reset = true;
@@ -153,8 +154,7 @@ impl<RS: RenderingBackendState> Runtime<RS> {
                     display_api_handle.clone(),
                     self.environment.clone(),
                     self.shader_cache.clone(),
-                    preferred_extensions,
-                    required_extensions,
+                    RenderExtensions::default(),
                 )
                 .unwrap();
 
@@ -183,18 +183,13 @@ impl<RS: RenderingBackendState> Runtime<RS> {
         game_system: GameSystem,
         user_specified_roms: Vec<RomId>,
     ) {
-        let machine_builder = build_machine(
+        let machine_builder = self.machine_factories.construct_machine(
             game_system,
             user_specified_roms,
             self.rom_manager.clone(),
             self.environment.clone(),
             self.shader_cache.clone(),
         );
-
-        let preferred_extensions = machine_builder
-            .preferred_display_extensions::<<RS as RenderingBackendState>::RenderBackend>();
-        let required_extensions = machine_builder
-            .required_display_extensions::<<RS as RenderingBackendState>::RenderBackend>();
 
         // Drop old machine otherwise it will segfault when we try to use the new vulkan context
         self.mode = RuntimeMode::Gui(None);
@@ -203,17 +198,17 @@ impl<RS: RenderingBackendState> Runtime<RS> {
         setup_theme(&self.egui_context);
         self.was_egui_context_reset = true;
 
+        let render_extensions = machine_builder.render_extensions();
+
         let render_backend_state = RS::new(
             display_api_handle.clone(),
             self.environment.clone(),
             self.shader_cache.clone(),
-            preferred_extensions,
-            required_extensions,
+            render_extensions,
         )
         .unwrap();
 
-        let machine = machine_builder
-            .build::<RS::RenderBackend>(render_backend_state.component_initialization_data());
+        let machine = machine_builder.build(render_backend_state.component_initialization_data());
 
         let windowing = WindowingContext {
             display_api_handle,
@@ -238,10 +233,12 @@ impl<RS: RenderingBackendState> Runtime<RS> {
     pub fn new_with_machine(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
+        machine_factories: MachineFactories<RS::RenderApi>,
+
         game_system: GameSystem,
         user_specified_roms: Vec<RomId>,
     ) -> Self {
-        let mut me = Self::new(environment.clone(), rom_manager.clone());
+        let mut me = Self::new(environment.clone(), rom_manager.clone(), machine_factories);
 
         me.mode = RuntimeMode::Gui(Some(MaybeMachine::PendingMachine {
             game_system,
@@ -337,7 +334,21 @@ impl<RS: RenderingBackendState> Runtime<RS> {
             RuntimeMode::Machine(machine) => {
                 let start_period = Instant::now();
 
-                machine.run(self.previous_frame_time, self.previous_frame_render_time);
+                let start_schedule_period = std::time::Instant::now();
+                machine.scheduler.run();
+                let elapsed = start_schedule_period.elapsed();
+                let scheduler_alloted_time =
+                    self.previous_frame_time - self.previous_frame_render_time;
+
+                match elapsed.cmp(&scheduler_alloted_time) {
+                    std::cmp::Ordering::Less => {
+                        machine.scheduler.speed_up();
+                    }
+                    std::cmp::Ordering::Equal => {}
+                    std::cmp::Ordering::Greater => {
+                        machine.scheduler.slow_down();
+                    }
+                }
 
                 let start_frame_render_period = Instant::now();
                 windowing.state.redraw(machine);

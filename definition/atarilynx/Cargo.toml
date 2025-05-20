@@ -2,6 +2,7 @@
 name = "multiemu-definition-atarilynx"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 multiemu-rom = { workspace = true }
@@ -21,7 +22,6 @@ serde = { workspace = true }
 num = { workspace = true }
 nalgebra = { workspace = true }
 palette = { workspace = true }
-arc-swap = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 multiemu-definition-misc = { workspace = true }

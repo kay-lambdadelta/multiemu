@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use num::rational::Ratio;
 use palette::Srgb;
 
@@ -5,7 +7,7 @@ pub mod ntsc;
 pub mod pal;
 pub mod secam;
 
-pub trait Region: 'static {
+pub trait Region: Send + Sync + Debug + 'static {
     const REFRESH_RATE: Ratio<u32>;
     const TOTAL_SCANLINES: u16;
 

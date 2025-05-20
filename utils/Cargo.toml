@@ -21,14 +21,12 @@ codes-iso-3166 = { workspace = true }
 scc = { workspace = true }
 strum = { workspace = true }
 quick-xml = { version = "0.37", features = ["serialize"] }
-zip = { version = "2.6", default-features = false, features = [
+zip = { version = "3.0", default-features = false, features = [
     "zstd",
     "bzip2",
     "deflate64",
     "deflate",
     "lzma",
-    # Requires a old version of liblzma
-    #"xz",
 ] }
 strsim = "0.11"
 nod = "1.4"

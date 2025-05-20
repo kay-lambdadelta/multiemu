@@ -97,10 +97,7 @@ impl ShaderCache {
         let hash_string = HEXLOWER_PERMISSIVE.encode(&hash);
 
         let environment_guard = self.environment.read().unwrap();
-        let shader_path = environment_guard
-            .shader_cache_directory
-            .join(&hash_string)
-            .with_extension("mpk");
+        let shader_path = environment_guard.shader_cache_directory.join(&hash_string);
 
         create_dir_all(&environment_guard.shader_cache_directory)?;
         let mut file = File::options()

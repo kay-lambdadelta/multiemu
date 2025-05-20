@@ -1,6 +1,5 @@
 use super::ContextExtensionSpecification;
-use crate::display::RenderBackend;
-use arc_swap::ArcSwap;
+use crate::display::RenderApi;
 use multiemu_config::graphics::GraphicsApi;
 use std::sync::Arc;
 use vulkano::{
@@ -10,6 +9,7 @@ use vulkano::{
     memory::allocator::StandardMemoryAllocator,
 };
 
+#[derive(Default, Debug)]
 pub struct VulkanRendering;
 
 #[derive(Debug, Default, Clone)]
@@ -28,15 +28,14 @@ impl ContextExtensionSpecification for VulkanContextExtensionSpecification {
     }
 }
 
-pub type VulkanComponentFramebuffer = ArcSwap<Image>;
-
-impl RenderBackend for VulkanRendering {
+impl RenderApi for VulkanRendering {
     const GRAPHICS_API: GraphicsApi = GraphicsApi::Vulkan;
     type ComponentInitializationData = VulkanComponentInitializationData;
-    type ComponentFramebuffer = VulkanComponentFramebuffer;
+    type ComponentFramebufferInner = Image;
     type ContextExtensionSpecification = VulkanContextExtensionSpecification;
 }
 
+#[derive(Debug)]
 pub struct VulkanComponentInitializationData {
     pub device: Arc<Device>,
     pub memory_allocator: Arc<StandardMemoryAllocator>,

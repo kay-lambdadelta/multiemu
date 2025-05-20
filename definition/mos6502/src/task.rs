@@ -4,7 +4,8 @@ use crate::{
 };
 use arrayvec::ArrayVec;
 use multiemu_machine::{
-    component::RuntimeEssentials, processor::decoder::InstructionDecoder, scheduler::task::Task,
+    memory::memory_translation_table::MemoryTranslationTable,
+    processor::decoder::InstructionDecoder, task::Task,
 };
 use std::{
     collections::VecDeque,
@@ -13,7 +14,7 @@ use std::{
 };
 
 pub struct Mos6502Task {
-    pub essentials: Arc<RuntimeEssentials>,
+    pub memory_translation_table: MemoryTranslationTable,
     pub instruction_decoder: Mos6502InstructionDecoder,
     pub config: Arc<Mos6502Config>,
 }
@@ -36,7 +37,7 @@ impl Task<Mos6502> for Mos6502Task {
                         .decode(
                             state.program as usize,
                             self.config.assigned_address_space,
-                            &self.essentials.memory_translation_table,
+                            &self.memory_translation_table,
                         )
                         .unwrap();
 
@@ -183,7 +184,6 @@ impl Task<Mos6502> for Mos6502Task {
                     match queue.pop_front() {
                         Some(LoadStep::Data) => {
                             let byte = self
-                                .essentials
                                 .memory_translation_table
                                 .read_le_value(
                                     state.address_bus as usize,
@@ -236,12 +236,10 @@ impl Task<Mos6502> for Mos6502Task {
                 }
                 ExecutionMode::Reset => {
                     let program = [
-                        self.essentials
-                            .memory_translation_table
+                        self.memory_translation_table
                             .read_le_value(RESET_VECTOR, self.config.assigned_address_space)
                             .unwrap_or_default(),
-                        self.essentials
-                            .memory_translation_table
+                        self.memory_translation_table
                             .read_le_value(RESET_VECTOR + 1, self.config.assigned_address_space)
                             .unwrap_or_default(),
                     ];
@@ -258,7 +256,7 @@ impl Task<Mos6502> for Mos6502Task {
                             period -= 1;
                         }
                         Some(StoreStep::Data { value }) => {
-                            let _ = self.essentials.memory_translation_table.write_le_value(
+                            let _ = self.memory_translation_table.write_le_value(
                                 state.address_bus as usize,
                                 self.config.assigned_address_space,
                                 value,
@@ -269,7 +267,7 @@ impl Task<Mos6502> for Mos6502Task {
                         }
                         Some(StoreStep::PushStack { data }) => {
                             state.stack = state.stack.wrapping_sub(1);
-                            let _ = self.essentials.memory_translation_table.write_le_value(
+                            let _ = self.memory_translation_table.write_le_value(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 self.config.assigned_address_space,
                                 data,

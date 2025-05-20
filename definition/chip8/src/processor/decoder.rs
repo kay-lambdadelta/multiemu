@@ -45,9 +45,11 @@ fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
                 [0x0, 0xe, 0xe] => Chip8InstructionSet::Chip8(InstructionSetChip8::Rtrn),
                 [0x0, 0xf, 0xe] => Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Lores),
                 [0x0, 0xf, 0xf] => Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Hires),
-                [0x0, 0xc, _] => Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scroll {
-                    direction: ScrollDirection::Down { amount: syscall[2] },
-                }),
+                [0x0, 0xc, _] => {
+                    Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scroll {
+                        direction: ScrollDirection::Down { amount: syscall[2] },
+                    })
+                }
                 [0x0, 0xf, 0xb] => {
                     Chip8InstructionSet::SuperChip8(InstructionSetSuperChip8::Scroll {
                         direction: ScrollDirection::Right,

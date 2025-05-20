@@ -4,21 +4,20 @@ use enumflags2::{BitFlags, bitflags};
 use instruction::Mos6502InstructionSet;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
     memory::AddressSpaceHandle,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
-    io::{Read, Write},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
 use task::Mos6502Task;
-use versions::SemVer;
 
 mod decoder;
 mod instruction;
@@ -188,6 +187,7 @@ pub struct Mos6502Config {
     pub frequency: Ratio<u32>,
     pub assigned_address_space: AddressSpaceHandle,
     pub kind: Mos6502Kind,
+    pub broken_ror: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -245,65 +245,30 @@ impl Mos6502 {
 }
 
 impl Component for Mos6502 {
-    fn save(&self, mut entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
-        let snapshot = Snapshot {
-            state: self.state.lock().unwrap().clone(),
-            rdy: self.rdy.load(Ordering::Relaxed),
-        };
-
-        bincode::serde::encode_into_std_write(snapshot, &mut entry, bincode::config::standard())?;
-
-        Ok(SemVer::new("1.0.0").unwrap())
-    }
-    fn load(
-        &self,
-        mut entry: &mut dyn Read,
-        version: SemVer,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        assert_eq!(
-            version,
-            SemVer::new("1.0.0").unwrap(),
-            "Incompatible snapshot version"
-        );
-
-        let snapshot: Snapshot =
-            bincode::serde::decode_from_std_read(&mut entry, bincode::config::standard())?;
-
-        *self.state.lock().unwrap() = snapshot.state;
-        self.rdy.store(snapshot.rdy, Ordering::Relaxed);
-
-        Ok(())
+    fn reset(&self) {
+        self.set_rdy(true);
+        *self.state.lock().unwrap() = ProcessorState::default();
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct Mos6502Quirks {
-    pub broken_ror: bool,
-}
+impl<R: RenderApi> ComponentConfig<R> for Mos6502Config {
+    type Component = Mos6502;
 
-impl FromConfig for Mos6502 {
-    type Config = Mos6502Config;
-    type Quirks = Mos6502Quirks;
-
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
-        let config = Arc::new(config);
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+        let config = Arc::new(self);
         let rdy = Arc::new(AtomicBool::new(true));
+        let essentials = component_builder.essentials();
 
         component_builder
             .insert_task(
                 config.frequency,
                 Mos6502Task {
-                    essentials: essentials.clone(),
+                    memory_translation_table: essentials.memory_translation_table.clone(),
                     instruction_decoder: Mos6502InstructionDecoder,
                     config: config.clone(),
                 },
             )
-            .build_global(Self {
+            .build_global(Mos6502 {
                 state: Mutex::default(),
                 rdy,
             });

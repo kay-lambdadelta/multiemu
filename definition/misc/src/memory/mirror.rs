@@ -1,6 +1,7 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
     memory::{
         AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
         callbacks::{ReadMemory, WriteMemory},
@@ -8,7 +9,7 @@ use multiemu_machine::{
     },
 };
 use rangemap::RangeInclusiveMap;
-use std::{collections::HashMap, ops::RangeInclusive, sync::Arc};
+use std::{collections::HashMap, ops::RangeInclusive};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PermissionSpace {
@@ -63,16 +64,10 @@ pub struct MirrorMemory;
 
 impl Component for MirrorMemory {}
 
-impl FromConfig for MirrorMemory {
-    type Config = MirrorMemoryConfig;
-    type Quirks = ();
+impl<R: RenderApi> ComponentConfig<R> for MirrorMemoryConfig {
+    type Component = MirrorMemory;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
+    fn build_component(self, mut component_builder: ComponentBuilder<R, Self::Component>) {
         // TODO: A bit complex
         for (
             permission,
@@ -80,7 +75,7 @@ impl FromConfig for MirrorMemory {
             source_addresses,
             destination_address_space,
             destination_address,
-        ) in config
+        ) in self
             .assigned_ranges
             .into_iter()
             .flat_map(|(permission, map)| {
@@ -103,31 +98,29 @@ impl FromConfig for MirrorMemory {
                     })
             })
         {
-            match permission {
-                PermissionSpace::Read => {
-                    essentials.memory_translation_table.insert_read_memory(
-                        MirrorMemoryCallbacks {
-                            source_addresses: source_addresses.clone(),
-                            destination_address,
-                            destination_address_space,
-                        },
-                        [(source_address_space, source_addresses)],
-                    );
-                }
-                PermissionSpace::Write => {
-                    essentials.memory_translation_table.insert_write_memory(
-                        MirrorMemoryCallbacks {
-                            source_addresses: source_addresses.clone(),
-                            destination_address,
-                            destination_address_space,
-                        },
-                        [(source_address_space, source_addresses)],
-                    );
-                }
-            }
+            let (builder, _) = match permission {
+                PermissionSpace::Read => component_builder.insert_read_memory(
+                    MirrorMemoryCallbacks {
+                        source_addresses: source_addresses.clone(),
+                        destination_address,
+                        destination_address_space,
+                    },
+                    [(source_address_space, source_addresses)],
+                ),
+                PermissionSpace::Write => component_builder.insert_write_memory(
+                    MirrorMemoryCallbacks {
+                        source_addresses: source_addresses.clone(),
+                        destination_address,
+                        destination_address_space,
+                    },
+                    [(source_address_space, source_addresses)],
+                ),
+            };
+
+            component_builder = builder;
         }
 
-        component_builder.build_global(Self);
+        component_builder.build_global(MirrorMemory);
     }
 }
 
@@ -217,8 +210,8 @@ impl WriteMemory for MirrorMemoryCallbacks {
 #[cfg(test)]
 mod test {
     use crate::memory::{
-        mirror::{MirrorMemory, MirrorMemoryConfig, PermissionSpace},
-        standard::{StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents},
+        mirror::{MirrorMemoryConfig, PermissionSpace},
+        standard::{StandardMemoryConfig, StandardMemoryInitialContents},
     };
     use multiemu_config::Environment;
     use multiemu_machine::{
@@ -233,11 +226,15 @@ mod test {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
-        let (machine, cpu_address_space) =
-            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space("cpu", 64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            environment,
+            shader_cache,
+        )
+        .insert_address_space("cpu", 64);
 
-        let (machine, _) = machine.insert_component::<StandardMemory>(
+        let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 max_word_size: 8,
@@ -249,7 +246,7 @@ mod test {
             },
         );
 
-        let (machine, _) = machine.insert_component::<MirrorMemory>(
+        let (machine, _) = machine.insert_component(
             "workram-mirror",
             MirrorMemoryConfig::default().insert_range(
                 0x10000..=0x1ffff,
@@ -259,7 +256,7 @@ mod test {
                 [PermissionSpace::Read, PermissionSpace::Write],
             ),
         );
-        let machine = machine.build::<SoftwareRendering>(Default::default());
+        let machine = machine.build(Default::default());
 
         let mut buffer = [0; 8];
 
@@ -276,11 +273,15 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space("cpu", 64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            environment,
+            shader_cache,
+        )
+        .insert_address_space("cpu", 64);
 
-        let (machine, _) = machine.insert_component::<StandardMemory>(
+        let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 max_word_size: 8,
@@ -291,7 +292,7 @@ mod test {
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
         );
-        let (machine, _) = machine.insert_component::<MirrorMemory>(
+        let (machine, _) = machine.insert_component(
             "workram-mirror",
             MirrorMemoryConfig::default().insert_range(
                 0x10000..=0x1ffff,
@@ -302,7 +303,7 @@ mod test {
             ),
         );
 
-        let machine = machine.build::<SoftwareRendering>(Default::default());
+        let machine = machine.build(Default::default());
 
         let buffer = [0; 8];
 

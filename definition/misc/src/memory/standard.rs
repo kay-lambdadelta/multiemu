@@ -1,6 +1,8 @@
+use multiemu_config::Environment;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
     memory::{
         AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
         callbacks::{ReadMemory, WriteMemory},
@@ -9,17 +11,19 @@ use multiemu_machine::{
         },
     },
 };
-use multiemu_rom::{id::RomId, manager::RomRequirement};
+use multiemu_rom::{
+    id::RomId,
+    manager::{RomManager, RomRequirement},
+};
 use rand::RngCore;
 use rangemap::RangeInclusiveMap;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     borrow::Cow,
-    io::{Read, Write},
+    io::Read,
     ops::RangeInclusive,
     sync::{Arc, RwLock},
 };
-use versions::SemVer;
 
 const PAGE_SIZE: usize = 4096 - size_of::<RwLock<()>>();
 
@@ -53,83 +57,60 @@ pub struct StandardMemoryConfig {
     pub initial_contents: Vec<StandardMemoryInitialContents>,
 }
 
+#[derive(Debug)]
 pub struct StandardMemory {
     memory_operation_callbacks: Arc<StandardMemoryCallbacks>,
+    rom_manager: Arc<RomManager>,
+    environment: Arc<RwLock<Environment>>,
     pub memory_handle: MemoryHandle,
 }
 
 impl Component for StandardMemory {
     fn reset(&self) {
-        self.memory_operation_callbacks.initialize_buffer();
-    }
-
-    fn load(
-        &self,
-        entry: &mut dyn Read,
-        version: SemVer,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        assert_eq!(version, SemVer::new("1.0.0").unwrap());
-
-        for chunk in self.memory_operation_callbacks.buffer.iter() {
-            let mut buffer = chunk.write().unwrap();
-            entry.read_exact(buffer.as_mut_slice())?;
-        }
-
-        Ok(())
-    }
-
-    fn save(&self, entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
-        for chunk in self.memory_operation_callbacks.buffer.iter() {
-            entry.write_all(chunk.read().unwrap().as_slice())?;
-        }
-
-        Ok(SemVer::new("1.0.0").unwrap())
+        self.memory_operation_callbacks
+            .initialize_buffer(&self.rom_manager, &self.environment);
     }
 }
 
-impl FromConfig for StandardMemory {
-    type Config = StandardMemoryConfig;
-    type Quirks = ();
+impl<R: RenderApi> ComponentConfig<R> for StandardMemoryConfig {
+    type Component = StandardMemory;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
         assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&config.max_word_size),
+            VALID_MEMORY_ACCESS_SIZES.contains(&self.max_word_size),
             "Invalid word size"
         );
         assert!(
-            !config.assigned_range.is_empty(),
+            !self.assigned_range.is_empty(),
             "Memory assigned must be non-empty"
         );
 
-        let buffer_size = config.assigned_range.clone().count();
+        let essentials = component_builder.essentials();
+
+        let buffer_size = self.assigned_range.clone().count();
         let chunks_needed = buffer_size.div_ceil(PAGE_SIZE);
         let buffer =
             Vec::from_iter(std::iter::repeat_n([0; PAGE_SIZE], chunks_needed).map(RwLock::new));
-        let assigned_range = config.assigned_range.clone();
-        let assigned_address_space = config.assigned_address_space;
+        let assigned_range = self.assigned_range.clone();
+        let assigned_address_space = self.assigned_address_space;
 
         let memory_operation_callbacks = Arc::new(StandardMemoryCallbacks {
-            config: config.clone(),
+            config: self.clone(),
             buffer: buffer.into_iter().collect(),
-            essentials: essentials.clone(),
         });
-        memory_operation_callbacks.initialize_buffer();
+        memory_operation_callbacks
+            .initialize_buffer(&essentials.rom_manager, &essentials.environment);
 
-        let memory_handle = match (config.readable, config.writable) {
-            (true, true) => essentials.memory_translation_table.insert_memory(
+        let (component_builder, memory_handle) = match (self.readable, self.writable) {
+            (true, true) => component_builder.insert_memory(
                 memory_operation_callbacks.clone(),
                 [(assigned_address_space, assigned_range)],
             ),
-            (true, false) => essentials.memory_translation_table.insert_read_memory(
+            (true, false) => component_builder.insert_read_memory(
                 memory_operation_callbacks.clone(),
                 [(assigned_address_space, assigned_range)],
             ),
-            (false, true) => essentials.memory_translation_table.insert_write_memory(
+            (false, true) => component_builder.insert_write_memory(
                 memory_operation_callbacks.clone(),
                 [(assigned_address_space, assigned_range)],
             ),
@@ -138,9 +119,11 @@ impl FromConfig for StandardMemory {
             }
         };
 
-        component_builder.build_global(Self {
+        component_builder.build_global(StandardMemory {
             memory_operation_callbacks,
             memory_handle,
+            rom_manager: essentials.rom_manager.clone(),
+            environment: essentials.environment.clone(),
         });
     }
 }
@@ -149,7 +132,6 @@ impl FromConfig for StandardMemory {
 struct StandardMemoryCallbacks {
     config: StandardMemoryConfig,
     buffer: Vec<RwLock<[u8; PAGE_SIZE]>>,
-    essentials: Arc<RuntimeEssentials>,
 }
 
 impl ReadMemory for StandardMemoryCallbacks {
@@ -339,7 +321,7 @@ impl StandardMemoryCallbacks {
         }
     }
 
-    fn initialize_buffer(&self) {
+    fn initialize_buffer(&self, rom_manager: &RomManager, environment: &RwLock<Environment>) {
         let internal_buffer_size = self.config.assigned_range.clone().count();
 
         // HACK: This overfills the buffer for ease of programming, but its ok because the actual mmu doesn't allow accesses out at runtime
@@ -359,13 +341,11 @@ impl StandardMemoryCallbacks {
                     self.write_internal(*offset, value);
                 }
                 StandardMemoryInitialContents::Rom { rom_id, offset } => {
-                    let mut rom_file = self
-                        .essentials
-                        .rom_manager
+                    let mut rom_file = rom_manager
                         .open(
                             *rom_id,
                             RomRequirement::Required,
-                            &self.essentials.environment.read().unwrap().roms_directory,
+                            &environment.read().unwrap().roms_directory,
                         )
                         .unwrap();
 
@@ -412,7 +392,7 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (machine, cpu_address_space) = MachineBuilder::new(
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
@@ -420,7 +400,7 @@ mod test {
         )
         .insert_address_space("cpu", 64);
 
-        let (machine, _) = machine.insert_component::<StandardMemory>(
+        let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 max_word_size: 8,
@@ -431,7 +411,7 @@ mod test {
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
         );
-        let machine = machine.build::<SoftwareRendering>(Default::default());
+        let machine = machine.build(Default::default());
 
         let mut buffer = [0; 4];
 
@@ -441,7 +421,7 @@ mod test {
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
-        let (machine, cpu_address_space) = MachineBuilder::new(
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
             rom_manager.clone(),
             environment.clone(),
@@ -449,7 +429,7 @@ mod test {
         )
         .insert_address_space("cpu", 64);
 
-        let (machine, _) = machine.insert_component::<StandardMemory>(
+        let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 max_word_size: 8,
@@ -463,7 +443,7 @@ mod test {
                 }],
             },
         );
-        let machine = machine.build::<SoftwareRendering>(Default::default());
+        let machine = machine.build(Default::default());
 
         let mut buffer = [0; 4];
 
@@ -480,11 +460,15 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space("cpu", 64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            environment,
+            shader_cache,
+        )
+        .insert_address_space("cpu", 64);
 
-        let (machine, _) = machine.insert_component::<StandardMemory>(
+        let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 max_word_size: 8,
@@ -495,7 +479,7 @@ mod test {
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
         );
-        let machine = machine.build::<SoftwareRendering>(Default::default());
+        let machine = machine.build(Default::default());
 
         let mut buffer = [0; 8];
 
@@ -512,11 +496,15 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space("cpu", 64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            environment,
+            shader_cache,
+        )
+        .insert_address_space("cpu", 64);
 
-        let (machine, _) = machine.insert_component::<StandardMemory>(
+        let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 max_word_size: 8,
@@ -527,7 +515,7 @@ mod test {
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
         );
-        let machine = machine.build::<SoftwareRendering>(Default::default());
+        let machine = machine.build(Default::default());
 
         let buffer = [0; 8];
 
@@ -543,11 +531,15 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space("cpu", 64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            environment,
+            shader_cache,
+        )
+        .insert_address_space("cpu", 64);
 
-        let (machine, _) = machine.insert_component::<StandardMemory>(
+        let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 max_word_size: 8,
@@ -558,7 +550,7 @@ mod test {
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
         );
-        let machine = machine.build::<SoftwareRendering>(Default::default());
+        let machine = machine.build(Default::default());
 
         let mut buffer = [0xff; 8];
 
@@ -580,11 +572,15 @@ mod test {
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::default();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-                .insert_address_space("cpu", 64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            environment,
+            shader_cache,
+        )
+        .insert_address_space("cpu", 64);
 
-        let (machine, _) = machine.insert_component::<StandardMemory>(
+        let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 max_word_size: 8,
@@ -595,7 +591,7 @@ mod test {
                 initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
             },
         );
-        let machine = machine.build::<SoftwareRendering>(Default::default());
+        let machine = machine.build(Default::default());
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];

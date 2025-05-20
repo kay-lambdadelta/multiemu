@@ -1,5 +1,7 @@
 use super::ComponentBuilder;
-use crate::{component::Component, input::virtual_gamepad::VirtualGamepad};
+use crate::{
+    component::Component, display::backend::RenderApi, input::virtual_gamepad::VirtualGamepad,
+};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -7,7 +9,7 @@ pub struct InputMetadata {
     pub gamepads: Vec<Arc<VirtualGamepad>>,
 }
 
-impl<C: Component> ComponentBuilder<'_, C> {
+impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {
     /// Insert a virtual gamepad for the runtime to be aware of
     pub fn insert_gamepads(
         mut self,

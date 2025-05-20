@@ -1,55 +1,54 @@
 use crate::{
     Machine,
     component::{
-        Component, ComponentId, FromConfig, RuntimeEssentials, component_ref::ComponentRef,
+        Component, ComponentConfig, ComponentId, RuntimeEssentials, component_ref::ComponentRef,
         store::ComponentStore,
     },
     display::{
-        backend::{ContextExtensionSpecification, RenderBackend},
+        RenderExtensions,
+        backend::{ContextExtensionSpecification, RenderApi},
         shader::ShaderCache,
     },
     memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
     scheduler::Scheduler,
 };
 use audio::AudioMetadata;
-use display::{BackendSpecificData, DisplayMetadata};
+use display::DisplayMetadata;
 use input::InputMetadata;
 use multiemu_config::Environment;
 use multiemu_rom::{manager::RomManager, system::GameSystem};
 use std::{
-    any::TypeId,
     collections::HashMap,
     marker::PhantomData,
-    rc::Rc,
-    sync::{Arc, RwLock},
+    sync::{Arc, OnceLock, RwLock},
 };
 use task::TaskMetadata;
 
+pub mod audio;
 pub mod display;
 pub mod input;
 pub mod memory;
 pub mod task;
-pub mod audio;
 
 #[derive(Default)]
 /// Overall data extracted from components needed for machine initialization
-pub struct ComponentMetadata {
+pub struct ComponentMetadata<R: RenderApi> {
     pub task: Option<TaskMetadata>,
-    pub display: Option<DisplayMetadata>,
+    pub display: Option<DisplayMetadata<R>>,
     pub input: Option<InputMetadata>,
     pub audio: Option<AudioMetadata>,
 }
 
 /// Builder to produce a machine, definition crates will want to use this
-pub struct MachineBuilder {
-    essentials: Arc<RuntimeEssentials>,
+pub struct MachineBuilder<R: RenderApi> {
+    essentials: Arc<RuntimeEssentials<R>>,
     component_store: Arc<ComponentStore>,
     current_component_id: ComponentId,
-    component_metadata: HashMap<ComponentId, ComponentMetadata>,
+    component_metadata: HashMap<ComponentId, ComponentMetadata<R>>,
     game_system: GameSystem,
 }
 
-impl MachineBuilder {
+impl<R: RenderApi> MachineBuilder<R> {
     pub fn new(
         game_system: GameSystem,
         rom_manager: Arc<RomManager>,
@@ -65,72 +64,34 @@ impl MachineBuilder {
                 environment,
                 shader_cache,
                 memory_translation_table: MemoryTranslationTable::default(),
+                render_initialization_data: OnceLock::default(),
             }),
             game_system,
         }
     }
 
-    pub fn required_display_extensions<R: RenderBackend>(
-        &self,
-    ) -> R::ContextExtensionSpecification {
-        self.component_metadata
-            .iter()
-            .filter_map(|(_, item)| item.display.as_ref())
-            .fold(
-                R::ContextExtensionSpecification::default(),
-                |extensions, item| {
-                    extensions.combine(
-                        item.get_backend_specific_data::<R>()
-                            .expect("Missing data from this component for this backend, most likely a bug")
-                            .required_extensions
-                            .clone(),
-                    )
-                },
-            )
-    }
-
-    pub fn preferred_display_extensions<R: RenderBackend>(
-        &self,
-    ) -> R::ContextExtensionSpecification {
-        self.component_metadata
-            .iter()
-            .filter_map(|(_, item)| item.display.as_ref())
-            .fold(
-                R::ContextExtensionSpecification::default(),
-                |extensions, item| {
-                    extensions.combine(
-                        item.get_backend_specific_data::<R>()
-                            .expect("Missing data from this component for this backend, most likely a bug")
-                            .preferred_extensions
-                            .clone(),
-                    )
-                },
-            )
-    }
-
     /// Insert a component into the machine
     #[inline]
-    pub fn insert_component<C: FromConfig>(
+    pub fn insert_component<C: ComponentConfig<R>>(
         mut self,
-        manifest_name: &'static str,
-        config: C::Config,
-    ) -> (Self, ComponentRef<C>) {
+        name: &'static str,
+        config: C,
+    ) -> (Self, ComponentRef<C::Component>) {
         assert!(
-            manifest_name.chars().all(|c| !c.is_whitespace()),
+            name.chars().all(|c| !c.is_whitespace()),
             "Invalid manifest name"
         );
 
         let component_id = ComponentId(self.current_component_id.0);
 
-        let essentials = self.essentials.clone();
-        let component_builder = ComponentBuilder::<C> {
+        let component_builder = ComponentBuilder::<R, C::Component> {
             machine_builder: &mut self,
             component_id,
             component_metadata: ComponentMetadata::default(),
-            manifest_name,
+            name,
             _phantom: PhantomData,
         };
-        C::from_config(component_builder, essentials, config, C::Quirks::default());
+        config.build_component(component_builder);
 
         self.current_component_id.0 = self
             .current_component_id
@@ -138,21 +99,18 @@ impl MachineBuilder {
             .checked_add(1)
             .expect("Too many components");
 
-        let component_ref = self.component_store.get(manifest_name).unwrap();
+        let component_ref = self.component_store.get(name).unwrap();
 
         (self, component_ref)
     }
 
     /// Insert a component with a default config
-    pub fn insert_default_component<C: FromConfig>(
+    pub fn insert_default_component<C: ComponentConfig<R> + Default>(
         self,
-        manifest_name: &'static str,
-    ) -> (Self, ComponentRef<C>)
-    where
-        C::Config: Default,
-    {
-        let config = C::Config::default();
-        self.insert_component::<C>(manifest_name, config)
+        name: &'static str,
+    ) -> (Self, ComponentRef<C::Component>) {
+        let config = C::default();
+        self.insert_component(name, config)
     }
 
     /// Insert the required information to construct a address space
@@ -165,31 +123,61 @@ impl MachineBuilder {
         (self, id)
     }
 
+    pub fn render_extensions(&self) -> RenderExtensions<R> {
+        let preferred = self
+            .component_metadata
+            .iter()
+            .filter_map(|(_, metadata)| {
+                metadata
+                    .display
+                    .as_ref()
+                    .and_then(|display| display.preferred_extensions.as_ref())
+            })
+            .fold(R::ContextExtensionSpecification::default(), |a, b| {
+                a.combine(b.clone())
+            });
+
+        let required = self
+            .component_metadata
+            .iter()
+            .filter_map(|(_, metadata)| {
+                metadata
+                    .display
+                    .as_ref()
+                    .and_then(|display| display.required_extensions.as_ref())
+            })
+            .fold(R::ContextExtensionSpecification::default(), |a, b| {
+                a.combine(b.clone())
+            });
+
+        RenderExtensions {
+            required,
+            preferred,
+        }
+    }
+
     /// Build the machine
-    pub fn build<R: RenderBackend>(
+    pub fn build(
         mut self,
-        display_component_initialization_data: Rc<R::ComponentInitializationData>,
-    ) -> Machine {
+        component_initialization_data: R::ComponentInitializationData,
+    ) -> Machine<R> {
         let mut framebuffers = Vec::new();
         let mut tasks = Vec::new();
         let mut all_gamepads = Vec::default();
 
+        // So components do not panic
+        self.essentials
+            .render_initialization_data
+            .set(component_initialization_data)
+            .unwrap();
+
         for (component_id, component_metadata) in self.component_metadata.drain() {
-            if let Some(mut display_metadata) = component_metadata.display {
+            if let Some(display_metadata) = component_metadata.display {
                 // Initialize all the display components
                 self.component_store
                     .interact_dyn_local(component_id, |component| {
                         // Call the display callback
-                        let framebuffer = (display_metadata
-                            .backend_specific_data
-                            .remove(&TypeId::of::<R>())
-                            .and_then(|item| item.downcast::<BackendSpecificData<R>>().ok())
-                            .expect("Component did not register display backend")
-                            .set_display_callback)(
-                            component,
-                            display_component_initialization_data.clone(),
-                        );
-
+                        let framebuffer = (display_metadata.set_display_callback)(component);
                         framebuffers.push(framebuffer);
                     })
                     .unwrap();
@@ -234,7 +222,7 @@ impl MachineBuilder {
         Machine {
             scheduler,
             memory_translation_table: self.essentials.memory_translation_table.clone(),
-            framebuffers: Box::new(framebuffers),
+            framebuffers,
             virtual_gamepads: all_gamepads
                 .into_iter()
                 .enumerate()
@@ -253,19 +241,23 @@ impl MachineBuilder {
 }
 
 /// Struct passed into components for their initialization purposes
-pub struct ComponentBuilder<'a, C: Component> {
-    machine_builder: &'a mut MachineBuilder,
+pub struct ComponentBuilder<'a, R: RenderApi, C: Component> {
+    machine_builder: &'a mut MachineBuilder<R>,
     component_id: ComponentId,
-    component_metadata: ComponentMetadata,
-    manifest_name: &'static str,
+    component_metadata: ComponentMetadata<R>,
+    name: &'static str,
     _phantom: PhantomData<C>,
 }
 
-impl<C: Component> ComponentBuilder<'_, C> {
+impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {
+    pub fn essentials(&self) -> Arc<RuntimeEssentials<R>> {
+        self.machine_builder.essentials.clone()
+    }
+
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
     pub fn build(self, component: C) {
         self.machine_builder.component_store.insert_component(
-            self.manifest_name,
+            self.name,
             self.component_id,
             component,
         );
@@ -284,7 +276,7 @@ impl<C: Component> ComponentBuilder<'_, C> {
     {
         self.machine_builder
             .component_store
-            .insert_component_global(self.manifest_name, self.component_id, component);
+            .insert_component_global(self.name, self.component_id, component);
 
         self.machine_builder
             .component_metadata

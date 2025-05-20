@@ -48,7 +48,7 @@ struct AddressSpaceInfo {
 }
 
 #[derive(Default)]
-pub struct MemoryTranslationTableImpl {
+struct MemoryTranslationTableImpl {
     current_address_space_id: u16,
     address_spaces: HashMap<AddressSpaceHandle, AddressSpaceInfo, FxBuildHasher>,
 

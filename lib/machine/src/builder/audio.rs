@@ -2,14 +2,14 @@ use num::rational::Ratio;
 use std::{collections::HashMap, sync::Arc};
 
 use super::ComponentBuilder;
-use crate::{audio::AudioQueue, component::Component};
+use crate::{audio::AudioQueue, component::Component, display::backend::RenderApi};
 
 #[derive(Default)]
 pub struct AudioMetadata {
     pub audio_queues: HashMap<&'static str, Arc<AudioQueue>>,
 }
 
-impl<C: Component> ComponentBuilder<'_, C> {
+impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {
     pub fn create_audio_queue(
         mut self,
         name: &'static str,

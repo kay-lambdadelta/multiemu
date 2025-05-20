@@ -1,6 +1,7 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
 };
 use num::rational::Ratio;
 use std::{
@@ -26,29 +27,26 @@ impl Chip8Timer {
 
 impl Component for Chip8Timer {}
 
-impl FromConfig for Chip8Timer {
-    type Config = ();
-    type Quirks = ();
+#[derive(Debug, Default)]
+pub struct Chip8TimerConfig;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        _essentials: Arc<RuntimeEssentials>,
-        _config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
+impl<R: RenderApi> ComponentConfig<R> for Chip8TimerConfig {
+    type Component = Chip8Timer;
+
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
         let delay_timer = Arc::new(Mutex::new(0u8));
 
         component_builder
             .insert_task(Ratio::from_integer(60), {
                 let delay_timer = delay_timer.clone();
 
-                move |_: &Self, period: NonZero<u32>| {
+                move |_: &Self::Component, period: NonZero<u32>| {
                     let mut delay_timer_guard = delay_timer.lock().unwrap();
                     *delay_timer_guard = delay_timer_guard
                         .saturating_sub(period.get().try_into().unwrap_or(u8::MAX));
                 }
             })
-            .build_global(Self {
+            .build_global(Chip8Timer {
                 delay_timer: delay_timer.clone(),
             });
     }

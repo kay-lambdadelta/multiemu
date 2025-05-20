@@ -1,6 +1,7 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
     memory::{
         AddressSpaceHandle,
         callbacks::{ReadMemory, WriteMemory},
@@ -13,14 +14,12 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::{
     fmt::Debug,
-    io::{Read, Write},
     num::NonZero,
     sync::{
         Arc, OnceLock, RwLock,
         atomic::{AtomicU8, Ordering},
     },
 };
-use versions::SemVer;
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -99,80 +98,13 @@ impl Component for Mos6532Riot {
         // I dunno what to do with the handlers
         // The components that installed the handlers will be reset too so its probably fine
     }
-
-    fn save(&self, mut entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
-        let snapshot = Snapshot {
-            swacnt: self.registers.swacnt.load(Ordering::Relaxed),
-            swbcnt: self.registers.swbcnt.load(Ordering::Relaxed),
-            intim: self.registers.intim.load(Ordering::Relaxed),
-            instat: self.registers.instat.load(Ordering::Relaxed),
-            tim1t: self.registers.tim1t.load(Ordering::Relaxed),
-            tim8t: self.registers.tim8t.load(Ordering::Relaxed),
-            tim64t: self.registers.tim64t.load(Ordering::Relaxed),
-            t1024t: self.registers.t1024t.load(Ordering::Relaxed),
-            ram: *self.ram.read().unwrap(),
-        };
-
-        bincode::serde::encode_into_std_write(snapshot, &mut entry, bincode::config::standard())?;
-
-        Ok(SemVer::new("1.0.0").unwrap())
-    }
-
-    fn load(
-        &self,
-        mut entry: &mut dyn Read,
-        version: SemVer,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        assert_eq!(
-            version,
-            SemVer::new("1.0.0").unwrap(),
-            "Incompatible snapshot version"
-        );
-
-        let snapshot: Snapshot =
-            bincode::serde::decode_from_std_read(&mut entry, bincode::config::standard())?;
-
-        self.registers
-            .swacnt
-            .store(snapshot.swacnt, Ordering::Relaxed);
-        self.registers
-            .swbcnt
-            .store(snapshot.swbcnt, Ordering::Relaxed);
-        self.registers
-            .intim
-            .store(snapshot.intim, Ordering::Relaxed);
-        self.registers
-            .instat
-            .store(snapshot.instat, Ordering::Relaxed);
-        self.registers
-            .tim1t
-            .store(snapshot.tim1t, Ordering::Relaxed);
-        self.registers
-            .tim8t
-            .store(snapshot.tim8t, Ordering::Relaxed);
-        self.registers
-            .tim64t
-            .store(snapshot.tim64t, Ordering::Relaxed);
-        self.registers
-            .t1024t
-            .store(snapshot.t1024t, Ordering::Relaxed);
-        self.ram.write().unwrap().copy_from_slice(&snapshot.ram);
-
-        Ok(())
-    }
 }
 
-impl FromConfig for Mos6532Riot {
-    type Config = M6532RiotConfig;
-    type Quirks = ();
+impl<R: RenderApi> ComponentConfig<R> for Mos6532RiotConfig {
+    type Component = Mos6532Riot;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
-        let config = Arc::new(config);
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+        let config = Arc::new(self);
         let ram = Arc::new(RwLock::new([0; 128]));
         let memory_callbacks = Arc::new(RamMemoryCallbacks {
             config: config.clone(),
@@ -195,6 +127,8 @@ impl FromConfig for Mos6532Riot {
             config.assigned_address_space,
             config.ram_assigned_address..=config.ram_assigned_address + 127,
         )];
+
+        let essentials = component_builder.essentials();
 
         essentials
             .memory_translation_table
@@ -230,7 +164,7 @@ impl FromConfig for Mos6532Riot {
                 .insert_task(config.frequency, {
                     let registers = registers.clone();
 
-                    move |_: &Self, period: NonZero<_>| {
+                    move |_: &Self::Component, period: NonZero<_>| {
                         registers
                             .tim1t
                             .fetch_add(period.get() as u8, Ordering::Relaxed);
@@ -239,7 +173,7 @@ impl FromConfig for Mos6532Riot {
                 .insert_task(config.frequency / 8, {
                     let registers = registers.clone();
 
-                    move |_: &Self, period: NonZero<_>| {
+                    move |_: &Self::Component, period: NonZero<_>| {
                         registers
                             .tim8t
                             .fetch_add(period.get() as u8, Ordering::Relaxed);
@@ -248,7 +182,7 @@ impl FromConfig for Mos6532Riot {
                 .insert_task(config.frequency / 64, {
                     let registers = registers.clone();
 
-                    move |_: &Self, period: NonZero<_>| {
+                    move |_: &Self::Component, period: NonZero<_>| {
                         registers
                             .tim64t
                             .fetch_add(period.get() as u8, Ordering::Relaxed);
@@ -257,7 +191,7 @@ impl FromConfig for Mos6532Riot {
                 .insert_task(config.frequency / 1024, {
                     let registers = registers.clone();
 
-                    move |_: &Self, period: NonZero<_>| {
+                    move |_: &Self::Component, period: NonZero<_>| {
                         registers
                             .t1024t
                             .fetch_add(period.get() as u8, Ordering::Relaxed);
@@ -265,12 +199,12 @@ impl FromConfig for Mos6532Riot {
                 })
         };
 
-        component_builder.build_global(Self { ram, registers });
+        component_builder.build_global(Self::Component { ram, registers });
     }
 }
 
 #[derive(Debug)]
-pub struct M6532RiotConfig {
+pub struct Mos6532RiotConfig {
     pub frequency: Ratio<u32>,
     pub ram_assigned_address: usize,
     pub registers_assigned_address: usize,
@@ -279,7 +213,7 @@ pub struct M6532RiotConfig {
 
 #[derive(Debug)]
 struct RamMemoryCallbacks {
-    config: Arc<M6532RiotConfig>,
+    config: Arc<Mos6532RiotConfig>,
     ram: Arc<RwLock<[u8; 128]>>,
 }
 

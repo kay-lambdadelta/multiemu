@@ -8,7 +8,7 @@ use crate::{
 };
 use egui::ViewportId;
 use multiemu_input::InputState;
-use multiemu_machine::display::backend::RenderBackend;
+use multiemu_machine::display::backend::RenderApi;
 use nalgebra::Vector2;
 use std::sync::Arc;
 use winit::{
@@ -30,7 +30,7 @@ pub struct DesktopPlatform<RS: RenderingBackendState> {
     egui_winit: Option<egui_winit::State>,
 }
 
-impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>>
+impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderApi = R>>
     Platform<RS> for DesktopPlatform<RS>
 {
     fn run(runtime: Runtime<RS>) -> Result<(), Box<dyn std::error::Error>> {
@@ -59,7 +59,7 @@ impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>,
     }
 }
 
-impl<R: RenderBackend, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderBackend = R>>
+impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderApi = R>>
     ApplicationHandler<RuntimeBoundMessage> for DesktopPlatform<RS>
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {

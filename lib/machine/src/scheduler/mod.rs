@@ -12,8 +12,6 @@ use std::{
     time::Duration,
 };
 
-pub mod task;
-
 #[derive(Debug, Clone, Copy)]
 struct ToRun<'a> {
     pub run_indication: u32,

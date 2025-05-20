@@ -2,23 +2,29 @@ use super::Chip8Kind;
 use bitvec::{order::Msb0, view::BitView};
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
-    display::backend::software::SoftwareRendering,
+    component::{Component, ComponentConfig, RuntimeEssentials},
+    display::backend::{ComponentFramebuffer, RenderApi},
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
 use palette::{Srgb, Srgba};
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::{OnceCell, RefCell}, fmt::Debug, io::{Read, Write}, ops::Deref, sync::{
-        atomic::{AtomicBool, Ordering}, Arc, Mutex
-    }
+    cell::{OnceCell, RefCell},
+    fmt::Debug,
+    ops::Deref,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
-use versions::SemVer;
 
 mod software;
 #[cfg(all(feature = "vulkan", platform_desktop))]
 mod vulkan;
+
+const CHIP8_DIMENSIONS: Vector2<u8> = Vector2::new(64, 32);
+const SUPER_CHIP8_DIMENSIONS: Vector2<u8> = Vector2::new(128, 64);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Snapshot {
@@ -26,14 +32,14 @@ struct Snapshot {
 }
 
 #[derive(Debug)]
-pub struct Chip8Display {
-    state: OnceCell<Box<dyn Chip8DisplayBackend>>,
+pub struct Chip8Display<R: SupportedRenderApiChip8Display> {
+    backend: OnceCell<R::Backend>,
     modified: RefCell<bool>,
     mode: Arc<Mutex<Chip8Kind>>,
     pub vsync_occurred: Arc<AtomicBool>,
 }
 
-impl Chip8Display {
+impl<R: SupportedRenderApiChip8Display> Chip8Display<R> {
     pub fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool {
         tracing::trace!(
             "Drawing sprite at position {} of dimensions 8x{}",
@@ -44,111 +50,39 @@ impl Chip8Display {
         let mode = self.mode.lock().unwrap();
 
         let position = match mode.deref() {
-            Chip8Kind::Chip8 | Chip8Kind::Chip48 => Point2::new(position.x % 64, position.y % 32),
-            Chip8Kind::SuperChip8 => todo!(),
+            Chip8Kind::Chip8 | Chip8Kind::Chip48 => Point2::new(
+                position.x % CHIP8_DIMENSIONS.x,
+                position.y % CHIP8_DIMENSIONS.y,
+            ),
+            Chip8Kind::SuperChip8 => Point2::new(
+                position.x % SUPER_CHIP8_DIMENSIONS.x,
+                position.y % SUPER_CHIP8_DIMENSIONS.y,
+            ),
             _ => todo!(),
         };
 
         *self.modified.borrow_mut() = true;
-        self.state.get().unwrap().draw_sprite(position, sprite)
+        self.backend.get().unwrap().draw_sprite(position, sprite)
     }
 
     pub fn clear_display(&self) {
         tracing::trace!("Clearing display");
 
         *self.modified.borrow_mut() = true;
-        self.state.get().unwrap().clear_display();
+        self.backend.get().unwrap().clear_display();
     }
 }
 
-impl Component for Chip8Display {
+impl<R: SupportedRenderApiChip8Display> Component for Chip8Display<R> {
     fn reset(&self) {
         self.clear_display();
     }
-
-    fn save(&self, mut entry: &mut dyn Write) -> Result<SemVer, Box<dyn std::error::Error>> {
-        let snapshot = Snapshot {
-            screen_buffer: self.state.get().unwrap().save_screen_contents(),
-        };
-
-        bincode::serde::encode_into_std_write(snapshot, &mut entry, bincode::config::standard())?;
-
-        Ok(SemVer::new("1.0.0").unwrap())
-    }
-
-    fn load(
-        &self,
-        mut entry: &mut dyn Read,
-        version: SemVer,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        assert_eq!(version, SemVer::new("1.0.0").unwrap());
-
-        let snapshot: Snapshot =
-            bincode::serde::decode_from_std_read(&mut entry, bincode::config::standard())?;
-
-        self.state
-            .get()
-            .unwrap()
-            .load_screen_contents(snapshot.screen_buffer);
-        Ok(())
-    }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
-pub struct Chip8DisplayQuirks {
-    pub force_mode: Option<Chip8Kind>,
-}
-
-impl FromConfig for Chip8Display {
-    type Config = ();
-    type Quirks = Chip8DisplayQuirks;
-
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        _essentials: Arc<RuntimeEssentials>,
-        _config: Self::Config,
-        quirks: Self::Quirks,
-    ) {
-        let mode = Arc::new(Mutex::new(quirks.force_mode.unwrap_or(Chip8Kind::Chip8)));
-        let vsync = Arc::new(AtomicBool::new(false));
-
-        let component_builder = component_builder
-            .insert_task(Ratio::from_integer(60), {
-                let vsync = vsync.clone();
-
-                move |display: &Chip8Display, _period| {
-                    // Only update it once and if the thing is actually updated
-                    if *display.modified.borrow().deref() {
-                        display.state.get().unwrap().commit_display();
-                        *display.modified.borrow_mut() = false;
-                    }
-
-                    vsync.store(true, Ordering::Relaxed);
-                }
-            })
-            .set_display_config::<SoftwareRendering>(None, None, software::set_display_data);
-
-        #[cfg(all(feature = "vulkan", platform_desktop))]
-        let component_builder = {
-            use multiemu_machine::display::backend::vulkan::VulkanRendering;
-            component_builder.set_display_config::<VulkanRendering>(
-                None,
-                None,
-                vulkan::set_display_data,
-            )
-        };
-
-        component_builder.build(Chip8Display {
-            state: OnceCell::default(),
-            modified: RefCell::new(true),
-            mode,
-            vsync_occurred: vsync,
-        });
-    }
-}
-
-trait Chip8DisplayBackend: Debug {
+pub(crate) trait Chip8DisplayBackend<R: RenderApi>: Sized + Debug + 'static {
+    fn new(essentials: &RuntimeEssentials<R>) -> (Self, ComponentFramebuffer<R>);
     fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool;
+    fn set_mode(&mut self, mode: Chip8Kind);
     fn clear_display(&self);
     fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
     fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);
@@ -192,4 +126,52 @@ fn draw_sprite_common(
     }
 
     collided
+}
+
+#[derive(Debug, Default)]
+pub struct Chip8DisplayConfig;
+
+impl<R: SupportedRenderApiChip8Display> ComponentConfig<R> for Chip8DisplayConfig {
+    type Component = Chip8Display<R>;
+
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+        let vsync_occurred: Arc<AtomicBool> = Arc::default();
+
+        let essentials = component_builder.essentials();
+
+        let component_builder =
+            component_builder.set_display_config(None, None, move |component: &Self::Component| {
+                let (backend, framebuffer) =
+                    <R::Backend as Chip8DisplayBackend<R>>::new(essentials.as_ref());
+
+                component.backend.set(backend).unwrap();
+
+                framebuffer
+            });
+
+        component_builder
+            .insert_task(Ratio::from_integer(60), {
+                let vsync = vsync_occurred.clone();
+
+                move |display: &Chip8Display<R>, _period| {
+                    // Only update it once and if the thing is actually updated
+                    if *display.modified.borrow() {
+                        display.backend.get().unwrap().commit_display();
+                        *display.modified.borrow_mut() = false;
+                    }
+
+                    vsync.store(true, Ordering::Relaxed);
+                }
+            })
+            .build(Chip8Display {
+                backend: OnceCell::default(),
+                modified: RefCell::new(true),
+                mode: Arc::default(),
+                vsync_occurred,
+            });
+    }
+}
+
+pub(crate) trait SupportedRenderApiChip8Display: RenderApi {
+    type Backend: Chip8DisplayBackend<Self>;
 }

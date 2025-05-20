@@ -1,9 +1,18 @@
-use display::backend::RenderBackend;
+use builder::MachineBuilder;
+use display::{
+    backend::{ComponentFramebuffer, RenderApi},
+    shader::ShaderCache,
+};
 use input::{VirtualGamepadId, virtual_gamepad::VirtualGamepad};
 use memory::memory_translation_table::MemoryTranslationTable;
-use multiemu_rom::system::GameSystem;
+use multiemu_config::Environment;
+use multiemu_rom::{id::RomId, manager::RomManager, system::GameSystem};
 use scheduler::Scheduler;
-use std::{any::Any, collections::HashMap, rc::Rc, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, RwLock},
+};
 
 pub mod audio;
 pub mod builder;
@@ -13,38 +22,24 @@ pub mod input;
 pub mod memory;
 pub mod processor;
 pub mod scheduler;
+pub mod task;
+pub mod trigger;
 
 #[non_exhaustive]
-pub struct Machine {
+pub struct Machine<R: RenderApi> {
     pub scheduler: Scheduler,
     pub memory_translation_table: MemoryTranslationTable,
     pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>>,
     pub game_system: GameSystem,
-    framebuffers: Box<dyn Any>,
+    pub framebuffers: Vec<ComponentFramebuffer<R>>,
 }
 
-impl Machine {
-    pub fn run(&mut self, last_frame_time: Duration, last_frame_rendering_time: Duration) {
-        let now = std::time::Instant::now();
-        self.scheduler.run();
-        let elapsed = now.elapsed();
-
-        let alloted_time = last_frame_time - last_frame_rendering_time;
-
-        match elapsed.cmp(&alloted_time) {
-            std::cmp::Ordering::Less => {
-                self.scheduler.speed_up();
-            }
-            std::cmp::Ordering::Equal => {}
-            std::cmp::Ordering::Greater => {
-                self.scheduler.slow_down();
-            }
-        }
-    }
-
-    pub fn framebuffers<R: RenderBackend>(&self) -> &Vec<Rc<R::ComponentFramebuffer>> {
-        self.framebuffers
-            .downcast_ref::<Vec<Rc<R::ComponentFramebuffer>>>()
-            .expect("Different rendering backend requested framebuffers than what this machine was built for")
-    }
+pub trait MachineFactory<R: RenderApi>: Debug + Send + Sync + 'static {
+    fn construct(
+        &self,
+        user_specified_roms: Vec<RomId>,
+        rom_manager: Arc<RomManager>,
+        environment: Arc<RwLock<Environment>>,
+        shader_cache: ShaderCache,
+    ) -> MachineBuilder<R>;
 }

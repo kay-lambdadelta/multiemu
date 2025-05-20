@@ -119,6 +119,7 @@ fn main() {
                 let runtime = Runtime::<SoftwareRenderingRuntime>::new_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
+                    build_machine::get_software_factories(),
                     game_system,
                     user_specified_roms.clone(),
                 );
@@ -132,6 +133,7 @@ fn main() {
                 let runtime = Runtime::<VulkanRenderingRuntime>::new_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
+                    build_machine::get_vulkan_factories(),
                     game_system,
                     user_specified_roms.clone(),
                 );
@@ -145,8 +147,11 @@ fn main() {
 
     match graphics_api {
         GraphicsApi::Software => {
-            let runtime =
-                Runtime::<SoftwareRenderingRuntime>::new(environment.clone(), rom_manager.clone());
+            let runtime = Runtime::<SoftwareRenderingRuntime>::new(
+                environment.clone(),
+                rom_manager.clone(),
+                build_machine::get_software_factories(),
+            );
 
             DesktopPlatform::run(runtime).unwrap();
         }
@@ -154,8 +159,11 @@ fn main() {
         GraphicsApi::Vulkan => {
             use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-            let runtime =
-                Runtime::<VulkanRenderingRuntime>::new(environment.clone(), rom_manager.clone());
+            let runtime = Runtime::<VulkanRenderingRuntime>::new(
+                environment.clone(),
+                rom_manager.clone(),
+                build_machine::get_vulkan_factories(),
+            );
 
             DesktopPlatform::run(runtime).unwrap();
         }

@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use crate::{
     interpolate::Interpolator,
     sample::{
@@ -8,6 +7,7 @@ use crate::{
 };
 use nalgebra::{ComplexField, SVector};
 use num::{Float, rational::Ratio};
+use std::cmp::Ordering;
 
 /// Helper iterator for operating on frames of samples
 pub trait FrameIterator<S: Sample, const CHANNELS: usize>:

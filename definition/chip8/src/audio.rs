@@ -1,6 +1,7 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
 };
 use num::rational::Ratio;
 use std::{
@@ -22,29 +23,26 @@ impl Chip8Audio {
 
 impl Component for Chip8Audio {}
 
-impl FromConfig for Chip8Audio {
-    type Config = ();
-    type Quirks = ();
+#[derive(Debug, Default)]
+pub struct Chip8AudioConfig;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        _essentials: Arc<RuntimeEssentials>,
-        _config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
+impl<R: RenderApi> ComponentConfig<R> for Chip8AudioConfig {
+    type Component = Chip8Audio;
+
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
         let sound_timer = Arc::new(Mutex::new(0u8));
 
         component_builder
             .insert_task(Ratio::from_integer(60), {
                 let sound_timer = sound_timer.clone();
 
-                move |_: &Self, period: NonZero<u32>| {
+                move |_: &Self::Component, period: NonZero<u32>| {
                     let mut sound_timer_guard = sound_timer.lock().unwrap();
                     *sound_timer_guard = sound_timer_guard
                         .saturating_sub(period.get().try_into().unwrap_or(u8::MAX));
                 }
             })
-            .build_global(Self {
+            .build_global(Chip8Audio {
                 sound_timer: sound_timer.clone(),
             });
     }

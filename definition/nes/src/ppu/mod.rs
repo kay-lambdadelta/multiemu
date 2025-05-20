@@ -1,8 +1,8 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
 };
-use std::sync::Arc;
 
 mod software;
 #[cfg(all(feature = "vulkan", platform_desktop))]
@@ -37,23 +37,17 @@ struct State {
     oamdata: u8,
 }
 
-pub struct NesPpu {
-    essentials: Arc<RuntimeEssentials>,
-}
+#[derive(Default, Debug)]
+pub struct NesPpuConfig;
 
+#[derive(Debug)]
+pub struct NesPpu;
 impl Component for NesPpu {}
 
-impl FromConfig for NesPpu {
-    type Config = ();
+impl<R: RenderApi> ComponentConfig<R> for NesPpuConfig {
+    type Component = NesPpu;
 
-    type Quirks = ();
-
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        _config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
-        component_builder.build(Self { essentials });
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+        component_builder.build(NesPpu);
     }
 }

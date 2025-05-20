@@ -1,6 +1,7 @@
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
     memory::{
         AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
         callbacks::ReadMemory,
@@ -9,7 +10,7 @@ use multiemu_machine::{
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use rangemap::RangeInclusiveMap;
-use std::{ops::RangeInclusive, sync::Arc};
+use std::ops::RangeInclusive;
 
 #[derive(Debug)]
 pub struct RomMemoryConfig {
@@ -27,41 +28,37 @@ pub struct RomMemory;
 
 impl Component for RomMemory {}
 
-impl FromConfig for RomMemory {
-    type Config = RomMemoryConfig;
-    type Quirks = ();
+impl<R: RenderApi> ComponentConfig<R> for RomMemoryConfig {
+    type Component = RomMemory;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+        let essentials = component_builder.essentials();
+
         let rom_file = essentials
             .rom_manager
             .open(
-                config.rom,
+                self.rom,
                 RomRequirement::Required,
                 &essentials.environment.read().unwrap().roms_directory,
             )
             .unwrap();
 
-        let assigned_address_space = config.assigned_address_space;
-        let assigned_range = config.assigned_range.clone();
+        let assigned_address_space = self.assigned_address_space;
+        let assigned_range = self.assigned_range.clone();
 
         #[cfg(platform_desktop)]
         let rom = unsafe { memmap2::MmapOptions::new().map(&rom_file).unwrap() };
         #[cfg(not(platform_desktop))]
         let rom = File::open(rom_file).unwrap();
 
-        let memory_operation_callbacks = MemoryCallbacks { config, rom };
+        let memory_operation_callbacks = MemoryCallbacks { config: self, rom };
 
         essentials.memory_translation_table.insert_read_memory(
             memory_operation_callbacks,
             [(assigned_address_space, assigned_range)],
         );
 
-        component_builder.build_global(Self);
+        component_builder.build_global(RomMemory);
     }
 }
 

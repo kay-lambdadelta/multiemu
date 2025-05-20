@@ -428,16 +428,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_definition_i8080'",
+            "name": "Debug unit tests in library 'multiemu_definition_intel8080'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=multiemu-definition-i8080"
+                    "--package=multiemu-definition-intel8080"
                 ],
                 "filter": {
-                    "name": "multiemu_definition_i8080",
+                    "name": "multiemu_definition_intel8080",
                     "kind": "lib"
                 }
             },

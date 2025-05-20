@@ -1,24 +1,22 @@
 use color::TiaColor;
-use memory::MemoryCallback;
-use multiemu_definition_mos6502::Mos6502;
 use multiemu_machine::{
-    builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials, component_ref::ComponentRef},
-    display::backend::software::SoftwareRendering,
-    memory::AddressSpaceHandle,
+    component::{Component, RuntimeEssentials},
+    display::backend::{ComponentFramebuffer, RenderApi},
 };
 use nalgebra::{DMatrix, Point2};
 use palette::Srgb;
 use region::Region;
+use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use std::{
     cell::OnceCell,
     collections::{HashMap, HashSet},
+    fmt::Debug,
     sync::{Arc, Mutex},
 };
-use task::TiaTask;
 
 mod color;
+pub(crate) mod config;
 mod memory;
 pub mod region;
 mod software;
@@ -53,14 +51,14 @@ impl Default for ObjectPosition {
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
-pub enum InputControl {
+enum InputControl {
     #[default]
     Normal,
     LatchedOrDumped,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
-struct State {
+pub(crate) struct State {
     collision_matrix: HashMap<ObjectId, HashSet<ObjectId>>,
     in_vsync: bool,
     in_vblank: bool,
@@ -82,7 +80,7 @@ struct Missile {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
-pub enum DelayEnableChangeBall {
+enum DelayEnableChangeBall {
     #[default]
     Disabled,
     Enabled(Option<bool>),
@@ -98,7 +96,7 @@ struct Ball {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
-pub enum DelayChangeGraphicPlayer {
+enum DelayChangeGraphicPlayer {
     #[default]
     Disabled,
     Enabled(Option<u8>),
@@ -114,71 +112,26 @@ struct Player {
     color: TiaColor,
 }
 
-pub struct Tia<R: Region> {
+#[derive(Debug)]
+pub(crate) struct Tia<R: Region, A: SupportedRenderApiTia> {
     state: Arc<Mutex<State>>,
-    display_backend: OnceCell<Box<dyn TiaDisplayBackend<R>>>,
+    display_backend: OnceCell<A::Backend<R>>,
 }
 
-#[derive(Debug, Clone)]
-pub struct TiaConfig {
-    pub cpu: ComponentRef<Mos6502>,
-    pub cpu_address_space: AddressSpaceHandle,
-}
+impl<R: Region, A: SupportedRenderApiTia> Component for Tia<R, A> {}
 
-impl<R: Region> Component for Tia<R> {}
-
-impl<R: Region> FromConfig for Tia<R> {
-    type Config = TiaConfig;
-    type Quirks = ();
-
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
-        let state = Arc::new(Mutex::new(State::default()));
-        essentials.memory_translation_table.insert_memory(
-            MemoryCallback {
-                state: state.clone(),
-                cpu: config.cpu.clone(),
-            },
-            [(config.cpu_address_space, 0x000..=0x03f)],
-        );
-
-        let component_builder = component_builder
-            .insert_task(
-                R::frequency(),
-                TiaTask {
-                    cpu: config.cpu.clone(),
-                },
-            )
-            .insert_task(R::REFRESH_RATE, move |display: &Tia<R>, _period| {
-                tracing::debug!("Commiting framebuffer");
-                display.display_backend.get().unwrap().commit_display();
-            })
-            .set_display_config::<SoftwareRendering>(None, None, software::set_display_data);
-
-        #[cfg(all(feature = "vulkan", platform_desktop))]
-        let component_builder = {
-            use multiemu_machine::display::backend::vulkan::VulkanRendering;
-            component_builder.set_display_config::<VulkanRendering>(
-                None,
-                None,
-                vulkan::set_display_data,
-            )
-        };
-
-        component_builder.build(Tia {
-            state,
-            display_backend: OnceCell::new(),
-        });
-    }
-}
-
-trait TiaDisplayBackend<R: Region> {
+#[sealed]
+pub(crate) trait TiaDisplayBackend<R: Region, A: SupportedRenderApiTia>:
+    Debug + Sized + 'static
+{
+    fn new(essentials: &RuntimeEssentials<A>) -> (Self, ComponentFramebuffer<A>);
     fn draw(&self, state: &State, position: Point2<u16>, hue: u8, luminosity: u8);
     fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
     fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);
     fn commit_display(&self);
+}
+
+#[sealed]
+pub(crate) trait SupportedRenderApiTia: RenderApi {
+    type Backend<R: Region>: TiaDisplayBackend<R, Self>;
 }

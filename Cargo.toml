@@ -14,7 +14,7 @@ multiemu-definition-misc = { path = "definition/misc" }
 multiemu-definition-mos6502 = { path = "definition/mos6502" }
 multiemu-definition-chip8 = { path = "definition/chip8" }
 multiemu-definition-nes = { path = "definition/nes" }
-multiemu-definition-i8080 = { path = "definition/i8080" }
+multiemu-definition-intel8080 = { path = "definition/intel8080" }
 multiemu-definition-atari2600 = { path = "definition/atari2600" }
 multiemu-definition-atarilynx = { path = "definition/atarilynx" }
 
@@ -57,15 +57,15 @@ proc-macro2 = "1.0"
 quote = "1.0"
 cfg_aliases = "0.2"
 itertools = "0.14"
-criterion = "0.5"
+criterion = "0.6"
 uuid = { version = "1.16", features = ["serde", "v4"] }
 ringbuffer = "0.15"
 camino = { version = "1.1", features = ["serde1"] }
 bincode = { version = "2.0", features = ["serde"] }
-arc-swap = "1.7"
 rustc-hash = "2.1"
 ron = "0.10"
 data-encoding = "2.9"
+sealed = "0.6"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }
@@ -73,7 +73,6 @@ codes-iso-3166 = { version = "0.1", features = ["languages"] }
 
 # Add back when I'm ready for jit supports
 # cranelift = { version = "0.118", features = ["jit", "native", "module"] }
-
 
 # 3DS stuff
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }

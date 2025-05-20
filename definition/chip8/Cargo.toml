@@ -2,6 +2,7 @@
 name = "multiemu-definition-chip8"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 multiemu-rom = { workspace = true }
@@ -24,7 +25,7 @@ palette = { workspace = true }
 crossbeam = { workspace = true }
 versions = { workspace = true }
 bincode = { workspace = true }
-arc-swap = { workspace = true }
+sealed = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }

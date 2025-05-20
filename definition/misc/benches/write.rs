@@ -1,7 +1,7 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_config::Environment;
 use multiemu_definition_misc::memory::standard::{
-    StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
+    StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use multiemu_machine::{
     builder::MachineBuilder,
@@ -18,11 +18,15 @@ fn criterion_benchmark(c: &mut Criterion) {
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
     let shader_cache = ShaderCache::default();
 
-    let (machine, cpu_address_space) =
-        MachineBuilder::new(GameSystem::Unknown, rom_manager, environment, shader_cache)
-            .insert_address_space("cpu", 64);
+    let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+        GameSystem::Unknown,
+        rom_manager,
+        environment,
+        shader_cache,
+    )
+    .insert_address_space("cpu", 64);
 
-    let (machine, _) = machine.insert_component::<StandardMemory>(
+    let (machine, _) = machine.insert_component(
         "workram",
         StandardMemoryConfig {
             max_word_size: 8,
@@ -33,7 +37,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
         },
     );
-    let machine = machine.build::<SoftwareRendering>(Default::default());
+    let machine = machine.build(Default::default());
 
     let buffer = [0; 1];
     c.bench_function("write1", |b| {

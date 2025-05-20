@@ -1,33 +1,32 @@
 use super::{
-    Chip8KeyCode, Chip8Processor, Chip8ProcessorConfig, Chip8ProcessorQuirks, ExecutionState,
+    Chip8KeyCode, Chip8Processor, Chip8ProcessorConfig, ExecutionState,
     decoder::Chip8InstructionDecoder,
 };
-use crate::Chip8Kind;
+use crate::{Chip8Kind, SupportedRenderApiChip8, display::Chip8DisplayBackend};
 use crossbeam::atomic::AtomicCell;
 use multiemu_machine::{
-    component::RuntimeEssentials, input::virtual_gamepad::VirtualGamepad,
-    processor::decoder::InstructionDecoder, scheduler::task::Task,
+    input::virtual_gamepad::VirtualGamepad,
+    memory::memory_translation_table::MemoryTranslationTable,
+    processor::decoder::InstructionDecoder, task::Task,
 };
 use std::{
     num::NonZero,
     sync::{Arc, atomic::Ordering},
 };
 
-pub(crate) struct Chip8ProcessorTask {
+pub(crate) struct Chip8ProcessorTask<R: SupportedRenderApiChip8> {
     /// Instruction cache
     pub instruction_decoder: Chip8InstructionDecoder,
     /// Keypad virtual gamepad
     pub virtual_gamepad: Arc<VirtualGamepad>,
     /// Essential stuff the runtime provides
-    pub essentials: Arc<RuntimeEssentials>,
-    /// Quirks
-    pub quirks: Arc<Chip8ProcessorQuirks>,
+    pub memory_translation_table: MemoryTranslationTable,
     // What chip8 mode we are currently in
     pub mode: Arc<AtomicCell<Chip8Kind>>,
-    pub config: Chip8ProcessorConfig,
+    pub config: Chip8ProcessorConfig<R>,
 }
 
-impl Task<Chip8Processor> for Chip8ProcessorTask {
+impl<R: SupportedRenderApiChip8> Task<Chip8Processor> for Chip8ProcessorTask<R> {
     fn run(&mut self, target: &Chip8Processor, period: NonZero<u32>) {
         let mut state = target.state.lock().unwrap();
 
@@ -40,7 +39,7 @@ impl Task<Chip8Processor> for Chip8ProcessorTask {
                             .decode(
                                 state.registers.program as usize,
                                 self.config.cpu_address_space,
-                                &self.essentials.memory_translation_table,
+                                &self.memory_translation_table,
                             )
                             .expect("Failed to decode instruction");
 

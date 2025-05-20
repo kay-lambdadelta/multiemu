@@ -1,10 +1,7 @@
-
-
-use std::fmt::Display;
-use std::borrow::Cow;
 use gamepad::GamepadInput;
 use keyboard::KeyboardInput;
 use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, fmt::Display};
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 

@@ -5,17 +5,15 @@ use multiemu_config::Environment;
 use multiemu_machine::{
     Machine,
     display::{
-        backend::{RenderBackend, software::SoftwareRendering},
+        RenderExtensions,
+        backend::{RenderApi, software::SoftwareRendering},
         shader::ShaderCache,
     },
 };
 use nalgebra::{DMatrixViewMut, Vector2};
 use palette::{Srgba, cast::Packed, rgb::channels::Argb};
 use softbuffer::{Context, Surface};
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use winit::window::Window;
 
 pub struct SoftwareRenderingRuntime {
@@ -27,15 +25,14 @@ pub struct SoftwareRenderingRuntime {
 }
 
 impl RenderingBackendState for SoftwareRenderingRuntime {
-    type RenderBackend = SoftwareRendering;
+    type RenderApi = SoftwareRendering;
     type DisplayApiHandle = Arc<Window>;
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
         environment: Arc<RwLock<Environment>>,
         _shader_cache: ShaderCache,
-        _preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
-        _required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
+        _render_extensions: RenderExtensions<Self::RenderApi>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
@@ -59,11 +56,11 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
 
     fn component_initialization_data(
         &self,
-    ) -> Rc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData> {
-        Rc::default()
+    ) -> <Self::RenderApi as RenderApi>::ComponentInitializationData {
+        Default::default()
     }
 
-    fn redraw(&mut self, machine: &Machine) {
+    fn redraw(&mut self, machine: &Machine<Self::RenderApi>) {
         if self.previously_recorded_size.min() == 0 {
             return;
         }
@@ -83,9 +80,9 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             .graphics_setting
             .integer_scaling;
 
-        for framebuffer in machine.framebuffers::<Self::RenderBackend>().iter() {
+        for framebuffer in machine.framebuffers.iter() {
             if integer_scaling {
-                let framebuffer = framebuffer.borrow();
+                let framebuffer = framebuffer.load();
 
                 let component_display_buffer_size =
                     Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();
@@ -122,7 +119,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
                     }
                 }
             } else {
-                let framebuffer = framebuffer.borrow();
+                let framebuffer = framebuffer.load();
 
                 let component_display_buffer_size =
                     Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();

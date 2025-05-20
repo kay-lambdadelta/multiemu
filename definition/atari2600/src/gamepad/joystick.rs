@@ -3,7 +3,8 @@ use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use multiemu_input::{Input, VirtualGamepadName, gamepad::GamepadInput};
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials, component_ref::ComponentRef},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
+    display::backend::RenderApi,
     input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
 };
 use std::{
@@ -11,28 +12,22 @@ use std::{
     sync::Arc,
 };
 
+#[derive(Debug)]
 pub struct Atari2600Joystick;
 
 impl Component for Atari2600Joystick {}
 
-impl FromConfig for Atari2600Joystick {
-    type Config = Atari2600JoystickConfig;
-    type Quirks = ();
+impl<R: RenderApi> ComponentConfig<R> for Atari2600JoystickConfig {
+    type Component = Atari2600Joystick;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        _essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
         let player1_gamepad = create_gamepad();
         let player2_gamepad = create_gamepad();
 
         let component_builder =
             component_builder.insert_gamepads([player1_gamepad.clone(), player2_gamepad.clone()]);
 
-        config
-            .mos6532_riot
+        self.mos6532_riot
             .interact(|riot| {
                 riot.install_swcha(JoystickSwchaCallback {
                     gamepads: [player1_gamepad, player2_gamepad],
@@ -40,7 +35,7 @@ impl FromConfig for Atari2600Joystick {
             })
             .unwrap();
 
-        component_builder.build_global(Self);
+        component_builder.build_global(Atari2600Joystick);
     }
 }
 

@@ -1,13 +1,13 @@
 [package]
-name = "multiemu-definition-i8080"
+name = "multiemu-definition-intel8080"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 multiemu-rom = { workspace = true }
 multiemu-config = { workspace = true }
 multiemu-machine = { workspace = true }
-multiemu-definition-misc = { workspace = true }
 enumflags2 = { workspace = true }
 num = { workspace = true }
 strum = { workspace = true }

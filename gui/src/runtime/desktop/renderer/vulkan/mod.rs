@@ -5,18 +5,16 @@ use multiemu_config::Environment;
 use multiemu_machine::{
     Machine,
     display::{
+        RenderExtensions,
         backend::{
-            RenderBackend,
+            RenderApi,
             vulkan::{VulkanComponentInitializationData, VulkanRendering},
         },
         shader::ShaderCache,
     },
 };
 use nalgebra::Vector2;
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 use vulkano::{
     Validated, VulkanError, VulkanLibrary,
     command_buffer::{
@@ -60,15 +58,14 @@ pub struct VulkanRenderingRuntime {
 }
 
 impl RenderingBackendState for VulkanRenderingRuntime {
-    type RenderBackend = VulkanRendering;
+    type RenderApi = VulkanRendering;
     type DisplayApiHandle = Arc<Window>;
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
         environment: Arc<RwLock<Environment>>,
         shader_cache: ShaderCache,
-        preferred_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
-        required_extensions: <Self::RenderBackend as RenderBackend>::ContextExtensionSpecification,
+        render_extensions: RenderExtensions<Self::RenderApi>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
@@ -85,13 +82,13 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             select_vulkan_device(
                 instance.clone(),
                 surface.clone(),
-                &preferred_extensions.device_extensions,
-                &required_extensions.device_extensions,
+                &render_extensions.preferred.device_extensions,
+                &render_extensions.required.device_extensions,
             )
         else {
             return Err(format!(
                 "Could not find a device that satifies all extensions: {:#?}",
-                required_extensions.device_extensions
+                render_extensions.required.device_extensions
             )
             .into());
         };
@@ -221,16 +218,16 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
     fn component_initialization_data(
         &self,
-    ) -> Rc<<Self::RenderBackend as RenderBackend>::ComponentInitializationData> {
-        Rc::new(VulkanComponentInitializationData {
+    ) -> <Self::RenderApi as RenderApi>::ComponentInitializationData {
+        VulkanComponentInitializationData {
             device: self.device.clone(),
             queues: self.queues_for_components.clone(),
             memory_allocator: self.memory_allocator.clone(),
             command_buffer_allocator: self.command_buffer_allocator.clone(),
-        })
+        }
     }
 
-    fn redraw(&mut self, machine: &Machine) {
+    fn redraw(&mut self, machine: &Machine<Self::RenderApi>) {
         let window_dimensions = self.display_api_handle.inner_size();
         let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
 
@@ -249,13 +246,13 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         )
         .unwrap();
 
-        for framebuffer in machine.framebuffers::<Self::RenderBackend>().iter() {
+        for framebuffer in machine.framebuffers.iter() {
             command_buffer
                 .blit_image(BlitImageInfo {
                     src_image_layout: ImageLayout::TransferSrcOptimal,
                     dst_image_layout: ImageLayout::TransferDstOptimal,
                     filter: Filter::Nearest,
-                    ..BlitImageInfo::images(framebuffer.load_full(), swapchain_image.clone())
+                    ..BlitImageInfo::images(framebuffer.load(), swapchain_image.clone())
                 })
                 .unwrap();
         }

@@ -11,7 +11,7 @@ use serde_inline_default::serde_inline_default;
 use serde_with::serde_as;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::Write,
     ops::Deref,
     path::PathBuf,
@@ -77,13 +77,13 @@ pub struct Environment {
     #[serde_inline_default(STORAGE_DIRECTORY.join("saves"))]
     /// Directory where saves will be stored
     pub save_directory: PathBuf,
-    #[serde_inline_default(STORAGE_DIRECTORY.join("snapshot"))]
+    #[serde_inline_default(STORAGE_DIRECTORY.join("snapshots"))]
     /// Directory where snapshots will be stored
     pub snapshot_directory: PathBuf,
     #[serde_inline_default(STORAGE_DIRECTORY.join("roms"))]
     /// Directory where emulator will store imported roms
     pub roms_directory: PathBuf,
-    #[serde_inline_default(STORAGE_DIRECTORY.join("shader-cache"))]
+    #[serde_inline_default(STORAGE_DIRECTORY.join("shaders"))]
     /// Directory where emulator will store cached shaders
     pub shader_cache_directory: PathBuf,
 }
@@ -99,9 +99,9 @@ impl Default for Environment {
             log_location: STORAGE_DIRECTORY.join("log"),
             database_file: STORAGE_DIRECTORY.join("database.redb"),
             save_directory: STORAGE_DIRECTORY.join("saves"),
-            snapshot_directory: STORAGE_DIRECTORY.join("snapshot"),
+            snapshot_directory: STORAGE_DIRECTORY.join("snapshots"),
             roms_directory: STORAGE_DIRECTORY.join("roms"),
-            shader_cache_directory: STORAGE_DIRECTORY.join("shader-cache"),
+            shader_cache_directory: STORAGE_DIRECTORY.join("shaders"),
             processor_execution_mode: ProcessorExecutionMode::default(),
         }
     }

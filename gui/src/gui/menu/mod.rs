@@ -2,7 +2,7 @@ use egui::{CentralPanel, Context, ScrollArea, SidePanel};
 use file_browser::FileBrowserState;
 use memory_viewer::MemoryViewerState;
 use multiemu_config::Environment;
-use multiemu_machine::Machine;
+use multiemu_machine::{Machine, display::backend::RenderApi};
 use multiemu_rom::{id::RomId, manager::RomManager};
 use options::OptionsState;
 use std::{
@@ -70,7 +70,11 @@ impl MenuState {
     }
 
     /// TODO: barely does anything
-    pub fn run_menu(&mut self, ctx: &Context, machine: Option<&Machine>) -> Option<UiOutput> {
+    pub fn run_menu<R: RenderApi>(
+        &mut self,
+        ctx: &Context,
+        machine: Option<&Machine<R>>,
+    ) -> Option<UiOutput> {
         let mut output = None;
 
         SidePanel::left("options_panel")

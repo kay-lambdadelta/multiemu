@@ -2,7 +2,8 @@ use ines::INes;
 use mapper::construct_mapper;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
     memory::AddressSpaceHandle,
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
@@ -12,6 +13,7 @@ use std::{io::Read, sync::Arc};
 pub mod ines;
 mod mapper;
 
+#[derive(Debug)]
 pub struct NesCartridge {
     rom: Arc<INes>,
 }
@@ -36,20 +38,16 @@ pub struct NesCartridgeQuirks {
     pub force_mapper: u8,
 }
 
-impl FromConfig for NesCartridge {
-    type Config = NesCartridgeConfig;
-    type Quirks = ();
+impl<R: RenderApi> ComponentConfig<R> for NesCartridgeConfig {
+    type Component = NesCartridge;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        _quirks: Self::Quirks,
-    ) {
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+        let essentials = component_builder.essentials();
+
         let mut rom_file = essentials
             .rom_manager
             .open(
-                config.rom,
+                self.rom,
                 RomRequirement::Required,
                 &essentials.environment.read().unwrap().roms_directory,
             )
@@ -65,9 +63,9 @@ impl FromConfig for NesCartridge {
         construct_mapper(
             &essentials.memory_translation_table,
             ines.clone(),
-            config.cpu_address_space,
-            config.ppu_address_space,
+            self.cpu_address_space,
+            self.ppu_address_space,
         );
-        component_builder.build_global(Self { rom: ines });
+        component_builder.build_global(NesCartridge { rom: ines });
     }
 }

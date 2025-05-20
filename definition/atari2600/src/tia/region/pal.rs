@@ -2,7 +2,9 @@ use num::rational::Ratio;
 
 use super::Region;
 
+#[derive(Debug)]
 pub struct Pal;
+
 impl Region for Pal {
     const REFRESH_RATE: Ratio<u32> = Ratio::new_raw(50, 1);
     const TOTAL_SCANLINES: u16 = 312;

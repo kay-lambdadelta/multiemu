@@ -1,5 +1,5 @@
 use super::ComponentBuilder;
-use crate::{component::Component, scheduler::task::Task};
+use crate::{component::Component, display::backend::RenderApi, task::Task};
 use num::rational::Ratio;
 use std::{any::Any, num::NonZero};
 
@@ -12,7 +12,7 @@ pub struct TaskMetadata {
     )>,
 }
 
-impl<C: Component> ComponentBuilder<'_, C> {
+impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {
     pub fn insert_task(mut self, frequency: Ratio<u32>, mut callback: impl Task<C>) -> Self {
         let task_metatada = self.component_metadata.task.get_or_insert_default();
 

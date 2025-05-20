@@ -1,9 +1,11 @@
 use super::Region;
 use num::rational::Ratio;
 
+#[derive(Debug)]
 pub struct Secam;
+
 impl Region for Secam {
-    const REFRESH_RATE: Ratio<u32> = todo!();
+    const REFRESH_RATE: Ratio<u32> = Ratio::new_raw(50, 1);
     const TOTAL_SCANLINES: u16 = 312;
 
     fn frequency() -> Ratio<u32> {

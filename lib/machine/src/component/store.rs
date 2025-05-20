@@ -76,7 +76,7 @@ impl ComponentStore {
 
     pub(crate) fn insert_component(
         &self,
-        manifest_name: &'static str,
+        name: &'static str,
         component_id: ComponentId,
         component: impl Component,
     ) {
@@ -90,7 +90,7 @@ impl ComponentStore {
         });
 
         self.component_ids
-            .insert(Cow::Borrowed(manifest_name), component_id)
+            .insert(Cow::Borrowed(name), component_id)
             .unwrap();
 
         self.component_location
@@ -100,7 +100,7 @@ impl ComponentStore {
 
     pub(crate) fn insert_component_global(
         &self,
-        manifest_name: &'static str,
+        name: &'static str,
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
@@ -109,7 +109,7 @@ impl ComponentStore {
         });
 
         self.component_ids
-            .insert(Cow::Borrowed(manifest_name), component_id)
+            .insert(Cow::Borrowed(name), component_id)
             .unwrap();
 
         self.component_location
@@ -214,11 +214,8 @@ impl ComponentStore {
         })
     }
 
-    pub(crate) fn get<C: Component>(
-        self: &Arc<Self>,
-        manifest_name: &str,
-    ) -> Option<ComponentRef<C>> {
-        let component_id = *self.component_ids.get(manifest_name).unwrap().get();
+    pub(crate) fn get<C: Component>(self: &Arc<Self>, name: &str) -> Option<ComponentRef<C>> {
+        let component_id = *self.component_ids.get(name).unwrap().get();
 
         let component = if let ComponentLocation::Global(component) =
             self.component_location.get(&component_id)?.get()

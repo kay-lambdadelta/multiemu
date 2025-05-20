@@ -1,6 +1,6 @@
-use super::{SCANLINE_LENGTH, Tia, region::Region};
+use super::{SCANLINE_LENGTH, SupportedRenderApiTia, Tia, TiaDisplayBackend, region::Region};
 use multiemu_definition_mos6502::Mos6502;
-use multiemu_machine::{component::component_ref::ComponentRef, scheduler::task::Task};
+use multiemu_machine::{component::component_ref::ComponentRef, task::Task};
 use nalgebra::Point2;
 use std::num::NonZero;
 
@@ -8,8 +8,8 @@ pub struct TiaTask {
     pub cpu: ComponentRef<Mos6502>,
 }
 
-impl<R: Region> Task<Tia<R>> for TiaTask {
-    fn run(&mut self, target: &Tia<R>, period: NonZero<u32>) {
+impl<R: Region, A: SupportedRenderApiTia> Task<Tia<R, A>> for TiaTask {
+    fn run(&mut self, target: &Tia<R, A>, period: NonZero<u32>) {
         let period = period.get();
         let mut state_guard = target.state.lock().unwrap();
 

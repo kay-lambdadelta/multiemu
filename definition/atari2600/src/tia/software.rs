@@ -1,19 +1,41 @@
-use super::{SCANLINE_LENGTH, State, Tia, TiaDisplayBackend, region::Region};
-use multiemu_machine::display::backend::{
-    RenderBackend,
-    software::{SoftwareComponentFramebuffer, SoftwareRendering},
+use super::{SCANLINE_LENGTH, State, SupportedRenderApiTia, TiaDisplayBackend, region::Region};
+use crate::tia::{__seal_supported_render_api_tia, __seal_tia_display_backend};
+use multiemu_machine::{
+    component::RuntimeEssentials,
+    display::backend::{ComponentFramebuffer, software::SoftwareRendering},
 };
 use nalgebra::{DMatrix, Point2};
 use palette::{Srgb, Srgba};
-use std::{cell::RefCell, rc::Rc};
+use sealed::sealed;
+use std::{cell::RefCell, sync::Arc};
 
 #[derive(Debug)]
 pub struct SoftwareState {
     pub staging_buffer: RefCell<DMatrix<Srgba<u8>>>,
-    pub framebuffer: Rc<RefCell<DMatrix<Srgba<u8>>>>,
+    pub framebuffer: ComponentFramebuffer<SoftwareRendering>,
 }
 
-impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
+#[sealed]
+impl<R: Region> TiaDisplayBackend<R, SoftwareRendering> for SoftwareState {
+    fn new(
+        _essentials: &RuntimeEssentials<SoftwareRendering>,
+    ) -> (Self, ComponentFramebuffer<SoftwareRendering>) {
+        let staging_buffer = DMatrix::from_element(
+            SCANLINE_LENGTH as usize,
+            R::TOTAL_SCANLINES as usize,
+            Srgba::new(0, 0, 0, 0xff),
+        );
+        let framebuffer = ComponentFramebuffer::new(Arc::new(staging_buffer.clone()));
+
+        (
+            SoftwareState {
+                staging_buffer: RefCell::new(staging_buffer),
+                framebuffer: framebuffer.clone(),
+            },
+            framebuffer,
+        )
+    }
+
     fn draw(&self, state: &State, position: Point2<u16>, hue: u8, luminosity: u8) {
         let real_color = R::color_to_srgb(hue, luminosity);
 
@@ -36,28 +58,12 @@ impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
     }
 
     fn commit_display(&self) {
-        let staging_buffer = self.staging_buffer.borrow_mut();
-        let mut framebuffer = self.framebuffer.borrow_mut();
-
-        framebuffer.copy_from(&staging_buffer);
+        let staging_buffer = self.staging_buffer.borrow();
+        self.framebuffer.store(Arc::new(staging_buffer.clone()));
     }
 }
 
-pub fn set_display_data<R: Region>(
-    display: &Tia<R>,
-    _initialization_data: Rc<<SoftwareRendering as RenderBackend>::ComponentInitializationData>,
-) -> Rc<SoftwareComponentFramebuffer> {
-    let staging_buffer = DMatrix::from_element(
-        SCANLINE_LENGTH as usize,
-        R::TOTAL_SCANLINES as usize,
-        Srgba::new(0, 0, 0, 0xff),
-    );
-    let framebuffer = Rc::new(RefCell::new(staging_buffer.clone()));
-
-    let _ = display.display_backend.set(Box::new(SoftwareState {
-        staging_buffer: RefCell::new(staging_buffer),
-        framebuffer: framebuffer.clone(),
-    }));
-
-    framebuffer
+#[sealed]
+impl SupportedRenderApiTia for SoftwareRendering {
+    type Backend<R: Region> = SoftwareState;
 }

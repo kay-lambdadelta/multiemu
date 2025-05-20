@@ -1,13 +1,13 @@
 use banking::BankingCartridgeMemoryCallback;
 use multiemu_machine::{
     builder::ComponentBuilder,
-    component::{Component, FromConfig, RuntimeEssentials},
+    component::{Component, ComponentConfig},
+    display::backend::RenderApi,
     memory::AddressSpaceHandle,
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use raw::RawCartridgeMemoryCallback;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 mod banking;
 mod raw;
@@ -21,35 +21,28 @@ pub enum CartType {
     Banking4k,
 }
 
+#[derive(Debug)]
 pub struct Atari2600Cartridge {}
 
 #[derive(Debug)]
 pub struct Atari2600CartridgeConfig {
     pub rom: RomId,
     pub cpu_address_space: AddressSpaceHandle,
-}
-
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct Atari2600CartridgeQuirks {
     pub force_cart_type: Option<CartType>,
 }
 
 impl Component for Atari2600Cartridge {}
 
-impl FromConfig for Atari2600Cartridge {
-    type Config = Atari2600CartridgeConfig;
-    type Quirks = Atari2600CartridgeQuirks;
+impl<R: RenderApi> ComponentConfig<R> for Atari2600CartridgeConfig {
+    type Component = Atari2600Cartridge;
 
-    fn from_config(
-        component_builder: ComponentBuilder<Self>,
-        essentials: Arc<RuntimeEssentials>,
-        config: Self::Config,
-        quirks: Self::Quirks,
-    ) {
+    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+        let essentials = component_builder.essentials();
+
         let mut rom = essentials
             .rom_manager
             .open(
-                config.rom,
+                self.rom,
                 RomRequirement::Required,
                 &essentials.environment.read().unwrap().roms_directory,
             )
@@ -59,7 +52,7 @@ impl FromConfig for Atari2600Cartridge {
 
         assert!(rom_bytes.len().is_power_of_two(), "Obviously invalid rom");
 
-        let cart_type = quirks.force_cart_type.unwrap_or_else(|| {
+        let cart_type = self.force_cart_type.unwrap_or_else(|| {
             if rom_bytes.len() <= 0x4000 {
                 CartType::Raw
             } else {
@@ -72,22 +65,22 @@ impl FromConfig for Atari2600Cartridge {
                 RawCartridgeMemoryCallback {
                     rom: rom_bytes.try_into().unwrap(),
                 },
-                [(config.cpu_address_space, 0x1000..=0x1fff)],
+                [(self.cpu_address_space, 0x1000..=0x1fff)],
             ),
             CartType::Banking1k => essentials.memory_translation_table.insert_read_memory(
                 BankingCartridgeMemoryCallback::<0x1000>::new(rom_bytes),
-                [(config.cpu_address_space, 0x1000..=0x1fff)],
+                [(self.cpu_address_space, 0x1000..=0x1fff)],
             ),
             CartType::Banking2k => essentials.memory_translation_table.insert_read_memory(
                 BankingCartridgeMemoryCallback::<0x2000>::new(rom_bytes),
-                [(config.cpu_address_space, 0x1000..=0x1fff)],
+                [(self.cpu_address_space, 0x1000..=0x1fff)],
             ),
             CartType::Banking4k => essentials.memory_translation_table.insert_read_memory(
                 BankingCartridgeMemoryCallback::<0x4000>::new(rom_bytes),
-                [(config.cpu_address_space, 0x1000..=0x1fff)],
+                [(self.cpu_address_space, 0x1000..=0x1fff)],
             ),
         };
 
-        component_builder.build_global(Self {});
+        component_builder.build_global(Atari2600Cartridge {});
     }
 }
