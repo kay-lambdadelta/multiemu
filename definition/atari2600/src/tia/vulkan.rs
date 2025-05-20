@@ -1,12 +1,10 @@
 use super::{SCANLINE_LENGTH, State, SupportedRenderApiTia, TiaDisplayBackend, region::Region};
-use crate::tia::{__seal_supported_render_api_tia, __seal_tia_display_backend};
 use multiemu_machine::{
     component::RuntimeEssentials,
     display::backend::{ComponentFramebuffer, vulkan::VulkanRendering},
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2};
 use palette::{Srgb, Srgba};
-use sealed::sealed;
 use std::sync::Arc;
 use vulkano::{
     buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
@@ -29,7 +27,6 @@ pub struct VulkanState {
     pub render_image: ComponentFramebuffer<VulkanRendering>,
 }
 
-#[sealed]
 impl<R: Region> TiaDisplayBackend<R, VulkanRendering> for VulkanState {
     fn new(
         essentials: &RuntimeEssentials<VulkanRendering>,
@@ -146,7 +143,6 @@ impl<R: Region> TiaDisplayBackend<R, VulkanRendering> for VulkanState {
     }
 }
 
-#[sealed]
 impl SupportedRenderApiTia for VulkanRendering {
     type Backend<R: Region> = VulkanState;
 }

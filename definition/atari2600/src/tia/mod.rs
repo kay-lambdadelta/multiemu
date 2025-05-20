@@ -6,7 +6,6 @@ use multiemu_machine::{
 use nalgebra::{DMatrix, Point2};
 use palette::Srgb;
 use region::Region;
-use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use std::{
     cell::OnceCell,
@@ -120,7 +119,6 @@ pub(crate) struct Tia<R: Region, A: SupportedRenderApiTia> {
 
 impl<R: Region, A: SupportedRenderApiTia> Component for Tia<R, A> {}
 
-#[sealed]
 pub(crate) trait TiaDisplayBackend<R: Region, A: SupportedRenderApiTia>:
     Debug + Sized + 'static
 {
@@ -131,7 +129,6 @@ pub(crate) trait TiaDisplayBackend<R: Region, A: SupportedRenderApiTia>:
     fn commit_display(&self);
 }
 
-#[sealed]
 pub(crate) trait SupportedRenderApiTia: RenderApi {
     type Backend<R: Region>: TiaDisplayBackend<R, Self>;
 }

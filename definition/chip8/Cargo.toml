@@ -25,7 +25,6 @@ palette = { workspace = true }
 crossbeam = { workspace = true }
 versions = { workspace = true }
 bincode = { workspace = true }
-sealed = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }

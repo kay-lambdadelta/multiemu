@@ -1,12 +1,10 @@
 use super::{SCANLINE_LENGTH, State, SupportedRenderApiTia, TiaDisplayBackend, region::Region};
-use crate::tia::{__seal_supported_render_api_tia, __seal_tia_display_backend};
 use multiemu_machine::{
     component::RuntimeEssentials,
     display::backend::{ComponentFramebuffer, software::SoftwareRendering},
 };
 use nalgebra::{DMatrix, Point2};
 use palette::{Srgb, Srgba};
-use sealed::sealed;
 use std::{cell::RefCell, sync::Arc};
 
 #[derive(Debug)]
@@ -15,7 +13,6 @@ pub struct SoftwareState {
     pub framebuffer: ComponentFramebuffer<SoftwareRendering>,
 }
 
-#[sealed]
 impl<R: Region> TiaDisplayBackend<R, SoftwareRendering> for SoftwareState {
     fn new(
         _essentials: &RuntimeEssentials<SoftwareRendering>,
@@ -63,7 +60,6 @@ impl<R: Region> TiaDisplayBackend<R, SoftwareRendering> for SoftwareState {
     }
 }
 
-#[sealed]
 impl SupportedRenderApiTia for SoftwareRendering {
     type Backend<R: Region> = SoftwareState;
 }

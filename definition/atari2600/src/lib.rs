@@ -14,7 +14,6 @@ use multiemu_rom::{
     system::{AtariSystem, GameSystem},
 };
 use num::rational::Ratio;
-use sealed::sealed;
 use std::{
     marker::PhantomData,
     ops::RangeInclusive,
@@ -38,12 +37,8 @@ enum RegionSelection {
     Secam,
 }
 
-#[sealed]
-// Smelly i know
-#[allow(private_bounds)]
-pub trait SupportedRenderApiAtari2600: SupportedRenderApiTia {}
+trait SupportedRenderApiAtari2600: SupportedRenderApiTia {}
 
-#[sealed]
 impl<A: SupportedRenderApiTia> SupportedRenderApiAtari2600 for A {}
 
 #[derive(Default, Debug)]

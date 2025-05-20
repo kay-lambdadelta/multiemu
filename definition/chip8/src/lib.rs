@@ -14,7 +14,6 @@ use multiemu_rom::{
 use num::rational::Ratio;
 use processor::Chip8ProcessorConfig;
 pub use processor::decoder::Chip8InstructionDecoder;
-use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
@@ -38,11 +37,7 @@ pub enum Chip8Kind {
     XoChip,
 }
 
-#[sealed]
-#[allow(private_bounds)]
-pub trait SupportedRenderApiChip8: SupportedRenderApiChip8Display {}
-
-#[sealed]
+trait SupportedRenderApiChip8: SupportedRenderApiChip8Display {}
 impl<A: SupportedRenderApiChip8Display> SupportedRenderApiChip8 for A {}
 
 #[derive(Debug, Default)]
