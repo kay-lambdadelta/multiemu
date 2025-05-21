@@ -212,6 +212,11 @@ impl Mos6502Task {
                 }
             }
             Opcode::Brk => {
+                tracing::debug!(
+                    "Brk executed, this might be a mistake, here is the memory translation table: {:#x?}",
+                    self.memory_translation_table
+                );
+
                 let new_stack = state.stack.wrapping_sub(2);
                 let program_bytes = state.program.to_le_bytes();
 
@@ -417,7 +422,8 @@ impl Mos6502Task {
                 state.program = value;
             }
             Opcode::Jsr => {
-                let program_bytes = state.program.to_le_bytes();
+                // We load the byte BEFORE the program counter
+                let program_bytes = (state.program.wrapping_sub(1)).to_be_bytes();
 
                 state.execution_mode = Some(ExecutionMode::Store {
                     queue: VecDeque::from_iter([
@@ -607,7 +613,7 @@ impl Mos6502Task {
                 ];
 
                 state.stack = state.stack.wrapping_add(2);
-                state.program = u16::from_le_bytes(program);
+                state.program = u16::from_le_bytes(program).wrapping_add(1);
             }
             Opcode::Sax => {
                 let value = state.a & state.x;

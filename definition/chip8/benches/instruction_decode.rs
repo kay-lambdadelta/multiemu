@@ -10,6 +10,7 @@ use multiemu_machine::{
     processor::decoder::InstructionDecoder,
 };
 use multiemu_rom::{manager::RomManager, system::GameSystem};
+use rangemap::RangeInclusiveMap;
 use std::{
     hint::black_box,
     sync::{Arc, RwLock},
@@ -18,7 +19,7 @@ use std::{
 fn criterion_benchmark(c: &mut Criterion) {
     let environment = Arc::new(RwLock::new(Environment::default()));
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-    let shader_cache = ShaderCache::default();
+    let shader_cache = ShaderCache::new(environment.clone());
 
     let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
         GameSystem::Unknown,
@@ -36,7 +37,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             writable: true,
             assigned_range: 0x0000..=0xffff,
             assigned_address_space: cpu_address_space,
-            initial_contents: vec![StandardMemoryInitialContents::Random],
+            initial_contents: RangeInclusiveMap::from_iter([(
+                0x0000..=0xffff,
+                StandardMemoryInitialContents::Random,
+            )]),
         },
     );
     let machine = machine.build(Default::default());

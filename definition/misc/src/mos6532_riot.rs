@@ -70,15 +70,17 @@ pub struct Mos6532Riot {
 
 impl Mos6532Riot {
     pub fn install_swcha(&self, callback: impl SwchaCallback) {
-        if self.registers.swcha.set(Box::new(callback)).is_err() {
-            panic!("SWCHA already set");
-        }
+        self.registers
+            .swcha
+            .set(Box::new(callback))
+            .expect("SWCHA already set");
     }
 
     pub fn install_swchb(&self, callback: impl SwchbCallback) {
-        if self.registers.swchb.set(Box::new(callback)).is_err() {
-            panic!("SWCHB already set");
-        }
+        self.registers
+            .swchb
+            .set(Box::new(callback))
+            .expect("SWCHA already set");
     }
 }
 
@@ -223,12 +225,13 @@ impl ReadMemory for RamMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
         let memory = self.ram.read().unwrap();
         let adjusted_offset = address - self.config.ram_assigned_address;
 
         buffer.copy_from_slice(&memory[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))]);
+
+        Ok(())
     }
 
     fn preview_memory(
@@ -236,12 +239,13 @@ impl ReadMemory for RamMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        _errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
         let memory = self.ram.read().unwrap();
         let adjusted_offset = address - self.config.ram_assigned_address;
 
         buffer.copy_from_slice(&memory[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))]);
+
+        Ok(())
     }
 }
 
@@ -251,12 +255,13 @@ impl WriteMemory for RamMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-        _errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
         let mut memory = self.ram.write().unwrap();
         let adjusted_offset = address - self.config.ram_assigned_address;
 
         memory[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))].copy_from_slice(buffer);
+
+        Ok(())
     }
 }
 
@@ -271,9 +276,10 @@ impl ReadMemory for SwchaMemoryCallback {
         _address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
         buffer[0] = self.registers.swcha.get().unwrap().read_memory();
+
+        Ok(())
     }
 }
 
@@ -283,9 +289,10 @@ impl WriteMemory for SwchaMemoryCallback {
         _address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-        _errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
         self.registers.swcha.get().unwrap().write_memory(buffer[0]);
+
+        Ok(())
     }
 }
 
@@ -300,9 +307,10 @@ impl ReadMemory for SwchbMemoryCallback {
         _address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
         buffer[0] = self.registers.swchb.get().unwrap().read_memory();
+
+        Ok(())
     }
 }
 
@@ -312,8 +320,9 @@ impl WriteMemory for SwchbMemoryCallback {
         _address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-        _errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
         self.registers.swchb.get().unwrap().write_memory(buffer[0]);
+
+        Ok(())
     }
 }

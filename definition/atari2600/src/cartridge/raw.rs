@@ -23,9 +23,10 @@ impl ReadMemory for RawCartridgeMemoryCallback {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        _errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
         let adjusted_offset = address - 0x1000;
         buffer.copy_from_slice(&self.rom[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))]);
+
+        Ok(())
     }
 }

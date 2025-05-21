@@ -1,3 +1,5 @@
+use crate::tia::color::TiaColor;
+
 use super::Region;
 use nalgebra::SMatrix;
 use num::rational::Ratio;
@@ -51,7 +53,7 @@ impl Region for Ntsc {
         Ratio::new(3579545, 1)
     }
 
-    fn color_to_srgb(hue: u8, luminosity: u8) -> Srgb<u8> {
-        COLOR_PALETTE[(hue as usize, luminosity as usize)]
+    fn color_to_srgb(color: TiaColor) -> Srgb<u8> {
+        COLOR_PALETTE[(color.hue as usize, color.luminance as usize)]
     }
 }

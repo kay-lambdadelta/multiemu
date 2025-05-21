@@ -78,8 +78,7 @@ impl ReadMemory for MemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
             "Invalid memory access size {}",
@@ -89,7 +88,10 @@ impl ReadMemory for MemoryCallbacks {
         let affected_range = address..=(address + buffer.len() - 1);
 
         if buffer.len() > self.config.max_word_size as usize {
-            errors.insert(affected_range.clone(), ReadMemoryRecord::Denied);
+            return Err(RangeInclusiveMap::from_iter([(
+                affected_range.clone(),
+                ReadMemoryRecord::Denied,
+            )]));
         }
 
         let adjusted_offset = address - self.config.assigned_range.start();
@@ -97,6 +99,8 @@ impl ReadMemory for MemoryCallbacks {
             &self.rom
                 [adjusted_offset..=(adjusted_offset + (buffer.len() - 1)).min(self.rom.len()) - 1],
         );
+
+        Ok(())
     }
 
     fn preview_memory(
@@ -104,13 +108,14 @@ impl ReadMemory for MemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        _errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
         let adjusted_offset = address - self.config.assigned_range.start();
 
         buffer.copy_from_slice(
             &self.rom
                 [adjusted_offset..=(adjusted_offset + (buffer.len() - 1)).min(self.rom.len()) - 1],
         );
+
+        Ok(())
     }
 }

@@ -1,3 +1,4 @@
+use bitvec::{array::BitArray, order::Lsb0};
 use color::TiaColor;
 use multiemu_machine::{
     component::{Component, RuntimeEssentials},
@@ -68,6 +69,8 @@ pub(crate) struct State {
     missiles: [Missile; 2],
     ball: Ball,
     players: [Player; 2],
+    playfield: Playfield,
+    high_playfield_ball_priority: bool,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -92,6 +95,16 @@ struct Ball {
     delay_enable_change: DelayEnableChangeBall,
     motion: i8,
     color: TiaColor,
+    size: u8,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+struct Playfield {
+    mirror: bool,
+    color: TiaColor,
+    score_mode: bool,
+    // 20 bits
+    data: BitArray<[u8; 4], Lsb0>,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -123,7 +136,7 @@ pub(crate) trait TiaDisplayBackend<R: Region, A: SupportedRenderApiTia>:
     Debug + Sized + 'static
 {
     fn new(essentials: &RuntimeEssentials<A>) -> (Self, ComponentFramebuffer<A>);
-    fn draw(&self, state: &State, position: Point2<u16>, hue: u8, luminosity: u8);
+    fn draw(&self, state: &State, position: Point2<u16>, color: TiaColor);
     fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
     fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);
     fn commit_display(&self);

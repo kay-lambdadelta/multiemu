@@ -4,10 +4,13 @@ use gamepad::joystick::Atari2600JoystickConfig;
 use multiemu_config::Environment;
 use multiemu_definition_misc::{
     memory::mirror::{MirrorMemoryConfig, PermissionSpace},
-    mos6532_riot::Mos6532RiotConfig,
+    mos6532_riot::{Mos6532Riot, Mos6532RiotConfig},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_machine::{MachineFactory, builder::MachineBuilder, display::shader::ShaderCache};
+use multiemu_machine::{
+    MachineFactory, builder::MachineBuilder, component::component_ref::ComponentRef,
+    display::shader::ShaderCache, memory::AddressSpaceHandle,
+};
 use multiemu_rom::{
     id::RomId,
     manager::{ROM_INFORMATION_TABLE, RomManager},
@@ -154,102 +157,9 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
         );
 
         let (machine, mos6532_riot) = match region {
-            RegionSelection::Ntsc => {
-                let (machine, cpu) = machine.insert_component(
-                    "mos_6502",
-                    Mos6502Config {
-                        frequency: Ntsc::frequency() / Ratio::from_integer(3),
-                        kind: Mos6502Kind::M6507,
-                        assigned_address_space: cpu_address_space,
-                        broken_ror: false,
-                    },
-                );
-
-                let (machine, mos6532_riot) = machine.insert_component(
-                    "mos6532_riot",
-                    Mos6532RiotConfig {
-                        frequency: Ntsc::frequency() / Ratio::from_integer(3),
-                        ram_assigned_address: 0x080,
-                        registers_assigned_address: 0x280,
-                        assigned_address_space: cpu_address_space,
-                    },
-                );
-
-                let (machine, _) = machine.insert_component(
-                    "tia",
-                    TiaConfig::<Ntsc> {
-                        cpu,
-                        cpu_address_space,
-                        _phantom: PhantomData,
-                    },
-                );
-
-                (machine, mos6532_riot)
-            }
-            RegionSelection::Pal => {
-                let (machine, cpu) = machine.insert_component(
-                    "mos_6502",
-                    Mos6502Config {
-                        frequency: Pal::frequency() / Ratio::from_integer(3),
-                        kind: Mos6502Kind::M6507,
-                        assigned_address_space: cpu_address_space,
-                        broken_ror: false,
-                    },
-                );
-
-                let (machine, mos6532_riot) = machine.insert_component(
-                    "mos6532_riot",
-                    Mos6532RiotConfig {
-                        frequency: Pal::frequency() / Ratio::from_integer(3),
-                        ram_assigned_address: 0x080,
-                        registers_assigned_address: 0x280,
-                        assigned_address_space: cpu_address_space,
-                    },
-                );
-
-                let (machine, _) = machine.insert_component(
-                    "tia",
-                    TiaConfig::<Pal> {
-                        cpu,
-                        cpu_address_space,
-                        _phantom: PhantomData,
-                    },
-                );
-
-                (machine, mos6532_riot)
-            }
-            RegionSelection::Secam => {
-                let (machine, cpu) = machine.insert_component(
-                    "mos_6502",
-                    Mos6502Config {
-                        frequency: Secam::frequency() / Ratio::from_integer(3),
-                        kind: Mos6502Kind::M6507,
-                        assigned_address_space: cpu_address_space,
-                        broken_ror: false,
-                    },
-                );
-
-                let (machine, mos6532_riot) = machine.insert_component(
-                    "mos6532_riot",
-                    Mos6532RiotConfig {
-                        frequency: Secam::frequency() / Ratio::from_integer(3),
-                        ram_assigned_address: 0x080,
-                        registers_assigned_address: 0x280,
-                        assigned_address_space: cpu_address_space,
-                    },
-                );
-
-                let (machine, _) = machine.insert_component(
-                    "tia",
-                    TiaConfig::<Secam> {
-                        cpu,
-                        cpu_address_space,
-                        _phantom: PhantomData,
-                    },
-                );
-
-                (machine, mos6532_riot)
-            }
+            RegionSelection::Ntsc => common::<Ntsc, R>(cpu_address_space, machine),
+            RegionSelection::Pal => common::<Pal, R>(cpu_address_space, machine),
+            RegionSelection::Secam => common::<Secam, R>(cpu_address_space, machine),
         };
 
         let (machine, _) =
@@ -257,6 +167,42 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
 
         machine
     }
+}
+
+fn common<R: Region, A: SupportedRenderApiAtari2600>(
+    cpu_address_space: AddressSpaceHandle,
+    machine: MachineBuilder<A>,
+) -> (MachineBuilder<A>, ComponentRef<Mos6532Riot>) {
+    let (machine, cpu) = machine.insert_component(
+        "mos_6502",
+        Mos6502Config {
+            frequency: R::frequency() / Ratio::from_integer(3),
+            kind: Mos6502Kind::M6507,
+            assigned_address_space: cpu_address_space,
+            broken_ror: false,
+        },
+    );
+
+    let (machine, mos6532_riot) = machine.insert_component(
+        "mos6532_riot",
+        Mos6532RiotConfig {
+            frequency: R::frequency() / Ratio::from_integer(3),
+            ram_assigned_address: 0x080,
+            registers_assigned_address: 0x280,
+            assigned_address_space: cpu_address_space,
+        },
+    );
+
+    let (machine, _) = machine.insert_component(
+        "tia",
+        TiaConfig::<R> {
+            cpu,
+            cpu_address_space,
+            _phantom: PhantomData,
+        },
+    );
+
+    (machine, mos6532_riot)
 }
 
 // These three functions hardcode mirror addresses instead of trying to mechanically replicate partial address decoding

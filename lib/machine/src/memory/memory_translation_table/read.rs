@@ -143,55 +143,56 @@ impl MemoryTranslationTable {
                     .expect("Non existant memory");
 
                 did_handle = true;
-                let mut errors = RangeInclusiveMap::default();
-
                 let overlap_start = accessing_range
                     .start()
                     .max(component_assignment_range.start());
 
-                memory.read_memory(
+                if let Err(errors) = memory.read_memory(
                     *overlap_start,
                     address_space,
                     &mut buffer[buffer_subrange.clone()],
-                    &mut errors,
-                );
+                ) {
+                    let mut detected_errors = RangeInclusiveMap::default();
 
-                let mut detected_errors = RangeInclusiveMap::default();
+                    if !detected_errors.is_empty() {
+                        return Err(ReadMemoryOperationError(detected_errors));
+                    }
 
-                for (range, error) in errors {
-                    match error {
-                        ReadMemoryRecord::Denied => {
-                            tracing::debug!(
-                                "Read memory operation operation denied at {:#04x?}",
-                                range
-                            );
+                    for (range, error) in errors {
+                        match error {
+                            ReadMemoryRecord::Denied => {
+                                tracing::debug!("Read memory operation denied at {:#04x?}", range);
 
-                            detected_errors
-                                .insert(range, ReadMemoryOperationErrorFailureType::Denied);
-                        }
-                        ReadMemoryRecord::Redirect {
-                            address: redirect_address,
-                            address_space: redirect_address_space,
-                        } => {
-                            assert!(
-                                !component_assignment_range.contains(&redirect_address)
-                                    && address_space == redirect_address_space,
-                                "Component attempted to redirect to itself {:x?} -> {:x}",
-                                component_assignment_range,
-                                redirect_address,
-                            );
+                                detected_errors
+                                    .insert(range, ReadMemoryOperationErrorFailureType::Denied);
+                            }
+                            ReadMemoryRecord::Redirect {
+                                address: redirect_address,
+                                address_space: redirect_address_space,
+                            } => {
+                                assert!(
+                                    !component_assignment_range.contains(&redirect_address)
+                                        && address_space == redirect_address_space,
+                                    "Component attempted to redirect to itself {:x?} -> {:x}",
+                                    component_assignment_range,
+                                    redirect_address,
+                                );
 
-                            needed_accesses.push((
-                                redirect_address,
-                                redirect_address_space,
-                                (range.start() - address)..=(range.end() - address),
-                            ));
+                                tracing::debug!(
+                                    "Read memory operation redirected from {:#04x?} to {:#04x?} in address space {:?}",
+                                    range,
+                                    redirect_address,
+                                    redirect_address_space
+                                );
+
+                                needed_accesses.push((
+                                    redirect_address,
+                                    redirect_address_space,
+                                    (range.start() - address)..=(range.end() - address),
+                                ));
+                            }
                         }
                     }
-                }
-
-                if !detected_errors.is_empty() {
-                    return Err(ReadMemoryOperationError(detected_errors));
                 }
             }
 
@@ -275,54 +276,53 @@ impl MemoryTranslationTable {
                     .expect("Non existant memory");
 
                 did_handle = true;
-                let mut errors = RangeInclusiveMap::default();
-
                 let overlap_start = accessing_range
                     .start()
                     .max(component_assignment_range.start());
 
-                memory.preview_memory(
+                if let Err(errors) = memory.preview_memory(
                     *overlap_start,
                     address_space,
                     &mut buffer[buffer_subrange.clone()],
-                    &mut errors,
-                );
+                ) {
+                    let mut detected_errors = RangeInclusiveMap::default();
 
-                let mut detected_errors = RangeInclusiveMap::default();
+                    for (range, error) in errors {
+                        match error {
+                            PreviewMemoryRecord::Denied => {
+                                detected_errors
+                                    .insert(range, PreviewMemoryOperationErrorFailureType::Denied);
+                            }
+                            PreviewMemoryRecord::Redirect {
+                                address: redirect_address,
+                                address_space: redirect_address_space,
+                            } => {
+                                assert!(
+                                    !component_assignment_range.contains(&redirect_address)
+                                        && address_space == redirect_address_space,
+                                    "Component attempted to redirect to itself {:x?} -> {:x}",
+                                    component_assignment_range,
+                                    redirect_address,
+                                );
 
-                for (range, error) in errors {
-                    match error {
-                        PreviewMemoryRecord::Denied => {
-                            detected_errors
-                                .insert(range, PreviewMemoryOperationErrorFailureType::Denied);
-                        }
-                        PreviewMemoryRecord::Redirect {
-                            address: redirect_address,
-                            address_space: redirect_address_space,
-                        } => {
-                            assert!(
-                                !component_assignment_range.contains(&redirect_address)
-                                    && address_space == redirect_address_space,
-                                "Component attempted to redirect to itself {:x?} -> {:x}",
-                                component_assignment_range,
-                                redirect_address,
-                            );
-
-                            needed_accesses.push((
-                                redirect_address,
-                                redirect_address_space,
-                                (range.start() - address)..=(range.end() - address),
-                            ));
-                        }
-                        PreviewMemoryRecord::Impossible => {
-                            detected_errors
-                                .insert(range, PreviewMemoryOperationErrorFailureType::Impossible);
+                                needed_accesses.push((
+                                    redirect_address,
+                                    redirect_address_space,
+                                    (range.start() - address)..=(range.end() - address),
+                                ));
+                            }
+                            PreviewMemoryRecord::Impossible => {
+                                detected_errors.insert(
+                                    range,
+                                    PreviewMemoryOperationErrorFailureType::Impossible,
+                                );
+                            }
                         }
                     }
-                }
 
-                if !detected_errors.is_empty() {
-                    return Err(PreviewMemoryOperationError(detected_errors));
+                    if !detected_errors.is_empty() {
+                        return Err(PreviewMemoryOperationError(detected_errors));
+                    }
                 }
             }
 

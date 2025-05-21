@@ -85,6 +85,25 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug benchmark 'remix'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=remix",
+                    "--package=multiemu-audio"
+                ],
+                "filter": {
+                    "name": "remix",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug benchmark 'resample'",
             "cargo": {
                 "args": [
@@ -180,60 +199,20 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_definition_mos6502'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=multiemu-definition-mos6502"
-                ],
-                "filter": {
-                    "name": "multiemu_definition_mos6502",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug benchmark 'instruction_decode'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bench=instruction_decode",
-                    "--package=multiemu-definition-mos6502"
-                ],
-                "filter": {
-                    "name": "instruction_decode",
-                    "kind": "bench"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
             "name": "Debug unit tests in library 'multiemu_definition_misc'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=multiemu-definition-misc",
+                    "--package=multiemu-definition-misc"
                 ],
                 "filter": {
                     "name": "multiemu_definition_misc",
                     "kind": "lib"
                 }
             },
-            "args": [
-                "--test-threads=1"
-            ],
+            "args": [],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -296,16 +275,35 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_wgsl_bindgen'",
+            "name": "Debug unit tests in library 'multiemu_definition_mos6502'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=multiemu-wgsl-bindgen"
+                    "--package=multiemu-definition-mos6502"
                 ],
                 "filter": {
-                    "name": "multiemu_wgsl_bindgen",
+                    "name": "multiemu_definition_mos6502",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_definition_atarilynx'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-definition-atarilynx"
+                ],
+                "filter": {
+                    "name": "multiemu_definition_atarilynx",
                     "kind": "lib"
                 }
             },

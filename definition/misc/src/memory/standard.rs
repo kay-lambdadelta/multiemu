@@ -17,7 +17,6 @@ use multiemu_rom::{
 };
 use rand::RngCore;
 use rangemap::RangeInclusiveMap;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     borrow::Cow,
     io::Read,
@@ -27,19 +26,11 @@ use std::{
 
 const PAGE_SIZE: usize = 4096 - size_of::<RwLock<()>>();
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StandardMemoryInitialContents {
-    Value {
-        value: u8,
-    },
-    Array {
-        offset: usize,
-        value: Cow<'static, [u8]>,
-    },
-    Rom {
-        rom_id: RomId,
-        offset: usize,
-    },
+    Value(u8),
+    Array(Cow<'static, [u8]>),
+    Rom(RomId),
     Random,
 }
 
@@ -54,7 +45,7 @@ pub struct StandardMemoryConfig {
     /// Address space this exists on
     pub assigned_address_space: AddressSpaceHandle,
     // Initial contents
-    pub initial_contents: Vec<StandardMemoryInitialContents>,
+    pub initial_contents: RangeInclusiveMap<usize, StandardMemoryInitialContents>,
 }
 
 #[derive(Debug)]
@@ -68,7 +59,7 @@ pub struct StandardMemory {
 impl Component for StandardMemory {
     fn reset(&self) {
         self.memory_operation_callbacks
-            .initialize_buffer(&self.rom_manager, &self.environment);
+            .initialize_buffer(&self.rom_manager, &self.environment.read().unwrap());
     }
 }
 
@@ -98,8 +89,10 @@ impl<R: RenderApi> ComponentConfig<R> for StandardMemoryConfig {
             config: self.clone(),
             buffer: buffer.into_iter().collect(),
         });
-        memory_operation_callbacks
-            .initialize_buffer(&essentials.rom_manager, &essentials.environment);
+        memory_operation_callbacks.initialize_buffer(
+            &essentials.rom_manager,
+            &essentials.environment.read().unwrap(),
+        );
 
         let (component_builder, memory_handle) = match (self.readable, self.writable) {
             (true, true) => component_builder.insert_memory(
@@ -140,8 +133,7 @@ impl ReadMemory for StandardMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
             "Invalid memory access size {}",
@@ -152,7 +144,10 @@ impl ReadMemory for StandardMemoryCallbacks {
             let invalid_before_range = address..=end_address;
 
             if !invalid_before_range.is_empty() {
-                errors.insert(invalid_before_range, ReadMemoryRecord::Denied);
+                return Err(RangeInclusiveMap::from_iter([(
+                    invalid_before_range,
+                    ReadMemoryRecord::Denied,
+                )]));
             }
         }
 
@@ -160,15 +155,16 @@ impl ReadMemory for StandardMemoryCallbacks {
             let invalid_after_range = start_address..=address;
 
             if !invalid_after_range.is_empty() {
-                errors.insert(invalid_after_range, ReadMemoryRecord::Denied);
+                return Err(RangeInclusiveMap::from_iter([(
+                    invalid_after_range,
+                    ReadMemoryRecord::Denied,
+                )]));
             }
         }
 
-        if !errors.is_empty() {
-            return;
-        }
-
         self.read_internal(address, buffer);
+
+        Ok(())
     }
 
     fn preview_memory(
@@ -176,13 +172,15 @@ impl ReadMemory for StandardMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
             let invalid_before_range = address..=end_address;
 
             if !invalid_before_range.is_empty() {
-                errors.insert(invalid_before_range, PreviewMemoryRecord::Denied);
+                return Err(RangeInclusiveMap::from_iter([(
+                    invalid_before_range,
+                    PreviewMemoryRecord::Denied,
+                )]));
             }
         }
 
@@ -190,15 +188,16 @@ impl ReadMemory for StandardMemoryCallbacks {
             let invalid_after_range = start_address..=address;
 
             if !invalid_after_range.is_empty() {
-                errors.insert(invalid_after_range, PreviewMemoryRecord::Denied);
+                return Err(RangeInclusiveMap::from_iter([(
+                    invalid_after_range,
+                    PreviewMemoryRecord::Denied,
+                )]));
             }
         }
 
-        if !errors.is_empty() {
-            return;
-        }
-
         self.read_internal(address, buffer);
+
+        Ok(())
     }
 }
 
@@ -208,8 +207,7 @@ impl WriteMemory for StandardMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
         debug_assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
             "Invalid memory access size {}",
@@ -220,7 +218,10 @@ impl WriteMemory for StandardMemoryCallbacks {
             let invalid_before_range = address..=end_address;
 
             if !invalid_before_range.is_empty() {
-                errors.insert(invalid_before_range, WriteMemoryRecord::Denied);
+                return Err(RangeInclusiveMap::from_iter([(
+                    invalid_before_range,
+                    WriteMemoryRecord::Denied,
+                )]));
             }
         }
 
@@ -228,16 +229,17 @@ impl WriteMemory for StandardMemoryCallbacks {
             let invalid_after_range = start_address..=address;
 
             if !invalid_after_range.is_empty() {
-                errors.insert(invalid_after_range, WriteMemoryRecord::Denied);
+                return Err(RangeInclusiveMap::from_iter([(
+                    invalid_after_range,
+                    WriteMemoryRecord::Denied,
+                )]));
             }
-        }
-
-        if !errors.is_empty() {
-            return;
         }
 
         // Shoved off in a helper function to prevent duplicated logic
         self.write_internal(address, buffer);
+
+        Ok(())
     }
 }
 
@@ -321,31 +323,30 @@ impl StandardMemoryCallbacks {
         }
     }
 
-    fn initialize_buffer(&self, rom_manager: &RomManager, environment: &RwLock<Environment>) {
+    fn initialize_buffer(&self, rom_manager: &RomManager, environment: &Environment) {
         let internal_buffer_size = self.config.assigned_range.clone().count();
 
         // HACK: This overfills the buffer for ease of programming, but its ok because the actual mmu doesn't allow accesses out at runtime
-        for operation in &self.config.initial_contents {
+        for (range, operation) in self.config.initial_contents.iter() {
             match operation {
-                StandardMemoryInitialContents::Value { value } => {
-                    self.buffer
-                        .par_iter()
-                        .for_each(|chunk| chunk.write().unwrap().fill(*value));
+                StandardMemoryInitialContents::Value(value) => {
+                    let contents = vec![*value; range.clone().count()];
+                    self.write_internal(*range.start(), &contents);
                 }
                 StandardMemoryInitialContents::Random => {
-                    self.buffer.par_iter().for_each(|chunk| {
-                        rand::rng().fill_bytes(chunk.write().unwrap().as_mut_slice())
-                    });
+                    let mut contents = vec![0; range.clone().count()];
+                    rand::rng().fill_bytes(contents.as_mut_slice());
+                    self.write_internal(*range.start(), &contents);
                 }
-                StandardMemoryInitialContents::Array { value, offset } => {
-                    self.write_internal(*offset, value);
+                StandardMemoryInitialContents::Array(value) => {
+                    self.write_internal(*range.start(), value);
                 }
-                StandardMemoryInitialContents::Rom { rom_id, offset } => {
+                StandardMemoryInitialContents::Rom(rom_id) => {
                     let mut rom_file = rom_manager
                         .open(
                             *rom_id,
                             RomRequirement::Required,
-                            &environment.read().unwrap().roms_directory,
+                            &environment.roms_directory,
                         )
                         .unwrap();
 
@@ -366,7 +367,10 @@ impl StandardMemoryCallbacks {
                         total_read += amount;
 
                         let write_size = remaining_space.min(amount);
-                        self.write_internal(*offset + total_read - amount, &buffer[..write_size]);
+                        self.write_internal(
+                            *range.start() + total_read - amount,
+                            &buffer[..write_size],
+                        );
                     }
                 }
             }
@@ -390,7 +394,7 @@ mod test {
     fn initialization() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::default();
+        let shader_cache = ShaderCache::new(environment.clone());
 
         let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
@@ -408,7 +412,10 @@ mod test {
                 writable: true,
                 assigned_range: 0..=3,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=3,
+                    StandardMemoryInitialContents::Value(0xff),
+                )]),
             },
         );
         let machine = machine.build(Default::default());
@@ -437,10 +444,10 @@ mod test {
                 writable: true,
                 assigned_range: 0..=3,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Array {
-                    value: Cow::Borrowed(&[0xff; 4]),
-                    offset: 0,
-                }],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=3,
+                    StandardMemoryInitialContents::Value(0xff),
+                )]),
             },
         );
         let machine = machine.build(Default::default());
@@ -458,7 +465,7 @@ mod test {
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::default();
+        let shader_cache = ShaderCache::new(environment.clone());
 
         let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
@@ -476,7 +483,10 @@ mod test {
                 writable: true,
                 assigned_range: 0..=7,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=7,
+                    StandardMemoryInitialContents::Value(0xff),
+                )]),
             },
         );
         let machine = machine.build(Default::default());
@@ -494,7 +504,7 @@ mod test {
     fn basic_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::default();
+        let shader_cache = ShaderCache::new(environment.clone());
 
         let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
@@ -512,7 +522,10 @@ mod test {
                 writable: true,
                 assigned_range: 0..=7,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=7,
+                    StandardMemoryInitialContents::Value(0xff),
+                )]),
             },
         );
         let machine = machine.build(Default::default());
@@ -529,7 +542,7 @@ mod test {
     fn basic_read_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::default();
+        let shader_cache = ShaderCache::new(environment.clone());
 
         let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
@@ -547,7 +560,10 @@ mod test {
                 writable: true,
                 assigned_range: 0..=7,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=7,
+                    StandardMemoryInitialContents::Value(0xff),
+                )]),
             },
         );
         let machine = machine.build(Default::default());
@@ -570,7 +586,7 @@ mod test {
     fn extensive() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::default();
+        let shader_cache = ShaderCache::new(environment.clone());
 
         let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
@@ -588,7 +604,10 @@ mod test {
                 writable: true,
                 assigned_range: 0..=0xffff,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=0xffff,
+                    StandardMemoryInitialContents::Value(0xff),
+                )]),
             },
         );
         let machine = machine.build(Default::default());

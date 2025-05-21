@@ -115,52 +115,57 @@ impl MemoryTranslationTable {
                     .expect("Non existant memory");
 
                 did_handle = true;
-                let mut errors = RangeInclusiveMap::default();
 
                 let overlap_start = accessing_range
                     .start()
                     .max(component_assignment_range.start());
 
-                memory.write_memory(
+                if let Err(errors) = memory.write_memory(
                     *overlap_start,
                     address_space,
                     &buffer[buffer_subrange.clone()],
-                    &mut errors,
-                );
+                ) {
+                    let mut detected_errors = RangeInclusiveMap::default();
 
-                let mut detected_errors = RangeInclusiveMap::default();
+                    for (range, error) in errors {
+                        match error {
+                            WriteMemoryRecord::Denied => {
+                                tracing::debug!("Write memory operation denied at {:#04x?}", range);
 
-                for (range, error) in errors {
-                    match error {
-                        WriteMemoryRecord::Denied => {
-                            tracing::debug!("Write memory operation denied at {:#04x?}", range);
+                                detected_errors
+                                    .insert(range, WriteMemoryOperationErrorFailureType::Denied);
+                            }
+                            WriteMemoryRecord::Redirect {
+                                address: redirect_address,
+                                address_space: redirect_address_space,
+                            } => {
+                                assert!(
+                                    !component_assignment_range.contains(&redirect_address)
+                                        && address_space == redirect_address_space,
+                                    "Component attempted to redirect to itself {:x?} -> {:x}",
+                                    component_assignment_range,
+                                    redirect_address,
+                                );
 
-                            detected_errors
-                                .insert(range, WriteMemoryOperationErrorFailureType::Denied);
-                        }
-                        WriteMemoryRecord::Redirect {
-                            address: redirect_address,
-                            address_space: redirect_address_space,
-                        } => {
-                            assert!(
-                                !component_assignment_range.contains(&redirect_address)
-                                    && address_space == redirect_address_space,
-                                "Component attempted to redirect to itself {:x?} -> {:x}",
-                                component_assignment_range,
-                                redirect_address,
-                            );
+                                tracing::debug!(
+                                    "Write memory operation redirected from {:#04x?} to {:#04x?} in address space {:?}",
+                                    range,
+                                    redirect_address,
+                                    redirect_address_space
+                                );
 
-                            needed_accesses.push((
-                                redirect_address,
-                                redirect_address_space,
-                                (range.start() - address)..=(range.end() - address),
-                            ));
+                                needed_accesses.push((
+                                    redirect_address,
+                                    redirect_address_space,
+                                    (range.start() - address)..=(range.end() - address),
+                                ));
+                            }
                         }
                     }
-                }
 
-                if !detected_errors.is_empty() {
-                    return Err(WriteMemoryOperationError(detected_errors));
+                    if !detected_errors.is_empty() {
+                        return Err(WriteMemoryOperationError(detected_errors));
+                    }
                 }
             }
 

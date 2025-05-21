@@ -18,6 +18,7 @@ use multiemu_rom::{
 };
 use num::rational::Ratio;
 use ppu::NesPpuConfig;
+use rangemap::RangeInclusiveMap;
 use std::sync::{Arc, RwLock};
 
 mod apu;
@@ -61,7 +62,10 @@ impl<R: RenderApi> MachineFactory<R> for Nes {
                 max_word_size: 2,
                 assigned_range: 0x0000..=0x07ff,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Random],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0x0000..=0xffff,
+                    StandardMemoryInitialContents::Random,
+                )]),
             },
         );
         let (machine, _) = machine.insert_component(

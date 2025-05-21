@@ -65,7 +65,7 @@ impl<T: ShaderFormat> Debug for Shader<T> {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ShaderCache {
     environment: Arc<RwLock<Environment>>,
 }

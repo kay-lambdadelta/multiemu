@@ -38,7 +38,7 @@ bytemuck = { version = "1.23", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
-bitvec = "1.0"
+bitvec = { version = "1.0", features = ["serde"] }
 vulkano = { version = "0.35", default-features = false }
 crossbeam = "0.8"
 scc = "2.3"

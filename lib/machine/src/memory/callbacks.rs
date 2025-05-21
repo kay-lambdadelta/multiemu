@@ -12,12 +12,11 @@ pub trait ReadMemory: Debug + Send + Sync + 'static {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
-        errors.insert(
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+        Err(RangeInclusiveMap::from_iter([(
             address..=(address + (buffer.len() - 1)),
             ReadMemoryRecord::Denied,
-        );
+        )]))
     }
 
     fn preview_memory(
@@ -25,12 +24,11 @@ pub trait ReadMemory: Debug + Send + Sync + 'static {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
-    ) {
-        errors.insert(
+    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
+        Err(RangeInclusiveMap::from_iter([(
             address..=(address + (buffer.len() - 1)),
-            PreviewMemoryRecord::Impossible,
-        );
+            PreviewMemoryRecord::Denied,
+        )]))
     }
 }
 
@@ -40,10 +38,8 @@ impl<M: ReadMemory> ReadMemory for Arc<M> {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
-        self.as_ref()
-            .read_memory(address, address_space, buffer, errors);
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+        self.as_ref().read_memory(address, address_space, buffer)
     }
 
     fn preview_memory(
@@ -51,10 +47,8 @@ impl<M: ReadMemory> ReadMemory for Arc<M> {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
-    ) {
-        self.as_ref()
-            .preview_memory(address, address_space, buffer, errors);
+    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
+        self.as_ref().preview_memory(address, address_space, buffer)
     }
 }
 
@@ -65,12 +59,11 @@ pub trait WriteMemory: Debug + Send + Sync + 'static {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
-        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
-        errors.insert(
+    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+        Err(RangeInclusiveMap::from_iter([(
             address..=(address + (buffer.len() - 1)),
             WriteMemoryRecord::Denied,
-        );
+        )]))
     }
 }
 
@@ -80,9 +73,7 @@ impl<M: WriteMemory> WriteMemory for Arc<M> {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
-        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
-        self.as_ref()
-            .write_memory(address, address_space, buffer, errors);
+    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+        self.as_ref().write_memory(address, address_space, buffer)
     }
 }

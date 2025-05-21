@@ -18,8 +18,8 @@ impl ReadMemory for NesCartidgeMemoryCallbacks {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+        Ok(())
     }
 }
 
@@ -29,8 +29,7 @@ impl WriteMemory for NesCartidgeMemoryCallbacks {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
-        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
         let original_data = buffer[0];
         let mut data = buffer[0];
 
@@ -42,6 +41,8 @@ impl WriteMemory for NesCartidgeMemoryCallbacks {
                 tracing::warn!("Bus conflict affected write to register {}", address);
             }
         }
+
+        Ok(())
     }
 }
 

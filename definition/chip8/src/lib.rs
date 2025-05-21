@@ -14,6 +14,7 @@ use multiemu_rom::{
 use num::rational::Ratio;
 use processor::Chip8ProcessorConfig;
 pub use processor::decoder::Chip8InstructionDecoder;
+use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
@@ -82,16 +83,18 @@ impl<R: SupportedRenderApiChip8> MachineFactory<R> for Chip8 {
                 max_word_size: 2,
                 assigned_range: 0x000..=0xfff,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![
-                    StandardMemoryInitialContents::Array {
-                        value: Cow::Borrowed(bytemuck::cast_slice(&CHIP8_FONT)),
-                        offset: 0x000,
-                    },
-                    StandardMemoryInitialContents::Rom {
-                        rom_id: user_specified_roms[0],
-                        offset: 0x200,
-                    },
-                ],
+                initial_contents: RangeInclusiveMap::from_iter([
+                    (
+                        0x000..=0x1ff,
+                        StandardMemoryInitialContents::Array(Cow::Borrowed(bytemuck::cast_slice(
+                            &CHIP8_FONT,
+                        ))),
+                    ),
+                    (
+                        0x200..=0xfff,
+                        StandardMemoryInitialContents::Rom(user_specified_roms[0]),
+                    ),
+                ]),
             },
         );
 

@@ -36,8 +36,7 @@ impl<R: Region, A: SupportedRenderApiTia> Task<Tia<R, A>> for TiaTask {
             target.display_backend.get().unwrap().draw(
                 &state_guard,
                 Point2::new(state_guard.horizontal_timer as u16, state_guard.scanline),
-                3,
-                7,
+                state_guard.players[0].color,
             );
         }
     }

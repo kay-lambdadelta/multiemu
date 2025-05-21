@@ -5,5 +5,5 @@ use serde::{Deserialize, Serialize};
 )]
 pub struct TiaColor {
     pub luminance: u8,
-    pub color: u8,
+    pub hue: u8,
 }

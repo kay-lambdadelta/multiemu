@@ -137,8 +137,7 @@ impl ReadMemory for MirrorMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, ReadMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
             "Invalid memory access size {}",
@@ -149,13 +148,13 @@ impl ReadMemory for MirrorMemoryCallbacks {
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
 
-        errors.insert(
+        Err(RangeInclusiveMap::from_iter([(
             affected_range,
             ReadMemoryRecord::Redirect {
                 address: adjusted_destination_address,
                 address_space: self.destination_address_space,
             },
-        );
+        )]))
     }
 
     fn preview_memory(
@@ -163,19 +162,18 @@ impl ReadMemory for MirrorMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-        errors: &mut RangeInclusiveMap<usize, PreviewMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
         let affected_range = address..=(address + (buffer.len() - 1));
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
 
-        errors.insert(
+        Err(RangeInclusiveMap::from_iter([(
             affected_range,
             PreviewMemoryRecord::Redirect {
                 address: adjusted_destination_address,
                 address_space: self.destination_address_space,
             },
-        );
+        )]))
     }
 }
 
@@ -185,8 +183,7 @@ impl WriteMemory for MirrorMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-        errors: &mut RangeInclusiveMap<usize, WriteMemoryRecord>,
-    ) {
+    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
         assert!(
             VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
             "Invalid memory access size {}",
@@ -195,15 +192,15 @@ impl WriteMemory for MirrorMemoryCallbacks {
 
         let affected_range = address..=(address + (buffer.len() - 1));
         let adjusted_destination_address =
-            self.destination_address + (address - affected_range.start());
+            self.destination_address + (address - self.source_addresses.start());
 
-        errors.insert(
+        Err(RangeInclusiveMap::from_iter([(
             affected_range,
             WriteMemoryRecord::Redirect {
                 address: adjusted_destination_address,
                 address_space: self.destination_address_space,
             },
-        );
+        )]))
     }
 }
 
@@ -219,13 +216,17 @@ mod test {
         display::{backend::software::SoftwareRendering, shader::ShaderCache},
     };
     use multiemu_rom::{manager::RomManager, system::GameSystem};
-    use std::sync::{Arc, RwLock};
+    use rangemap::RangeInclusiveMap;
+    use std::{
+        borrow::Cow,
+        sync::{Arc, RwLock},
+    };
 
     #[test]
     fn basic_read() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::default();
+        let shader_cache = ShaderCache::new(environment.clone());
         let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
             rom_manager,
@@ -242,36 +243,41 @@ mod test {
                 writable: true,
                 assigned_range: 0..=7,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=7,
+                    StandardMemoryInitialContents::Array(Cow::Owned(
+                        (0..=7).map(|i| i as u8).collect(),
+                    )),
+                )]),
             },
         );
-
         let (machine, _) = machine.insert_component(
             "workram-mirror",
             MirrorMemoryConfig::default().insert_range(
-                0x10000..=0x1ffff,
+                8..=15,
                 cpu_address_space,
-                0x0000..=0xffff,
+                0..=7,
                 cpu_address_space,
                 [PermissionSpace::Read, PermissionSpace::Write],
             ),
         );
+
         let machine = machine.build(Default::default());
 
         let mut buffer = [0; 8];
 
         machine
             .memory_translation_table
-            .read(0x10000, cpu_address_space, &mut buffer)
+            .read(8, cpu_address_space, &mut buffer)
             .unwrap();
-        assert_eq!(buffer, [0xff; 8]);
+        assert_eq!(buffer, [0, 1, 2, 3, 4, 5, 6, 7]);
     }
 
     #[test]
     fn basic_write() {
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::default();
+        let shader_cache = ShaderCache::new(environment.clone());
 
         let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
             GameSystem::Unknown,
@@ -289,15 +295,18 @@ mod test {
                 writable: true,
                 assigned_range: 0..=7,
                 assigned_address_space: cpu_address_space,
-                initial_contents: vec![StandardMemoryInitialContents::Value { value: 0xff }],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=7,
+                    StandardMemoryInitialContents::Value(0xff),
+                )]),
             },
         );
         let (machine, _) = machine.insert_component(
             "workram-mirror",
             MirrorMemoryConfig::default().insert_range(
-                0x10000..=0x1ffff,
+                8..=15,
                 cpu_address_space,
-                0x0000..=0xffff,
+                0..=7,
                 cpu_address_space,
                 [PermissionSpace::Read, PermissionSpace::Write],
             ),
@@ -309,7 +318,78 @@ mod test {
 
         machine
             .memory_translation_table
-            .write(0x10000, cpu_address_space, &buffer)
+            .write(8, cpu_address_space, &buffer)
             .unwrap();
+    }
+
+    #[test]
+    fn extensive_read_test() {
+        let environment = Arc::new(RwLock::new(Environment::default()));
+        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
+        let shader_cache = ShaderCache::new(environment.clone());
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            environment,
+            shader_cache,
+        )
+        .insert_address_space("cpu", 64);
+
+        let (machine, _) = machine.insert_component(
+            "workram",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 0..=3,
+                assigned_address_space: cpu_address_space,
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=3,
+                    StandardMemoryInitialContents::Array(Cow::Owned(
+                        (0..=3).map(|i| i as u8).collect(),
+                    )),
+                )]),
+            },
+        );
+
+        let (machine, _) = machine.insert_component(
+            "workram2",
+            StandardMemoryConfig {
+                max_word_size: 8,
+                readable: true,
+                writable: true,
+                assigned_range: 4..=7,
+                assigned_address_space: cpu_address_space,
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    4..=7,
+                    StandardMemoryInitialContents::Array(Cow::Owned(
+                        (4..=7).map(|i| i as u8).collect(),
+                    )),
+                )]),
+            },
+        );
+
+        let (machine, _) = machine.insert_component(
+            "workram-mirror",
+            MirrorMemoryConfig::default().insert_range(
+                8..=15,
+                cpu_address_space,
+                0..=7,
+                cpu_address_space,
+                [PermissionSpace::Read, PermissionSpace::Write],
+            ),
+        );
+        let machine = machine.build(Default::default());
+
+        let mut buffer = [0u8; 8];
+
+        for (i, b) in buffer.iter_mut().enumerate() {
+            *b = machine
+                .memory_translation_table
+                .read_le_value(i + 8, cpu_address_space)
+                .unwrap();
+        }
+
+        assert_eq!(buffer, [0, 1, 2, 3, 4, 5, 6, 7]);
     }
 }

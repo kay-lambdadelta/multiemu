@@ -32,6 +32,11 @@ impl Task<Mos6502> for Mos6502Task {
 
             match state.execution_mode.take().unwrap() {
                 ExecutionMode::Fetch => {
+                    tracing::debug!(
+                        "Fetching and decoding instruction from {:#04x}",
+                        state.program
+                    );
+
                     let (instruction, identifiying_bytes_length) = self
                         .instruction_decoder
                         .decode(
