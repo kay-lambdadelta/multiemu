@@ -63,6 +63,7 @@ impl MainThreadExecutor {
 mod test {
     use crate::component::{main_thread_queue::MainThreadExecutor, store::IS_MAIN_THREAD};
     use std::{
+        hint::black_box,
         sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -76,8 +77,10 @@ mod test {
 
         let queue = Arc::new(MainThreadExecutor::default());
         let executed_tasks = Arc::new(AtomicUsize::new(0));
-
         let left_to_execute = executed_tasks.clone();
+
+        // Some data that would break if this doesn't work
+        let borrowed_data = black_box(vec![1, 2, 3]);
 
         let worker = std::thread::spawn({
             let queue = queue.clone();
@@ -86,7 +89,7 @@ mod test {
 
             move || {
                 queue.wait_on_main(|| {
-                    std::thread::sleep(Duration::from_millis(100));
+                    std::thread::sleep(Duration::from_millis(black_box(borrowed_data[0])));
                 });
 
                 left_to_execute.fetch_sub(1, Ordering::Relaxed);
