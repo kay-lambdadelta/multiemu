@@ -21,7 +21,7 @@
             },
             "args": [
                 "run-external",
-                "/home/lambdadelta/Roms/Atari - 2600/Donkey Kong (USA)/Donkey Kong (USA).a26"
+                "roms/octojam2title.ch8"
             ],
             "cwd": "${workspaceFolder}"
         },

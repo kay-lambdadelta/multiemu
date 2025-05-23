@@ -9,7 +9,10 @@ use multiemu_machine::{
     },
 };
 use rangemap::RangeInclusiveMap;
-use std::{collections::HashMap, ops::RangeInclusive};
+use std::{
+    collections::HashMap,
+    ops::RangeInclusive,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PermissionSpace {
