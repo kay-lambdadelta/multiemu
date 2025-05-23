@@ -44,17 +44,21 @@ impl RomManager {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         tracing::info!("Loading ROM database at {:?}", database);
 
-        let rom_information = if let Some(path) = database {
+        let mut rom_information = if let Some(path) = database {
             let _ = create_dir_all(path.parent().unwrap());
 
             Database::builder()
                 .set_cache_size(CACHE_SIZE)
+                .create_with_file_format_v3(true)
                 .create(path)?
         } else {
             Database::builder()
                 .set_cache_size(CACHE_SIZE)
+                .create_with_file_format_v3(true)
                 .create_with_backend(InMemoryBackend::default())?
         };
+
+        rom_information.upgrade()?;
 
         let mut database_transaction = rom_information.begin_write()?;
         database_transaction.set_quick_repair(true);

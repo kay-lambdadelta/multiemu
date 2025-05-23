@@ -46,7 +46,6 @@ egui_extras = { version = "0.31", default-features = false, features = [
     "image",
 ] }
 image = { version = "0.25", default-features = false, features = ["webp"] }
-itertools = "0.14"
 
 # Desktop type dependencies
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
