@@ -22,7 +22,7 @@ pub enum PermissionSpace {
 pub struct MirrorMemoryConfig {
     assigned_ranges: HashMap<
         PermissionSpace,
-        HashMap<AddressSpaceHandle, RangeInclusiveMap<usize, (AddressSpaceHandle, usize)>>,
+        HashMap<AddressSpaceHandle, HashMap<RangeInclusive<usize>, (AddressSpaceHandle, usize)>>,
     >,
 }
 

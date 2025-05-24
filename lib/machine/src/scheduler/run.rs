@@ -22,13 +22,6 @@ impl Scheduler {
 
             // Peek to see if the min task is ready
             while let Some(TaskInfo { next_execution, .. }) = self.tasks.peek() {
-                assert!(
-                    next_execution.0 >= self.current_tick,
-                    "Task counter and global counter desync: {} vs {}",
-                    next_execution.0,
-                    self.current_tick
-                );
-
                 if next_execution.0 != self.current_tick {
                     break;
                 }

@@ -173,7 +173,7 @@ impl MemoryTranslationTable {
                                 assert!(
                                     !component_assignment_range.contains(&redirect_address)
                                         && address_space == redirect_address_space,
-                                    "Component attempted to redirect to itself {:x?} -> {:x}",
+                                    "Memory attempted to redirect to itself {:x?} -> {:x}",
                                     component_assignment_range,
                                     redirect_address,
                                 );
@@ -300,7 +300,7 @@ impl MemoryTranslationTable {
                                 assert!(
                                     !component_assignment_range.contains(&redirect_address)
                                         && address_space == redirect_address_space,
-                                    "Component attempted to redirect to itself {:x?} -> {:x}",
+                                    "Memory attempted to redirect to itself {:x?} -> {:x}",
                                     component_assignment_range,
                                     redirect_address,
                                 );
