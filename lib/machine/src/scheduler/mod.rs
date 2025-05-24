@@ -13,6 +13,8 @@ use std::{
     time::Duration,
 };
 
+mod run;
+
 struct TaskInfo {
     pub component_id: ComponentId,
     #[allow(clippy::type_complexity)]
@@ -149,131 +151,6 @@ impl Scheduler {
         }
     }
 
-    pub fn run(&mut self) {
-        let alloted_ticks_this_pass: u32 = (self.allotted_time.as_nanos()
-            / self.tick_real_time.as_nanos())
-        .try_into()
-        .unwrap();
-        let old_current_tick = self.current_tick;
-
-        // Run until we are out of allotted time
-        let mut to_run = Vec::default();
-
-        while self.current_tick.wrapping_sub(old_current_tick) < alloted_ticks_this_pass {
-            // Peek to see if the min task is ready
-            while let Some(TaskInfo { next_execution, .. }) = self.tasks.peek() {
-                assert!(
-                    next_execution.0 >= self.current_tick,
-                    "Task counter and global counter desync: {} vs {}",
-                    next_execution.0,
-                    self.current_tick
-                );
-
-                if next_execution.0 != self.current_tick {
-                    break;
-                }
-
-                to_run.push(self.tasks.pop().unwrap());
-            }
-
-            match to_run.len() {
-                0 => {
-                    // Timeskip to the nearest task
-                    let next_task_info = self.tasks.peek().unwrap();
-                    let ticks_to_skip_ahead = next_task_info
-                        .next_execution
-                        .0
-                        .wrapping_sub(self.current_tick);
-
-                    self.current_tick = self.current_tick.wrapping_add(ticks_to_skip_ahead);
-                }
-                1 => {
-                    let task_info = to_run.remove(0);
-                    let next_task_info = self.tasks.peek().unwrap();
-
-                    let mut ticks_until_next_task =
-                        next_task_info.next_execution.0 - task_info.next_execution.0;
-
-                    if let Some(time_slice) =
-                        NonZero::new(ticks_until_next_task / task_info.tick_rate)
-                    {
-                        self.run_task([(task_info, time_slice)]);
-                    } else {
-                        // Reschedule next task up to give this task some wiggle room
-                        let adjustment = task_info.tick_rate - ticks_until_next_task;
-                        let mut next_task_info = self.tasks.peek_mut().unwrap();
-
-                        next_task_info.next_execution.0 =
-                            next_task_info.next_execution.0.wrapping_add(adjustment);
-                        ticks_until_next_task += adjustment;
-
-                        // Allow the binary heap to recompute itself
-                        drop(next_task_info);
-
-                        self.run_task([(task_info, NonZero::new(1).unwrap())]);
-                    }
-
-                    self.current_tick = self.current_tick.wrapping_add(ticks_until_next_task);
-                }
-                _ => {
-                    let lcm_tick_rate = to_run
-                        .iter()
-                        .map(|task_info| task_info.tick_rate)
-                        .fold(1, lcm);
-
-                    if let Some(next_task_info) = self.tasks.peek() {
-                        let mut ticks_until_next_task =
-                            next_task_info.next_execution.0 - (self.current_tick + lcm_tick_rate);
-
-                        // Make sure the slowest task fits
-                        if (ticks_until_next_task / lcm_tick_rate) != 0 {
-                            // Its ensured everything fits here since the max fits
-                            self.run_task(to_run.drain(..).map(|task_info| {
-                                let time_slice =
-                                    NonZero::new(ticks_until_next_task / task_info.tick_rate)
-                                        .unwrap();
-
-                                (task_info, time_slice)
-                            }));
-                        } else {
-                            // Reschedule next task up to give this task some wiggle room
-                            let adjustment = lcm_tick_rate - ticks_until_next_task;
-                            let mut next_task_info = self.tasks.peek_mut().unwrap();
-
-                            next_task_info.next_execution.0 =
-                                next_task_info.next_execution.0.wrapping_add(adjustment);
-                            ticks_until_next_task += adjustment;
-
-                            // Allow the binary heap to recompute itself
-                            drop(next_task_info);
-
-                            self.run_task(to_run.drain(..).map(|task_info| {
-                                let time_slice =
-                                    NonZero::new(ticks_until_next_task / task_info.tick_rate)
-                                        .unwrap();
-
-                                (task_info, time_slice)
-                            }));
-                        }
-
-                        // Update by the advancement to the next task
-                        self.current_tick = self.current_tick.wrapping_add(ticks_until_next_task);
-                    } else {
-                        // Just run for the max tick rates period since apparently the whole set is here
-                        self.run_task(to_run.drain(..).map(|task_info| {
-                            let time_slice =
-                                NonZero::new(lcm_tick_rate / task_info.tick_rate).unwrap();
-
-                            (task_info, time_slice)
-                        }));
-
-                        // Update by max tick rate
-                        self.current_tick = self.current_tick.wrapping_add(lcm_tick_rate);
-                    };
-                }
-            }
-        }
-    }
 
     fn run_task(&mut self, to_run: impl IntoIterator<Item = (TaskInfo, NonZero<u32>)>) {
         for (mut task_info, time_slice) in to_run {

@@ -5,6 +5,11 @@ pub struct Fragile<T>(T);
 
 impl<T> Fragile<T> {
     pub fn new(value: T) -> Self {
+        assert!(
+            is_main_thread(),
+            "Cannot create this type outside the main thread"
+        );
+
         Fragile(value)
     }
 
