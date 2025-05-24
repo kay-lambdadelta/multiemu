@@ -1,8 +1,7 @@
 use multiemu_input::{GamepadId, Input, InputState};
 
 mod audio;
-mod gamepad;
-mod keyboard;
+mod input;
 pub mod renderer;
 pub mod windowing;
 

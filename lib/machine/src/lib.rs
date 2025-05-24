@@ -8,6 +8,7 @@ use memory::memory_translation_table::MemoryTranslationTable;
 use multiemu_config::Environment;
 use multiemu_rom::{id::RomId, manager::RomManager, system::GameSystem};
 use scheduler::Scheduler;
+use utils::Fragile;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -24,6 +25,7 @@ pub mod processor;
 pub mod scheduler;
 pub mod task;
 pub mod trigger;
+pub mod utils;
 
 #[non_exhaustive]
 pub struct Machine<R: RenderApi> {
@@ -31,7 +33,7 @@ pub struct Machine<R: RenderApi> {
     pub memory_translation_table: MemoryTranslationTable,
     pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>>,
     pub game_system: GameSystem,
-    pub framebuffers: Vec<ComponentFramebuffer<R>>,
+    pub framebuffers: Fragile<Vec<ComponentFramebuffer<R>>>,
 }
 
 pub trait MachineFactory<R: RenderApi>: Debug + Send + Sync + 'static {

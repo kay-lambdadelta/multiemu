@@ -65,6 +65,7 @@ rustc-hash = "2.1"
 ron = "0.10"
 data-encoding = "2.9"
 sealed = "0.6"
+arc-swap = "1.7"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }

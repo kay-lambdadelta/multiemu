@@ -1,16 +1,9 @@
 use crate::{
-    Machine,
     component::{
-        Component, ComponentConfig, ComponentId, RuntimeEssentials, component_ref::ComponentRef,
-        store::ComponentStore,
-    },
-    display::{
-        RenderExtensions,
-        backend::{ContextExtensionSpecification, RenderApi},
-        shader::ShaderCache,
-    },
-    memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
-    scheduler::Scheduler,
+        component_ref::ComponentRef, store::ComponentStore, Component, ComponentConfig, ComponentId, RuntimeEssentials
+    }, display::{
+        backend::{ContextExtensionSpecification, RenderApi}, shader::ShaderCache, RenderExtensions
+    }, memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceHandle}, scheduler::Scheduler, utils::Fragile, Machine
 };
 use audio::AudioMetadata;
 use display::DisplayMetadata;
@@ -222,7 +215,7 @@ impl<R: RenderApi> MachineBuilder<R> {
         Machine {
             scheduler,
             memory_translation_table: self.essentials.memory_translation_table.clone(),
-            framebuffers,
+            framebuffers: Fragile::new(framebuffers),
             virtual_gamepads: all_gamepads
                 .into_iter()
                 .enumerate()

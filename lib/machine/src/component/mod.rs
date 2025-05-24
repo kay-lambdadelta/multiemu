@@ -14,7 +14,6 @@ use std::{
 };
 
 pub mod component_ref;
-pub(crate) mod main_thread_queue;
 pub(crate) mod store;
 
 /// Stuff every component optionally needs

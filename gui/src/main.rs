@@ -29,6 +29,9 @@ fn main() {
     use cli::{Cli, CliAction};
     use runtime::{Runtime, desktop::windowing::DesktopPlatform};
 
+    // Set our current thread as our main thread (trivially safe)
+    unsafe { multiemu_machine::utils::set_main_thread() };
+
     let environment = Environment::load().expect("Could not parse environment");
 
     let file = File::create(&environment.log_location).expect("Failed to create log file");

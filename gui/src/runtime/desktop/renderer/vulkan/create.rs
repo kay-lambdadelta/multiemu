@@ -18,8 +18,6 @@ pub const UNIVERSALLY_REQUIRED_EXTENSIONS: DeviceExtensions = DeviceExtensions {
 };
 
 pub const UNIVERSALLY_PREFERRED_EXTENSIONS: DeviceExtensions = DeviceExtensions {
-    // Gui code is more efficient with this
-    khr_swapchain_mutable_format: true,
     ..DeviceExtensions::empty()
 };
 

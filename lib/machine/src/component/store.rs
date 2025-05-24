@@ -1,16 +1,8 @@
-use rustc_hash::FxBuildHasher;
+use crate::utils::{Fragile, MainThreadQueue, is_main_thread};
 
-use super::{
-    Component, ComponentId, component_ref::ComponentRef, main_thread_queue::MainThreadExecutor,
-};
-use std::{
-    any::Any,
-    borrow::Cow,
-    cell::{LazyCell, RefCell},
-    collections::HashMap,
-    fmt::Debug,
-    sync::Arc,
-};
+use super::{Component, ComponentId, component_ref::ComponentRef};
+use rustc_hash::FxBuildHasher;
+use std::{any::Any, borrow::Cow, fmt::Debug, sync::Arc};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -21,22 +13,18 @@ pub enum Error {
 }
 
 enum ComponentLocation {
-    MainThread,
     Global(Arc<dyn Component + Send + Sync>),
+    // Use fragile to guard thread safety
+    Local(Fragile<Box<dyn Component>>),
 }
 
 impl Debug for ComponentLocation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ComponentLocation::MainThread => f.write_str("MainThread"),
             ComponentLocation::Global(_) => f.write_str("Global"),
+            ComponentLocation::Local(_) => f.write_str("Local"),
         }
     }
-}
-
-thread_local! {
-    pub(super) static IS_MAIN_THREAD: RefCell<bool> = const { RefCell::new(false) };
-    static MAIN_THREAD_COMPONENT_STORE: LazyCell<RefCell<HashMap<ComponentId, Arc<dyn Component>>>> = const { LazyCell::new(RefCell::default) };
 }
 
 #[derive(Debug)]
@@ -47,7 +35,7 @@ where
 {
     component_ids: scc::HashMap<Cow<'static, str>, ComponentId, FxBuildHasher>,
     component_location: scc::HashMap<ComponentId, ComponentLocation, FxBuildHasher>,
-    pub(crate) main_thread_queue: Arc<MainThreadExecutor>,
+    pub(crate) main_thread_queue: Arc<MainThreadQueue>,
 }
 
 impl Default for ComponentStore {
@@ -57,20 +45,14 @@ impl Default for ComponentStore {
 }
 
 impl ComponentStore {
+    // for our purposes the calling thread is the main thread
     pub fn new() -> Self {
-        IS_MAIN_THREAD.with(|is_main_thread| {
-            *is_main_thread.borrow_mut() = true;
-        });
-
-        MAIN_THREAD_COMPONENT_STORE.with(|task_component_store| {
-            let mut task_component_store = task_component_store.borrow_mut();
-            task_component_store.clear();
-        });
+        assert!(is_main_thread());
 
         Self {
             component_ids: scc::HashMap::default(),
             component_location: scc::HashMap::default(),
-            main_thread_queue: Arc::new(MainThreadExecutor::default()),
+            main_thread_queue: Arc::new(MainThreadQueue::default()),
         }
     }
 
@@ -80,21 +62,17 @@ impl ComponentStore {
         component_id: ComponentId,
         component: impl Component,
     ) {
-        IS_MAIN_THREAD.with(|is_main_thread| {
-            assert!(*is_main_thread.borrow());
-        });
-
-        MAIN_THREAD_COMPONENT_STORE.with(|task_component_store| {
-            let mut task_component_store = task_component_store.borrow_mut();
-            task_component_store.insert(component_id, Arc::new(component));
-        });
+        assert!(is_main_thread());
 
         self.component_ids
             .insert(Cow::Borrowed(name), component_id)
             .unwrap();
 
         self.component_location
-            .insert(component_id, ComponentLocation::MainThread)
+            .insert(
+                component_id,
+                ComponentLocation::Local(Fragile::new(Box::new(component))),
+            )
             .unwrap();
     }
 
@@ -104,9 +82,7 @@ impl ComponentStore {
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
-        IS_MAIN_THREAD.with(|is_main_thread| {
-            assert!(*is_main_thread.borrow());
-        });
+        assert!(is_main_thread());
 
         self.component_ids
             .insert(Cow::Borrowed(name), component_id)
@@ -124,28 +100,13 @@ impl ComponentStore {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) + Send,
     ) -> Result<(), Error> {
-        let is_main_thread = IS_MAIN_THREAD.with(|is_main_thread| *is_main_thread.borrow());
-
         self.component_location
             .read(&component_id, |_, location| {
                 match location {
-                    ComponentLocation::MainThread => {
-                        if is_main_thread {
-                            MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
-                                let thread_component_store = thread_component_store.borrow();
-                                let component = thread_component_store.get(&component_id).unwrap();
-                                callback(component.as_ref());
-                            });
-                        } else {
-                            self.main_thread_queue.wait_on_main(|| {
-                                MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
-                                    let thread_component_store = thread_component_store.borrow();
-                                    let component =
-                                        thread_component_store.get(&component_id).unwrap();
-                                    callback(component.as_ref());
-                                });
-                            });
-                        }
+                    ComponentLocation::Local(component) => {
+                        self.main_thread_queue.maybe_wait_on_main(|| {
+                            callback(component.get().unwrap().as_ref());
+                        });
                     }
                     ComponentLocation::Global(component) => {
                         callback(component.as_ref());
@@ -164,21 +125,13 @@ impl ComponentStore {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component),
     ) -> Result<(), Error> {
-        let is_main_thread = IS_MAIN_THREAD.with(|is_main_thread| *is_main_thread.borrow());
+        assert!(is_main_thread());
 
         self.component_location
             .read(&component_id, |_, location| {
                 match location {
-                    ComponentLocation::MainThread => {
-                        if is_main_thread {
-                            MAIN_THREAD_COMPONENT_STORE.with(|thread_component_store| {
-                                let thread_component_store = thread_component_store.borrow();
-                                let component = thread_component_store.get(&component_id).unwrap();
-                                callback(component.as_ref());
-                            });
-                        } else {
-                            return Err(Error::ComponentUnreachable);
-                        }
+                    ComponentLocation::Local(component) => {
+                        callback(component.get().unwrap().as_ref());
                     }
                     ComponentLocation::Global(component) => {
                         callback(component.as_ref());

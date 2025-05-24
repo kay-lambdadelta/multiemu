@@ -80,7 +80,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             .graphics_setting
             .integer_scaling;
 
-        for framebuffer in machine.framebuffers.iter() {
+        for framebuffer in machine.framebuffers.get().unwrap().iter() {
             if integer_scaling {
                 let framebuffer = framebuffer.load();
 

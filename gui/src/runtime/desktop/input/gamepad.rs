@@ -3,8 +3,7 @@ use multiemu_input::{GamepadId, Input, InputState, gamepad::GamepadInput};
 use std::collections::HashMap;
 use uuid::Uuid;
 use winit::event_loop::EventLoopProxy;
-
-use super::RuntimeBoundMessage;
+use crate::runtime::desktop::RuntimeBoundMessage;
 
 pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
     let mut gilrs_context = GilrsBuilder::new().build().unwrap();

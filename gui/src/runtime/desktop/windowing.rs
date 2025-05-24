@@ -1,10 +1,6 @@
-use super::{
-    RuntimeBoundMessage,
-    keyboard::{KEYBOARD_ID, winit2key},
-};
 use crate::{
     rendering_backend::{DisplayApiHandle, RenderingBackendState},
-    runtime::{Platform, Runtime, desktop::gamepad::gamepad_task},
+    runtime::{desktop::input::gamepad::gamepad_task, Platform, Runtime},
 };
 use egui::ViewportId;
 use multiemu_input::InputState;
@@ -17,6 +13,8 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
+
+use super::{input::keyboard::{winit2key, KEYBOARD_ID}, RuntimeBoundMessage};
 
 impl DisplayApiHandle for Arc<Window> {
     fn dimensions(&self) -> nalgebra::Vector2<u16> {
