@@ -59,7 +59,6 @@ impl<R: RenderApi> MachineFactory<R> for Nes {
             StandardMemoryConfig {
                 readable: true,
                 writable: true,
-                max_word_size: 2,
                 assigned_range: 0x0000..=0x07ff,
                 assigned_address_space: cpu_address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
@@ -81,10 +80,7 @@ impl<R: RenderApi> MachineFactory<R> for Nes {
         let (machine, _) = machine.insert_default_component::<NesPpuConfig>("ppu");
 
         // Grab the timing mode
-        let mut timing_mode = TimingMode::Ntsc;
-        cartridge
-            .interact(|cart| timing_mode = cart.rom().timing_mode)
-            .unwrap();
+        let timing_mode = cartridge.interact(|cart| cart.rom().timing_mode).unwrap();
 
         let processor_frequency = Ratio::from_integer(match timing_mode {
             TimingMode::Ntsc => 1789773,

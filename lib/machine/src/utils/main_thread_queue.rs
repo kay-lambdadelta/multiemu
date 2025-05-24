@@ -1,14 +1,17 @@
 use crossbeam::channel::{Receiver, Sender};
 use std::{
+    any::Any,
+    ops::Deref,
     sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
 
 use super::is_main_thread;
 
+#[allow(clippy::type_complexity)]
 struct QueuedCallback {
-    callback: Box<dyn FnOnce() + Send + 'static>,
-    is_done: Arc<(Condvar, Mutex<bool>)>,
+    callback: Box<dyn FnOnce() -> Box<dyn Any + Send> + Send + 'static>,
+    is_done: Arc<(Condvar, Mutex<Option<Box<dyn Any + Send>>>)>,
 }
 
 #[derive(Debug)]
@@ -26,24 +29,31 @@ impl Default for MainThreadQueue {
 
 impl MainThreadQueue {
     // Waits for the main thread to execute the callback
-    pub fn maybe_wait_on_main<'a>(&'a self, callback: impl FnOnce() + Send + 'a) {
+    pub fn maybe_wait_on_main<'a, T: Send + 'static>(
+        &'a self,
+        callback: impl FnOnce() -> T + Send + 'a,
+    ) -> T {
         if is_main_thread() {
             // Just straight up execute it if its the main thread
-            callback();
-            return;
+            return callback();
         }
 
-        // Box the callback
-        let callback = Box::new(callback) as Box<dyn FnOnce() + Send>;
+        // Box the callback and erase the type
+        let callback = Box::new(move || {
+            let callback_return = callback();
+
+            Box::new(callback_return) as Box<dyn Any + Send>
+        });
 
         // lifetime extend the callback
         let callback = unsafe {
-            std::mem::transmute::<Box<dyn FnOnce() + Send + 'a>, Box<dyn FnOnce() + Send + 'static>>(
-                callback,
-            )
+            std::mem::transmute::<
+                Box<dyn FnOnce() -> Box<dyn Any + Send> + Send + 'a>,
+                Box<dyn FnOnce() -> Box<dyn Any + Send> + Send + 'static>,
+            >(callback)
         };
 
-        let is_done = Arc::new((Condvar::default(), Mutex::new(false)));
+        let is_done = Arc::new((Condvar::default(), Mutex::default()));
 
         // Put it on the queue
         self.sender
@@ -54,8 +64,15 @@ impl MainThreadQueue {
             .unwrap();
 
         let mut is_done_guard = is_done.1.lock().unwrap();
-        while !*is_done_guard {
-            is_done_guard = is_done.0.wait(is_done_guard).unwrap();
+        loop {
+            match is_done_guard.deref() {
+                Some(_) => {
+                    let value = is_done_guard.take().unwrap();
+
+                    return *value.downcast().unwrap();
+                }
+                None => is_done_guard = is_done.0.wait(is_done_guard).unwrap(),
+            }
         }
     }
 
@@ -65,9 +82,9 @@ impl MainThreadQueue {
         loop {
             match self.receiver.recv_timeout(Duration::from_millis(10)) {
                 Ok(callback) => {
-                    (callback.callback)();
+                    let value = (callback.callback)();
                     let mut is_done_guard = callback.is_done.1.lock().unwrap();
-                    *is_done_guard = true;
+                    *is_done_guard = Some(value);
                     callback.is_done.0.notify_one();
                 }
                 Err(crossbeam::channel::RecvTimeoutError::Timeout) => break,

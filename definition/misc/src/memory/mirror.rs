@@ -3,7 +3,7 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
+        AddressSpaceHandle,
         callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
     },
@@ -138,12 +138,6 @@ impl ReadMemory for MirrorMemoryCallbacks {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
-        assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
-            "Invalid memory access size {}",
-            buffer.len()
-        );
-
         let affected_range = address..=(address + (buffer.len() - 1));
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
@@ -184,12 +178,6 @@ impl WriteMemory for MirrorMemoryCallbacks {
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
-        assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
-            "Invalid memory access size {}",
-            buffer.len()
-        );
-
         let affected_range = address..=(address + (buffer.len() - 1));
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
@@ -240,7 +228,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=7,
@@ -294,7 +281,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=7,
@@ -344,7 +330,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=3,
@@ -361,7 +346,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram2",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 4..=7,

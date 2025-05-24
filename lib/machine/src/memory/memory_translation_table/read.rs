@@ -1,7 +1,5 @@
 use super::{MemoryHandle, MemoryTranslationTable, StoredCallback};
-use crate::memory::{
-    Address, AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES, callbacks::ReadMemory,
-};
+use crate::memory::{Address, AddressSpaceHandle, callbacks::ReadMemory};
 use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
 use std::ops::RangeInclusive;
@@ -97,11 +95,6 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryOperationError> {
-        assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
-            "Invalid memory access size {}",
-            buffer.len()
-        );
         let impl_guard = self.0.read().unwrap();
 
         let mut needed_accesses =

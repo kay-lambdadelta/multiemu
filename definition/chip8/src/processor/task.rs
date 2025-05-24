@@ -93,12 +93,11 @@ impl<R: SupportedRenderApiChip8> Task<Chip8Processor> for Chip8ProcessorTask<R> 
                         }
                     }
                     ExecutionState::AwaitingVsync => {
-                        let mut vsync_occured = false;
-                        self.config
+                        let vsync_occured = self
+                            .config
                             .display
                             .interact(|display| {
-                                vsync_occured =
-                                    display.vsync_occurred.swap(false, Ordering::Relaxed);
+                                display.vsync_occurred.swap(false, Ordering::Relaxed)
                             })
                             .unwrap();
 

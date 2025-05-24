@@ -77,41 +77,40 @@ impl<C: Component> ComponentRef<C> {
         }
     }
 
-    pub fn interact(&self, callback: impl FnOnce(&C) + Send) -> Result<(), Error> {
+    pub fn interact<T: Send + 'static>(
+        &self,
+        callback: impl FnOnce(&C) -> T + Send,
+    ) -> Result<T, Error> {
         match &self.location {
             ComponentLocation::Here(component) => {
                 let component = (component.as_ref() as &dyn Any)
                     .downcast_ref::<C>()
                     .expect("Component type mismatch");
 
-                callback(component);
-
-                Ok(())
+                Ok(callback(component))
             }
             ComponentLocation::Elsewhere(component_id) => self
                 .store
                 .upgrade()
                 .unwrap()
-                .interact::<C>(*component_id, callback),
+                .interact(*component_id, callback),
         }
     }
 
-    pub fn interact_local(&self, callback: impl FnOnce(&C)) -> Result<(), Error> {
+    pub fn interact_local<T: 'static>(&self, callback: impl FnOnce(&C) -> T) -> Result<T, Error> {
         match &self.location {
             ComponentLocation::Here(component) => {
                 let component = (component.as_ref() as &dyn Any)
                     .downcast_ref::<C>()
                     .expect("Component type mismatch");
 
-                callback(component);
-
-                Ok(())
+                Ok(callback(component))
             }
             ComponentLocation::Elsewhere(component_id) => self
                 .store
                 .upgrade()
                 .unwrap()
-                .interact_local::<C>(*component_id, callback),
+                .interact_local(*component_id, callback),
         }
     }
 }

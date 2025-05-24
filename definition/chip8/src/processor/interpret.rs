@@ -273,12 +273,10 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
                 }
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Moved { register }) => {
-                let mut delay_timer_value = 0;
-                self.config
+                let delay_timer_value = self
+                    .config
                     .timer
-                    .interact(|timer_component| {
-                        delay_timer_value = timer_component.get();
-                    })
+                    .interact(|timer_component| timer_component.get())
                     .unwrap();
 
                 state.registers.work_registers[register as usize] = delay_timer_value;

@@ -3,7 +3,7 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
+        AddressSpaceHandle,
         callbacks::ReadMemory,
         memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord},
     },
@@ -15,8 +15,6 @@ use std::ops::RangeInclusive;
 #[derive(Debug)]
 pub struct RomMemoryConfig {
     pub rom: RomId,
-    /// The maximum word size
-    pub max_word_size: u8,
     /// Memory region this buffer will be mapped to
     pub assigned_range: RangeInclusive<usize>,
     /// Address space this exists on
@@ -79,21 +77,6 @@ impl ReadMemory for MemoryCallbacks {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
-        assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
-            "Invalid memory access size {}",
-            buffer.len()
-        );
-
-        let affected_range = address..=(address + buffer.len() - 1);
-
-        if buffer.len() > self.config.max_word_size as usize {
-            return Err(RangeInclusiveMap::from_iter([(
-                affected_range.clone(),
-                ReadMemoryRecord::Denied,
-            )]));
-        }
-
         let adjusted_offset = address - self.config.assigned_range.start();
         buffer.copy_from_slice(
             &self.rom

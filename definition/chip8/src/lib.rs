@@ -80,7 +80,6 @@ impl<R: SupportedRenderApiChip8> MachineFactory<R> for Chip8 {
             StandardMemoryConfig {
                 readable: true,
                 writable: true,
-                max_word_size: 2,
                 assigned_range: 0x000..=0xfff,
                 assigned_address_space: cpu_address_space,
                 initial_contents: RangeInclusiveMap::from_iter([

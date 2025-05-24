@@ -4,7 +4,7 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        AddressSpaceHandle, VALID_MEMORY_ACCESS_SIZES,
+        AddressSpaceHandle,
         callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{
             MemoryHandle, PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
@@ -38,8 +38,6 @@ pub enum StandardMemoryInitialContents {
 pub struct StandardMemoryConfig {
     pub readable: bool,
     pub writable: bool,
-    // The maximum word size
-    pub max_word_size: usize,
     // Memory region this buffer will be mapped to
     pub assigned_range: RangeInclusive<usize>,
     /// Address space this exists on
@@ -67,10 +65,6 @@ impl<R: RenderApi> ComponentConfig<R> for StandardMemoryConfig {
     type Component = StandardMemory;
 
     fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
-        assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&self.max_word_size),
-            "Invalid word size"
-        );
         assert!(
             !self.assigned_range.is_empty(),
             "Memory assigned must be non-empty"
@@ -134,12 +128,6 @@ impl ReadMemory for StandardMemoryCallbacks {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
-        assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
-            "Invalid memory access size {}",
-            buffer.len()
-        );
-
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
             let invalid_before_range = address..=end_address;
 
@@ -208,12 +196,6 @@ impl WriteMemory for StandardMemoryCallbacks {
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
-        debug_assert!(
-            VALID_MEMORY_ACCESS_SIZES.contains(&buffer.len()),
-            "Invalid memory access size {}",
-            buffer.len()
-        );
-
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
             let invalid_before_range = address..=end_address;
 
@@ -409,7 +391,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=3,
@@ -441,7 +422,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=3,
@@ -482,7 +462,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=7,
@@ -523,7 +502,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=7,
@@ -563,7 +541,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=7,
@@ -609,7 +586,6 @@ mod test {
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
-                max_word_size: 8,
                 readable: true,
                 writable: true,
                 assigned_range: 0..=0xffff,

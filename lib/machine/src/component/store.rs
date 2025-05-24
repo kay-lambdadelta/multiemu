@@ -1,6 +1,5 @@
-use crate::utils::{Fragile, MainThreadQueue, is_main_thread};
-
 use super::{Component, ComponentId, component_ref::ComponentRef};
+use crate::utils::{Fragile, MainThreadQueue, is_main_thread};
 use rustc_hash::FxBuildHasher;
 use std::{any::Any, borrow::Cow, fmt::Debug, sync::Arc};
 
@@ -95,75 +94,61 @@ impl ComponentStore {
 
     #[inline]
     // Interacts with a component wherever it may be
-    pub(crate) fn interact_dyn(
+    pub(crate) fn interact_dyn<T: Send + 'static>(
         &self,
         component_id: ComponentId,
-        callback: impl FnOnce(&dyn Component) + Send,
-    ) -> Result<(), Error> {
+        callback: impl FnOnce(&dyn Component) -> T + Send,
+    ) -> Result<T, Error> {
         self.component_location
-            .read(&component_id, |_, location| {
-                match location {
-                    ComponentLocation::Local(component) => {
-                        self.main_thread_queue.maybe_wait_on_main(|| {
-                            callback(component.get().unwrap().as_ref());
-                        });
-                    }
-                    ComponentLocation::Global(component) => {
-                        callback(component.as_ref());
-                    }
-                }
-
-                Ok(())
+            .read(&component_id, |_, location| match location {
+                ComponentLocation::Local(component) => Ok(self
+                    .main_thread_queue
+                    .maybe_wait_on_main(|| callback(component.get().unwrap().as_ref()))),
+                ComponentLocation::Global(component) => Ok(callback(component.as_ref())),
             })
             .ok_or(Error::ComponentNotFound)?
     }
 
     #[inline]
     // Interacts with a component but restricted to the local instance, mostly for graphics initialization
-    pub(crate) fn interact_dyn_local(
+    pub(crate) fn interact_dyn_local<T: 'static>(
         &self,
         component_id: ComponentId,
-        callback: impl FnOnce(&dyn Component),
-    ) -> Result<(), Error> {
+        callback: impl FnOnce(&dyn Component) -> T,
+    ) -> Result<T, Error> {
         assert!(is_main_thread());
 
         self.component_location
-            .read(&component_id, |_, location| {
-                match location {
-                    ComponentLocation::Local(component) => {
-                        callback(component.get().unwrap().as_ref());
-                    }
-                    ComponentLocation::Global(component) => {
-                        callback(component.as_ref());
-                    }
+            .read(&component_id, |_, location| match location {
+                ComponentLocation::Local(component) => {
+                    Ok(callback(component.get().unwrap().as_ref()))
                 }
-
-                Ok(())
+                ComponentLocation::Global(component) => Ok(callback(component.as_ref())),
             })
             .ok_or(Error::ComponentNotFound)?
     }
 
     #[inline]
-    pub(crate) fn interact<C: Component>(
+    pub(crate) fn interact<C: Component, T: Send + 'static>(
         &self,
         component_id: ComponentId,
-        callback: impl FnOnce(&C) + Send,
-    ) -> Result<(), Error> {
+        callback: impl FnOnce(&C) -> T + Send,
+    ) -> Result<T, Error> {
         self.interact_dyn(component_id, |component| {
             let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
-            callback(component);
+            callback(component)
         })
     }
 
     #[inline]
-    pub(crate) fn interact_local<C: Component>(
+    pub(crate) fn interact_local<C: Component, T: 'static>(
         &self,
         component_id: ComponentId,
-        callback: impl FnOnce(&C),
-    ) -> Result<(), Error> {
+        callback: impl FnOnce(&C) -> T,
+    ) -> Result<T, Error> {
         self.interact_dyn_local(component_id, |component| {
             let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
-            callback(component);
+            callback(component)
         })
     }
 

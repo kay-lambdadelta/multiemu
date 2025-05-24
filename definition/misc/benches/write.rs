@@ -32,7 +32,6 @@ fn criterion_benchmark(c: &mut Criterion) {
     let (machine, _) = machine.insert_component(
         "workram",
         StandardMemoryConfig {
-            max_word_size: 8,
             readable: true,
             writable: true,
             assigned_range: 0..=0xffff,
