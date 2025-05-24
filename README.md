@@ -29,3 +29,7 @@ Note that the application being EGUI based is most likely a temporary arrangemen
 ## System Support
 
 The emulator has a operational chip8 machine, along with a half finished atari 2600 and a NES machine. Planned beyond those is the Gameboy and other intel 8080/z80 based consoles.
+
+## Accuracy Goals
+
+The emulators systems intend to be as accurate as required for user observable state and deterministic execution (where this applies). It is not ment to replicate meaningless hardware behavior with no side effects or obscure normally unobservable behavior if that would severely affect performance and complexity.
