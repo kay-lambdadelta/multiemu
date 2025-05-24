@@ -1,9 +1,17 @@
 use crate::{
+    Machine,
     component::{
-        component_ref::ComponentRef, store::ComponentStore, Component, ComponentConfig, ComponentId, RuntimeEssentials
-    }, display::{
-        backend::{ContextExtensionSpecification, RenderApi}, shader::ShaderCache, RenderExtensions
-    }, memory::{memory_translation_table::MemoryTranslationTable, AddressSpaceHandle}, scheduler::Scheduler, utils::Fragile, Machine
+        Component, ComponentConfig, ComponentId, RuntimeEssentials, component_ref::ComponentRef,
+        store::ComponentStore,
+    },
+    display::{
+        RenderExtensions,
+        backend::{ContextExtensionSpecification, RenderApi},
+        shader::ShaderCache,
+    },
+    memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
+    scheduler::Scheduler,
+    utils::Fragile,
 };
 use audio::AudioMetadata;
 use display::DisplayMetadata;

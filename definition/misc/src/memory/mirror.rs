@@ -9,10 +9,7 @@ use multiemu_machine::{
     },
 };
 use rangemap::RangeInclusiveMap;
-use std::{
-    collections::HashMap,
-    ops::RangeInclusive,
-};
+use std::{collections::HashMap, ops::RangeInclusive};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PermissionSpace {
@@ -227,6 +224,10 @@ mod test {
 
     #[test]
     fn basic_read() {
+        unsafe {
+            multiemu_machine::utils::set_main_thread();
+        }
+
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::new(environment.clone());
@@ -278,6 +279,10 @@ mod test {
 
     #[test]
     fn basic_write() {
+        unsafe {
+            multiemu_machine::utils::set_main_thread();
+        }
+
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::new(environment.clone());
@@ -327,6 +332,10 @@ mod test {
 
     #[test]
     fn extensive_read_test() {
+        unsafe {
+            multiemu_machine::utils::set_main_thread();
+        }
+
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::new(environment.clone());

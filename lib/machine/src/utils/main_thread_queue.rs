@@ -81,6 +81,7 @@ impl MainThreadQueue {
 
 #[cfg(test)]
 mod test {
+    use crate::utils::{MainThreadQueue, set_main_thread};
     use std::{
         sync::{
             Arc,
@@ -88,7 +89,6 @@ mod test {
         },
         time::Duration,
     };
-    use crate::utils::{set_main_thread, MainThreadQueue};
 
     #[test]
     fn test_main_thread_queue() {

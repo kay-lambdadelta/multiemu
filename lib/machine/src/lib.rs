@@ -8,12 +8,12 @@ use memory::memory_translation_table::MemoryTranslationTable;
 use multiemu_config::Environment;
 use multiemu_rom::{id::RomId, manager::RomManager, system::GameSystem};
 use scheduler::Scheduler;
-use utils::Fragile;
 use std::{
     collections::HashMap,
     fmt::Debug,
     sync::{Arc, RwLock},
 };
+use utils::Fragile;
 
 pub mod audio;
 pub mod builder;

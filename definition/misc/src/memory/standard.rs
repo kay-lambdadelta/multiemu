@@ -392,6 +392,10 @@ mod test {
 
     #[test]
     fn initialization() {
+        unsafe {
+            multiemu_machine::utils::set_main_thread();
+        }
+
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::new(environment.clone());
@@ -463,6 +467,10 @@ mod test {
 
     #[test]
     fn basic_read() {
+        unsafe {
+            multiemu_machine::utils::set_main_thread();
+        }
+
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::new(environment.clone());
@@ -502,6 +510,10 @@ mod test {
 
     #[test]
     fn basic_write() {
+        unsafe {
+            multiemu_machine::utils::set_main_thread();
+        }
+
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::new(environment.clone());
@@ -540,6 +552,10 @@ mod test {
 
     #[test]
     fn basic_read_write() {
+        unsafe {
+            multiemu_machine::utils::set_main_thread();
+        }
+
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::new(environment.clone());
@@ -584,6 +600,10 @@ mod test {
 
     #[test]
     fn extensive() {
+        unsafe {
+            multiemu_machine::utils::set_main_thread();
+        }
+
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let shader_cache = ShaderCache::new(environment.clone());

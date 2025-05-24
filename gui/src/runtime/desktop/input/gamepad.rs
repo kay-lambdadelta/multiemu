@@ -1,9 +1,9 @@
+use crate::runtime::desktop::RuntimeBoundMessage;
 use gilrs::{Axis, Button, EventType, GilrsBuilder};
 use multiemu_input::{GamepadId, Input, InputState, gamepad::GamepadInput};
 use std::collections::HashMap;
 use uuid::Uuid;
 use winit::event_loop::EventLoopProxy;
-use crate::runtime::desktop::RuntimeBoundMessage;
 
 pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
     let mut gilrs_context = GilrsBuilder::new().build().unwrap();
