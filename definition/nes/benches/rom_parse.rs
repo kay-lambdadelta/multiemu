@@ -2,9 +2,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_nes::INes;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    unsafe {
-        multiemu_machine::utils::set_main_thread();
-    }
+    multiemu_machine::utils::set_main_thread();
 
     let rom = std::fs::read("INSERT YOUR FAVORITE NES ROM HERE").unwrap();
 

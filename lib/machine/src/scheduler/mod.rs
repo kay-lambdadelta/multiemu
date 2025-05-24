@@ -151,7 +151,6 @@ impl Scheduler {
         }
     }
 
-
     fn run_task(&mut self, to_run: impl IntoIterator<Item = (TaskInfo, NonZero<u32>)>) {
         for (mut task_info, time_slice) in to_run {
             self.component_store

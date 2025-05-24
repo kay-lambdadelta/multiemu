@@ -92,7 +92,7 @@ mod test {
 
     #[test]
     fn test_main_thread_queue() {
-        unsafe { set_main_thread() };
+        set_main_thread();
 
         let queue = Arc::new(MainThreadQueue::default());
         let tasks_to_run = 10;

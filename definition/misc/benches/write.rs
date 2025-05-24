@@ -15,9 +15,7 @@ use std::{
 };
 
 fn criterion_benchmark(c: &mut Criterion) {
-    unsafe {
-        multiemu_machine::utils::set_main_thread();
-    }
+    multiemu_machine::utils::set_main_thread();
 
     let environment = Arc::new(RwLock::new(Environment::default()));
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());

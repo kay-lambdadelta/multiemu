@@ -1,4 +1,7 @@
-use std::cell::OnceCell;
+use std::{
+    cell::OnceCell,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 mod fragile;
 mod main_thread_queue;
@@ -9,6 +12,7 @@ pub use main_thread_queue::MainThreadQueue;
 thread_local! {
     static IS_MAIN_THREAD: OnceCell<()> = const { OnceCell::new() };
 }
+static WAS_MAIN_THREAD_SET: AtomicBool = AtomicBool::new(false);
 
 #[inline]
 pub fn is_main_thread() -> bool {
@@ -17,10 +21,13 @@ pub fn is_main_thread() -> bool {
 
 #[inline]
 /// Sets the current thread as the main thread
-///
-/// # Safety
-///
-/// If this gets called from more than one thread several pieces of this framework will become unsound
-pub unsafe fn set_main_thread() {
-    IS_MAIN_THREAD.with(|is_main_thread| is_main_thread.set(()).unwrap());
+pub fn set_main_thread() {
+    if WAS_MAIN_THREAD_SET.swap(true, Ordering::Relaxed) {
+        panic!("Another thread was already marked as the main thread");
+    }
+
+    IS_MAIN_THREAD.with(|is_main_thread| {
+        // Ignore multiple attempts to set the main thread from the main thread
+        let _ = is_main_thread.set(());
+    });
 }

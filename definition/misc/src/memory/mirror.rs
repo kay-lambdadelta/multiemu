@@ -224,9 +224,7 @@ mod test {
 
     #[test]
     fn basic_read() {
-        unsafe {
-            multiemu_machine::utils::set_main_thread();
-        }
+        multiemu_machine::utils::set_main_thread();
 
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
@@ -279,9 +277,7 @@ mod test {
 
     #[test]
     fn basic_write() {
-        unsafe {
-            multiemu_machine::utils::set_main_thread();
-        }
+        multiemu_machine::utils::set_main_thread();
 
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
@@ -332,9 +328,7 @@ mod test {
 
     #[test]
     fn extensive_read_test() {
-        unsafe {
-            multiemu_machine::utils::set_main_thread();
-        }
+        multiemu_machine::utils::set_main_thread();
 
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
