@@ -4,10 +4,10 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        AddressSpaceHandle,
         callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{
-            MemoryHandle, PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
+            MemoryHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+            WriteMemoryRecord, address_space::AddressSpaceHandle,
         },
     },
 };
@@ -127,7 +127,7 @@ impl ReadMemory for StandardMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
             let invalid_before_range = address..=end_address;
 
@@ -135,7 +135,8 @@ impl ReadMemory for StandardMemoryCallbacks {
                 return Err(RangeInclusiveMap::from_iter([(
                     invalid_before_range,
                     ReadMemoryRecord::Denied,
-                )]));
+                )])
+                .into());
             }
         }
 
@@ -146,7 +147,8 @@ impl ReadMemory for StandardMemoryCallbacks {
                 return Err(RangeInclusiveMap::from_iter([(
                     invalid_after_range,
                     ReadMemoryRecord::Denied,
-                )]));
+                )])
+                .into());
             }
         }
 
@@ -160,7 +162,7 @@ impl ReadMemory for StandardMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
             let invalid_before_range = address..=end_address;
 
@@ -168,7 +170,8 @@ impl ReadMemory for StandardMemoryCallbacks {
                 return Err(RangeInclusiveMap::from_iter([(
                     invalid_before_range,
                     PreviewMemoryRecord::Denied,
-                )]));
+                )])
+                .into());
             }
         }
 
@@ -179,7 +182,8 @@ impl ReadMemory for StandardMemoryCallbacks {
                 return Err(RangeInclusiveMap::from_iter([(
                     invalid_after_range,
                     PreviewMemoryRecord::Denied,
-                )]));
+                )])
+                .into());
             }
         }
 
@@ -195,7 +199,7 @@ impl WriteMemory for StandardMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
             let invalid_before_range = address..=end_address;
 
@@ -203,7 +207,8 @@ impl WriteMemory for StandardMemoryCallbacks {
                 return Err(RangeInclusiveMap::from_iter([(
                     invalid_before_range,
                     WriteMemoryRecord::Denied,
-                )]));
+                )])
+                .into());
             }
         }
 
@@ -214,7 +219,8 @@ impl WriteMemory for StandardMemoryCallbacks {
                 return Err(RangeInclusiveMap::from_iter([(
                     invalid_after_range,
                     WriteMemoryRecord::Denied,
-                )]));
+                )])
+                .into());
             }
         }
 
@@ -386,7 +392,7 @@ mod test {
             environment.clone(),
             shader_cache.clone(),
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -417,7 +423,7 @@ mod test {
             environment.clone(),
             shader_cache.clone(),
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -457,7 +463,7 @@ mod test {
             environment,
             shader_cache,
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -497,7 +503,7 @@ mod test {
             environment,
             shader_cache,
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -536,7 +542,7 @@ mod test {
             environment,
             shader_cache,
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -581,7 +587,7 @@ mod test {
             environment,
             shader_cache,
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",

@@ -1154,6 +1154,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da692b8d1080ea3045efaab14434d40468c3d8657e42abddfffca87b428f4c1b"
 
 [[package]]
+name = "deku"
+version = "0.19.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f476a022dcfbb013d1365734a42e05b6aca967ebe0d3bb38170086abd9ea3324"
+dependencies = [
+ "bitvec",
+ "deku_derive",
+ "no_std_io2",
+ "rustversion",
+]
+
+[[package]]
+name = "deku_derive"
+version = "0.19.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb216d425bdf810c165a8ae1649523033e88b5f795480ccec63926295541b084"
+dependencies = [
+ "darling",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "deranged"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1396,27 +1421,6 @@ name = "enum-map-derive"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f282cfdfe92516eb26c2af8589c274c7c17681f5ecc03c18255fe741c6aa64eb"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "enumflags2"
-version = "0.7.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba2f4b465f5318854c6f8dd686ede6c0a9dc67d4b1ac241cf0eb51521a309147"
-dependencies = [
- "enumflags2_derive",
- "serde",
-]
-
-[[package]]
-name = "enumflags2_derive"
-version = "0.7.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc4caf64a58d7a6d65ab00639b046ff54399a39f5f2554728895ace4b297cd79"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2188,7 +2192,7 @@ dependencies = [
  "bitvec",
  "cfg_aliases",
  "codes-iso-3166",
- "enumflags2",
+ "deku",
  "multiemu-config",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
@@ -2213,7 +2217,7 @@ version = "0.1.0"
 dependencies = [
  "bitvec",
  "cfg_aliases",
- "enumflags2",
+ "deku",
  "multiemu-config",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
@@ -2268,7 +2272,7 @@ dependencies = [
  "bitvec",
  "bytemuck",
  "cfg_aliases",
- "enumflags2",
+ "deku",
  "multiemu-config",
  "multiemu-machine",
  "multiemu-macros",
@@ -2285,7 +2289,6 @@ dependencies = [
  "cfg_aliases",
  "criterion",
  "crossbeam",
- "enumflags2",
  "memmap2",
  "multiemu-config",
  "multiemu-machine",
@@ -2308,9 +2311,8 @@ dependencies = [
  "arrayvec",
  "bincode",
  "bitvec",
- "bytemuck",
  "cfg_aliases",
- "enumflags2",
+ "deku",
  "multiemu-config",
  "multiemu-definition-misc",
  "multiemu-machine",
@@ -2321,7 +2323,6 @@ dependencies = [
  "serde",
  "strum 0.27.1",
  "tracing",
- "versions",
 ]
 
 [[package]]
@@ -2331,7 +2332,7 @@ dependencies = [
  "bitvec",
  "cfg_aliases",
  "criterion",
- "enumflags2",
+ "deku",
  "multiemu-config",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
@@ -2418,7 +2419,6 @@ dependencies = [
  "cfg_aliases",
  "crossbeam",
  "data-encoding",
- "enumflags2",
  "multiemu-audio",
  "multiemu-config",
  "multiemu-input",
@@ -2616,6 +2616,15 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+]
+
+[[package]]
+name = "no_std_io2"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c2b9acd47481ab557a89a5665891be79e43cce8a29ad77aa9419d7be5a7c06a"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]

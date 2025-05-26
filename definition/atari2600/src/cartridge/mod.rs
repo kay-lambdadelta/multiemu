@@ -3,7 +3,7 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
-    memory::AddressSpaceHandle,
+    memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use raw::RawCartridgeMemoryCallback;
@@ -60,22 +60,22 @@ impl<R: RenderApi> ComponentConfig<R> for Atari2600CartridgeConfig {
             }
         });
 
-        match cart_type {
-            CartType::Raw => essentials.memory_translation_table.insert_read_memory(
+        let (component_builder, _) = match cart_type {
+            CartType::Raw => component_builder.insert_read_memory(
                 RawCartridgeMemoryCallback {
                     rom: rom_bytes.try_into().unwrap(),
                 },
                 [(self.cpu_address_space, 0x1000..=0x1fff)],
             ),
-            CartType::Banking1k => essentials.memory_translation_table.insert_read_memory(
+            CartType::Banking1k => component_builder.insert_read_memory(
                 BankingCartridgeMemoryCallback::<0x1000>::new(rom_bytes),
                 [(self.cpu_address_space, 0x1000..=0x1fff)],
             ),
-            CartType::Banking2k => essentials.memory_translation_table.insert_read_memory(
+            CartType::Banking2k => component_builder.insert_read_memory(
                 BankingCartridgeMemoryCallback::<0x2000>::new(rom_bytes),
                 [(self.cpu_address_space, 0x1000..=0x1fff)],
             ),
-            CartType::Banking4k => essentials.memory_translation_table.insert_read_memory(
+            CartType::Banking4k => component_builder.insert_read_memory(
                 BankingCartridgeMemoryCallback::<0x4000>::new(rom_bytes),
                 [(self.cpu_address_space, 0x1000..=0x1fff)],
             ),

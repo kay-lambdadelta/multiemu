@@ -43,8 +43,8 @@ impl<R: RenderApi> MachineFactory<R> for Nes {
             shader_cache.clone(),
         );
 
-        let (machine, cpu_address_space) = machine.insert_address_space("cpu", 16);
-        let (machine, ppu_address_space) = machine.insert_address_space("ppu", 16);
+        let (machine, cpu_address_space) = machine.insert_address_space(16);
+        let (machine, ppu_address_space) = machine.insert_address_space(16);
 
         let (machine, cartridge) = machine.insert_component(
             "cartridge",

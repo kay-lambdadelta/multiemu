@@ -1,5 +1,5 @@
 use crate::{
-    memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
+    memory::memory_translation_table::{MemoryTranslationTable, address_space::AddressSpaceHandle},
     processor::instruction::InstructionSet,
 };
 use std::fmt::Debug;

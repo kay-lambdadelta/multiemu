@@ -3,13 +3,14 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        AddressSpaceHandle,
         callbacks::ReadMemory,
-        memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord},
+        memory_translation_table::{
+            MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+            address_space::AddressSpaceHandle,
+        },
     },
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
-use rangemap::RangeInclusiveMap;
 use std::ops::RangeInclusive;
 
 #[derive(Debug)]
@@ -51,7 +52,7 @@ impl<R: RenderApi> ComponentConfig<R> for RomMemoryConfig {
 
         let memory_operation_callbacks = MemoryCallbacks { config: self, rom };
 
-        essentials.memory_translation_table.insert_read_memory(
+        let (component_builder, _) = component_builder.insert_read_memory(
             memory_operation_callbacks,
             [(assigned_address_space, assigned_range)],
         );
@@ -76,7 +77,7 @@ impl ReadMemory for MemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let adjusted_offset = address - self.config.assigned_range.start();
         buffer.copy_from_slice(
             &self.rom
@@ -91,7 +92,7 @@ impl ReadMemory for MemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         let adjusted_offset = address - self.config.assigned_range.start();
 
         buffer.copy_from_slice(

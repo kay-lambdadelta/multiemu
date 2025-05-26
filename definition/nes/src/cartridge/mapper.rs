@@ -1,10 +1,16 @@
 use crate::INes;
-use multiemu_machine::memory::{
-    AddressSpaceHandle,
-    callbacks::{ReadMemory, WriteMemory},
-    memory_translation_table::{MemoryTranslationTable, ReadMemoryRecord, WriteMemoryRecord},
+use multiemu_machine::{
+    builder::ComponentBuilder,
+    component::Component,
+    display::backend::RenderApi,
+    memory::{
+        callbacks::{ReadMemory, WriteMemory},
+        memory_translation_table::{
+            MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
+            address_space::AddressSpaceHandle,
+        },
+    },
 };
-use rangemap::RangeInclusiveMap;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -18,7 +24,7 @@ impl ReadMemory for NesCartidgeMemoryCallbacks {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         Ok(())
     }
 }
@@ -29,7 +35,7 @@ impl WriteMemory for NesCartidgeMemoryCallbacks {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         let original_data = buffer[0];
         let mut data = buffer[0];
 
@@ -46,12 +52,12 @@ impl WriteMemory for NesCartidgeMemoryCallbacks {
     }
 }
 
-pub fn construct_mapper(
-    memory_translation_table: &MemoryTranslationTable,
+pub fn construct_mapper<R: RenderApi, C: Component>(
     ines: Arc<INes>,
     cpu_address_space: AddressSpaceHandle,
-    _ppu_address_space: AddressSpaceHandle,
-) {
+    ppu_address_space: AddressSpaceHandle,
+    component_builder: ComponentBuilder<R, C>,
+) -> ComponentBuilder<R, C> {
     match ines.mapper {
         000 => {}
         _ => unimplemented!(),
@@ -61,8 +67,10 @@ pub fn construct_mapper(
         bus_conflict: false,
     });
 
-    memory_translation_table.insert_memory(
-        memory_callbacks.clone(),
-        [(cpu_address_space, 0x8000..=0xffff)],
-    );
+    component_builder
+        .insert_memory(
+            memory_callbacks.clone(),
+            [(cpu_address_space, 0x8000..=0xffff)],
+        )
+        .0
 }

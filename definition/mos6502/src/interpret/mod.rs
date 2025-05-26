@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{ExecutionMode, StoreStep, instruction::AddressingMode, task::Mos6502Task};
 use bitvec::{prelude::Msb0, view::BitView};
-use enumflags2::BitFlag;
+use deku::{DekuContainerRead, DekuContainerWrite};
 use num::traits::{FromBytes, ToBytes};
 use std::collections::VecDeque;
 
@@ -26,11 +26,9 @@ impl Mos6502Task {
             Opcode::Adc => {
                 let value: u8 = self.load(state, &instruction);
 
-                if state.flags.contains(FlagRegister::Decimal)
-                    && self.config.kind.supports_decimal()
-                {
+                if state.flags.decimal && self.config.kind.supports_decimal() {
                 } else {
-                    let carry = state.flags.contains(FlagRegister::Carry) as u8;
+                    let carry = state.flags.carry as u8;
 
                     let (first_operation_result, first_operation_overflow) =
                         state.a.overflowing_add(value);
@@ -38,24 +36,10 @@ impl Mos6502Task {
                     let (second_operation_result, second_operation_overflow) =
                         first_operation_result.overflowing_add(carry);
 
-                    state.flags.set(
-                        FlagRegister::Overflow,
-                        // If it overflowed at any point this is set
-                        first_operation_overflow || second_operation_overflow,
-                    );
-
-                    state.flags.set(
-                        FlagRegister::Carry,
-                        first_operation_overflow || second_operation_overflow,
-                    );
-
-                    state.flags.set(
-                        FlagRegister::Negative,
-                        second_operation_result.view_bits::<Msb0>()[0],
-                    );
-                    state
-                        .flags
-                        .set(FlagRegister::Zero, second_operation_result == 0);
+                    state.flags.overflow = first_operation_overflow || second_operation_overflow;
+                    state.flags.carry = first_operation_overflow || second_operation_overflow;
+                    state.flags.negative = second_operation_result.view_bits::<Msb0>()[0];
+                    state.flags.zero = second_operation_result == 0;
 
                     state.a = second_operation_result;
                 }
@@ -65,11 +49,9 @@ impl Mos6502Task {
 
                 let result = state.a & value;
 
-                state.flags.set(
-                    FlagRegister::Carry | FlagRegister::Negative,
-                    result.view_bits::<Msb0>()[0],
-                );
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.carry = result.view_bits::<Msb0>()[0];
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.a = result;
             }
@@ -78,10 +60,8 @@ impl Mos6502Task {
 
                 let result = state.a & value;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.a = result;
             }
@@ -90,21 +70,17 @@ impl Mos6502Task {
 
                 let mut result = state.a & value;
 
-                let carry = state.flags.contains(FlagRegister::Carry);
-                state
-                    .flags
-                    .set(FlagRegister::Carry, result.view_bits::<Msb0>()[0]);
+                let carry = state.flags.carry;
+                state.flags.carry = result.view_bits::<Msb0>()[0];
 
                 result >>= 1;
 
                 let result_bits = result.view_bits_mut::<Msb0>();
                 result_bits.set(0, carry);
 
-                state
-                    .flags
-                    .set(FlagRegister::Overflow, result_bits[1] != result_bits[0]);
-                state.flags.set(FlagRegister::Negative, result_bits[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.overflow = result_bits[1] != result_bits[0];
+                state.flags.negative = result_bits[0];
+                state.flags.zero = result == 0;
 
                 state.a = result;
             }
@@ -116,8 +92,8 @@ impl Mos6502Task {
                 let negative = value_bits[1];
                 value <<= 1;
 
-                state.flags.set(FlagRegister::Carry, carry);
-                state.flags.set(FlagRegister::Negative, negative);
+                state.flags.carry = carry;
+                state.flags.negative = negative;
 
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
@@ -136,8 +112,8 @@ impl Mos6502Task {
 
                 value >>= 1;
 
-                state.flags.set(FlagRegister::Carry, carry);
-                state.flags.set(FlagRegister::Negative, negative);
+                state.flags.carry = carry;
+                state.flags.negative = negative;
 
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
@@ -150,7 +126,7 @@ impl Mos6502Task {
             Opcode::Bcc => {
                 let value: i8 = self.load(state, &instruction);
 
-                if !state.flags.contains(FlagRegister::Carry) {
+                if !state.flags.carry {
                     state.execution_mode = Some(ExecutionMode::Store {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
                     });
@@ -159,7 +135,7 @@ impl Mos6502Task {
             Opcode::Bcs => {
                 let value: i8 = self.load(state, &instruction);
 
-                if state.flags.contains(FlagRegister::Carry) {
+                if state.flags.carry {
                     state.execution_mode = Some(ExecutionMode::Store {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
                     });
@@ -168,7 +144,7 @@ impl Mos6502Task {
             Opcode::Beq => {
                 let value: i8 = self.load(state, &instruction);
 
-                if state.flags.contains(FlagRegister::Zero) {
+                if state.flags.zero {
                     state.execution_mode = Some(ExecutionMode::Store {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
                     });
@@ -180,14 +156,14 @@ impl Mos6502Task {
 
                 let result = state.a & value;
 
-                state.flags.set(FlagRegister::Negative, value_bits[7]);
-                state.flags.set(FlagRegister::Overflow, value_bits[6]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = value_bits[7];
+                state.flags.overflow = value_bits[6];
+                state.flags.zero = result == 0;
             }
             Opcode::Bmi => {
                 let value: i8 = self.load(state, &instruction);
 
-                if state.flags.contains(FlagRegister::Negative) {
+                if state.flags.negative {
                     state.execution_mode = Some(ExecutionMode::Store {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
                     });
@@ -196,7 +172,7 @@ impl Mos6502Task {
             Opcode::Bne => {
                 let value: i8 = self.load(state, &instruction);
 
-                if !state.flags.contains(FlagRegister::Zero) {
+                if !state.flags.zero {
                     state.execution_mode = Some(ExecutionMode::Store {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
                     });
@@ -205,7 +181,7 @@ impl Mos6502Task {
             Opcode::Bpl => {
                 let value: i8 = self.load(state, &instruction);
 
-                if !state.flags.contains(FlagRegister::Negative) {
+                if !state.flags.negative {
                     state.execution_mode = Some(ExecutionMode::Store {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
                     });
@@ -234,15 +210,19 @@ impl Mos6502Task {
 
                 // https://www.nesdev.org/wiki/Status_flags
                 let mut flags = state.flags;
-                flags.insert(FlagRegister::__Unused);
-                flags.insert(FlagRegister::Break);
+                flags.undocumented = true;
+                flags.break_ = true;
 
                 let new_stack = new_stack.wrapping_sub(1);
 
+                let mut flag_bytes = 0;
+                flags
+                    .to_slice(std::array::from_mut(&mut flag_bytes))
+                    .unwrap();
                 let _ = self.memory_translation_table.write_le_value(
                     new_stack as usize + STACK_BASE_ADDRESS,
                     self.config.assigned_address_space,
-                    flags.bits(),
+                    flag_bytes,
                 );
 
                 let program = [
@@ -260,7 +240,7 @@ impl Mos6502Task {
             Opcode::Bvc => {
                 let value: i8 = self.load(state, &instruction);
 
-                if !state.flags.contains(FlagRegister::Overflow) {
+                if !state.flags.overflow {
                     state.execution_mode = Some(ExecutionMode::Store {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
                     });
@@ -269,56 +249,50 @@ impl Mos6502Task {
             Opcode::Bvs => {
                 let value: i8 = self.load(state, &instruction);
 
-                if state.flags.contains(FlagRegister::Overflow) {
+                if state.flags.overflow {
                     state.execution_mode = Some(ExecutionMode::Store {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
                     });
                 }
             }
             Opcode::Clc => {
-                state.flags.remove(FlagRegister::Carry);
+                state.flags.carry = false;
             }
             Opcode::Cld => {
-                state.flags.remove(FlagRegister::Decimal);
+                state.flags.decimal = false;
             }
             Opcode::Cli => {
-                state.flags.remove(FlagRegister::InterruptDisable);
+                state.flags.interrupt_disable = false;
             }
             Opcode::Clv => {
-                state.flags.remove(FlagRegister::Overflow);
+                state.flags.overflow = false;
             }
             Opcode::Cmp => {
                 let value: u8 = self.load(state, &instruction);
 
                 let result = state.a.wrapping_sub(value);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
-                state.flags.set(FlagRegister::Carry, state.a >= value);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
+                state.flags.carry = state.a >= value;
             }
             Opcode::Cpx => {
                 let value: u8 = self.load(state, &instruction);
 
                 let result = state.x.wrapping_sub(value);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
-                state.flags.set(FlagRegister::Carry, state.x >= value);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
+                state.flags.carry = state.x >= value;
             }
             Opcode::Cpy => {
                 let value: u8 = self.load(state, &instruction);
 
                 let result = state.y.wrapping_sub(value);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
-                state.flags.set(FlagRegister::Carry, state.x >= value);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
+                state.flags.carry = state.x >= value;
             }
             Opcode::Dcp => todo!(),
             Opcode::Dec => {
@@ -326,10 +300,8 @@ impl Mos6502Task {
 
                 let result = value.wrapping_sub(1);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = result;
@@ -342,20 +314,16 @@ impl Mos6502Task {
             Opcode::Dex => {
                 let result = state.x.wrapping_sub(1);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.x = result;
             }
             Opcode::Dey => {
                 let result = state.y.wrapping_sub(1);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.y = result;
             }
@@ -364,10 +332,8 @@ impl Mos6502Task {
 
                 let result = state.a ^ value;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.a = result;
             }
@@ -376,10 +342,8 @@ impl Mos6502Task {
 
                 let result = value.wrapping_add(1);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.execution_mode = Some(ExecutionMode::Store {
                     queue: VecDeque::from_iter([StoreStep::Data { value: result }]),
@@ -388,20 +352,16 @@ impl Mos6502Task {
             Opcode::Inx => {
                 let result = state.x.wrapping_add(1);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.x = result;
             }
             Opcode::Iny => {
                 let result = state.y.wrapping_add(1);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.y = result;
             }
@@ -447,30 +407,24 @@ impl Mos6502Task {
             Opcode::Lda => {
                 let value: u8 = self.load(state, &instruction);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, value.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, value == 0);
+                state.flags.negative = value.view_bits::<Msb0>()[0];
+                state.flags.zero = value == 0;
 
                 state.a = value;
             }
             Opcode::Ldx => {
                 let value: u8 = self.load(state, &instruction);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, value.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, value == 0);
+                state.flags.negative = value.view_bits::<Msb0>()[0];
+                state.flags.zero = value == 0;
 
                 state.x = value;
             }
             Opcode::Ldy => {
                 let value: u8 = self.load(state, &instruction);
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, value.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, value == 0);
+                state.flags.negative = value.view_bits::<Msb0>()[0];
+                state.flags.zero = value == 0;
 
                 state.y = value;
             }
@@ -481,9 +435,9 @@ impl Mos6502Task {
                 let carry = value_bits[0];
                 let value = value >> 1;
 
-                state.flags.remove(FlagRegister::Negative);
-                state.flags.set(FlagRegister::Carry, carry);
-                state.flags.set(FlagRegister::Zero, value == 0);
+                state.flags.negative = false;
+                state.flags.carry = carry;
+                state.flags.zero = value == 0;
 
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
@@ -503,10 +457,8 @@ impl Mos6502Task {
 
                 let result = state.a | value;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.a = result;
             }
@@ -518,11 +470,19 @@ impl Mos6502Task {
             Opcode::Php => {
                 let mut flags = state.flags;
                 // https://www.nesdev.org/wiki/Status_flags
-                flags.insert(FlagRegister::__Unused);
-                flags.insert(FlagRegister::Break);
+                flags.undocumented = true;
+                flags.break_ = true;
 
                 state.execution_mode = Some(ExecutionMode::Store {
-                    queue: VecDeque::from_iter([StoreStep::PushStack { data: flags.bits() }]),
+                    queue: VecDeque::from_iter([StoreStep::PushStack {
+                        data: {
+                            let mut flag_bytes = 0;
+                            flags
+                                .to_slice(std::array::from_mut(&mut flag_bytes))
+                                .unwrap();
+                            flag_bytes
+                        },
+                    }]),
                 });
             }
             Opcode::Pla => {
@@ -534,10 +494,8 @@ impl Mos6502Task {
                     )
                     .unwrap_or_default();
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, state.a.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, state.a == 0);
+                state.flags.negative = state.a.view_bits::<Msb0>()[0];
+                state.flags.zero = state.a == 0;
 
                 state.stack = state.stack.wrapping_add(1);
             }
@@ -550,7 +508,7 @@ impl Mos6502Task {
                     )
                     .unwrap_or_default();
 
-                state.flags = FlagRegister::from_bits(value).unwrap();
+                state.flags = FlagRegister::from_bytes((&[value], 0)).unwrap().1;
                 state.stack = state.stack.wrapping_add(1);
             }
             Opcode::Rla => todo!(),
@@ -558,13 +516,11 @@ impl Mos6502Task {
                 let value: u8 = self.load(state, &instruction);
                 let value_bits = value.view_bits::<Msb0>();
 
-                let carry = value_bits[7];
-                let negative = value_bits[6];
+                state.flags.carry = value_bits[7];
+                state.flags.negative = value_bits[6];
                 let value = value.rotate_left(1);
 
-                state.flags.set(FlagRegister::Carry, carry);
-                state.flags.set(FlagRegister::Negative, negative);
-                state.flags.set(FlagRegister::Zero, value == 0);
+                state.flags.zero = value == 0;
 
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
@@ -578,13 +534,10 @@ impl Mos6502Task {
                 let value: u8 = self.load(state, &instruction);
                 let value_bits = value.view_bits::<Msb0>();
 
-                let carry = value_bits[0];
-                let negative = value_bits[1];
+                state.flags.carry = value_bits[0];
+                state.flags.negative = value_bits[1];
                 let value = value.rotate_right(1);
-
-                state.flags.set(FlagRegister::Carry, carry);
-                state.flags.set(FlagRegister::Negative, negative);
-                state.flags.set(FlagRegister::Zero, value == 0);
+                state.flags.zero = value == 0;
 
                 if instruction.addressing_mode.unwrap() == AddressingMode::Accumulator {
                     state.a = value;
@@ -623,11 +576,9 @@ impl Mos6502Task {
             Opcode::Sbc => {
                 let value: u8 = self.load(state, &instruction);
 
-                if state.flags.contains(FlagRegister::Decimal)
-                    && self.config.kind.supports_decimal()
-                {
+                if state.flags.decimal && self.config.kind.supports_decimal() {
                 } else {
-                    let carry = state.flags.contains(FlagRegister::Carry) as u8;
+                    let carry = state.flags.carry as u8;
 
                     let (first_operation_result, first_operation_overflow) =
                         state.a.overflowing_sub(value);
@@ -635,37 +586,24 @@ impl Mos6502Task {
                     let (second_operation_result, second_operation_overflow) =
                         first_operation_result.overflowing_sub(carry);
 
-                    state.flags.set(
-                        FlagRegister::Overflow,
-                        // If it overflowed at any point this is set
-                        first_operation_overflow || second_operation_overflow,
-                    );
-
-                    state.flags.set(
-                        FlagRegister::Carry,
-                        first_operation_overflow || second_operation_overflow,
-                    );
-
-                    state.flags.set(
-                        FlagRegister::Negative,
-                        second_operation_result.view_bits::<Msb0>()[0],
-                    );
-                    state
-                        .flags
-                        .set(FlagRegister::Zero, second_operation_result == 0);
+                    // If it overflowed at any point this is set
+                    state.flags.overflow = first_operation_overflow || second_operation_overflow;
+                    state.flags.carry = first_operation_overflow || second_operation_overflow;
+                    state.flags.negative = second_operation_result.view_bits::<Msb0>()[0];
+                    state.flags.zero = second_operation_result == 0;
 
                     state.a = second_operation_result;
                 }
             }
             Opcode::Sbx => todo!(),
             Opcode::Sec => {
-                state.flags.insert(FlagRegister::Carry);
+                state.flags.carry = true;
             }
             Opcode::Sed => {
-                state.flags.insert(FlagRegister::Decimal);
+                state.flags.decimal = true;
             }
             Opcode::Sei => {
-                state.flags.insert(FlagRegister::InterruptDisable);
+                state.flags.interrupt_disable = true;
             }
             Opcode::Sha => todo!(),
             Opcode::Shs => todo!(),
@@ -685,40 +623,32 @@ impl Mos6502Task {
             Opcode::Tax => {
                 let result = state.a;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.x = result;
             }
             Opcode::Tay => {
                 let result = state.a;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.y = result;
             }
             Opcode::Tsx => {
                 let result = state.stack;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.x = result;
             }
             Opcode::Txa => {
                 let result = state.x;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.a = result;
             }
@@ -728,10 +658,8 @@ impl Mos6502Task {
             Opcode::Tya => {
                 let result = state.y;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, result == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = result == 0;
 
                 state.a = result;
             }
@@ -743,10 +671,8 @@ impl Mos6502Task {
 
                 let result = (state.a & random_value) & state.x & value;
 
-                state
-                    .flags
-                    .set(FlagRegister::Negative, result.view_bits::<Msb0>()[0]);
-                state.flags.set(FlagRegister::Zero, value == 0);
+                state.flags.negative = result.view_bits::<Msb0>()[0];
+                state.flags.zero = value == 0;
 
                 state.a = result;
             }

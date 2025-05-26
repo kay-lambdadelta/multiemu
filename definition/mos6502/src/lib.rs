@@ -1,12 +1,12 @@
 use arrayvec::ArrayVec;
 use decoder::Mos6502InstructionDecoder;
-use enumflags2::{BitFlags, bitflags};
+use deku::{DekuRead, DekuWrite};
 use instruction::Mos6502InstructionSet;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
-    memory::AddressSpaceHandle,
+    memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
@@ -161,25 +161,24 @@ impl Mos6502Kind {
     }
 }
 
-#[bitflags]
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum FlagRegister {
-    /// Set when bit 7 is set on various math operations
-    Negative = 0b1000_0000,
-    /// Set when a math operation involves an overflow
-    Overflow = 0b0100_0000,
-    /// This flag is usually 1, it doesn't mean anything
-    __Unused = 0b0010_0000,
-    /// Flag to inform software the reason behind some behaviors
-    Break = 0b0001_0000,
-    /// Decimal math mode, it enables bcd operations on a lot of math instructions and introduces some bugs
-    Decimal = 0b0000_1000,
-    /// Interrupt disable
-    InterruptDisable = 0b0000_0100,
-    /// Set when the result of a math operation is 0
-    Zero = 0b0000_0010,
-    Carry = 0b0000_0001,
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Default, DekuRead, DekuWrite)]
+pub struct FlagRegister {
+    #[deku(bits = 1)]
+    negative: bool,
+    #[deku(bits = 1)]
+    overflow: bool,
+    #[deku(bits = 1)]
+    undocumented: bool,
+    #[deku(bits = 1)]
+    break_: bool,
+    #[deku(bits = 1)]
+    decimal: bool,
+    #[deku(bits = 1)]
+    interrupt_disable: bool,
+    #[deku(bits = 1)]
+    zero: bool,
+    #[deku(bits = 1)]
+    carry: bool,
 }
 
 #[derive(Debug)]
@@ -200,7 +199,7 @@ struct ProcessorState {
     /// Y index register
     pub y: u8,
     /// Flag register
-    pub flags: BitFlags<FlagRegister>,
+    pub flags: FlagRegister,
     /// Stack pointer
     pub stack: u8,
     /// Program pointer
@@ -216,7 +215,7 @@ impl Default for ProcessorState {
             a: 0,
             x: 0,
             y: 0,
-            flags: BitFlags::empty(),
+            flags: FlagRegister::default(),
             stack: 0xff,
             // Will be set later
             program: 0x0000,

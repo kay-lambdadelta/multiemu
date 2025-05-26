@@ -3,7 +3,7 @@ use super::instruction::{
 };
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use multiemu_machine::{
-    memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
+    memory::memory_translation_table::{MemoryTranslationTable, address_space::AddressSpaceHandle},
     processor::decoder::InstructionDecoder,
 };
 use nalgebra::Point2;

@@ -1,6 +1,6 @@
-use super::{
-    AddressSpaceHandle,
-    memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
+use super::memory_translation_table::{
+    MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
+    address_space::AddressSpaceHandle,
 };
 use rangemap::RangeInclusiveMap;
 use std::{fmt::Debug, sync::Arc};
@@ -12,11 +12,12 @@ pub trait ReadMemory: Debug + Send + Sync + 'static {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         Err(RangeInclusiveMap::from_iter([(
             address..=(address + (buffer.len() - 1)),
             ReadMemoryRecord::Denied,
-        )]))
+        )])
+        .into())
     }
 
     fn preview_memory(
@@ -24,11 +25,32 @@ pub trait ReadMemory: Debug + Send + Sync + 'static {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
-        Err(RangeInclusiveMap::from_iter([(
-            address..=(address + (buffer.len() - 1)),
-            PreviewMemoryRecord::Denied,
-        )]))
+    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
+        // Convert between a read and a preview
+
+        self.read_memory(address, address_space, buffer)
+            .map_err(|e| MemoryOperationError {
+                records: e
+                    .records
+                    .into_iter()
+                    .map(|(range, record)| {
+                        (
+                            range,
+                            match record {
+                                ReadMemoryRecord::Denied => PreviewMemoryRecord::Denied,
+                                ReadMemoryRecord::Redirect {
+                                    address,
+                                    address_space,
+                                } => PreviewMemoryRecord::Redirect {
+                                    address,
+                                    address_space,
+                                },
+                            },
+                        )
+                    })
+                    .collect(),
+                remap_callback: e.remap_callback,
+            })
     }
 }
 
@@ -38,7 +60,7 @@ impl<M: ReadMemory> ReadMemory for Arc<M> {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         self.as_ref().read_memory(address, address_space, buffer)
     }
 
@@ -47,7 +69,7 @@ impl<M: ReadMemory> ReadMemory for Arc<M> {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         self.as_ref().preview_memory(address, address_space, buffer)
     }
 }
@@ -59,11 +81,12 @@ pub trait WriteMemory: Debug + Send + Sync + 'static {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         Err(RangeInclusiveMap::from_iter([(
             address..=(address + (buffer.len() - 1)),
             WriteMemoryRecord::Denied,
-        )]))
+        )])
+        .into())
     }
 }
 
@@ -73,7 +96,7 @@ impl<M: WriteMemory> WriteMemory for Arc<M> {
         address: usize,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         self.as_ref().write_memory(address, address_space, buffer)
     }
 }

@@ -9,7 +9,7 @@ use crate::{
         backend::{ContextExtensionSpecification, RenderApi},
         shader::ShaderCache,
     },
-    memory::{AddressSpaceHandle, memory_translation_table::MemoryTranslationTable},
+    memory::memory_translation_table::address_space::AddressSpaceHandle,
     scheduler::Scheduler,
     utils::Fragile,
 };
@@ -64,7 +64,7 @@ impl<R: RenderApi> MachineBuilder<R> {
                 rom_manager,
                 environment,
                 shader_cache,
-                memory_translation_table: MemoryTranslationTable::default(),
+                memory_translation_table: Arc::default(),
                 render_initialization_data: OnceLock::default(),
             }),
             game_system,
@@ -115,11 +115,11 @@ impl<R: RenderApi> MachineBuilder<R> {
     }
 
     /// Insert the required information to construct a address space
-    pub fn insert_address_space(self, name: &'static str, width: u8) -> (Self, AddressSpaceHandle) {
+    pub fn insert_address_space(self, width: u8) -> (Self, AddressSpaceHandle) {
         let id = self
             .essentials
             .memory_translation_table
-            .insert_address_space(name, width);
+            .insert_address_space(width);
 
         (self, id)
     }

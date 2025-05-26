@@ -3,9 +3,11 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        AddressSpaceHandle,
         callbacks::{ReadMemory, WriteMemory},
-        memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
+        memory_translation_table::{
+            MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
+            address_space::AddressSpaceHandle,
+        },
     },
 };
 use num::rational::Ratio;
@@ -130,17 +132,14 @@ impl<R: RenderApi> ComponentConfig<R> for Mos6532RiotConfig {
             config.ram_assigned_address..=config.ram_assigned_address + 127,
         )];
 
-        let essentials = component_builder.essentials();
-
-        essentials
-            .memory_translation_table
-            .insert_memory(memory_callbacks.clone(), assigned_ranges);
+        let (component_builder, _) =
+            component_builder.insert_memory(memory_callbacks.clone(), assigned_ranges);
 
         let swcha = Arc::new(SwchaMemoryCallback {
             registers: registers.clone(),
         });
 
-        essentials.memory_translation_table.insert_memory(
+        let (component_builder, _) = component_builder.insert_memory(
             swcha,
             [(
                 config.assigned_address_space,
@@ -152,7 +151,7 @@ impl<R: RenderApi> ComponentConfig<R> for Mos6532RiotConfig {
             registers: registers.clone(),
         });
 
-        essentials.memory_translation_table.insert_memory(
+        let (component_builder, _) = component_builder.insert_memory(
             swchb,
             [(
                 config.assigned_address_space,
@@ -225,7 +224,7 @@ impl ReadMemory for RamMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let memory = self.ram.read().unwrap();
         let adjusted_offset = address - self.config.ram_assigned_address;
 
@@ -239,13 +238,15 @@ impl ReadMemory for RamMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
-        let memory = self.ram.read().unwrap();
-        let adjusted_offset = address - self.config.ram_assigned_address;
+    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
+        // The installed callbacks might have side effects
 
-        buffer.copy_from_slice(&memory[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))]);
-
-        Ok(())
+        Err(MemoryOperationError::from(RangeInclusiveMap::from_iter([
+            (
+                address..=(address + (buffer.len() - 1)),
+                PreviewMemoryRecord::Impossible,
+            ),
+        ])))
     }
 }
 
@@ -255,7 +256,7 @@ impl WriteMemory for RamMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         let mut memory = self.ram.write().unwrap();
         let adjusted_offset = address - self.config.ram_assigned_address;
 
@@ -276,7 +277,7 @@ impl ReadMemory for SwchaMemoryCallback {
         _address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         buffer[0] = self.registers.swcha.get().unwrap().read_memory();
 
         Ok(())
@@ -289,7 +290,7 @@ impl WriteMemory for SwchaMemoryCallback {
         _address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         self.registers.swcha.get().unwrap().write_memory(buffer[0]);
 
         Ok(())
@@ -307,7 +308,7 @@ impl ReadMemory for SwchbMemoryCallback {
         _address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         buffer[0] = self.registers.swchb.get().unwrap().read_memory();
 
         Ok(())
@@ -320,7 +321,7 @@ impl WriteMemory for SwchbMemoryCallback {
         _address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         self.registers.swchb.get().unwrap().write_memory(buffer[0]);
 
         Ok(())

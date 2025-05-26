@@ -22,7 +22,7 @@ pub struct RuntimeEssentials<R: RenderApi> {
     pub rom_manager: Arc<RomManager>,
     pub environment: Arc<RwLock<Environment>>,
     pub shader_cache: ShaderCache,
-    pub memory_translation_table: MemoryTranslationTable,
+    pub memory_translation_table: Arc<MemoryTranslationTable>,
     pub render_initialization_data: OnceLock<R::ComponentInitializationData>,
 }
 

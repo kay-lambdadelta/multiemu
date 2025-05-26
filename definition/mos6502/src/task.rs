@@ -14,7 +14,7 @@ use std::{
 };
 
 pub struct Mos6502Task {
-    pub memory_translation_table: MemoryTranslationTable,
+    pub memory_translation_table: Arc<MemoryTranslationTable>,
     pub instruction_decoder: Mos6502InstructionDecoder,
     pub config: Arc<Mos6502Config>,
 }

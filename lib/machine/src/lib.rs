@@ -30,7 +30,7 @@ pub mod utils;
 #[non_exhaustive]
 pub struct Machine<R: RenderApi> {
     pub scheduler: Scheduler,
-    pub memory_translation_table: MemoryTranslationTable,
+    pub memory_translation_table: Arc<MemoryTranslationTable>,
     pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>>,
     pub game_system: GameSystem,
     pub framebuffers: Fragile<Vec<ComponentFramebuffer<R>>>,

@@ -9,7 +9,7 @@ mod software;
 mod vulkan;
 
 /*
-const ASSIGNED_AREAS: [(AddressSpaceHandle, Range<usize>); 2] = [
+const ASSIGNED_AREAS: [(AddressSpaceId, Range<usize>); 2] = [
     (CPU_ADDRESS_SPACE, 0x2000..0x2008),
     (CPU_ADDRESS_SPACE, 0x4014..0x4015),
 ];

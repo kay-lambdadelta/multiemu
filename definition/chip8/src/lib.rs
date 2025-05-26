@@ -59,7 +59,7 @@ impl<R: SupportedRenderApiChip8> MachineFactory<R> for Chip8 {
             shader_cache,
         );
 
-        let (machine, cpu_address_space) = machine.insert_address_space("cpu", 12);
+        let (machine, cpu_address_space) = machine.insert_address_space(12);
         let (machine, timer) = machine.insert_default_component::<Chip8TimerConfig>("timer");
         let (machine, audio) = machine.insert_default_component::<Chip8AudioConfig>("audio");
         let (machine, display) = machine.insert_default_component::<Chip8DisplayConfig>("display");

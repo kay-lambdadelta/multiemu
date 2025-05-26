@@ -29,7 +29,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         environment.clone(),
         shader_cache.clone(),
     )
-    .insert_address_space("cpu", 64);
+    .insert_address_space(64);
 
     let (machine, _) = machine.insert_component(
         "workram",

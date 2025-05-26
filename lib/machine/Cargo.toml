@@ -21,7 +21,6 @@ arrayvec = { workspace = true }
 crossbeam = { workspace = true }
 redb = { workspace = true }
 strum = { workspace = true }
-enumflags2 = { workspace = true }
 num = { workspace = true }
 nalgebra = { workspace = true }
 palette = { workspace = true }

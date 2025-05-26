@@ -1,11 +1,10 @@
-use crate::tia::TiaDisplayBackend;
-
 use super::{SupportedRenderApiTia, Tia, memory::MemoryCallback, region::Region, task::TiaTask};
+use crate::tia::TiaDisplayBackend;
 use multiemu_definition_mos6502::Mos6502;
 use multiemu_machine::{
     builder::ComponentBuilder,
     component::{ComponentConfig, component_ref::ComponentRef},
-    memory::AddressSpaceHandle,
+    memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use std::{
     cell::OnceCell,

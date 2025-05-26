@@ -3,9 +3,11 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        AddressSpaceHandle,
         callbacks::{ReadMemory, WriteMemory},
-        memory_translation_table::{PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord},
+        memory_translation_table::{
+            MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
+            address_space::AddressSpaceHandle,
+        },
     },
 };
 use rangemap::RangeInclusiveMap;
@@ -137,7 +139,7 @@ impl ReadMemory for MirrorMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let affected_range = address..=(address + (buffer.len() - 1));
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
@@ -148,7 +150,8 @@ impl ReadMemory for MirrorMemoryCallbacks {
                 address: adjusted_destination_address,
                 address_space: self.destination_address_space,
             },
-        )]))
+        )])
+        .into())
     }
 
     fn preview_memory(
@@ -156,7 +159,7 @@ impl ReadMemory for MirrorMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, PreviewMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         let affected_range = address..=(address + (buffer.len() - 1));
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
@@ -167,7 +170,8 @@ impl ReadMemory for MirrorMemoryCallbacks {
                 address: adjusted_destination_address,
                 address_space: self.destination_address_space,
             },
-        )]))
+        )])
+        .into())
     }
 }
 
@@ -177,7 +181,7 @@ impl WriteMemory for MirrorMemoryCallbacks {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         let affected_range = address..=(address + (buffer.len() - 1));
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
@@ -188,7 +192,8 @@ impl WriteMemory for MirrorMemoryCallbacks {
                 address: adjusted_destination_address,
                 address_space: self.destination_address_space,
             },
-        )]))
+        )])
+        .into())
     }
 }
 
@@ -223,7 +228,7 @@ mod test {
             environment,
             shader_cache,
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -276,7 +281,7 @@ mod test {
             environment,
             shader_cache,
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -325,7 +330,7 @@ mod test {
             environment,
             shader_cache,
         )
-        .insert_address_space("cpu", 64);
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",

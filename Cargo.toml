@@ -42,7 +42,6 @@ bitvec = { version = "1.0", features = ["serde"] }
 vulkano = { version = "0.35", default-features = false }
 crossbeam = "0.8"
 scc = "2.3"
-enumflags2 = { version = "0.7", features = ["serde"] }
 rand = "0.9"
 palette = { version = "0.7", default-features = false, features = [
     "std",
@@ -66,6 +65,7 @@ ron = "0.10"
 data-encoding = "2.9"
 sealed = "0.6"
 arc-swap = "1.7"
+deku = "0.19"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }

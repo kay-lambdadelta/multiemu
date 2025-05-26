@@ -1,7 +1,9 @@
 use multiemu_machine::memory::{
-    AddressSpaceHandle, callbacks::ReadMemory, memory_translation_table::ReadMemoryRecord,
+    callbacks::ReadMemory,
+    memory_translation_table::{
+        MemoryOperationError, ReadMemoryRecord, address_space::AddressSpaceHandle,
+    },
 };
-use rangemap::RangeInclusiveMap;
 
 #[derive(Debug)]
 pub struct BankingCartridgeMemoryCallback<const BANK_SIZE: usize> {
@@ -24,7 +26,7 @@ impl<const BANK_SIZE: usize> ReadMemory for BankingCartridgeMemoryCallback<BANK_
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let adjusted_offset = address - 0x1000;
         buffer.copy_from_slice(&self.rom[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))]);
 

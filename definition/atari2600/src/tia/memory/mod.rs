@@ -4,9 +4,11 @@ use multiemu_definition_mos6502::Mos6502;
 use multiemu_machine::{
     component::component_ref::ComponentRef,
     memory::{
-        AddressSpaceHandle,
         callbacks::{ReadMemory, WriteMemory},
-        memory_translation_table::{ReadMemoryRecord, WriteMemoryRecord},
+        memory_translation_table::{
+            MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
+            address_space::AddressSpaceHandle,
+        },
     },
 };
 use rangemap::RangeInclusiveMap;
@@ -95,7 +97,7 @@ impl WriteMemory for MemoryCallback {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), RangeInclusiveMap<usize, WriteMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         let data = buffer[0];
         let data_bits = data.view_bits::<Lsb0>();
         let mut state_guard = self.state.lock().unwrap();
@@ -110,7 +112,8 @@ impl WriteMemory for MemoryCallback {
             Err(RangeInclusiveMap::from_iter([(
                 address..=(address + (buffer.len() - 1)),
                 WriteMemoryRecord::Denied,
-            )]))
+            )])
+            .into())
         }
     }
 }
@@ -121,7 +124,7 @@ impl ReadMemory for MemoryCallback {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let data = &mut buffer[0];
         let mut state_guard = self.state.lock().unwrap();
 
@@ -135,7 +138,8 @@ impl ReadMemory for MemoryCallback {
             Err(RangeInclusiveMap::from_iter([(
                 address..=(address + (buffer.len() - 1)),
                 ReadMemoryRecord::Denied,
-            )]))
+            )])
+            .into())
         }
     }
 }

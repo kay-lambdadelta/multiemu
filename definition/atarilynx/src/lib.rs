@@ -1,3 +1,4 @@
+use mapctl::MapctlConfig;
 use multiemu_config::Environment;
 use multiemu_definition_misc::memory::{
     rom::RomMemoryConfig,
@@ -15,12 +16,17 @@ use multiemu_rom::{
 };
 use rangemap::RangeInclusiveMap;
 use std::{
+    ops::RangeInclusive,
     str::FromStr,
     sync::{Arc, RwLock},
 };
 
+mod mapctl;
 mod mikey;
 mod suzy;
+
+const SUZY_ADDRESSES: RangeInclusive<usize> = 0xfc00..=0xfcff;
+const MIKEY_ADDRESSES: RangeInclusive<usize> = 0xfd00..=0xfdff;
 
 #[derive(Debug, Default)]
 pub struct AtariLynx;
@@ -40,7 +46,7 @@ impl<R: RenderApi> MachineFactory<R> for AtariLynx {
             shader_cache,
         );
 
-        let (machine, cpu_address_space) = machine.insert_address_space("cpu", 16);
+        let (machine, cpu_address_space) = machine.insert_address_space(16);
 
         // A good portion of this will be initially shadowed
         let (machine, ram) = machine.insert_component(
@@ -68,6 +74,15 @@ impl<R: RenderApi> MachineFactory<R> for AtariLynx {
                 rom: RomId::from_str("e4ed47fae31693e016b081c6bda48da5b70d7ccb").unwrap(),
                 assigned_range: 0xfe00..=0xffff,
                 assigned_address_space: cpu_address_space,
+            },
+        );
+
+        let (machine, _) = machine.insert_component(
+            "mapctl",
+            MapctlConfig {
+                ram_memory_handle,
+                suzy_memory_handle: todo!(),
+                mikey_memory_handle: todo!(),
             },
         );
 

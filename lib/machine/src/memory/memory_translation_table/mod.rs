@@ -1,150 +1,143 @@
 use super::{
-    Address, AddressSpaceHandle,
+    Address,
     callbacks::{ReadMemory, WriteMemory},
 };
+use address_space::{AddressSpace, AddressSpaceHandle};
 use bitvec::{field::BitField, order::Lsb0};
 use rangemap::RangeInclusiveMap;
-use rustc_hash::FxBuildHasher;
-use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
     fmt::Debug,
+    num::NonZero,
     ops::RangeInclusive,
-    sync::{Arc, RwLock},
+    sync::{
+        RwLock,
+        atomic::{AtomicU16, Ordering},
+    },
 };
+use store::MemoryStore;
 
+pub mod address_space;
 mod read;
+mod store;
 mod write;
 
 pub use read::*;
 pub use write::*;
 
+pub struct RemapCallback {
+    callback: Box<dyn FnOnce(&MemoryTranslationTable)>,
+}
+
+impl RemapCallback {
+    pub fn new(callback: impl FnOnce(&MemoryTranslationTable) + 'static) -> Self {
+        Self {
+            callback: Box::new(callback),
+        }
+    }
+}
+
+#[allow(clippy::type_complexity)]
+pub struct MemoryOperationError<R> {
+    /// Records the memory translation table should handle
+    pub records: RangeInclusiveMap<Address, R>,
+    /// Allows remapping of the MTT when its safe. The semantics of when this occurs is unspecified.
+    pub remap_callback: Option<RemapCallback>,
+}
+
+impl<R> From<RangeInclusiveMap<Address, R>> for MemoryOperationError<R> {
+    fn from(records: RangeInclusiveMap<Address, R>) -> Self {
+        Self {
+            records,
+            remap_callback: None,
+        }
+    }
+}
+
 trait ReadWriteMemory: ReadMemory + WriteMemory {}
 impl<M: ReadMemory + WriteMemory> ReadWriteMemory for M {}
 
-#[derive(Debug)]
-enum StoredCallback {
-    Read(Box<dyn ReadMemory>),
-    Write(Box<dyn WriteMemory>),
-    ReadWrite(Box<dyn ReadWriteMemory>),
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub struct MemoryHandle(u16);
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+pub struct MemoryHandle(NonZero<u16>);
 
 impl MemoryHandle {
-    pub(crate) const fn new(id: u16) -> Self {
+    pub(crate) const fn get(&self) -> usize {
+        (self.0.get() as usize) - 1
+    }
+}
+
+impl MemoryHandle {
+    pub(crate) const fn new(id: NonZero<u16>) -> Self {
         Self(id)
     }
 }
 
 #[derive(Debug)]
-struct AddressSpaceInfo {
-    width_mask: Address,
-    #[allow(unused)]
-    name: &'static str,
-    read_members: RangeInclusiveMap<Address, MemoryHandle>,
-    write_members: RangeInclusiveMap<Address, MemoryHandle>,
+pub struct MemoryTranslationTable {
+    address_spaces: RwLock<Vec<AddressSpace>>,
+    memory_store: MemoryStore,
+    current_address_space: AtomicU16,
 }
 
-#[derive(Default)]
-struct MemoryTranslationTableImpl {
-    current_address_space_id: u16,
-    address_spaces: HashMap<AddressSpaceHandle, AddressSpaceInfo, FxBuildHasher>,
-
-    current_memory_id: u16,
-    memories: HashMap<MemoryHandle, StoredCallback, FxBuildHasher>,
-}
-
-impl Debug for MemoryTranslationTableImpl {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #[allow(unused)]
-        #[derive(Debug)]
-        struct AddressMap<'a> {
-            map: Vec<(RangeInclusive<usize>, &'a StoredCallback)>,
+impl Default for MemoryTranslationTable {
+    fn default() -> Self {
+        Self {
+            address_spaces: Default::default(),
+            memory_store: Default::default(),
+            current_address_space: AtomicU16::new(1),
         }
-
-        let helper: HashMap<_, _> = self
-            .address_spaces
-            .iter()
-            .map(|(address_space_handle, info)| {
-                (
-                    address_space_handle,
-                    AddressMap {
-                        map: info
-                            .write_members
-                            .iter()
-                            .map(|(range, memory_handle)| {
-                                (range.clone(), self.memories.get(memory_handle).unwrap())
-                            })
-                            .collect(),
-                    },
-                )
-            })
-            .collect();
-
-        f.debug_tuple("MemoryTranslationTable")
-            .field(&helper)
-            .finish()
     }
 }
-
-#[derive(Clone, Debug, Default)]
-pub struct MemoryTranslationTable(Arc<RwLock<MemoryTranslationTableImpl>>);
 
 impl MemoryTranslationTable {
-    pub fn insert_address_space(&self, name: &'static str, width: u8) -> AddressSpaceHandle {
-        let mut impl_guard = self.0.write().unwrap();
+    pub(crate) fn insert_address_space(&self, address_space_width: u8) -> AddressSpaceHandle {
+        let mut address_spaces_guard = self.address_spaces.write().unwrap();
 
-        let id = AddressSpaceHandle::new(impl_guard.current_address_space_id);
-        impl_guard.current_address_space_id = impl_guard
-            .current_address_space_id
-            .checked_add(1)
-            .expect("Too many address spaces");
+        let id = self.current_address_space.fetch_add(1, Ordering::Relaxed);
+        let id = AddressSpaceHandle::new(id.try_into().expect("Too many address spaces"));
 
         let mut mask = bitvec::bitvec![usize, Lsb0; 0; usize::BITS as usize];
-        mask[..width as usize].fill(true);
+        mask[..address_space_width as usize].fill(true);
         let width_mask = mask.load();
 
-        impl_guard.address_spaces.insert(
-            id,
-            AddressSpaceInfo {
-                width_mask,
-                name,
-                read_members: RangeInclusiveMap::default(),
-                write_members: RangeInclusiveMap::default(),
-            },
+        address_spaces_guard.push(AddressSpace {
+            width_mask,
+            read_members: RangeInclusiveMap::new(),
+            write_members: RangeInclusiveMap::new(),
+        });
+
+        id
+    }
+
+    pub fn remap_memory(
+        &self,
+        handle: MemoryHandle,
+        address_space: AddressSpaceHandle,
+        mapping: impl IntoIterator<Item = RangeInclusive<usize>>,
+    ) {
+        let mut address_spaces_guard = self.address_spaces.write().unwrap();
+        let address_space = address_spaces_guard.get_mut(address_space.get()).unwrap();
+
+        assert!(
+            self.memory_store.is_readwrite_memory(handle),
+            "Memory referred by handle does not have read & write capabilities"
         );
 
-        id
+        address_space.remap_memory(handle, mapping);
     }
 
-    pub fn insert_memory<M: ReadMemory + WriteMemory>(
-        &self,
-        memory: M,
-        mappings: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
-    ) -> MemoryHandle {
-        let mut impl_guard = self.0.write().unwrap();
+    pub(crate) fn insert_memory<M: ReadMemory + WriteMemory>(&self, memory: M) -> MemoryHandle {
+        self.memory_store.insert_memory(memory)
+    }
 
-        let id = MemoryHandle::new(impl_guard.current_memory_id);
-        impl_guard.current_memory_id = impl_guard
-            .current_memory_id
-            .checked_add(1)
-            .expect("Too many memories");
-
-        impl_guard
-            .memories
-            .insert(id, StoredCallback::ReadWrite(Box::new(memory)));
-
-        for (address_space, addresses) in mappings {
-            let address_spaces = impl_guard
-                .address_spaces
-                .get_mut(&address_space)
-                .expect("Non existant address space");
-            address_spaces.read_members.insert(addresses.clone(), id);
-            address_spaces.write_members.insert(addresses, id);
+    fn process_remap_callbacks(&self, callbacks: impl IntoIterator<Item = RemapCallback>) {
+        for callback in callbacks {
+            (callback.callback)(self);
         }
-
-        id
     }
+}
+
+struct NeededAccess {
+    pub address: Address,
+    pub address_space: AddressSpaceHandle,
+    pub buffer_subrange: RangeInclusive<usize>,
 }

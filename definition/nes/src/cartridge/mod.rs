@@ -4,7 +4,7 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
-    memory::AddressSpaceHandle,
+    memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use serde::{Deserialize, Serialize};
@@ -60,11 +60,11 @@ impl<R: RenderApi> ComponentConfig<R> for NesCartridgeConfig {
         let ines = Arc::new(INes::parse(&rom).unwrap());
         tracing::debug!("Parsed ROM as {:#?}", ines);
 
-        construct_mapper(
-            &essentials.memory_translation_table,
+        let component_builder = construct_mapper(
             ines.clone(),
             self.cpu_address_space,
             self.ppu_address_space,
+            component_builder,
         );
         component_builder.build_global(NesCartridge { rom: ines });
     }

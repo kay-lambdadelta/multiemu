@@ -2,7 +2,7 @@ use super::{
     Chip8KeyCode, Chip8Processor, Chip8ProcessorConfig, ExecutionState,
     decoder::Chip8InstructionDecoder,
 };
-use crate::{Chip8Kind, SupportedRenderApiChip8, display::Chip8DisplayBackend};
+use crate::{Chip8Kind, SupportedRenderApiChip8};
 use crossbeam::atomic::AtomicCell;
 use multiemu_machine::{
     input::virtual_gamepad::VirtualGamepad,
@@ -20,7 +20,7 @@ pub(crate) struct Chip8ProcessorTask<R: SupportedRenderApiChip8> {
     /// Keypad virtual gamepad
     pub virtual_gamepad: Arc<VirtualGamepad>,
     /// Essential stuff the runtime provides
-    pub memory_translation_table: MemoryTranslationTable,
+    pub memory_translation_table: Arc<MemoryTranslationTable>,
     // What chip8 mode we are currently in
     pub mode: Arc<AtomicCell<Chip8Kind>>,
     pub config: Chip8ProcessorConfig<R>,

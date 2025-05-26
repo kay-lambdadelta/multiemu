@@ -11,7 +11,7 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig, component_ref::ComponentRef},
     input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
-    memory::AddressSpaceHandle,
+    memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};

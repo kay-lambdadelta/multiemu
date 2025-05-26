@@ -33,16 +33,15 @@ impl<C: Component> Clone for ComponentRef<C> {
 
 impl<C: Component + Debug> Debug for ComponentRef<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = String::default();
+        let mut debug_struct = f.debug_struct("ComponentRef");
 
-        self.interact(|component| {
-            s.push_str(&format!("{:?}", component));
+        // TODO: We need a better way to go about this
+        self.interact_local(|component| {
+            debug_struct.field("component", &component);
         })
         .unwrap();
 
-        f.debug_struct("ComponentRef")
-            .field("component", &s)
-            .finish()
+        debug_struct.finish()
     }
 }
 

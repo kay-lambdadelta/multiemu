@@ -1,9 +1,10 @@
-use std::fmt::Debug;
-
 use multiemu_machine::memory::{
-    AddressSpaceHandle, callbacks::ReadMemory, memory_translation_table::ReadMemoryRecord,
+    callbacks::ReadMemory,
+    memory_translation_table::{
+        MemoryOperationError, ReadMemoryRecord, address_space::AddressSpaceHandle,
+    },
 };
-use rangemap::RangeInclusiveMap;
+use std::fmt::Debug;
 
 pub struct RawCartridgeMemoryCallback {
     pub rom: [u8; 0x1000],
@@ -23,7 +24,7 @@ impl ReadMemory for RawCartridgeMemoryCallback {
         address: usize,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), RangeInclusiveMap<usize, ReadMemoryRecord>> {
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let adjusted_offset = address - 0x1000;
         buffer.copy_from_slice(&self.rom[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))]);
 

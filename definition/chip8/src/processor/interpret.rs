@@ -5,7 +5,7 @@ use super::{
     task::Chip8ProcessorTask,
 };
 use crate::{
-    CHIP8_FONT, Chip8Kind, SupportedRenderApiChip8, display::Chip8DisplayBackend,
+    CHIP8_FONT, Chip8Kind, SupportedRenderApiChip8,
     processor::instruction::InstructionSetSuperChip8,
 };
 use arrayvec::ArrayVec;

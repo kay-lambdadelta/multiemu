@@ -1,5 +1,8 @@
-use super::{MemoryHandle, MemoryTranslationTable, StoredCallback};
-use crate::memory::{Address, AddressSpaceHandle, callbacks::WriteMemory};
+use super::{
+    MemoryHandle, MemoryTranslationTable, NeededAccess, RemapCallback,
+    address_space::{AddressSpace, AddressSpaceHandle},
+};
+use crate::memory::{Address, callbacks::WriteMemory};
 use num::traits::ToBytes;
 use rangemap::RangeInclusiveMap;
 use std::ops::RangeInclusive;
@@ -29,32 +32,25 @@ pub enum WriteMemoryRecord {
 }
 
 impl MemoryTranslationTable {
-    pub fn insert_write_memory<M: WriteMemory>(
+    pub fn insert_write_memory<M: WriteMemory>(&self, memory: M) -> MemoryHandle {
+        self.memory_store.insert_write_memory(memory)
+    }
+
+    pub fn remap_write_memory(
         &self,
-        memory: M,
-        mappings: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
-    ) -> MemoryHandle {
-        let mut impl_guard = self.0.write().unwrap();
+        handle: MemoryHandle,
+        address_space: AddressSpaceHandle,
+        mapping: impl IntoIterator<Item = RangeInclusive<usize>>,
+    ) {
+        let mut address_spaces_guard = self.address_spaces.write().unwrap();
+        let address_space = address_spaces_guard.get_mut(address_space.get()).unwrap();
 
-        let id = MemoryHandle::new(impl_guard.current_memory_id);
-        impl_guard.current_memory_id = impl_guard
-            .current_memory_id
-            .checked_add(1)
-            .expect("Too many memories");
+        assert!(
+            self.memory_store.is_write_memory(handle),
+            "Memory referred by handle does not have write capabilities"
+        );
 
-        impl_guard
-            .memories
-            .insert(id, StoredCallback::Write(Box::new(memory)));
-
-        for (address_space, addresses) in mappings {
-            let address_spaces = impl_guard
-                .address_spaces
-                .get_mut(&address_space)
-                .expect("Non existant address space");
-            address_spaces.write_members.insert(addresses, id);
-        }
-
-        id
+        address_space.remap_write_memory(handle, mapping);
     }
 
     /// Step through the memory translation table to give a set of components the buffer
@@ -67,47 +63,94 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), WriteMemoryOperationError> {
-        let impl_guard = self.0.write().unwrap();
+        let mut needed_accesses = Vec::from_iter([NeededAccess {
+            address,
+            address_space,
+            buffer_subrange: (0..=(buffer.len() - 1)),
+        }]);
+        let mut remap_callbacks = Vec::default();
 
-        let mut needed_accesses =
-            Vec::from_iter([(address, address_space, (0..=(buffer.len() - 1)))]);
-
-        while let Some((address, address_space, buffer_subrange)) = needed_accesses.pop() {
-            let address_space_info = impl_guard
-                .address_spaces
-                .get(&address_space)
-                .expect("Non existant address space");
-
-            // Cut off address
-            let address = address & address_space_info.width_mask;
-
-            tracing::debug!(
-                "Writing to address {:#04x} from address space {:?}",
+        let result = (|| {
+            while let Some(NeededAccess {
                 address,
-                address_space
-            );
-
-            let accessing_range =
-                (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
-            let mut did_handle = false;
-
-            for (component_assignment_range, memory_id) in address_space_info
-                .write_members
-                .overlapping(accessing_range.clone())
+                address_space,
+                buffer_subrange,
+            }) = needed_accesses.pop()
             {
-                let memory = impl_guard
-                    .memories
-                    .get(memory_id)
-                    .and_then(|memory| match memory {
-                        StoredCallback::Write(memory) => Some(memory.as_ref()),
-                        StoredCallback::ReadWrite(memory) => {
-                            Some(memory.as_ref() as &dyn WriteMemory)
-                        }
-                        _ => None,
-                    })
-                    .expect("Non existant memory");
+                let mut did_handle = false;
 
-                did_handle = true;
+                let accessing_range =
+                    (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
+
+                let address_spaces_guard = self.address_spaces.read().unwrap();
+                let address_space_info =
+                    address_spaces_guard
+                        .get(address_space.get())
+                        .ok_or_else(|| {
+                            WriteMemoryOperationError(RangeInclusiveMap::from_iter([(
+                                accessing_range.clone(),
+                                WriteMemoryOperationErrorFailureType::OutOfBus,
+                            )]))
+                        })?;
+
+                self.write_helper(
+                    buffer,
+                    &mut did_handle,
+                    address,
+                    address_space,
+                    address_space_info,
+                    buffer_subrange,
+                    &mut needed_accesses,
+                    &mut remap_callbacks,
+                )?;
+
+                if !did_handle {
+                    return Err(WriteMemoryOperationError(RangeInclusiveMap::from_iter([(
+                        accessing_range,
+                        WriteMemoryOperationErrorFailureType::OutOfBus,
+                    )])));
+                }
+            }
+
+            Ok(())
+        })();
+
+        self.process_remap_callbacks(remap_callbacks);
+
+        result
+    }
+
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    fn write_helper(
+        &self,
+        buffer: &[u8],
+        did_handle: &mut bool,
+        address: Address,
+        address_space: AddressSpaceHandle,
+        address_space_info: &AddressSpace,
+        buffer_subrange: RangeInclusive<usize>,
+        needed_accesses: &mut Vec<NeededAccess>,
+        remap_callbacks: &mut Vec<RemapCallback>,
+    ) -> Result<(), WriteMemoryOperationError> {
+        // Cut off address
+        let address = address & address_space_info.width_mask;
+
+        tracing::debug!(
+            "Writing to address {:#04x} from address space {:?}",
+            address,
+            address_space
+        );
+
+        let accessing_range =
+            (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
+
+        for (component_assignment_range, memory_handle) in address_space_info
+            .write_members
+            .overlapping(accessing_range.clone())
+        {
+            self.memory_store.interact_write(*memory_handle, |memory| {
+                *did_handle = true;
 
                 let overlap_start = accessing_range
                     .start()
@@ -120,7 +163,7 @@ impl MemoryTranslationTable {
                 ) {
                     let mut detected_errors = RangeInclusiveMap::default();
 
-                    for (range, error) in errors {
+                    for (range, error) in errors.records {
                         match error {
                             WriteMemoryRecord::Denied => {
                                 tracing::debug!("Write memory operation denied at {:#04x?}", range);
@@ -147,27 +190,24 @@ impl MemoryTranslationTable {
                                     redirect_address_space
                                 );
 
-                                needed_accesses.push((
-                                    redirect_address,
-                                    redirect_address_space,
-                                    (range.start() - address)..=(range.end() - address),
-                                ));
+                                needed_accesses.push(NeededAccess {
+                                    address: redirect_address,
+                                    address_space: redirect_address_space,
+                                    buffer_subrange: (range.start() - address)
+                                        ..=(range.end() - address),
+                                });
                             }
                         }
                     }
+
+                    remap_callbacks.extend(errors.remap_callback);
 
                     if !detected_errors.is_empty() {
                         return Err(WriteMemoryOperationError(detected_errors));
                     }
                 }
-            }
-
-            if !did_handle {
-                return Err(WriteMemoryOperationError(RangeInclusiveMap::from_iter([(
-                    accessing_range,
-                    WriteMemoryOperationErrorFailureType::OutOfBus,
-                )])));
-            }
+                Ok(())
+            })?;
         }
 
         Ok(())

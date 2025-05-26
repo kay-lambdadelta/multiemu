@@ -9,7 +9,8 @@ use multiemu_definition_misc::{
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use multiemu_machine::{
     MachineFactory, builder::MachineBuilder, component::component_ref::ComponentRef,
-    display::shader::ShaderCache, memory::AddressSpaceHandle,
+    display::shader::ShaderCache,
+    memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use multiemu_rom::{
     id::RomId,
@@ -69,7 +70,7 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
         );
 
         // Atari 2600 CPU only has 13 address lines
-        let (machine, cpu_address_space) = machine.insert_address_space("cpu", 13);
+        let (machine, cpu_address_space) = machine.insert_address_space(13);
 
         // Extract information on the rom loaded
         let database_transaction = rom_manager.rom_information.begin_read().unwrap();
