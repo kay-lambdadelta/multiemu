@@ -98,7 +98,7 @@ impl MemoryStore {
         match self.store.read().unwrap().get(handle.get()) {
             Some(StoredCallback::Write(memory)) => callback(&**memory),
             Some(StoredCallback::ReadWrite(memory)) => callback(&**memory),
-            _ => panic!("Memory referred by handle does not have read capabilities"),
+            c => panic!("Memory referred by handle does not have write capabilities {:?}", c),
         }
     }
 

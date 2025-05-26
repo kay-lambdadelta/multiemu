@@ -90,17 +90,17 @@ impl AddressSpace {
         // go through and remove entries with this handle
 
         let mut removals = Vec::new();
-        for (addresses, memory_handle) in self.write_members.iter() {
+        for (addresses, memory_handle) in self.read_members.iter() {
             if memory_handle == &handle {
                 removals.push(addresses.clone());
             }
         }
         for addresses in removals {
-            self.write_members.remove(addresses.clone());
+            self.read_members.remove(addresses.clone());
         }
 
         for addresses in mapping {
-            self.write_members.insert(addresses.clone(), handle);
+            self.read_members.insert(addresses.clone(), handle);
         }
     }
 }
