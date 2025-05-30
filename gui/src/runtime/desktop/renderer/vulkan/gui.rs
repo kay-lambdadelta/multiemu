@@ -9,7 +9,6 @@ use std::{
     num::NonZero,
     sync::Arc,
 };
-use versions::SemVer;
 use vulkano::{
     DeviceSize,
     buffer::{
@@ -133,10 +132,7 @@ impl VulkanEguiRenderer {
         let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
 
         let shader = shader_cache
-            .get::<SpirvShader>(
-                include_str!("../../../../../shaders/egui.wgsl"),
-                SemVer::new("1.0.0").unwrap(),
-            )
+            .get::<SpirvShader>(include_str!("../../../../../shaders/egui.wgsl"), "1.0.0")
             .unwrap();
 
         // SAFETY: These shaders are pre validated by naga so this should be safe

@@ -9,6 +9,7 @@ multiemu-config = { path = "lib/config" }
 multiemu-input = { path = "lib/input" }
 multiemu-macros = { path = "lib/macros" }
 multiemu-audio = { path = "lib/audio" }
+multiemu-save = { path = "lib/save" }
 
 multiemu-definition-misc = { path = "definition/misc" }
 multiemu-definition-mos6502 = { path = "definition/mos6502" }
@@ -52,7 +53,6 @@ palette = { version = "0.7", default-features = false, features = [
 ] }
 memmap2 = "0.9"
 clap = { version = "4.5", features = ["derive"] }
-versions = "7.0"
 syn = { version = "2.0", features = ["full"] }
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -68,6 +68,7 @@ data-encoding = "2.9"
 sealed = "0.6"
 arc-swap = "1.7"
 deku = "0.19"
+versions = "7.0"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }

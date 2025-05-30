@@ -80,8 +80,11 @@ impl ShaderCache {
     pub fn get<T: ShaderFormat>(
         &self,
         wgsl: impl Into<Cow<'static, str>>,
-        version: SemVer,
+        version: impl TryInto<SemVer>,
     ) -> Result<Shader<T>, Box<dyn std::error::Error>> {
+        let Ok(version) = version.try_into() else {
+            return Err("Invalid version".into());
+        };
         let wgsl: Cow<'static, str> = wgsl.into();
 
         tracing::debug!(

@@ -1,9 +1,9 @@
 use super::{Component, ComponentId, component_ref::ComponentRef};
 use crate::utils::{Fragile, MainThreadQueue, is_main_thread};
+use multiemu_save::ComponentName;
 use rustc_hash::FxBuildHasher;
 use std::{
     any::Any,
-    borrow::Cow,
     collections::HashMap,
     fmt::Debug,
     sync::{Arc, RwLock},
@@ -38,7 +38,7 @@ pub struct ComponentStore
 where
     Self: Send + Sync,
 {
-    component_ids: scc::HashMap<Cow<'static, str>, ComponentId, FxBuildHasher>,
+    component_ids: scc::HashMap<ComponentName, ComponentId, FxBuildHasher>,
     component_location: RwLock<HashMap<ComponentId, ComponentLocation, FxBuildHasher>>,
     pub(crate) main_thread_queue: Arc<MainThreadQueue>,
 }
@@ -63,15 +63,13 @@ impl ComponentStore {
 
     pub(crate) fn insert_component(
         &self,
-        name: Cow<'static, str>,
+        name: ComponentName,
         component_id: ComponentId,
         component: impl Component,
     ) {
         assert!(is_main_thread());
 
-        self.component_ids
-            .insert(name, component_id)
-            .unwrap();
+        self.component_ids.insert(name, component_id).unwrap();
 
         if self
             .component_location
@@ -89,15 +87,13 @@ impl ComponentStore {
 
     pub(crate) fn insert_component_global(
         &self,
-        name: Cow<'static, str>,
+        name: ComponentName,
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
         assert!(is_main_thread());
 
-        self.component_ids
-            .insert(name, component_id)
-            .unwrap();
+        self.component_ids.insert(name, component_id).unwrap();
 
         if self
             .component_location
@@ -174,7 +170,10 @@ impl ComponentStore {
         })
     }
 
-    pub(crate) fn get<C: Component>(self: &Arc<Self>, name: &str) -> Option<ComponentRef<C>> {
+    pub(crate) fn get<C: Component>(
+        self: &Arc<Self>,
+        name: &ComponentName,
+    ) -> Option<ComponentRef<C>> {
         let component_id = *self.component_ids.get(name).unwrap().get();
 
         let component = if let ComponentLocation::Global(component) =

@@ -31,7 +31,6 @@ crossbeam = { workspace = true }
 palette = { workspace = true }
 uuid = { workspace = true }
 redb = { workspace = true }
-versions = { workspace = true }
 ringbuffer = { workspace = true }
 egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
 egui_extras = { version = "0.31", default-features = false, features = [

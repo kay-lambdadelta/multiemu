@@ -39,11 +39,11 @@ pub fn set_main_thread() {
 }
 
 /// Forcefully mark this thread as the main thread
-/// 
+///
 /// # Safety
-/// 
+///
 /// If this is violated somehow the entire program falls to pieces
-/// 
+///
 /// Pleasepleasepleasepleaseplease only use this in tests
 #[inline]
 pub unsafe fn force_set_main_thread() {

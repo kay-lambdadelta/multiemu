@@ -9,6 +9,7 @@ multiemu-rom = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-config = { workspace = true }
 multiemu-macros = { workspace = true }
+multiemu-save = { workspace = true }
 multiemu-audio = { workspace = true }
 rangemap = { workspace = true }
 tracing = { workspace = true }
@@ -25,7 +26,6 @@ num = { workspace = true }
 nalgebra = { workspace = true }
 palette = { workspace = true }
 scc = { workspace = true }
-versions = { workspace = true }
 ringbuffer = { workspace = true }
 rayon = { workspace = true }
 naga = { workspace = true, features = ["spv-out", "glsl-out"] }
@@ -33,6 +33,7 @@ rustc-hash = { workspace = true }
 data-encoding = { workspace = true }
 bincode = { workspace = true }
 arc-swap = { workspace = true }
+versions = { workspace = true }
 sha2 = "0.10"
 
 [build-dependencies]

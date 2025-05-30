@@ -111,7 +111,7 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
         for (index, source_addresses) in tia_write_register_mirror_ranges().enumerate() {
             machine = machine
                 .insert_component(
-                    format!("tia_write_mirror_{}", index),
+                    &format!("tia_write_mirror_{}", index),
                     MirrorMemoryConfig {
                         readable: false,
                         writable: true,
@@ -127,7 +127,7 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
         for (index, source_addresses) in tia_read_register_mirror_ranges().enumerate() {
             machine = machine
                 .insert_component(
-                    format!("tia_read_mirror_{}", index),
+                    &format!("tia_read_mirror_{}", index),
                     MirrorMemoryConfig {
                         readable: true,
                         writable: false,
@@ -143,7 +143,7 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
         for (index, source_addresses) in riot_register_mirror_ranges().enumerate() {
             machine = machine
                 .insert_component(
-                    format!("mos6532_riot_register_mirror_{}", index),
+                    &format!("mos6532_riot_register_mirror_{}", index),
                     MirrorMemoryConfig {
                         readable: true,
                         writable: true,
@@ -159,7 +159,7 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
         for (index, source_addresses) in riot_ram_mirror_ranges().enumerate() {
             machine = machine
                 .insert_component(
-                    format!("mos6532_riot_ram_mirror_{}", index),
+                    &format!("mos6532_riot_ram_mirror_{}", index),
                     MirrorMemoryConfig {
                         readable: true,
                         writable: true,

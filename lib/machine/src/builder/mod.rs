@@ -18,8 +18,8 @@ use display::DisplayMetadata;
 use input::InputMetadata;
 use multiemu_config::Environment;
 use multiemu_rom::{manager::RomManager, system::GameSystem};
+use multiemu_save::ComponentName;
 use std::{
-    borrow::Cow,
     collections::HashMap,
     marker::PhantomData,
     sync::{Arc, OnceLock, RwLock},
@@ -76,15 +76,10 @@ impl<R: RenderApi> MachineBuilder<R> {
     #[inline]
     pub fn insert_component<C: ComponentConfig<R>>(
         mut self,
-        name: impl Into<Cow<'static, str>>,
+        name: &str,
         config: C,
     ) -> (Self, ComponentRef<C::Component>) {
-        let name = name.into();
-
-        assert!(
-            name.chars().all(|c| !c.is_whitespace()),
-            "Invalid manifest name"
-        );
+        let name: ComponentName = name.parse().unwrap();
 
         let component_id = ComponentId(self.current_component_id.0);
 
@@ -111,7 +106,7 @@ impl<R: RenderApi> MachineBuilder<R> {
     /// Insert a component with a default config
     pub fn insert_default_component<C: ComponentConfig<R> + Default>(
         self,
-        name: impl Into<Cow<'static, str>>,
+        name: &str,
     ) -> (Self, ComponentRef<C::Component>) {
         let config = C::default();
         self.insert_component(name, config)
@@ -249,7 +244,7 @@ pub struct ComponentBuilder<'a, R: RenderApi, C: Component> {
     machine_builder: &'a mut MachineBuilder<R>,
     component_id: ComponentId,
     component_metadata: ComponentMetadata<R>,
-    name: Cow<'static, str>,
+    name: ComponentName,
     _phantom: PhantomData<C>,
 }
 
