@@ -1,5 +1,6 @@
 use multiemu_machine::memory::{
-    callbacks::ReadMemory,
+    Address,
+    callbacks::{Memory, ReadMemory},
     memory_translation_table::{
         MemoryOperationError, ReadMemoryRecord, address_space::AddressSpaceHandle,
     },
@@ -9,6 +10,8 @@ use multiemu_machine::memory::{
 pub struct BankingCartridgeMemoryCallback<const BANK_SIZE: usize> {
     rom: Vec<u8>,
 }
+
+impl<const BANK_SIZE: usize> Memory for BankingCartridgeMemoryCallback<BANK_SIZE> {}
 
 impl<const BANK_SIZE: usize> BankingCartridgeMemoryCallback<BANK_SIZE> {
     pub fn new(rom: Vec<u8>) -> Self {
@@ -23,7 +26,7 @@ impl<const BANK_SIZE: usize> BankingCartridgeMemoryCallback<BANK_SIZE> {
 impl<const BANK_SIZE: usize> ReadMemory for BankingCartridgeMemoryCallback<BANK_SIZE> {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {

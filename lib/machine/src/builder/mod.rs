@@ -19,6 +19,7 @@ use input::InputMetadata;
 use multiemu_config::Environment;
 use multiemu_rom::{manager::RomManager, system::GameSystem};
 use std::{
+    borrow::Cow,
     collections::HashMap,
     marker::PhantomData,
     sync::{Arc, OnceLock, RwLock},
@@ -75,9 +76,11 @@ impl<R: RenderApi> MachineBuilder<R> {
     #[inline]
     pub fn insert_component<C: ComponentConfig<R>>(
         mut self,
-        name: &'static str,
+        name: impl Into<Cow<'static, str>>,
         config: C,
     ) -> (Self, ComponentRef<C::Component>) {
+        let name = name.into();
+
         assert!(
             name.chars().all(|c| !c.is_whitespace()),
             "Invalid manifest name"
@@ -89,7 +92,7 @@ impl<R: RenderApi> MachineBuilder<R> {
             machine_builder: &mut self,
             component_id,
             component_metadata: ComponentMetadata::default(),
-            name,
+            name: name.clone(),
             _phantom: PhantomData,
         };
         config.build_component(component_builder);
@@ -100,7 +103,7 @@ impl<R: RenderApi> MachineBuilder<R> {
             .checked_add(1)
             .expect("Too many components");
 
-        let component_ref = self.component_store.get(name).unwrap();
+        let component_ref = self.component_store.get(&name).unwrap();
 
         (self, component_ref)
     }
@@ -108,7 +111,7 @@ impl<R: RenderApi> MachineBuilder<R> {
     /// Insert a component with a default config
     pub fn insert_default_component<C: ComponentConfig<R> + Default>(
         self,
-        name: &'static str,
+        name: impl Into<Cow<'static, str>>,
     ) -> (Self, ComponentRef<C::Component>) {
         let config = C::default();
         self.insert_component(name, config)
@@ -246,7 +249,7 @@ pub struct ComponentBuilder<'a, R: RenderApi, C: Component> {
     machine_builder: &'a mut MachineBuilder<R>,
     component_id: ComponentId,
     component_metadata: ComponentMetadata<R>,
-    name: &'static str,
+    name: Cow<'static, str>,
     _phantom: PhantomData<C>,
 }
 

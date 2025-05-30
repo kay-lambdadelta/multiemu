@@ -29,8 +29,6 @@ pub struct RuntimeEssentials<R: RenderApi> {
 // Basic supertrait for all components
 #[allow(unused)]
 pub trait Component: Debug + Any {
-    /// Called when the machine has been initialized and is about to start
-    fn startup(&self) {}
     /// Reset state
     fn reset(&self) {}
 }

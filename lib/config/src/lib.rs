@@ -23,7 +23,7 @@ pub mod audio;
 pub mod graphics;
 pub mod input;
 
-#[cfg(platform_desktop)]
+#[cfg(all(platform_desktop, not(miri)))]
 /// Base directory for the emulators files
 pub static STORAGE_DIRECTORY: LazyLock<PathBuf> =
     LazyLock::new(|| dirs::data_dir().unwrap().join("multiemu"));
@@ -33,6 +33,9 @@ pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from
 #[cfg(platform_psp)]
 /// Base directory for the emulators files
 pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("ms0:/multiemu"));
+#[cfg(all(platform_desktop, miri))]
+/// Base directory for the emulators files
+pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(PathBuf::default);
 
 /// Config location
 pub static CONFIG_LOCATION: LazyLock<PathBuf> =

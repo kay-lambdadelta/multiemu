@@ -3,7 +3,8 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        callbacks::{ReadMemory, WriteMemory},
+        Address,
+        callbacks::{Memory, ReadMemory, WriteMemory},
         memory_translation_table::{
             MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
             address_space::AddressSpaceHandle,
@@ -207,8 +208,8 @@ impl<R: RenderApi> ComponentConfig<R> for Mos6532RiotConfig {
 #[derive(Debug)]
 pub struct Mos6532RiotConfig {
     pub frequency: Ratio<u32>,
-    pub ram_assigned_address: usize,
-    pub registers_assigned_address: usize,
+    pub ram_assigned_address: Address,
+    pub registers_assigned_address: Address,
     pub assigned_address_space: AddressSpaceHandle,
 }
 
@@ -218,10 +219,12 @@ struct RamMemoryCallbacks {
     ram: Arc<RwLock<[u8; 128]>>,
 }
 
+impl Memory for RamMemoryCallbacks {}
+
 impl ReadMemory for RamMemoryCallbacks {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
@@ -235,7 +238,7 @@ impl ReadMemory for RamMemoryCallbacks {
 
     fn preview_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
@@ -253,7 +256,7 @@ impl ReadMemory for RamMemoryCallbacks {
 impl WriteMemory for RamMemoryCallbacks {
     fn write_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
@@ -271,10 +274,12 @@ struct SwchaMemoryCallback {
     registers: Arc<Registers>,
 }
 
+impl Memory for SwchaMemoryCallback {}
+
 impl ReadMemory for SwchaMemoryCallback {
     fn read_memory(
         &self,
-        _address: usize,
+        _address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
@@ -287,7 +292,7 @@ impl ReadMemory for SwchaMemoryCallback {
 impl WriteMemory for SwchaMemoryCallback {
     fn write_memory(
         &self,
-        _address: usize,
+        _address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
@@ -302,10 +307,12 @@ struct SwchbMemoryCallback {
     registers: Arc<Registers>,
 }
 
+impl Memory for SwchbMemoryCallback {}
+
 impl ReadMemory for SwchbMemoryCallback {
     fn read_memory(
         &self,
-        _address: usize,
+        _address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
@@ -318,7 +325,7 @@ impl ReadMemory for SwchbMemoryCallback {
 impl WriteMemory for SwchbMemoryCallback {
     fn write_memory(
         &self,
-        _address: usize,
+        _address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {

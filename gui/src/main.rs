@@ -143,6 +143,7 @@ fn main() {
 
                 DesktopPlatform::run(runtime).unwrap();
             }
+            GraphicsApi::Opengl => unimplemented!(),
         }
 
         return;
@@ -170,6 +171,7 @@ fn main() {
 
             DesktopPlatform::run(runtime).unwrap();
         }
+        GraphicsApi::Opengl => unimplemented!(),
     }
 }
 

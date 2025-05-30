@@ -1,6 +1,8 @@
 use crate::{
     ExecutionMode, LoadStep, Mos6502, Mos6502Config, RESET_VECTOR, StoreStep,
-    decoder::Mos6502InstructionDecoder, instruction::AddressingMode, interpret::STACK_BASE_ADDRESS,
+    decoder::Mos6502InstructionDecoder,
+    instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
+    interpret::STACK_BASE_ADDRESS,
 };
 use arrayvec::ArrayVec;
 use multiemu_machine::{
@@ -31,157 +33,17 @@ impl Task<Mos6502> for Mos6502Task {
             }
 
             match state.execution_mode.take().unwrap() {
-                ExecutionMode::Fetch => {
+                ExecutionMode::FetchAndDecode => {
                     tracing::debug!(
                         "Fetching and decoding instruction from {:#04x}",
                         state.program
                     );
 
-                    let (instruction, identifiying_bytes_length) = self
-                        .instruction_decoder
-                        .decode(
-                            state.program as usize,
-                            self.config.assigned_address_space,
-                            &self.memory_translation_table,
-                        )
-                        .unwrap();
-
-                    tracing::debug!("Decoded instruction: {:#?}", instruction);
-
-                    state.address_bus =
-                        state.program.wrapping_add(identifiying_bytes_length as u16);
-                    state.program = state.program.wrapping_add(
-                        identifiying_bytes_length as u16
-                            + instruction
-                                .addressing_mode
-                                .map(|mode| mode.added_instruction_length())
-                                .unwrap_or(0),
-                    );
-
-                    let latch = ArrayVec::new();
-
-                    state.execution_mode = Some(match instruction.addressing_mode {
-                        Some(AddressingMode::Absolute) => ExecutionMode::Load {
-                            instruction,
-                            latch,
-                            queue: VecDeque::from_iter([
-                                LoadStep::Data,
-                                LoadStep::Data,
-                                LoadStep::LatchToBus,
-                            ]),
-                        },
-                        Some(AddressingMode::XIndexedAbsolute) => {
-                            let offset = state.x;
-
-                            ExecutionMode::Load {
-                                instruction,
-                                latch,
-                                queue: VecDeque::from_iter([
-                                    LoadStep::Data,
-                                    LoadStep::Data,
-                                    LoadStep::LatchToBus,
-                                    LoadStep::Offset { offset },
-                                ]),
-                            }
-                        }
-                        Some(AddressingMode::YIndexedAbsolute) => {
-                            let offset = state.y;
-
-                            ExecutionMode::Load {
-                                instruction,
-                                latch,
-                                queue: VecDeque::from_iter([
-                                    LoadStep::Data,
-                                    LoadStep::Data,
-                                    LoadStep::LatchToBus,
-                                    LoadStep::Offset { offset },
-                                ]),
-                            }
-                        }
-                        Some(AddressingMode::AbsoluteIndirect) => ExecutionMode::Load {
-                            instruction,
-                            latch,
-                            queue: VecDeque::from_iter([
-                                LoadStep::Data,
-                                LoadStep::Data,
-                                LoadStep::LatchToBus,
-                                LoadStep::Data,
-                                LoadStep::Data,
-                                LoadStep::LatchToBus,
-                            ]),
-                        },
-                        Some(AddressingMode::XIndexedZeroPageIndirect) => {
-                            let offset = state.x;
-
-                            ExecutionMode::Load {
-                                instruction,
-                                latch,
-                                queue: VecDeque::from_iter([
-                                    LoadStep::Data,
-                                    LoadStep::LatchToBus,
-                                    LoadStep::Offset { offset },
-                                    LoadStep::Data,
-                                    LoadStep::Data,
-                                    LoadStep::LatchToBus,
-                                ]),
-                            }
-                        }
-                        Some(AddressingMode::ZeroPageIndirectYIndexed) => {
-                            let offset = state.y;
-
-                            ExecutionMode::Load {
-                                instruction,
-                                latch,
-                                queue: VecDeque::from_iter([
-                                    LoadStep::Data,
-                                    LoadStep::LatchToBus,
-                                    LoadStep::Data,
-                                    LoadStep::Data,
-                                    LoadStep::LatchToBus,
-                                    LoadStep::Offset { offset },
-                                ]),
-                            }
-                        }
-                        Some(AddressingMode::XIndexedZeroPage) => {
-                            let offset = state.x;
-
-                            ExecutionMode::Load {
-                                instruction,
-                                latch,
-                                queue: VecDeque::from_iter([
-                                    LoadStep::Data,
-                                    LoadStep::LatchToBus,
-                                    LoadStep::Offset { offset },
-                                ]),
-                            }
-                        }
-                        Some(AddressingMode::YIndexedZeroPage) => {
-                            let offset = state.y;
-
-                            ExecutionMode::Load {
-                                instruction,
-                                latch,
-                                queue: VecDeque::from_iter([
-                                    LoadStep::Data,
-                                    LoadStep::LatchToBus,
-                                    LoadStep::Offset { offset },
-                                ]),
-                            }
-                        }
-                        Some(AddressingMode::ZeroPage) => ExecutionMode::Load {
-                            instruction,
-                            latch,
-                            queue: VecDeque::from_iter([LoadStep::Data, LoadStep::LatchToBus]),
-                        },
-                        Some(AddressingMode::Relative)
-                        | Some(AddressingMode::Immediate)
-                        | Some(AddressingMode::Accumulator)
-                        | None => ExecutionMode::Execute { instruction },
-                    });
+                    self.fetch_and_decode(&mut state);
 
                     period -= 1;
                 }
-                ExecutionMode::Load {
+                ExecutionMode::PreInterpret {
                     instruction,
                     mut latch,
                     mut queue,
@@ -227,9 +89,9 @@ impl Task<Mos6502> for Mos6502Task {
                     }
 
                     if queue.is_empty() {
-                        state.execution_mode = Some(ExecutionMode::Execute { instruction });
+                        state.execution_mode = Some(ExecutionMode::Interpret { instruction });
                     } else {
-                        state.execution_mode = Some(ExecutionMode::Load {
+                        state.execution_mode = Some(ExecutionMode::PreInterpret {
                             instruction,
                             latch,
                             queue,
@@ -237,6 +99,9 @@ impl Task<Mos6502> for Mos6502Task {
                     }
                 }
                 ExecutionMode::Jammed => {
+                    period -= 1;
+                }
+                ExecutionMode::Wait => {
                     period -= 1;
                 }
                 ExecutionMode::Reset => {
@@ -250,11 +115,11 @@ impl Task<Mos6502> for Mos6502Task {
                     ];
 
                     state.program = u16::from_le_bytes(program);
-                    state.execution_mode = Some(ExecutionMode::Fetch);
+                    state.execution_mode = Some(ExecutionMode::FetchAndDecode);
 
                     period -= 1;
                 }
-                ExecutionMode::Store { mut queue } => {
+                ExecutionMode::PostInterpret { mut queue } => {
                     match queue.pop_front() {
                         Some(StoreStep::BusToProgram) => {
                             state.program = state.address_bus;
@@ -291,13 +156,13 @@ impl Task<Mos6502> for Mos6502Task {
                     }
 
                     if queue.is_empty() {
-                        state.execution_mode = Some(ExecutionMode::Fetch);
+                        state.execution_mode = Some(ExecutionMode::FetchAndDecode);
                     } else {
-                        state.execution_mode = Some(ExecutionMode::Store { queue });
+                        state.execution_mode = Some(ExecutionMode::PostInterpret { queue });
                     }
                 }
-                ExecutionMode::Execute { instruction } => {
-                    state.execution_mode = Some(ExecutionMode::Fetch);
+                ExecutionMode::Interpret { instruction } => {
+                    state.execution_mode = Some(ExecutionMode::FetchAndDecode);
 
                     self.interpret_instruction(&mut state, instruction.clone());
 
@@ -305,5 +170,169 @@ impl Task<Mos6502> for Mos6502Task {
                 }
             }
         }
+    }
+}
+
+impl Mos6502Task {
+    fn fetch_and_decode(&mut self, state: &mut std::sync::MutexGuard<'_, crate::ProcessorState>) {
+        let (instruction, identifiying_bytes_length) = self
+            .instruction_decoder
+            .decode(
+                state.program as usize,
+                self.config.assigned_address_space,
+                &self.memory_translation_table,
+            )
+            .unwrap();
+
+        debug_assert!(
+            instruction
+                .addressing_mode
+                .map(|addressing_mode| { addressing_mode.is_valid_for_mode(self.config.kind) })
+                .unwrap_or(true),
+            "Invalid addressing mode for instruction for mode {:?}: {:?}",
+            self.config.kind,
+            instruction,
+        );
+
+        tracing::debug!("Decoded instruction: {:#?}", instruction);
+
+        state.address_bus = state.program.wrapping_add(identifiying_bytes_length as u16);
+        state.program = state.program.wrapping_add(
+            identifiying_bytes_length as u16
+                + instruction
+                    .addressing_mode
+                    .map(|mode| mode.added_instruction_length())
+                    .unwrap_or(0),
+        );
+
+        let latch = ArrayVec::new();
+
+        state.execution_mode = Some(match instruction.addressing_mode {
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::Absolute)) => {
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([
+                        LoadStep::Data,
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                    ]),
+                }
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedAbsolute)) => {
+                let offset = state.x;
+
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([
+                        LoadStep::Data,
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                        LoadStep::Offset { offset },
+                    ]),
+                }
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute)) => {
+                let offset = state.y;
+
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([
+                        LoadStep::Data,
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                        LoadStep::Offset { offset },
+                    ]),
+                }
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::AbsoluteIndirect)) => {
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([
+                        LoadStep::Data,
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                        LoadStep::Data,
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                    ]),
+                }
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect)) => {
+                let offset = state.x;
+
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                        LoadStep::Offset { offset },
+                        LoadStep::Data,
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                    ]),
+                }
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPageIndirectYIndexed)) => {
+                let offset = state.y;
+
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                        LoadStep::Data,
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                        LoadStep::Offset { offset },
+                    ]),
+                }
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage)) => {
+                let offset = state.x;
+
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                        LoadStep::Offset { offset },
+                    ]),
+                }
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage)) => {
+                let offset = state.y;
+
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([
+                        LoadStep::Data,
+                        LoadStep::LatchToBus,
+                        LoadStep::Offset { offset },
+                    ]),
+                }
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage)) => {
+                ExecutionMode::PreInterpret {
+                    instruction,
+                    latch,
+                    queue: VecDeque::from_iter([LoadStep::Data, LoadStep::LatchToBus]),
+                }
+            }
+            Some(AddressingMode::Wdc65C02(Wdc65C02AddressingMode::ZeroPageIndirect)) => {
+                todo!()
+            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::Relative))
+            | Some(AddressingMode::Mos6502(Mos6502AddressingMode::Immediate))
+            | Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator))
+            | None => ExecutionMode::Interpret { instruction },
+        });
     }
 }

@@ -40,7 +40,7 @@ impl RemapCallback {
 pub struct MemoryOperationError<R> {
     /// Records the memory translation table should handle
     pub records: RangeInclusiveMap<Address, R>,
-    /// Allows remapping of the MTT when its safe. The semantics of when this occurs is unspecified.
+    /// Allows remapping of the MTT when its safe. The semantics of when this occurs is unspecified except that the caller that triggered this will not return until the remap(s) occurs.
     pub remap_callback: Option<RemapCallback>,
 }
 
@@ -112,7 +112,7 @@ impl MemoryTranslationTable {
         &self,
         handle: MemoryHandle,
         address_space: AddressSpaceHandle,
-        mapping: impl IntoIterator<Item = RangeInclusive<usize>>,
+        mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
     ) {
         let mut address_spaces_guard = self.address_spaces.write().unwrap();
         let address_space = address_spaces_guard.get_mut(address_space.get()).unwrap();
@@ -129,6 +129,7 @@ impl MemoryTranslationTable {
         self.memory_store.insert_memory(memory)
     }
 
+    #[inline]
     fn process_remap_callbacks(&self, callbacks: impl IntoIterator<Item = RemapCallback>) {
         for callback in callbacks {
             (callback.callback)(self);
@@ -139,5 +140,5 @@ impl MemoryTranslationTable {
 struct NeededAccess {
     pub address: Address,
     pub address_space: AddressSpaceHandle,
-    pub buffer_subrange: RangeInclusive<usize>,
+    pub buffer_subrange: RangeInclusive<Address>,
 }

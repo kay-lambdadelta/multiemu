@@ -1,6 +1,5 @@
 use super::{
-    SCANLINE_LENGTH, State, SupportedRenderApiTia, TiaDisplayBackend, color::TiaColor,
-    region::Region,
+    SCANLINE_LENGTH, SupportedRenderApiTia, TiaDisplayBackend, color::TiaColor, region::Region,
 };
 use multiemu_machine::{
     component::RuntimeEssentials,
@@ -36,7 +35,7 @@ impl<R: Region> TiaDisplayBackend<R, SoftwareRendering> for SoftwareState {
         )
     }
 
-    fn draw(&self, state: &State, position: Point2<u16>, color: TiaColor) {
+    fn draw(&self, position: Point2<u16>, color: TiaColor) {
         let real_color = R::color_to_srgb(color);
 
         let mut staging_buffer = self.staging_buffer.borrow_mut();

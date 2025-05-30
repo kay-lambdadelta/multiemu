@@ -4,7 +4,8 @@ use multiemu_machine::{
     component::Component,
     display::backend::RenderApi,
     memory::{
-        callbacks::{ReadMemory, WriteMemory},
+        Address,
+        callbacks::{Memory, ReadMemory, WriteMemory},
         memory_translation_table::{
             MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
             address_space::AddressSpaceHandle,
@@ -18,10 +19,12 @@ struct NesCartidgeMemoryCallbacks {
     bus_conflict: bool,
 }
 
+impl Memory for NesCartidgeMemoryCallbacks {}
+
 impl ReadMemory for NesCartidgeMemoryCallbacks {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
@@ -32,7 +35,7 @@ impl ReadMemory for NesCartidgeMemoryCallbacks {
 impl WriteMemory for NesCartidgeMemoryCallbacks {
     fn write_memory(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {

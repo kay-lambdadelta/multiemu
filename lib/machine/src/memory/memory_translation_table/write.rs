@@ -40,7 +40,7 @@ impl MemoryTranslationTable {
         &self,
         handle: MemoryHandle,
         address_space: AddressSpaceHandle,
-        mapping: impl IntoIterator<Item = RangeInclusive<usize>>,
+        mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
     ) {
         let mut address_spaces_guard = self.address_spaces.write().unwrap();
         let address_space = address_spaces_guard.get_mut(address_space.get()).unwrap();
@@ -59,7 +59,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn write(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), WriteMemoryOperationError> {
@@ -129,7 +129,7 @@ impl MemoryTranslationTable {
         address: Address,
         address_space: AddressSpaceHandle,
         address_space_info: &AddressSpace,
-        buffer_subrange: RangeInclusive<usize>,
+        buffer_subrange: RangeInclusive<Address>,
         needed_accesses: &mut Vec<NeededAccess>,
         remap_callbacks: &mut Vec<RemapCallback>,
     ) -> Result<(), WriteMemoryOperationError> {
@@ -216,7 +216,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn write_le_value<T: ToBytes>(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         value: T,
     ) -> Result<(), WriteMemoryOperationError> {
@@ -226,7 +226,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn write_be_value<T: ToBytes>(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         value: T,
     ) -> Result<(), WriteMemoryOperationError> {

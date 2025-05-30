@@ -4,7 +4,8 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        callbacks::{ReadMemory, WriteMemory},
+        Address,
+        callbacks::{Memory, ReadMemory, WriteMemory},
         memory_translation_table::{
             MemoryHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
             WriteMemoryRecord, address_space::AddressSpaceHandle,
@@ -39,7 +40,7 @@ pub struct StandardMemoryConfig {
     pub readable: bool,
     pub writable: bool,
     // Memory region this buffer will be mapped to
-    pub assigned_range: RangeInclusive<usize>,
+    pub assigned_range: RangeInclusive<Address>,
     /// Address space this exists on
     pub assigned_address_space: AddressSpaceHandle,
     // Initial contents
@@ -121,10 +122,12 @@ struct StandardMemoryCallbacks {
     buffer: Vec<RwLock<[u8; PAGE_SIZE]>>,
 }
 
+impl Memory for StandardMemoryCallbacks {}
+
 impl ReadMemory for StandardMemoryCallbacks {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
@@ -159,7 +162,7 @@ impl ReadMemory for StandardMemoryCallbacks {
 
     fn preview_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
@@ -196,7 +199,7 @@ impl ReadMemory for StandardMemoryCallbacks {
 impl WriteMemory for StandardMemoryCallbacks {
     fn write_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
@@ -233,7 +236,7 @@ impl WriteMemory for StandardMemoryCallbacks {
 
 impl StandardMemoryCallbacks {
     /// Writes unchecked internally
-    fn write_internal(&self, address: usize, buffer: &[u8]) {
+    fn write_internal(&self, address: Address, buffer: &[u8]) {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
@@ -272,7 +275,7 @@ impl StandardMemoryCallbacks {
         }
     }
 
-    fn read_internal(&self, address: usize, buffer: &mut [u8]) {
+    fn read_internal(&self, address: Address, buffer: &mut [u8]) {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
@@ -380,7 +383,7 @@ mod test {
 
     #[test]
     fn initialization() {
-        multiemu_machine::utils::set_main_thread();
+        unsafe { multiemu_machine::utils::force_set_main_thread() };
 
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
@@ -451,7 +454,7 @@ mod test {
 
     #[test]
     fn basic_read() {
-        multiemu_machine::utils::set_main_thread();
+        unsafe { multiemu_machine::utils::force_set_main_thread() };
 
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
@@ -491,7 +494,7 @@ mod test {
 
     #[test]
     fn basic_write() {
-        multiemu_machine::utils::set_main_thread();
+        unsafe { multiemu_machine::utils::force_set_main_thread() };
 
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
@@ -530,7 +533,7 @@ mod test {
 
     #[test]
     fn basic_read_write() {
-        multiemu_machine::utils::set_main_thread();
+        unsafe { multiemu_machine::utils::force_set_main_thread() };
 
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
@@ -575,7 +578,7 @@ mod test {
 
     #[test]
     fn extensive() {
-        multiemu_machine::utils::set_main_thread();
+        unsafe { multiemu_machine::utils::force_set_main_thread() };
 
         let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());

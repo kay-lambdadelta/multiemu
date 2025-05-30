@@ -28,7 +28,7 @@ impl AddressSpace {
     pub fn remap_memory(
         &mut self,
         handle: MemoryHandle,
-        mapping: impl IntoIterator<Item = RangeInclusive<usize>>,
+        mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
     ) {
         // go through and remove entries with this handle
 
@@ -62,7 +62,7 @@ impl AddressSpace {
     pub fn remap_write_memory(
         &mut self,
         handle: MemoryHandle,
-        mapping: impl IntoIterator<Item = RangeInclusive<usize>>,
+        mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
     ) {
         // go through and remove entries with this handle
 
@@ -85,7 +85,7 @@ impl AddressSpace {
     pub fn remap_read_memory(
         &mut self,
         handle: MemoryHandle,
-        mapping: impl IntoIterator<Item = RangeInclusive<usize>>,
+        mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
     ) {
         // go through and remove entries with this handle
 

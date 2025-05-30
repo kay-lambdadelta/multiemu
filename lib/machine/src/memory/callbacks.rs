@@ -1,28 +1,35 @@
-use super::memory_translation_table::{
-    MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
-    address_space::AddressSpaceHandle,
+use super::{
+    Address,
+    memory_translation_table::{
+        MemoryHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+        WriteMemoryRecord, address_space::AddressSpaceHandle,
+    },
 };
-use rangemap::RangeInclusiveMap;
 use std::{fmt::Debug, sync::Arc};
 
 #[allow(unused)]
-pub trait ReadMemory: Debug + Send + Sync + 'static {
+pub trait Memory: Debug + Send + Sync + 'static {
+    fn set_memory_handle(&self, handle: MemoryHandle) {}
+}
+
+impl<M: Memory> Memory for Arc<M> {
+    fn set_memory_handle(&self, handle: MemoryHandle) {
+        self.as_ref().set_memory_handle(handle)
+    }
+}
+
+#[allow(unused)]
+pub trait ReadMemory: Memory {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        Err(RangeInclusiveMap::from_iter([(
-            address..=(address + (buffer.len() - 1)),
-            ReadMemoryRecord::Denied,
-        )])
-        .into())
-    }
+    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>>;
 
     fn preview_memory(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
@@ -57,7 +64,7 @@ pub trait ReadMemory: Debug + Send + Sync + 'static {
 impl<M: ReadMemory> ReadMemory for Arc<M> {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
@@ -66,7 +73,7 @@ impl<M: ReadMemory> ReadMemory for Arc<M> {
 
     fn preview_memory(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
@@ -75,25 +82,19 @@ impl<M: ReadMemory> ReadMemory for Arc<M> {
 }
 
 #[allow(unused)]
-pub trait WriteMemory: Debug + Send + Sync + 'static {
+pub trait WriteMemory: Memory {
     fn write_memory(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        Err(RangeInclusiveMap::from_iter([(
-            address..=(address + (buffer.len() - 1)),
-            WriteMemoryRecord::Denied,
-        )])
-        .into())
-    }
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>>;
 }
 
 impl<M: WriteMemory> WriteMemory for Arc<M> {
     fn write_memory(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {

@@ -1,6 +1,7 @@
 use mapctl::MapctlConfig;
 use multiemu_config::Environment;
 use multiemu_definition_misc::memory::{
+    null::NullMemoryConfig,
     rom::RomMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
@@ -8,12 +9,14 @@ use multiemu_machine::{
     MachineFactory,
     builder::MachineBuilder,
     display::{backend::RenderApi, shader::ShaderCache},
+    memory::Address,
 };
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
     system::{AtariSystem, GameSystem},
 };
+use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use std::{
     ops::RangeInclusive,
@@ -25,8 +28,11 @@ mod mapctl;
 mod mikey;
 mod suzy;
 
-const SUZY_ADDRESSES: RangeInclusive<usize> = 0xfc00..=0xfcff;
-const MIKEY_ADDRESSES: RangeInclusive<usize> = 0xfd00..=0xfdff;
+const SUZY_ADDRESSES: RangeInclusive<Address> = 0xfc00..=0xfcff;
+const MIKEY_ADDRESSES: RangeInclusive<Address> = 0xfd00..=0xfdff;
+const VECTOR_ADDRESSES: RangeInclusive<Address> = 0xfff8..=0xffff;
+const RESERVED_MEMORY_ADDRESS: Address = 0xfff8;
+const MAPCTL_ADDRESS: Address = 0xfff9;
 
 #[derive(Debug, Default)]
 pub struct AtariLynx;
@@ -39,6 +45,9 @@ impl<R: RenderApi> MachineFactory<R> for AtariLynx {
         environment: Arc<RwLock<Environment>>,
         shader_cache: ShaderCache,
     ) -> MachineBuilder<R> {
+        // 16 Mhz
+        let base_clock = Ratio::from_integer(16000000);
+
         let machine = MachineBuilder::new(
             GameSystem::Atari(AtariSystem::Lynx),
             rom_manager.clone(),
@@ -68,6 +77,16 @@ impl<R: RenderApi> MachineFactory<R> for AtariLynx {
             .unwrap();
 
         let (machine, _) = machine.insert_component(
+            "reserved",
+            NullMemoryConfig {
+                readable: true,
+                writable: true,
+                assigned_range: RESERVED_MEMORY_ADDRESS..=RESERVED_MEMORY_ADDRESS,
+                assigned_address_space: cpu_address_space,
+            },
+        );
+
+        let (machine, _) = machine.insert_component(
             "bootstrap",
             RomMemoryConfig {
                 // "[BIOS] Atari Lynx (World).lyx"
@@ -80,9 +99,12 @@ impl<R: RenderApi> MachineFactory<R> for AtariLynx {
         let (machine, _) = machine.insert_component(
             "mapctl",
             MapctlConfig {
+                cpu_address_space,
                 ram_memory_handle,
                 suzy_memory_handle: todo!(),
                 mikey_memory_handle: todo!(),
+                vector_memory_handle: todo!(),
+                reserved_memory_handle: todo!(),
             },
         );
 

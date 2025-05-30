@@ -19,7 +19,7 @@ pub const ROM_INFORMATION_TABLE: MultimapTableDefinition<RomId, RomInfoV0> =
 
 pub const DATABASE_VERSION_TABLE: TableDefinition<(), u8> = TableDefinition::new("version");
 
-const CACHE_SIZE: usize = 64 * 1024 * 1024; // 64MB
+const CACHE_SIZE: usize = 16 * 1024 * 1024; // 16MB
 
 #[derive(Debug, Clone)]
 pub enum LoadedRomLocation {
@@ -44,6 +44,7 @@ impl RomManager {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         tracing::info!("Loading ROM database at {:?}", database);
 
+        #[cfg(not(miri))]
         let mut rom_information = if let Some(path) = database {
             let _ = create_dir_all(path.parent().unwrap());
 
@@ -58,42 +59,58 @@ impl RomManager {
                 .create_with_backend(InMemoryBackend::default())?
         };
 
-        rom_information.upgrade()?;
+        #[cfg(miri)]
+        let mut rom_information = Database::builder()
+            .set_cache_size(CACHE_SIZE)
+            .create_with_backend(InMemoryBackend::default())?;
 
-        let mut database_transaction = rom_information.begin_write()?;
-        database_transaction.set_quick_repair(true);
-        database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
-        database_transaction.commit()?;
+        #[cfg(not(miri))]
+        {
+            let mut loaded_roms = BTreeMap::new();
 
-        let mut loaded_roms = BTreeMap::new();
+            rom_information.upgrade()?;
 
-        if let Some(rom_store) = rom_store {
-            let _ = create_dir_all(rom_store);
-            if rom_store.is_dir() {
-                for file in fs::read_dir(rom_store)? {
-                    let file = file?.file_name();
+            let mut database_transaction = rom_information.begin_write()?;
+            database_transaction.set_quick_repair(true);
+            database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
+            database_transaction.commit()?;
 
-                    if let Some(file) = file
-                        .clone()
-                        .into_string()
-                        .ok()
-                        .and_then(|file| RomId::from_str(&file).ok())
-                    {
-                        loaded_roms.insert(file, LoadedRomLocation::Internal);
-                    } else {
-                        tracing::error!(
-                            "Internal ROM store has a file thats name is not a valid ROM ID, please remove it: {:?}",
-                            file
-                        );
+            if let Some(rom_store) = rom_store {
+                let _ = create_dir_all(rom_store);
+                if rom_store.is_dir() {
+                    for file in fs::read_dir(rom_store)? {
+                        let file = file?.file_name();
+
+                        if let Some(file) = file
+                            .clone()
+                            .into_string()
+                            .ok()
+                            .and_then(|file| RomId::from_str(&file).ok())
+                        {
+                            loaded_roms.insert(file, LoadedRomLocation::Internal);
+                        } else {
+                            tracing::error!(
+                                "Internal ROM store has a file thats name is not a valid ROM ID, please remove it: {:?}",
+                                file
+                            );
+                        }
                     }
                 }
             }
+
+            Ok(Self {
+                rom_information,
+                loaded_roms: RwLock::new(loaded_roms),
+            })
         }
 
-        Ok(Self {
-            rom_information,
-            loaded_roms: RwLock::new(loaded_roms),
-        })
+        #[cfg(miri)]
+        {
+            Ok(Self {
+                rom_information,
+                loaded_roms: RwLock::default(),
+            })
+        }
     }
 
     /// Imports a arbitary database into the internal database
@@ -178,6 +195,8 @@ impl RomManager {
         let rom_path = rom.as_ref();
 
         if !rom_path.is_file() {
+            tracing::error!("ROM {} is not a file", rom_path.display());
+
             return Ok(None);
         }
 

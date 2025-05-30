@@ -5,6 +5,7 @@ use crate::{
     component::Component,
     display::backend::RenderApi,
     memory::{
+        Address,
         callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{MemoryHandle, address_space::AddressSpaceHandle},
     },
@@ -16,7 +17,7 @@ impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {
     pub fn insert_read_memory<M: ReadMemory>(
         self,
         callback: M,
-        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
+        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<Address>)>,
     ) -> (Self, MemoryHandle) {
         let memory_handle = self
             .machine_builder
@@ -48,7 +49,7 @@ impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {
     pub fn insert_write_memory<M: WriteMemory>(
         self,
         callback: M,
-        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
+        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<Address>)>,
     ) -> (Self, MemoryHandle) {
         let memory_handle = self
             .machine_builder
@@ -78,7 +79,7 @@ impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {
     pub fn insert_memory<M: ReadMemory + WriteMemory>(
         self,
         callback: M,
-        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<usize>)>,
+        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<Address>)>,
     ) -> (Self, MemoryHandle) {
         let memory_handle = self
             .machine_builder

@@ -1,6 +1,6 @@
 use arrayvec::ArrayVec;
+use bitvec::{order::Msb0, view::BitView};
 use decoder::Mos6502InstructionDecoder;
-use deku::{DekuRead, DekuWrite};
 use instruction::Mos6502InstructionSet;
 use multiemu_machine::{
     builder::ComponentBuilder,
@@ -31,16 +31,16 @@ const PAGE_SIZE: usize = 256;
 //
 // We will start with the program pointer on the address bus
 //
-// AddressingMode::Immediate
+// AddressingMode::Mos6502(Mos6502AddressingMode::Immediate)
 //      LoadStep::Opcode
 //
-// AddressingMode::Absolute
+// AddressingMode::Mos6502(Mos6502AddressingMode::Absolute)
 //      LoadStep::Opcode
 //      LoadStep::Data (low byte)
 //      LoadStep::Data (high byte)
 //      LoadStep::LatchToBus
 //
-// AddressingMode::AbsoluteIndirect
+// AddressingMode::Mos6502(Mos6502AddressingMode::AbsoluteIndirect)
 //      LoadStep::Opcode
 //      LoadStep::Data (low byte of indirect address)
 //      LoadStep::Data (high byte of indirect address)
@@ -49,38 +49,38 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Data (fetch high byte of pointer as immediate)
 //      LoadStep::LatchToBus
 //
-// AddressingMode::XIndexedAbsolute
+// AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedAbsolute)
 //      LoadStep::Opcode
 //      LoadStep::Data (low byte)
 //      LoadStep::Data (high byte)
 //      LoadStep::LatchToBus
 //      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
 //
-// AddressingMode::YIndexedAbsolute
+// AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute)
 //      LoadStep::Opcode
 //      LoadStep::Data (low byte)
 //      LoadStep::Data (high byte)
 //      LoadStep::LatchToBus
 //      LoadStep::Offset (add Y) <- this might be done in parallel depending on the instruction
 //
-// AddressingMode::ZeroPage
+// AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
 //
-// AddressingMode::XIndexedZeroPage
+// AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
 //      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
 //
-// AddressingMode::YIndexedZeroPage
+// AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
 //      LoadStep::Offset (add Y) <- this might be done in parallel depending on the instruction
 //
-// AddressingMode::XIndexedZeroPageIndirect
+// AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
@@ -89,7 +89,7 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Data (fetch high byte of pointer as immediate)
 //      LoadStep::LatchToBus
 //
-// AddressingMode::ZeroPageIndirectYIndexed
+// AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPageIndirectYIndexed)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
@@ -131,54 +131,90 @@ pub enum ExecutionMode {
     Reset,
     /// Processor is jammed forever and cannot do anything until a reset
     Jammed,
+    /// Processor is awaiting a interrupt
+    Wait,
     /// Fetch and decode instruction
-    Fetch,
+    FetchAndDecode,
     /// Loads data required for the instruction
-    Load {
+    PreInterpret {
         instruction: Mos6502InstructionSet,
         latch: ArrayVec<u8, 2>,
         queue: VecDeque<LoadStep>,
     },
     /// Execute this instruction
-    Execute { instruction: Mos6502InstructionSet },
+    Interpret { instruction: Mos6502InstructionSet },
     /// Stores data for the instruction
-    Store { queue: VecDeque<StoreStep> },
+    PostInterpret { queue: VecDeque<StoreStep> },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Mos6502Kind {
     /// Standard
     Mos6502,
     /// Slimmed down atari 2600 version
-    M6507,
+    Mos6507,
     /// NES version
-    R2A0x,
+    Ricoh2A0x,
+    // Upgraded version
+    Wdc65C02,
+}
+
+impl Mos6502Kind {
+    pub fn original_instruction_set(&self) -> bool {
+        matches!(self, Self::Mos6502 | Self::Mos6507 | Self::Ricoh2A0x)
+    }
 }
 
 impl Mos6502Kind {
     pub fn supports_decimal(&self) -> bool {
-        !matches!(self, Mos6502Kind::R2A0x)
+        !matches!(self, Mos6502Kind::Ricoh2A0x)
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Default, DekuRead, DekuWrite)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
 pub struct FlagRegister {
-    #[deku(bits = 1)]
     negative: bool,
-    #[deku(bits = 1)]
     overflow: bool,
-    #[deku(bits = 1)]
     undocumented: bool,
-    #[deku(bits = 1)]
     break_: bool,
-    #[deku(bits = 1)]
     decimal: bool,
-    #[deku(bits = 1)]
     interrupt_disable: bool,
-    #[deku(bits = 1)]
     zero: bool,
-    #[deku(bits = 1)]
     carry: bool,
+}
+
+// Do it manually because deku is slow
+impl FlagRegister {
+    pub fn to_byte(&self) -> u8 {
+        let mut byte = 0;
+        let bits = byte.view_bits_mut::<Msb0>();
+
+        bits.set(0, self.negative);
+        bits.set(1, self.overflow);
+        bits.set(2, self.undocumented);
+        bits.set(3, self.break_);
+        bits.set(4, self.decimal);
+        bits.set(5, self.interrupt_disable);
+        bits.set(6, self.zero);
+        bits.set(7, self.carry);
+
+        byte
+    }
+
+    pub fn from_byte(byte: u8) -> Self {
+        let bits = byte.view_bits::<Msb0>();
+
+        Self {
+            negative: bits[0],
+            overflow: bits[1],
+            undocumented: bits[2],
+            break_: bits[3],
+            decimal: bits[4],
+            interrupt_disable: bits[5],
+            zero: bits[6],
+            carry: bits[7],
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -263,7 +299,7 @@ impl<R: RenderApi> ComponentConfig<R> for Mos6502Config {
                 config.frequency,
                 Mos6502Task {
                     memory_translation_table: essentials.memory_translation_table.clone(),
-                    instruction_decoder: Mos6502InstructionDecoder,
+                    instruction_decoder: Mos6502InstructionDecoder::new(config.kind),
                     config: config.clone(),
                 },
             )

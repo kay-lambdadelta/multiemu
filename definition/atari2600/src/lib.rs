@@ -3,14 +3,16 @@ use codes_iso_3166::part_1::CountryCode;
 use gamepad::joystick::Atari2600JoystickConfig;
 use multiemu_config::Environment;
 use multiemu_definition_misc::{
-    memory::mirror::{MirrorMemoryConfig, PermissionSpace},
+    memory::mirror::MirrorMemoryConfig,
     mos6532_riot::{Mos6532Riot, Mos6532RiotConfig},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use multiemu_machine::{
-    MachineFactory, builder::MachineBuilder, component::component_ref::ComponentRef,
+    MachineFactory,
+    builder::MachineBuilder,
+    component::component_ref::ComponentRef,
     display::shader::ShaderCache,
-    memory::memory_translation_table::address_space::AddressSpaceHandle,
+    memory::{Address, memory_translation_table::address_space::AddressSpaceHandle},
 };
 use multiemu_rom::{
     id::RomId,
@@ -97,7 +99,7 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
             RegionSelection::Pal
         };
 
-        let (machine, _) = machine.insert_component(
+        let (mut machine, _) = machine.insert_component(
             "cartridge",
             Atari2600CartridgeConfig {
                 rom: user_specified_roms[0],
@@ -106,56 +108,69 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
             },
         );
 
-        let (machine, _) = machine.insert_component(
-            "tia_write_mirror",
-            tia_write_register_mirror_ranges().fold(
-                MirrorMemoryConfig::default(),
-                |config, source_addresses| {
-                    config.insert_range(
+        for (index, source_addresses) in tia_write_register_mirror_ranges().enumerate() {
+            machine = machine
+                .insert_component(
+                    format!("tia_write_mirror_{}", index),
+                    MirrorMemoryConfig {
+                        readable: false,
+                        writable: true,
                         source_addresses,
-                        cpu_address_space,
-                        0x0000..=0x003f,
-                        cpu_address_space,
-                        [PermissionSpace::Write],
-                    )
-                },
-            ),
-        );
-
-        let (machine, _) = machine.insert_component(
-            "tia_read_mirror",
-            tia_read_register_mirror_ranges().fold(
-                MirrorMemoryConfig::default(),
-                |config, source_addresses| {
-                    config.insert_range(
-                        source_addresses,
-                        cpu_address_space,
-                        0x0000..=0x000f,
-                        cpu_address_space,
-                        [PermissionSpace::Read],
-                    )
-                },
-            ),
-        );
-
-        // The mirrors.... yipee.........
-        let (machine, _) = machine.insert_component(
-            "mos6532_riot_mirrors",
-            riot_register_mirror_ranges()
-                .chain(riot_ram_mirror_ranges())
-                .fold(
-                    MirrorMemoryConfig::default(),
-                    |config, (source_addresses, destination_addresses)| {
-                        config.insert_range(
-                            source_addresses,
-                            cpu_address_space,
-                            destination_addresses,
-                            cpu_address_space,
-                            [PermissionSpace::Read, PermissionSpace::Write],
-                        )
+                        source_address_space: cpu_address_space,
+                        destination_addresses: 0x0000..=0x003f,
+                        destination_address_space: cpu_address_space,
                     },
-                ),
-        );
+                )
+                .0;
+        }
+
+        for (index, source_addresses) in tia_read_register_mirror_ranges().enumerate() {
+            machine = machine
+                .insert_component(
+                    format!("tia_read_mirror_{}", index),
+                    MirrorMemoryConfig {
+                        readable: true,
+                        writable: false,
+                        source_addresses,
+                        source_address_space: cpu_address_space,
+                        destination_addresses: 0x0000..=0x000f,
+                        destination_address_space: cpu_address_space,
+                    },
+                )
+                .0;
+        }
+
+        for (index, source_addresses) in riot_register_mirror_ranges().enumerate() {
+            machine = machine
+                .insert_component(
+                    format!("mos6532_riot_register_mirror_{}", index),
+                    MirrorMemoryConfig {
+                        readable: true,
+                        writable: true,
+                        source_addresses,
+                        source_address_space: cpu_address_space,
+                        destination_addresses: 0x280..=0x283,
+                        destination_address_space: cpu_address_space,
+                    },
+                )
+                .0;
+        }
+
+        for (index, source_addresses) in riot_ram_mirror_ranges().enumerate() {
+            machine = machine
+                .insert_component(
+                    format!("mos6532_riot_ram_mirror_{}", index),
+                    MirrorMemoryConfig {
+                        readable: true,
+                        writable: true,
+                        source_addresses,
+                        source_address_space: cpu_address_space,
+                        destination_addresses: 0x80..=0xff,
+                        destination_address_space: cpu_address_space,
+                    },
+                )
+                .0;
+        }
 
         let (machine, mos6532_riot) = match region {
             RegionSelection::Ntsc => common::<Ntsc, R>(cpu_address_space, machine),
@@ -178,7 +193,7 @@ fn common<R: Region, A: SupportedRenderApiAtari2600>(
         "mos_6502",
         Mos6502Config {
             frequency: R::frequency() / Ratio::from_integer(3),
-            kind: Mos6502Kind::M6507,
+            kind: Mos6502Kind::Mos6507,
             assigned_address_space: cpu_address_space,
             broken_ror: false,
         },
@@ -209,31 +224,32 @@ fn common<R: Region, A: SupportedRenderApiAtari2600>(
 // These three functions hardcode mirror addresses instead of trying to mechanically replicate partial address decoding
 // Which would be difficult, painful, and require inefficient changes to the memory translation table
 
-fn tia_read_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<usize>> {
+fn tia_read_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
     (1..64).map(|i| {
         let base = i * 0x10;
         base..=base + 0x0f
     })
 }
 
-fn tia_write_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<usize>> {
+fn tia_write_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
     (1..32).map(|i| {
         let base = i * 0x40;
         base..=base + 0x3f
     })
 }
 
-fn riot_register_mirror_ranges()
--> impl Iterator<Item = (RangeInclusive<usize>, RangeInclusive<usize>)> {
+// 0x280..=0x283
+fn riot_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
     (1..16).map(|i| {
         let base = 0x280 + i * 0x08;
-        (base..=base + 0x03, 0x280..=0x283)
+
+        base..=base + 0x03
     })
 }
 
-fn riot_ram_mirror_ranges() -> impl Iterator<Item = (RangeInclusive<usize>, RangeInclusive<usize>)>
-{
+// 0x80..=0xff
+fn riot_ram_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
     [0x0180, 0x0480, 0x0580, 0x0880, 0x0980, 0x0c80, 0x0d80]
         .into_iter()
-        .map(|range| ((range..=range + 0x7f), 0x80..=0xff))
+        .map(|range| range..=range + 0x7f)
 }

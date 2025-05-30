@@ -2,6 +2,7 @@ use multiemu_machine::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
+    memory::Address,
 };
 
 mod software;
@@ -17,21 +18,21 @@ const ASSIGNED_AREAS: [(AddressSpaceId, Range<usize>); 2] = [
 
 // We store ppu state registers in normal struct sizes for easier gpu access
 
-const PPUCTRL_ADDRESS: usize = 0x2000;
-const PPUMASK_ADDRESS: usize = 0x2001;
-const PPUSTATUS_ADDRESS: usize = 0x2002;
-const OAMADDR_ADDRESS: usize = 0x2003;
+const PPUCTRL_ADDRESS: Address = 0x2000;
+const PPUMASK_ADDRESS: Address = 0x2001;
+const PPUSTATUS_ADDRESS: Address = 0x2002;
+const OAMADDR_ADDRESS: Address = 0x2003;
 
 pub struct OamData {}
 
 impl OamData {
-    const ADDRESS: usize = 0x2004;
+    const ADDRESS: Address = 0x2004;
 }
 
-const PPUSCROLL_ADDRESS: usize = 0x2005;
-const PPUADDR_ADDRESS: usize = 0x2006;
-const PPUDATA_ADDRESS: usize = 0x2007;
-const OAMDMA_ADDRESS: usize = 0x4014;
+const PPUSCROLL_ADDRESS: Address = 0x2005;
+const PPUADDR_ADDRESS: Address = 0x2006;
+const PPUDATA_ADDRESS: Address = 0x2007;
+const OAMDMA_ADDRESS: Address = 0x4014;
 
 struct State {
     oamdata: u8,

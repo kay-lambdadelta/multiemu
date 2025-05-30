@@ -1,10 +1,17 @@
 use super::instruction::{AddressingMode, Mos6502InstructionSet};
+use crate::{
+    Mos6502Kind,
+    instruction::{Mos6502AddressingMode, Wdc65C02AddressingMode},
+};
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use group1::decode_group1_space_instruction;
 use group2::decode_group2_space_instruction;
 use group3::decode_group3_space_instruction;
 use multiemu_machine::{
-    memory::memory_translation_table::{MemoryTranslationTable, address_space::AddressSpaceHandle},
+    memory::{
+        Address,
+        memory_translation_table::{MemoryTranslationTable, address_space::AddressSpaceHandle},
+    },
     processor::decoder::InstructionDecoder,
 };
 use std::ops::Range;
@@ -18,15 +25,23 @@ mod undocumented;
 
 // https://www.pagetable.com/c64ref/6502/
 
-#[derive(Debug, Default)]
-pub struct Mos6502InstructionDecoder;
+#[derive(Debug)]
+pub struct Mos6502InstructionDecoder {
+    kind: Mos6502Kind,
+}
+
+impl Mos6502InstructionDecoder {
+    pub fn new(kind: Mos6502Kind) -> Self {
+        Self { kind }
+    }
+}
 
 impl InstructionDecoder for Mos6502InstructionDecoder {
     type InstructionSet = Mos6502InstructionSet;
 
     fn decode(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         memory_translation_table: &MemoryTranslationTable,
     ) -> Option<(Self::InstructionSet, u8)> {
@@ -41,17 +56,19 @@ impl InstructionDecoder for Mos6502InstructionDecoder {
 
         let result = Some(match instruction_identifier {
             InstructionGroup::Group3 => {
-                decode_group3_space_instruction(secondary_instruction_identifier, byte)
+                decode_group3_space_instruction(secondary_instruction_identifier, byte, self.kind)
             }
             InstructionGroup::Group1 => {
-                decode_group1_space_instruction(secondary_instruction_identifier, byte)
+                decode_group1_space_instruction(secondary_instruction_identifier, byte, self.kind)
             }
             InstructionGroup::Group2 => {
-                decode_group2_space_instruction(secondary_instruction_identifier, byte)
+                decode_group2_space_instruction(secondary_instruction_identifier, byte, self.kind)
             }
-            InstructionGroup::Undocumented => {
-                decode_undocumented_space_instruction(secondary_instruction_identifier, byte)
-            }
+            InstructionGroup::Undocumented => decode_undocumented_space_instruction(
+                secondary_instruction_identifier,
+                byte,
+                self.kind,
+            ),
         });
 
         result.map(|(opcode, addressing_mode)| {
@@ -60,6 +77,7 @@ impl InstructionDecoder for Mos6502InstructionDecoder {
                     opcode,
                     addressing_mode,
                 },
+                // This is not how long the instruction is, but how many bytes were read to gather this information
                 1,
             )
         })
@@ -80,18 +98,17 @@ enum InstructionGroup {
 }
 
 impl AddressingMode {
-    // Really need this to be inlined
-    #[inline(always)]
+    #[inline]
     pub fn from_group1_addressing(addressing_mode: u8) -> Self {
         match addressing_mode {
-            0b000 => AddressingMode::XIndexedZeroPageIndirect,
-            0b001 => AddressingMode::ZeroPage,
-            0b010 => AddressingMode::Immediate,
-            0b011 => AddressingMode::Absolute,
-            0b100 => AddressingMode::ZeroPageIndirectYIndexed,
-            0b101 => AddressingMode::XIndexedZeroPage,
-            0b110 => AddressingMode::YIndexedAbsolute,
-            0b111 => AddressingMode::XIndexedAbsolute,
+            0b000 => AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect),
+            0b001 => AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage),
+            0b010 => AddressingMode::Mos6502(Mos6502AddressingMode::Immediate),
+            0b011 => AddressingMode::Mos6502(Mos6502AddressingMode::Absolute),
+            0b100 => AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPageIndirectYIndexed),
+            0b101 => AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage),
+            0b110 => AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute),
+            0b111 => AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedAbsolute),
             _ => {
                 unreachable!()
             }
@@ -99,19 +116,26 @@ impl AddressingMode {
     }
 
     #[inline]
-    pub fn from_group2_addressing(addressing_mode: u8) -> Self {
-        match addressing_mode {
-            0b000 => AddressingMode::Immediate,
-            0b001 => AddressingMode::ZeroPage,
-            0b010 => AddressingMode::Accumulator,
-            0b011 => AddressingMode::Absolute,
-            0b100 => AddressingMode::ZeroPageIndirectYIndexed,
-            0b101 => AddressingMode::XIndexedZeroPage,
-            0b110 => AddressingMode::YIndexedAbsolute,
-            0b111 => AddressingMode::XIndexedAbsolute,
+    pub fn from_group2_addressing(addressing_mode: u8, kind: Mos6502Kind) -> Option<Self> {
+        Some(match addressing_mode {
+            0b000 => AddressingMode::Mos6502(Mos6502AddressingMode::Immediate),
+            0b001 => AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage),
+            0b010 => AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator),
+            0b011 => AddressingMode::Mos6502(Mos6502AddressingMode::Absolute),
+            0b100 => {
+                if kind == Mos6502Kind::Wdc65C02 {
+                    AddressingMode::Wdc65C02(Wdc65C02AddressingMode::ZeroPageIndirect)
+                } else {
+                    // Above parsing code should turn this into a JAM
+                    return None;
+                }
+            }
+            0b101 => AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage),
+            0b110 => AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute),
+            0b111 => AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedAbsolute),
             _ => {
                 unreachable!()
             }
-        }
+        })
     }
 }

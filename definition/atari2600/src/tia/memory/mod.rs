@@ -4,7 +4,8 @@ use multiemu_definition_mos6502::Mos6502;
 use multiemu_machine::{
     component::component_ref::ComponentRef,
     memory::{
-        callbacks::{ReadMemory, WriteMemory},
+        Address,
+        callbacks::{Memory, ReadMemory, WriteMemory},
         memory_translation_table::{
             MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
             address_space::AddressSpaceHandle,
@@ -91,10 +92,12 @@ pub struct MemoryCallback {
     pub cpu: ComponentRef<Mos6502>,
 }
 
+impl Memory for MemoryCallback {}
+
 impl WriteMemory for MemoryCallback {
     fn write_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
@@ -121,7 +124,7 @@ impl WriteMemory for MemoryCallback {
 impl ReadMemory for MemoryCallback {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {

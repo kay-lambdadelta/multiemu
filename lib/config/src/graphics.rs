@@ -11,6 +11,8 @@ pub enum GraphicsApi {
     #[cfg_attr(platform_desktop, default)]
     /// Vulkan rendering, very fast
     Vulkan,
+    #[cfg(platform_desktop)]
+    Opengl,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

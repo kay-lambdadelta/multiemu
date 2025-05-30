@@ -2,7 +2,7 @@ pub use cartridge::ines::INes;
 use cartridge::{NesCartridgeConfig, ines::TimingMode};
 use multiemu_config::Environment;
 use multiemu_definition_misc::memory::{
-    mirror::{MirrorMemoryConfig, PermissionSpace},
+    mirror::MirrorMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
@@ -69,13 +69,14 @@ impl<R: RenderApi> MachineFactory<R> for Nes {
         );
         let (machine, _) = machine.insert_component(
             "workram-mirror",
-            MirrorMemoryConfig::default().insert_range(
-                0x0800..=0x0fff,
-                cpu_address_space,
-                0x0000..=0x07ff,
-                cpu_address_space,
-                [PermissionSpace::Read, PermissionSpace::Write],
-            ),
+            MirrorMemoryConfig {
+                readable: true,
+                writable: true,
+                source_addresses: 0x0800..=0x0fff,
+                source_address_space: cpu_address_space,
+                destination_addresses: 0x0000..=0x07ff,
+                destination_address_space: cpu_address_space,
+            },
         );
         let (machine, _) = machine.insert_default_component::<NesPpuConfig>("ppu");
 
@@ -93,7 +94,7 @@ impl<R: RenderApi> MachineFactory<R> for Nes {
             Mos6502Config {
                 frequency: processor_frequency,
                 assigned_address_space: cpu_address_space,
-                kind: Mos6502Kind::R2A0x,
+                kind: Mos6502Kind::Ricoh2A0x,
                 broken_ror: false,
             },
         );

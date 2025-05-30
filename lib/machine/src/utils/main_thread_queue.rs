@@ -98,7 +98,7 @@ impl MainThreadQueue {
 
 #[cfg(test)]
 mod test {
-    use crate::utils::{MainThreadQueue, set_main_thread};
+    use crate::utils::MainThreadQueue;
     use std::{
         sync::{
             Arc,
@@ -109,7 +109,7 @@ mod test {
 
     #[test]
     fn test_main_thread_queue() {
-        set_main_thread();
+        unsafe { crate::utils::force_set_main_thread() };
 
         let queue = Arc::new(MainThreadQueue::default());
         let tasks_to_run = 10;

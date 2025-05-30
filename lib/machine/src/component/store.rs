@@ -1,7 +1,13 @@
 use super::{Component, ComponentId, component_ref::ComponentRef};
 use crate::utils::{Fragile, MainThreadQueue, is_main_thread};
 use rustc_hash::FxBuildHasher;
-use std::{any::Any, borrow::Cow, fmt::Debug, sync::Arc};
+use std::{
+    any::Any,
+    borrow::Cow,
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, RwLock},
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -33,7 +39,7 @@ where
     Self: Send + Sync,
 {
     component_ids: scc::HashMap<Cow<'static, str>, ComponentId, FxBuildHasher>,
-    component_location: scc::HashMap<ComponentId, ComponentLocation, FxBuildHasher>,
+    component_location: RwLock<HashMap<ComponentId, ComponentLocation, FxBuildHasher>>,
     pub(crate) main_thread_queue: Arc<MainThreadQueue>,
 }
 
@@ -50,46 +56,58 @@ impl ComponentStore {
 
         Self {
             component_ids: scc::HashMap::default(),
-            component_location: scc::HashMap::default(),
+            component_location: RwLock::default(),
             main_thread_queue: Arc::new(MainThreadQueue::default()),
         }
     }
 
     pub(crate) fn insert_component(
         &self,
-        name: &'static str,
+        name: Cow<'static, str>,
         component_id: ComponentId,
         component: impl Component,
     ) {
         assert!(is_main_thread());
 
         self.component_ids
-            .insert(Cow::Borrowed(name), component_id)
+            .insert(name, component_id)
             .unwrap();
 
-        self.component_location
+        if self
+            .component_location
+            .write()
+            .unwrap()
             .insert(
                 component_id,
                 ComponentLocation::Local(Fragile::new(Box::new(component))),
             )
-            .unwrap();
+            .is_some()
+        {
+            panic!("Component already exists");
+        }
     }
 
     pub(crate) fn insert_component_global(
         &self,
-        name: &'static str,
+        name: Cow<'static, str>,
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
         assert!(is_main_thread());
 
         self.component_ids
-            .insert(Cow::Borrowed(name), component_id)
+            .insert(name, component_id)
             .unwrap();
 
-        self.component_location
+        if self
+            .component_location
+            .write()
+            .unwrap()
             .insert(component_id, ComponentLocation::Global(Arc::new(component)))
-            .unwrap();
+            .is_some()
+        {
+            panic!("Component already exists");
+        }
     }
 
     #[inline]
@@ -99,14 +117,17 @@ impl ComponentStore {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) -> T + Send,
     ) -> Result<T, Error> {
-        self.component_location
-            .read(&component_id, |_, location| match location {
-                ComponentLocation::Local(component) => Ok(self
-                    .main_thread_queue
-                    .maybe_wait_on_main(|| callback(component.get().unwrap().as_ref()))),
-                ComponentLocation::Global(component) => Ok(callback(component.as_ref())),
-            })
+        let component_location_guard = self.component_location.read().unwrap();
+
+        match component_location_guard
+            .get(&component_id)
             .ok_or(Error::ComponentNotFound)?
+        {
+            ComponentLocation::Local(component) => Ok(self
+                .main_thread_queue
+                .maybe_wait_on_main(|| callback(component.get().unwrap().as_ref()))),
+            ComponentLocation::Global(component) => Ok(callback(component.as_ref())),
+        }
     }
 
     #[inline]
@@ -118,14 +139,15 @@ impl ComponentStore {
     ) -> Result<T, Error> {
         assert!(is_main_thread());
 
-        self.component_location
-            .read(&component_id, |_, location| match location {
-                ComponentLocation::Local(component) => {
-                    Ok(callback(component.get().unwrap().as_ref()))
-                }
-                ComponentLocation::Global(component) => Ok(callback(component.as_ref())),
-            })
+        let component_location_guard = self.component_location.read().unwrap();
+
+        match component_location_guard
+            .get(&component_id)
             .ok_or(Error::ComponentNotFound)?
+        {
+            ComponentLocation::Local(component) => Ok(callback(component.get().unwrap().as_ref())),
+            ComponentLocation::Global(component) => Ok(callback(component.as_ref())),
+        }
     }
 
     #[inline]
@@ -156,7 +178,7 @@ impl ComponentStore {
         let component_id = *self.component_ids.get(name).unwrap().get();
 
         let component = if let ComponentLocation::Global(component) =
-            self.component_location.get(&component_id)?.get()
+            self.component_location.read().unwrap().get(&component_id)?
         {
             Some(component.clone())
         } else {

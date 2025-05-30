@@ -32,6 +32,7 @@ impl MemoryStore {
         let mut store = self.store.write().unwrap();
         let handle = self.allocate_handle();
 
+        memory.set_memory_handle(handle);
         store.push(StoredCallback::Read(Box::new(memory)));
 
         handle
@@ -41,6 +42,7 @@ impl MemoryStore {
         let mut store = self.store.write().unwrap();
         let handle = self.allocate_handle();
 
+        memory.set_memory_handle(handle);
         store.push(StoredCallback::Write(Box::new(memory)));
 
         handle
@@ -50,11 +52,13 @@ impl MemoryStore {
         let mut store = self.store.write().unwrap();
         let handle = self.allocate_handle();
 
+        memory.set_memory_handle(handle);
         store.push(StoredCallback::ReadWrite(Box::new(memory)));
 
         handle
     }
 
+    #[inline]
     pub fn is_read_memory(&self, handle: MemoryHandle) -> bool {
         return matches!(
             self.store.read().unwrap().get(handle.get()),
@@ -62,6 +66,7 @@ impl MemoryStore {
         );
     }
 
+    #[inline]
     pub fn is_write_memory(&self, handle: MemoryHandle) -> bool {
         return matches!(
             self.store.read().unwrap().get(handle.get()),
@@ -69,6 +74,7 @@ impl MemoryStore {
         );
     }
 
+    #[inline]
     pub fn is_readwrite_memory(&self, handle: MemoryHandle) -> bool {
         return matches!(
             self.store.read().unwrap().get(handle.get()),
@@ -82,10 +88,20 @@ impl MemoryStore {
         handle: MemoryHandle,
         mut callback: impl FnMut(&dyn ReadMemory) -> T,
     ) -> T {
-        match self.store.read().unwrap().get(handle.get()) {
-            Some(StoredCallback::Read(memory)) => callback(&**memory),
-            Some(StoredCallback::ReadWrite(memory)) => callback(&**memory),
-            _ => panic!("Memory referred by handle does not have read capabilities"),
+        let store_guard = self.store.read().unwrap();
+        let memory = store_guard
+            .get(handle.get())
+            .expect("Could not find memory");
+
+        match memory {
+            StoredCallback::Read(memory) => callback(&**memory),
+            StoredCallback::ReadWrite(memory) => callback(&**memory),
+            StoredCallback::Write(memory) => {
+                panic!(
+                    "Memory referred by handle does not have read capabilities: {:?}",
+                    memory
+                )
+            }
         }
     }
 
@@ -95,10 +111,20 @@ impl MemoryStore {
         handle: MemoryHandle,
         mut callback: impl FnMut(&dyn WriteMemory) -> T,
     ) -> T {
-        match self.store.read().unwrap().get(handle.get()) {
-            Some(StoredCallback::Write(memory)) => callback(&**memory),
-            Some(StoredCallback::ReadWrite(memory)) => callback(&**memory),
-            c => panic!("Memory referred by handle does not have write capabilities {:?}", c),
+        let store_guard = self.store.read().unwrap();
+        let memory = store_guard
+            .get(handle.get())
+            .expect("Could not find memory");
+
+        match memory {
+            StoredCallback::Write(memory) => callback(&**memory),
+            StoredCallback::ReadWrite(memory) => callback(&**memory),
+            StoredCallback::Read(memory) => {
+                panic!(
+                    "Memory referred by handle does not have write capabilities: {:?}",
+                    memory
+                )
+            }
         }
     }
 

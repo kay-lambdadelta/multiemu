@@ -66,7 +66,7 @@ impl MemoryTranslationTable {
         &self,
         handle: MemoryHandle,
         address_space: AddressSpaceHandle,
-        mapping: impl IntoIterator<Item = RangeInclusive<usize>>,
+        mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
     ) {
         let mut address_spaces_guard = self.address_spaces.write().unwrap();
         let address_space = address_spaces_guard.get_mut(address_space.get()).unwrap();
@@ -85,7 +85,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn read(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryOperationError> {
@@ -155,7 +155,7 @@ impl MemoryTranslationTable {
         address: Address,
         address_space: AddressSpaceHandle,
         address_space_info: &AddressSpace,
-        buffer_subrange: RangeInclusive<usize>,
+        buffer_subrange: RangeInclusive<Address>,
         needed_accesses: &mut Vec<NeededAccess>,
         remap_callbacks: &mut Vec<RemapCallback>,
     ) -> Result<(), ReadMemoryOperationError> {
@@ -242,7 +242,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn read_le_value<T: FromBytes>(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
     ) -> Result<T, ReadMemoryOperationError>
     where
@@ -256,7 +256,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn read_be_value<T: FromBytes>(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
     ) -> Result<T, ReadMemoryOperationError>
     where
@@ -270,7 +270,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn preview(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), PreviewMemoryOperationError> {
@@ -334,7 +334,7 @@ impl MemoryTranslationTable {
         address: Address,
         address_space: AddressSpaceHandle,
         address_space_info: &AddressSpace,
-        buffer_subrange: RangeInclusive<usize>,
+        buffer_subrange: RangeInclusive<Address>,
         needed_accesses: &mut Vec<NeededAccess>,
     ) -> Result<(), PreviewMemoryOperationError> {
         // Cut off address
@@ -434,7 +434,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn preview_le_value<T: FromBytes>(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
     ) -> Result<T, PreviewMemoryOperationError>
     where
@@ -448,7 +448,7 @@ impl MemoryTranslationTable {
     #[inline]
     pub fn preview_be_value<T: FromBytes>(
         &self,
-        address: usize,
+        address: Address,
         address_space: AddressSpaceHandle,
     ) -> Result<T, PreviewMemoryOperationError>
     where

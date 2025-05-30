@@ -31,13 +31,13 @@ macro_rules! conversion_impl {
             #[inline]
             fn from_sample(sample: $from) -> Self {
                 let from = sample as $conversion_space;
-                let from_min = <$from>::SAMPLE_MIN as $conversion_space;
-                let from_max = <$from>::SAMPLE_MAX as $conversion_space;
+                let from_min = <$from>::sample_min() as $conversion_space;
+                let from_max = <$from>::sample_max() as $conversion_space;
 
                 let norm = (from - from_min) / (from_max - from_min);
 
-                let to_min = <$to>::SAMPLE_MIN as $conversion_space;
-                let to_max = <$to>::SAMPLE_MAX as $conversion_space;
+                let to_min = <$to>::sample_min() as $conversion_space;
+                let to_max = <$to>::sample_max() as $conversion_space;
 
                 let scaled = norm * (to_max - to_min) + to_min;
 

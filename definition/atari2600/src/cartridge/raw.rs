@@ -1,5 +1,6 @@
 use multiemu_machine::memory::{
-    callbacks::ReadMemory,
+    Address,
+    callbacks::{Memory, ReadMemory},
     memory_translation_table::{
         MemoryOperationError, ReadMemoryRecord, address_space::AddressSpaceHandle,
     },
@@ -9,6 +10,8 @@ use std::fmt::Debug;
 pub struct RawCartridgeMemoryCallback {
     pub rom: [u8; 0x1000],
 }
+
+impl Memory for RawCartridgeMemoryCallback {}
 
 impl Debug for RawCartridgeMemoryCallback {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -21,7 +24,7 @@ impl Debug for RawCartridgeMemoryCallback {
 impl ReadMemory for RawCartridgeMemoryCallback {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {

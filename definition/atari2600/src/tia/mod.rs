@@ -24,9 +24,9 @@ mod task;
 #[cfg(all(feature = "vulkan", platform_desktop))]
 mod vulkan;
 
-const HBLANK_LENGTH: u8 = 68;
-const VISIBLE_SCANLINE_LENGTH: u8 = 160;
-const SCANLINE_LENGTH: u8 = HBLANK_LENGTH + VISIBLE_SCANLINE_LENGTH;
+const HBLANK_LENGTH: u16 = 68;
+const VISIBLE_SCANLINE_LENGTH: u16 = 160;
+const SCANLINE_LENGTH: u16 = HBLANK_LENGTH + VISIBLE_SCANLINE_LENGTH;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Serialize, Deserialize)]
 enum ObjectId {
@@ -36,18 +36,6 @@ enum ObjectId {
     Missile1,
     Playfield,
     Ball,
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Hash, Clone, Copy, Serialize, Deserialize)]
-enum ObjectPosition {
-    LockedToPlayer,
-    Position(Point2<u8>),
-}
-
-impl Default for ObjectPosition {
-    fn default() -> Self {
-        Self::Position(Point2::new(0, 0))
-    }
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
@@ -64,8 +52,7 @@ pub(crate) struct State {
     in_vblank: bool,
     reset_rdy_on_scanline_end: bool,
     input_control: [InputControl; 6],
-    horizontal_timer: u8,
-    scanline: u16,
+    electron_beam: Point2<u16>,
     missiles: [Missile; 2],
     ball: Ball,
     players: [Player; 2],
@@ -75,10 +62,12 @@ pub(crate) struct State {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Missile {
-    position: ObjectPosition,
+    position: Point2<u16>,
     enabled: bool,
     motion: i8,
     color: TiaColor,
+    /// Locked to player and invisible
+    locked: bool,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -90,7 +79,7 @@ enum DelayEnableChangeBall {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Ball {
-    position: ObjectPosition,
+    position: Point2<u16>,
     enabled: bool,
     delay_enable_change: DelayEnableChangeBall,
     motion: i8,
@@ -116,7 +105,7 @@ enum DelayChangeGraphicPlayer {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Player {
-    position: ObjectPosition,
+    position: Point2<u16>,
     graphic: u8,
     mirror: bool,
     delay_change_graphic: DelayChangeGraphicPlayer,
@@ -136,7 +125,7 @@ pub(crate) trait TiaDisplayBackend<R: Region, A: SupportedRenderApiTia>:
     Debug + Sized + 'static
 {
     fn new(essentials: &RuntimeEssentials<A>) -> (Self, ComponentFramebuffer<A>);
-    fn draw(&self, state: &State, position: Point2<u16>, color: TiaColor);
+    fn draw(&self, position: Point2<u16>, color: TiaColor);
     fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
     fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);
     fn commit_display(&self);

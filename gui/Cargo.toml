@@ -20,20 +20,12 @@ multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
 multiemu-definition-atari2600 = { workspace = true }
 multiemu-definition-atarilynx = { workspace = true }
-naga = { workspace = true }
 tracing = { workspace = true }
 strum = { workspace = true }
-serde = { workspace = true }
-serde_with = { workspace = true }
-serde-inline-default = { workspace = true }
 rayon = { workspace = true }
 nalgebra = { workspace = true, features = ["rayon"] }
 bytemuck = { workspace = true }
 num = { workspace = true }
-arrayvec = { workspace = true }
-thiserror = { workspace = true }
-bitvec = { workspace = true }
-rangemap = { workspace = true }
 tracing-subscriber = { workspace = true }
 crossbeam = { workspace = true }
 palette = { workspace = true }

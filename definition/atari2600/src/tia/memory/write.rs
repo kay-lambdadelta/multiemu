@@ -1,7 +1,5 @@
 use super::{MemoryCallback, WriteRegisters};
-use crate::tia::{
-    DelayChangeGraphicPlayer, DelayEnableChangeBall, InputControl, ObjectPosition, State,
-};
+use crate::tia::{DelayChangeGraphicPlayer, DelayEnableChangeBall, InputControl, State};
 use bitvec::{field::BitField, order::Msb0, slice::BitSlice, view::BitView};
 
 impl MemoryCallback {
@@ -68,7 +66,7 @@ impl MemoryCallback {
                 state_guard.reset_rdy_on_scanline_end = true;
             }
             WriteRegisters::Rsync => {
-                state_guard.horizontal_timer = 0;
+                state_guard.electron_beam.x = 0;
             }
             WriteRegisters::Nusiz0 => {}
             WriteRegisters::Nusiz1 => {}
@@ -226,14 +224,10 @@ impl MemoryCallback {
                 }
             }
             WriteRegisters::Resmp0 => {
-                if data_bits[1] {
-                    state_guard.missiles[0].position = ObjectPosition::LockedToPlayer;
-                }
+                state_guard.missiles[0].locked = data_bits[1];
             }
             WriteRegisters::Resmp1 => {
-                if data_bits[1] {
-                    state_guard.missiles[1].position = ObjectPosition::LockedToPlayer;
-                }
+                state_guard.missiles[1].locked = data_bits[1];
             }
             WriteRegisters::Hmove => {}
             WriteRegisters::Hmclr => {

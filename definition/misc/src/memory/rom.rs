@@ -3,7 +3,8 @@ use multiemu_machine::{
     component::{Component, ComponentConfig},
     display::backend::RenderApi,
     memory::{
-        callbacks::ReadMemory,
+        Address,
+        callbacks::{Memory, ReadMemory},
         memory_translation_table::{
             MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
             address_space::AddressSpaceHandle,
@@ -17,7 +18,7 @@ use std::ops::RangeInclusive;
 pub struct RomMemoryConfig {
     pub rom: RomId,
     /// Memory region this buffer will be mapped to
-    pub assigned_range: RangeInclusive<usize>,
+    pub assigned_range: RangeInclusive<Address>,
     /// Address space this exists on
     pub assigned_address_space: AddressSpaceHandle,
 }
@@ -71,10 +72,12 @@ struct MemoryCallbacks {
     rom: File,
 }
 
+impl Memory for MemoryCallbacks {}
+
 impl ReadMemory for MemoryCallbacks {
     fn read_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
@@ -89,7 +92,7 @@ impl ReadMemory for MemoryCallbacks {
 
     fn preview_memory(
         &self,
-        address: usize,
+        address: Address,
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {

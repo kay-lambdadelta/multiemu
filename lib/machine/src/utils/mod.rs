@@ -23,11 +23,31 @@ pub fn is_main_thread() -> bool {
 /// Sets the current thread as the main thread
 pub fn set_main_thread() {
     IS_MAIN_THREAD.with(|is_main_thread| {
-        if is_main_thread.get().is_none() && WAS_MAIN_THREAD_SET.swap(true, Ordering::SeqCst) {
-            panic!("Another thread was already marked as the main thread");
-        }
+        let was_set =
+            WAS_MAIN_THREAD_SET.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
 
-        // Ignore multiple attempts to set the main thread from the main thread
+        match was_set {
+            Ok(_) => {
+                let _ = is_main_thread.set(());
+            }
+            Err(true) => {
+                panic!("Another thread was already marked as the main thread");
+            }
+            Err(false) => unreachable!(),
+        }
+    });
+}
+
+/// Forcefully mark this thread as the main thread
+/// 
+/// # Safety
+/// 
+/// If this is violated somehow the entire program falls to pieces
+/// 
+/// Pleasepleasepleasepleaseplease only use this in tests
+#[inline]
+pub unsafe fn force_set_main_thread() {
+    IS_MAIN_THREAD.with(|is_main_thread| {
         let _ = is_main_thread.set(());
     });
 }
