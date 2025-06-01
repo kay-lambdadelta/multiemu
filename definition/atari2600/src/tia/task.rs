@@ -1,6 +1,6 @@
 use super::{
-    SCANLINE_LENGTH, State, SupportedRenderApiTia, Tia, TiaDisplayBackend, color::TiaColor,
-    region::Region,
+    FramebufferGuard, SCANLINE_LENGTH, State, SupportedRenderApiTia, Tia, TiaDisplayBackend,
+    color::TiaColor, region::Region,
 };
 use bitvec::{
     order::{Lsb0, Msb0},
@@ -18,6 +18,7 @@ impl<R: Region, A: SupportedRenderApiTia> Task<Tia<R, A>> for TiaTask {
     fn run(&mut self, target: &Tia<R, A>, period: NonZero<u32>) {
         let period = period.get();
         let mut state_guard = target.state.lock().unwrap();
+        let mut framebuffer = target.display_backend.get().unwrap().lock_framebuffer();
 
         for _ in 0..period {
             state_guard.electron_beam.x += 1;
@@ -39,11 +40,11 @@ impl<R: Region, A: SupportedRenderApiTia> Task<Tia<R, A>> for TiaTask {
                 state_guard.electron_beam.y = 0;
             }
 
-            target
-                .display_backend
-                .get()
-                .unwrap()
-                .draw(state_guard.electron_beam, state_guard.get_rendered_color());
+            let color = R::color_to_srgb(state_guard.get_rendered_color());
+            framebuffer.get()[(
+                state_guard.electron_beam.x as usize,
+                state_guard.electron_beam.y as usize,
+            )] = color.into();
         }
     }
 }

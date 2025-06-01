@@ -62,6 +62,7 @@ pub struct Scheduler {
     allotted_time: Duration,
     component_store: Arc<ComponentStore>,
     tasks: BinaryHeap<TaskInfo>,
+    to_run: Vec<TaskInfo>,
 }
 
 impl Scheduler {
@@ -124,7 +125,7 @@ impl Scheduler {
             tick_real_time * rollover_tick as u32
         );
 
-        let tasks = tasks
+        let tasks: BinaryHeap<TaskInfo> = tasks
             .into_iter()
             .map(|precalcuation_task| {
                 let factor = rollover_tick / precalcuation_task.frequency.denom();
@@ -147,26 +148,8 @@ impl Scheduler {
             rollover_tick,
             allotted_time: Duration::from_secs(1) / 60,
             component_store,
+            to_run: Vec::with_capacity(tasks.len()),
             tasks,
-        }
-    }
-
-    fn run_task(&mut self, to_run: impl IntoIterator<Item = (TaskInfo, NonZero<u32>)>) {
-        for (mut task_info, time_slice) in to_run {
-            self.component_store
-                .interact_dyn_local(task_info.component_id, |component| {
-                    let mut task = task_info.task.lock().unwrap();
-
-                    task(component, time_slice);
-                })
-                .unwrap();
-
-            // Update the next execution
-            let ticks_taken = time_slice.get() * task_info.tick_rate;
-            task_info.next_execution.0 = task_info.next_execution.0.wrapping_add(ticks_taken);
-
-            // Put it back on our heap and let it rearrange itself
-            self.tasks.push(task_info);
         }
     }
 
@@ -194,5 +177,28 @@ impl Scheduler {
             "Alotted time for scheduler moved up to {:?}",
             self.allotted_time
         );
+    }
+}
+
+fn run_task(
+    to_run: impl IntoIterator<Item = (TaskInfo, NonZero<u32>)>,
+    component_store: &ComponentStore,
+    heap: &mut BinaryHeap<TaskInfo>,
+) {
+    for (mut task_info, time_slice) in to_run {
+        component_store
+            .interact_dyn_local(task_info.component_id, |component| {
+                let mut task = task_info.task.lock().unwrap();
+
+                task(component, time_slice);
+            })
+            .unwrap();
+
+        // Update the next execution
+        let ticks_taken = time_slice.get() * task_info.tick_rate;
+        task_info.next_execution.0 = task_info.next_execution.0.wrapping_add(ticks_taken);
+
+        // Put it back on our heap and let it rearrange itself
+        heap.push(task_info);
     }
 }

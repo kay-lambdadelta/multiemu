@@ -8,7 +8,6 @@ use multiemu_rom::manager::RomManager;
 use serde::{Deserialize, Serialize};
 use std::{
     any::Any,
-    borrow::Cow,
     fmt::Debug,
     sync::{Arc, OnceLock, RwLock},
 };
@@ -29,6 +28,8 @@ pub struct RuntimeEssentials<R: RenderApi> {
 // Basic supertrait for all components
 #[allow(unused)]
 pub trait Component: Debug + Any {
+    /// Called when machine initialization is finished
+    fn on_machine_ready(&self) {}
     /// Reset state
     fn reset(&self) {}
 }
@@ -46,6 +47,3 @@ pub trait ComponentConfig<R: RenderApi>: Debug + Send + Sync + Sized {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) struct ComponentId(pub u16);
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ComponentName(pub Cow<'static, str>);

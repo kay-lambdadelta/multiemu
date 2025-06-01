@@ -30,5 +30,12 @@ cfg_aliases = { workspace = true }
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
 vulkano = { workspace = true, optional = true }
 
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
+criterion = { workspace = true }
+
 [features]
 vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
+
+[[bench]]
+name = "benches"
+harness = false

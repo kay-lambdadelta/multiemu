@@ -6,7 +6,10 @@ use std::{
     any::Any,
     collections::HashMap,
     fmt::Debug,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -41,6 +44,7 @@ where
     component_ids: scc::HashMap<ComponentName, ComponentId, FxBuildHasher>,
     component_location: RwLock<HashMap<ComponentId, ComponentLocation, FxBuildHasher>>,
     pub(crate) main_thread_queue: Arc<MainThreadQueue>,
+    was_started: AtomicBool,
 }
 
 impl Default for ComponentStore {
@@ -58,6 +62,22 @@ impl ComponentStore {
             component_ids: scc::HashMap::default(),
             component_location: RwLock::default(),
             main_thread_queue: Arc::new(MainThreadQueue::default()),
+            was_started: AtomicBool::new(false),
+        }
+    }
+
+    pub fn on_machine_ready(&self) {
+        assert!(is_main_thread());
+
+        if self.was_started.swap(true, Ordering::SeqCst) {
+            panic!("Machine already started");
+        }
+
+        for component in self.component_location.read().unwrap().values() {
+            match component {
+                ComponentLocation::Global(component) => component.on_machine_ready(),
+                ComponentLocation::Local(component) => component.get().unwrap().on_machine_ready(),
+            }
         }
     }
 

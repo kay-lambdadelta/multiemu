@@ -1,10 +1,12 @@
 use super::{
-    MemoryHandle, MemoryTranslationTable, NeededAccess, RemapCallback,
+    MemoryHandle, MemoryTranslationTable, NEEDED_ACCESSES_BASE_CAPACITY, NeededAccess,
+    RemapCallback,
     address_space::{AddressSpace, AddressSpaceHandle},
 };
 use crate::memory::{Address, callbacks::WriteMemory};
 use num::traits::ToBytes;
 use rangemap::RangeInclusiveMap;
+use smallvec::SmallVec;
 use std::ops::RangeInclusive;
 use thiserror::Error;
 
@@ -63,7 +65,7 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), WriteMemoryOperationError> {
-        let mut needed_accesses = Vec::from_iter([NeededAccess {
+        let mut needed_accesses = SmallVec::from_iter([NeededAccess {
             address,
             address_space,
             buffer_subrange: (0..=(buffer.len() - 1)),
@@ -130,7 +132,7 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         address_space_info: &AddressSpace,
         buffer_subrange: RangeInclusive<Address>,
-        needed_accesses: &mut Vec<NeededAccess>,
+        needed_accesses: &mut SmallVec<NeededAccess, NEEDED_ACCESSES_BASE_CAPACITY>,
         remap_callbacks: &mut Vec<RemapCallback>,
     ) -> Result<(), WriteMemoryOperationError> {
         // Cut off address

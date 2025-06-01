@@ -2,6 +2,7 @@ use super::ShaderFormat;
 use naga::{Module, ShaderStage, valid::ModuleInfo};
 use versions::SemVer;
 
+#[derive(Debug)]
 pub struct GlslShader;
 
 impl ShaderFormat for GlslShader {

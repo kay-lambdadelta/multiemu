@@ -1,15 +1,15 @@
 use super::{
-    SCANLINE_LENGTH, SupportedRenderApiTia, TiaDisplayBackend, color::TiaColor, region::Region,
+    FramebufferGuard, SCANLINE_LENGTH, SupportedRenderApiTia, TiaDisplayBackend, region::Region,
 };
 use multiemu_machine::{
     component::RuntimeEssentials,
     display::backend::{ComponentFramebuffer, vulkan::VulkanRendering},
 };
-use nalgebra::{DMatrix, DMatrixViewMut, Point2};
-use palette::{Srgb, Srgba};
-use std::sync::Arc;
+use nalgebra::DMatrixViewMut;
+use palette::Srgba;
+use std::{marker::PhantomData, sync::Arc};
 use vulkano::{
-    buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
+    buffer::{Buffer, BufferCreateInfo, BufferUsage, BufferWriteGuard, Subbuffer},
     command_buffer::{
         AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferToImageInfo,
         PrimaryCommandBufferAbstract, allocator::StandardCommandBufferAllocator,
@@ -27,6 +27,21 @@ pub struct VulkanState {
     pub queue: Arc<Queue>,
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
     pub render_image: ComponentFramebuffer<VulkanRendering>,
+}
+
+struct VulkanFramebufferGuard<'a, R: Region> {
+    staging_buffer_guard: BufferWriteGuard<'a, [Srgba<u8>]>,
+    _phantom: PhantomData<R>,
+}
+
+impl<R: Region> FramebufferGuard for VulkanFramebufferGuard<'_, R> {
+    fn get(&mut self) -> DMatrixViewMut<'_, Srgba<u8>> {
+        DMatrixViewMut::from_slice(
+            &mut self.staging_buffer_guard,
+            SCANLINE_LENGTH as usize,
+            R::TOTAL_SCANLINES as usize,
+        )
+    }
 }
 
 impl<R: Region> TiaDisplayBackend<R, VulkanRendering> for VulkanState {
@@ -82,38 +97,12 @@ impl<R: Region> TiaDisplayBackend<R, VulkanRendering> for VulkanState {
         )
     }
 
-    fn draw(&self, position: Point2<u16>, color: TiaColor) {
-        let real_color = R::color_to_srgb(color);
+    fn lock_framebuffer(&self) -> impl FramebufferGuard {
+        let staging_buffer_guard = self.staging_buffer.write().unwrap();
 
-        let mut staging_buffer = self.staging_buffer.write().unwrap();
-
-        let mut staging_buffer_view = DMatrixViewMut::from_slice(
-            staging_buffer.as_mut(),
-            SCANLINE_LENGTH as usize,
-            R::TOTAL_SCANLINES as usize,
-        );
-
-        let color = Srgba::new(real_color.red, real_color.green, real_color.blue, 0xff);
-        staging_buffer_view[(position.x as usize, position.y as usize)] = color;
-    }
-
-    fn save_screen_contents(&self) -> DMatrix<Srgb<u8>> {
-        let staging_buffer = self.staging_buffer.read().unwrap();
-
-        DMatrix::from_row_iterator(
-            SCANLINE_LENGTH as usize,
-            R::TOTAL_SCANLINES as usize,
-            staging_buffer
-                .iter()
-                .map(|color| Srgb::new(color.red, color.green, color.blue)),
-        )
-    }
-
-    fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>) {
-        let mut staging_buffer = self.staging_buffer.write().unwrap();
-
-        for (source, destination) in buffer.iter().zip(staging_buffer.iter_mut()) {
-            *destination = Srgba::new(source.red, source.green, source.blue, 0xff);
+        VulkanFramebufferGuard::<R> {
+            staging_buffer_guard,
+            _phantom: PhantomData,
         }
     }
 

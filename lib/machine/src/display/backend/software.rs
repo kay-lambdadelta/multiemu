@@ -9,9 +9,9 @@ use palette::Srgba;
 pub struct SoftwareRendering;
 
 #[derive(Default, Clone)]
-pub struct SoftwareContextExtentionSpecification;
+pub struct SoftwareContextExtensionSpecification;
 
-impl ContextExtensionSpecification for SoftwareContextExtentionSpecification {
+impl ContextExtensionSpecification for SoftwareContextExtensionSpecification {
     fn combine(self, _other: Self) -> Self
     where
         Self: Sized,
@@ -24,7 +24,7 @@ impl RenderApi for SoftwareRendering {
     const GRAPHICS_API: GraphicsApi = GraphicsApi::Software;
     type ComponentInitializationData = SoftwareComponentInitializationData;
     type ComponentFramebufferInner = DMatrix<Srgba<u8>>;
-    type ContextExtensionSpecification = SoftwareContextExtentionSpecification;
+    type ContextExtensionSpecification = SoftwareContextExtensionSpecification;
 }
 
 #[derive(Default, Debug)]

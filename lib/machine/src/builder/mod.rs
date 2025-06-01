@@ -218,6 +218,9 @@ impl<R: RenderApi> MachineBuilder<R> {
         // Create the scheduler
         let scheduler = Scheduler::new(self.component_store.clone(), tasks);
 
+        // Make sure all the components do their proper post initialization
+        self.component_store.on_machine_ready();
+
         Machine {
             scheduler,
             memory_translation_table: self.essentials.memory_translation_table.clone(),

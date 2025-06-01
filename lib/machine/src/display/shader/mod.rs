@@ -19,7 +19,7 @@ use versions::SemVer;
 pub mod glsl;
 pub mod spirv;
 
-pub trait ShaderFormat: Any {
+pub trait ShaderFormat: Debug + Any {
     const NAME: &'static str;
     type Representation: Serialize + DeserializeOwned + Debug + Clone + Send + Sync + 'static;
 
@@ -32,7 +32,7 @@ pub trait ShaderFormat: Any {
     ) -> Result<Self::Representation, Box<dyn std::error::Error>>;
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Shader<T: ShaderFormat> {
     pub module: Module,
     pub vertex: T::Representation,
@@ -50,18 +50,6 @@ impl<T: ShaderFormat> Clone for Shader<T> {
             fragment: self.fragment.clone(),
             fragment_entry: self.fragment_entry.clone(),
         }
-    }
-}
-
-impl<T: ShaderFormat> Debug for Shader<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Shader")
-            .field("module", &self.module)
-            .field("vertex", &self.vertex)
-            .field("vertex_entry", &self.vertex_entry)
-            .field("fragment", &self.fragment)
-            .field("fragment_entry", &self.fragment_entry)
-            .finish()
     }
 }
 
@@ -105,7 +93,8 @@ impl ShaderCache {
         create_dir_all(&environment_guard.shader_cache_directory)?;
         let mut file = File::options()
             .create(true)
-            .append(true)
+            .write(true)
+            .truncate(false)
             .open(&shader_path)?;
 
         match bincode::serde::decode_from_std_read(&mut file, bincode::config::standard()) {

@@ -11,7 +11,7 @@ use std::{
     ops::RangeInclusive,
     sync::{
         RwLock,
-        atomic::{AtomicU16, Ordering},
+        atomic::{AtomicU8, Ordering},
     },
 };
 use store::MemoryStore;
@@ -23,6 +23,9 @@ mod write;
 
 pub use read::*;
 pub use write::*;
+
+/// For the initial access
+const NEEDED_ACCESSES_BASE_CAPACITY: usize = 1;
 
 pub struct RemapCallback {
     callback: Box<dyn FnOnce(&MemoryTranslationTable)>,
@@ -75,7 +78,7 @@ impl MemoryHandle {
 pub struct MemoryTranslationTable {
     address_spaces: RwLock<Vec<AddressSpace>>,
     memory_store: MemoryStore,
-    current_address_space: AtomicU16,
+    current_address_space: AtomicU8,
 }
 
 impl Default for MemoryTranslationTable {
@@ -83,7 +86,7 @@ impl Default for MemoryTranslationTable {
         Self {
             address_spaces: Default::default(),
             memory_store: Default::default(),
-            current_address_space: AtomicU16::new(1),
+            current_address_space: AtomicU8::new(1),
         }
     }
 }
@@ -106,6 +109,13 @@ impl MemoryTranslationTable {
         });
 
         id
+    }
+
+    pub fn address_spaces(&self) -> impl Iterator<Item = AddressSpaceHandle> {
+        let address_space_count = self.address_spaces.read().unwrap().len();
+
+        (0..address_space_count)
+            .map(|id| AddressSpaceHandle::new(NonZero::new((id + 1) as u8).unwrap()))
     }
 
     pub fn remap_memory(

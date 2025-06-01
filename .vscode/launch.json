@@ -19,10 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": [
-                "run-external",
-                "/home/lambdadelta/Roms/Atari - 2600/Donkey Kong (USA)/Donkey Kong (USA).a26"
-            ],
+            "args": [],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -199,6 +196,25 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug benchmark 'initialization'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=initialization",
+                    "--package=multiemu-definition-atari2600"
+                ],
+                "filter": {
+                    "name": "initialization",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'multiemu_definition_misc'",
             "cargo": {
                 "args": [
@@ -266,6 +282,25 @@
                 ],
                 "filter": {
                     "name": "multiemu_machine",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multiemu_save'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multiemu-save"
+                ],
+                "filter": {
+                    "name": "multiemu_save",
                     "kind": "lib"
                 }
             },

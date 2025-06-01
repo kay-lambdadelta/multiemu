@@ -1,4 +1,4 @@
-use super::{Scheduler, TaskInfo};
+use super::{Scheduler, TaskInfo, run_task};
 use std::num::NonZero;
 
 impl Scheduler {
@@ -9,9 +9,6 @@ impl Scheduler {
             .unwrap_or(u32::MAX);
 
         let old_current_tick = self.current_tick;
-
-        // Run until we are out of allotted time
-        let mut to_run = Vec::default();
 
         loop {
             let ticks_passed = self.current_tick.wrapping_sub(old_current_tick);
@@ -26,10 +23,10 @@ impl Scheduler {
                     break;
                 }
 
-                to_run.push(self.tasks.pop().unwrap());
+                self.to_run.push(self.tasks.pop().unwrap());
             }
 
-            match to_run.len() {
+            match self.to_run.len() {
                 0 => {
                     // Timeskip to the nearest task
                     let next_task_info = self.tasks.peek().unwrap();
@@ -43,7 +40,7 @@ impl Scheduler {
                     self.current_tick = self.current_tick.wrapping_add(ticks_to_skip_ahead);
                 }
                 1 => {
-                    let task_info = to_run.remove(0);
+                    let task_info = self.to_run.remove(0);
 
                     // our heap has two plus tasks
                     if let Some(next_task_info) = self.tasks.peek() {
@@ -55,14 +52,22 @@ impl Scheduler {
                         if let Some(time_slice) =
                             NonZero::new(alloted_ticks / task_info.tick_rate + 1)
                         {
-                            self.run_task([(task_info, time_slice)]);
+                            run_task(
+                                [(task_info, time_slice)],
+                                &self.component_store,
+                                &mut self.tasks,
+                            );
 
                             self.current_tick = self.current_tick.wrapping_add(alloted_ticks);
                         } else {
                             // Do not overstep this tasks tickrate
                             let ticks_to_skip_ahead = alloted_ticks.min(task_info.tick_rate);
 
-                            self.run_task([(task_info, NonZero::new(1).unwrap())]);
+                            run_task(
+                                [(task_info, NonZero::new(1).unwrap())],
+                                &self.component_store,
+                                &mut self.tasks,
+                            );
 
                             self.current_tick = self.current_tick.wrapping_add(ticks_to_skip_ahead);
                         }
@@ -72,10 +77,12 @@ impl Scheduler {
                     }
                 }
                 _ => {
-                    self.run_task(
-                        to_run
+                    run_task(
+                        self.to_run
                             .drain(..)
                             .map(|task_info| (task_info, NonZero::new(1).unwrap())),
+                        &self.component_store,
+                        &mut self.tasks,
                     );
 
                     self.current_tick = self.current_tick.wrapping_add(1);

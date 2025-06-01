@@ -4,8 +4,8 @@ use multiemu_machine::{
     component::{Component, RuntimeEssentials},
     display::backend::{ComponentFramebuffer, RenderApi},
 };
-use nalgebra::{DMatrix, Point2};
-use palette::Srgb;
+use nalgebra::{DMatrixViewMut, Point2};
+use palette::Srgba;
 use region::Region;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -121,13 +121,15 @@ pub(crate) struct Tia<R: Region, A: SupportedRenderApiTia> {
 
 impl<R: Region, A: SupportedRenderApiTia> Component for Tia<R, A> {}
 
+pub(crate) trait FramebufferGuard {
+    fn get(&mut self) -> DMatrixViewMut<'_, Srgba<u8>>;
+}
+
 pub(crate) trait TiaDisplayBackend<R: Region, A: SupportedRenderApiTia>:
     Debug + Sized + 'static
 {
     fn new(essentials: &RuntimeEssentials<A>) -> (Self, ComponentFramebuffer<A>);
-    fn draw(&self, position: Point2<u16>, color: TiaColor);
-    fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
-    fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);
+    fn lock_framebuffer(&self) -> impl FramebufferGuard;
     fn commit_display(&self);
 }
 

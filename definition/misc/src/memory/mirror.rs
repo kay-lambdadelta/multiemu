@@ -111,13 +111,13 @@ impl ReadMemory for MirrorMemoryCallbacks {
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
 
-        Err(RangeInclusiveMap::from_iter([(
+        Err(RangeInclusiveMap::from_iter(std::iter::once((
             affected_range,
             PreviewMemoryRecord::Redirect {
                 address: adjusted_destination_address,
                 address_space: self.destination_address_space,
             },
-        )])
+        )))
         .into())
     }
 }
@@ -133,13 +133,13 @@ impl WriteMemory for MirrorMemoryCallbacks {
         let adjusted_destination_address =
             self.destination_address + (address - self.source_addresses.start());
 
-        Err(RangeInclusiveMap::from_iter([(
+        Err(RangeInclusiveMap::from_iter(std::iter::once((
             affected_range,
             WriteMemoryRecord::Redirect {
                 address: adjusted_destination_address,
                 address_space: self.destination_address_space,
             },
-        )])
+        )))
         .into())
     }
 }

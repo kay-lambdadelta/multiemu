@@ -4,10 +4,10 @@ use rangemap::RangeInclusiveMap;
 use std::{num::NonZero, ops::RangeInclusive};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub struct AddressSpaceHandle(NonZero<u16>);
+pub struct AddressSpaceHandle(NonZero<u8>);
 
 impl AddressSpaceHandle {
-    pub(crate) const fn new(id: NonZero<u16>) -> Self {
+    pub(crate) const fn new(id: NonZero<u8>) -> Self {
         Self(id)
     }
 

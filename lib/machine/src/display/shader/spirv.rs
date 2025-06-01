@@ -1,5 +1,6 @@
 use super::ShaderFormat;
 
+#[derive(Debug)]
 pub struct SpirvShader;
 
 impl ShaderFormat for SpirvShader {
