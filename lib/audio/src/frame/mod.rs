@@ -5,9 +5,9 @@ use crate::{
         conversion::{FromSample, IntoSample},
     },
 };
-use core::cmp::Ordering;
 use nalgebra::{ComplexField, SVector};
 use num::{Float, rational::Ratio};
+use std::cmp::Ordering;
 
 /// Helper iterator for operating on frames of samples
 pub trait FrameIterator<S: Sample, const CHANNELS: usize>:
@@ -87,7 +87,7 @@ impl<S: Sample, const CHANNELS: usize, SourceIterator: Iterator<Item = SVector<S
     fn fill_buf(self, buffer: &mut [SVector<S, CHANNELS>]) {
         for (destination, sample) in buffer
             .iter_mut()
-            .zip(self.chain(core::iter::repeat(SVector::from_element(S::equilibrium()))))
+            .zip(self.chain(std::iter::repeat(SVector::from_element(S::equilibrium()))))
         {
             *destination = sample;
         }

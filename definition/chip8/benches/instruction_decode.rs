@@ -1,35 +1,24 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_config::Environment;
 use multiemu_definition_chip8::Chip8InstructionDecoder;
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use multiemu_machine::{
-    builder::MachineBuilder,
-    display::{backend::software::SoftwareRendering, shader::ShaderCache},
+    builder::MachineBuilder, display::backend::software::SoftwareRendering,
     processor::decoder::InstructionDecoder,
 };
 use multiemu_rom::{manager::RomManager, system::GameSystem};
 use rangemap::RangeInclusiveMap;
-use std::{
-    hint::black_box,
-    sync::{Arc, RwLock},
-};
+use std::{hint::black_box, sync::Arc};
 
 fn criterion_benchmark(c: &mut Criterion) {
     multiemu_machine::utils::set_main_thread();
 
-    let environment = Arc::new(RwLock::new(Environment::default()));
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-    let shader_cache = ShaderCache::new(environment.clone());
 
-    let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
-        GameSystem::Unknown,
-        rom_manager.clone(),
-        environment.clone(),
-        shader_cache.clone(),
-    )
-    .insert_address_space(64);
+    let (machine, cpu_address_space) =
+        MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager.clone())
+            .insert_address_space(64);
 
     let (machine, _) = machine.insert_component(
         "workram",

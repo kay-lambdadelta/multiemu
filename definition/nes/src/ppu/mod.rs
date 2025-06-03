@@ -6,7 +6,7 @@ use multiemu_machine::{
 };
 
 mod software;
-#[cfg(all(feature = "vulkan", platform_desktop))]
+#[cfg(feature = "vulkan")]
 mod vulkan;
 
 /*

@@ -1,7 +1,13 @@
+use crate::write_environment;
+
 use super::UiOutput;
 use egui::{ComboBox, Ui};
-use multiemu_config::{Environment, graphics::GraphicsApi};
-use std::sync::{Arc, RwLock};
+use multiemu_config::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
+use std::{
+    fs::File,
+    ops::Deref,
+    sync::{Arc, RwLock},
+};
 use strum::IntoEnumIterator;
 
 #[derive(Debug)]
@@ -18,8 +24,10 @@ impl OptionsState {
         let mut environment_guard = self.environment.write().unwrap();
 
         ui.horizontal(|ui| {
-            if ui.button("Save Config").clicked() {
-                environment_guard.save().unwrap();
+            if ui.button("Save Environment").clicked() {
+                let file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+
+                write_environment(file, &environment_guard).unwrap();
             }
         });
 

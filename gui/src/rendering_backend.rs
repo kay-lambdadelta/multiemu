@@ -2,13 +2,13 @@ use egui::FullOutput;
 use multiemu_config::Environment;
 use multiemu_machine::{
     Machine,
-    display::{RenderExtensions, backend::RenderApi, shader::ShaderCache},
+    display::{RenderExtensions, backend::RenderApi},
 };
 use nalgebra::Vector2;
 use std::sync::{Arc, RwLock};
 
 pub trait DisplayApiHandle: Send + Sync + Clone + 'static {
-    fn dimensions(&self) -> Vector2<u16>;
+    fn dimensions(&self) -> Vector2<u32>;
 }
 
 /// A backend for a given render backend
@@ -18,9 +18,8 @@ pub trait RenderingBackendState: Sized {
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: ShaderCache,
         render_extensions: RenderExtensions<Self::RenderApi>,
+        environment: Arc<RwLock<Environment>>,
     ) -> Result<Self, Box<dyn std::error::Error>>;
     fn component_initialization_data(
         &self,

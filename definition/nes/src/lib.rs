@@ -1,16 +1,11 @@
 pub use cartridge::ines::INes;
 use cartridge::{NesCartridgeConfig, ines::TimingMode};
-use multiemu_config::Environment;
 use multiemu_definition_misc::memory::{
     mirror::MirrorMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_machine::{
-    MachineFactory,
-    builder::MachineBuilder,
-    display::{backend::RenderApi, shader::ShaderCache},
-};
+use multiemu_machine::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
@@ -19,7 +14,7 @@ use multiemu_rom::{
 use num::rational::Ratio;
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 mod apu;
 mod cartridge;
@@ -33,14 +28,10 @@ impl<R: RenderApi> MachineFactory<R> for Nes {
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: ShaderCache,
     ) -> MachineBuilder<R> {
-        let machine = multiemu_machine::builder::MachineBuilder::new(
+        let machine = MachineBuilder::new(
             GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem),
             rom_manager.clone(),
-            environment.clone(),
-            shader_cache.clone(),
         );
 
         let (machine, cpu_address_space) = machine.insert_address_space(16);

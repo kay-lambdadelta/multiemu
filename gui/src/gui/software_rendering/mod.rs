@@ -82,11 +82,7 @@ impl SoftwareEguiRenderer {
 
             let texture = self.textures.entry(new_texture_id).or_insert_with(|| {
                 let image_size = new_texture.image.size();
-                DMatrix::from_element(
-                    image_size[0],
-                    image_size[1],
-                    Srgba::new(0.0, 0.0, 0.0, 255.0),
-                )
+                DMatrix::from_element(image_size[0], image_size[1], Srgba::new(0.0, 0.0, 0.0, 1.0))
             });
 
             let source_texture_view = match &new_texture.image {

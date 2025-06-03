@@ -60,7 +60,7 @@ impl MenuState {
         Self {
             open_menu_item: MenuItem::default(),
             file_browser_state: FileBrowserState::new(
-                environment_guard.file_browser_home.clone(),
+                environment_guard.file_browser_home_directory.0.clone(),
                 rom_manager.clone(),
             ),
             options_state: OptionsState::new(environment.clone()),

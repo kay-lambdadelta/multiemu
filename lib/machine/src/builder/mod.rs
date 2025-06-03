@@ -7,7 +7,6 @@ use crate::{
     display::{
         RenderExtensions,
         backend::{ContextExtensionSpecification, RenderApi},
-        shader::ShaderCache,
     },
     memory::memory_translation_table::address_space::AddressSpaceHandle,
     scheduler::Scheduler,
@@ -16,13 +15,13 @@ use crate::{
 use audio::AudioMetadata;
 use display::DisplayMetadata;
 use input::InputMetadata;
-use multiemu_config::Environment;
 use multiemu_rom::{manager::RomManager, system::GameSystem};
 use multiemu_save::ComponentName;
 use std::{
     collections::HashMap,
     marker::PhantomData,
-    sync::{Arc, OnceLock, RwLock},
+    sync::{Arc, OnceLock},
+    vec::Vec,
 };
 use task::TaskMetadata;
 
@@ -51,20 +50,13 @@ pub struct MachineBuilder<R: RenderApi> {
 }
 
 impl<R: RenderApi> MachineBuilder<R> {
-    pub fn new(
-        game_system: GameSystem,
-        rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: ShaderCache,
-    ) -> Self {
+    pub fn new(game_system: GameSystem, rom_manager: Arc<RomManager>) -> Self {
         MachineBuilder {
             current_component_id: ComponentId(0),
             component_store: Arc::default(),
             component_metadata: HashMap::new(),
             essentials: Arc::new(RuntimeEssentials {
                 rom_manager,
-                environment,
-                shader_cache,
                 memory_translation_table: Arc::default(),
                 render_initialization_data: OnceLock::default(),
             }),
@@ -193,25 +185,7 @@ impl<R: RenderApi> MachineBuilder<R> {
             }
 
             if let Some(input_metadata) = component_metadata.input {
-                let mut environment_guard = self.essentials.environment.write().unwrap();
-
-                for gamepad in input_metadata.gamepads {
-                    // Update the environment with default gamepad bounds
-                    environment_guard
-                        .gamepad_configs
-                        .entry(self.game_system)
-                        .or_default()
-                        .entry(gamepad.name())
-                        .or_insert_with(|| {
-                            gamepad
-                                .metadata()
-                                .default_bindings
-                                .clone()
-                                .into_iter()
-                                .collect()
-                        });
-                    all_gamepads.push(gamepad);
-                }
+                all_gamepads.extend(input_metadata.gamepads);
             }
         }
 
@@ -219,7 +193,9 @@ impl<R: RenderApi> MachineBuilder<R> {
         let scheduler = Scheduler::new(self.component_store.clone(), tasks);
 
         // Make sure all the components do their proper post initialization
-        self.component_store.on_machine_ready();
+        self.component_store.interact_all(|compoenent| {
+            compoenent.on_machine_ready();
+        });
 
         Machine {
             scheduler,

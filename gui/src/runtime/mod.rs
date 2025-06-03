@@ -3,7 +3,7 @@ use multiemu_config::{Environment, input::Hotkey};
 use multiemu_input::{GamepadId, Input, InputState};
 use multiemu_machine::{
     Machine,
-    display::{RenderExtensions, backend::RenderApi, shader::ShaderCache},
+    display::{RenderExtensions, backend::RenderApi},
     input::VirtualGamepadId,
 };
 use multiemu_rom::{
@@ -19,14 +19,20 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(platform_desktop)]
+#[cfg(all(
+    any(target_family = "unix", target_os = "windows"),
+    not(target_os = "horizon")
+))]
 pub mod desktop;
-#[cfg(platform_desktop)]
+#[cfg(all(
+    any(target_family = "unix", target_os = "windows"),
+    not(target_os = "horizon")
+))]
 pub use desktop::renderer::software::SoftwareRenderingRuntime;
 
-#[cfg(platform_3ds)]
+#[cfg(target_os = "horizon")]
 pub mod nintendo_3ds;
-#[cfg(platform_3ds)]
+#[cfg(target_os = "horizon")]
 pub use nintendo_3ds::renderer::software::SoftwareRenderingRuntime;
 
 use crate::{
@@ -90,15 +96,14 @@ impl<R: RenderApi> Debug for RuntimeMode<R> {
 pub struct Runtime<RS: RenderingBackendState> {
     mode: RuntimeMode<RS::RenderApi>,
     gamepad_mapping: HashMap<GamepadId, VirtualGamepadId>,
-    pub environment: Arc<RwLock<Environment>>,
     pub rom_manager: Arc<RomManager>,
+    pub environment: Arc<RwLock<Environment>>,
     pub egui_context: egui::Context,
     windowing_context: Option<WindowingContext<RS>>,
-    shader_cache: ShaderCache,
     menu_state: MenuState,
     previous_frame_render_time: Duration,
     previous_frame_time: Duration,
-    previous_window_size: Vector2<u16>,
+    previous_window_size: Vector2<u32>,
     currently_key_states: HashMap<GamepadId, HashMap<Input, InputState>>,
     was_egui_context_reset: bool,
     machine_factories: MachineFactories<RS::RenderApi>,
@@ -115,14 +120,12 @@ impl<RS: RenderingBackendState> Runtime<RS> {
         let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
         let gamepad_mapping = HashMap::new();
         let mode = RuntimeMode::Gui(None);
-        let shader_cache = ShaderCache::new(environment.clone());
 
         Self {
             mode,
             gamepad_mapping,
             environment,
             rom_manager,
-            shader_cache,
             egui_context,
             menu_state,
             windowing_context: None,
@@ -152,9 +155,8 @@ impl<RS: RenderingBackendState> Runtime<RS> {
 
                 let render_backend_state = RS::new(
                     display_api_handle.clone(),
-                    self.environment.clone(),
-                    self.shader_cache.clone(),
                     RenderExtensions::default(),
+                    self.environment.clone(),
                 )
                 .unwrap();
 
@@ -187,8 +189,6 @@ impl<RS: RenderingBackendState> Runtime<RS> {
             game_system,
             user_specified_roms,
             self.rom_manager.clone(),
-            self.environment.clone(),
-            self.shader_cache.clone(),
         );
 
         // Drop old machine otherwise it will segfault when we try to use the new vulkan context
@@ -202,9 +202,8 @@ impl<RS: RenderingBackendState> Runtime<RS> {
 
         let render_backend_state = RS::new(
             display_api_handle.clone(),
-            self.environment.clone(),
-            self.shader_cache.clone(),
             render_extensions,
+            self.environment.clone(),
         )
         .unwrap();
 

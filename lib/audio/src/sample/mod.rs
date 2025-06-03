@@ -1,7 +1,7 @@
-use core::fmt::Debug;
 use num::{
     Bounded, FromPrimitive, Integer, Num, ToPrimitive, rational::Ratio, traits::NumAssignOps,
 };
+use std::fmt::Debug;
 
 pub mod conversion;
 pub mod iterator;

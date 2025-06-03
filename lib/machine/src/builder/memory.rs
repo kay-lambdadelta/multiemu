@@ -1,5 +1,3 @@
-use rangemap::RangeInclusiveSet;
-
 use crate::{
     builder::ComponentBuilder,
     component::Component,
@@ -10,6 +8,7 @@ use crate::{
         memory_translation_table::{MemoryHandle, address_space::AddressSpaceHandle},
     },
 };
+use rangemap::RangeInclusiveSet;
 use std::{collections::HashMap, ops::RangeInclusive};
 
 impl<R: RenderApi, C: Component> ComponentBuilder<'_, R, C> {

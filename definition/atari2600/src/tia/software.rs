@@ -25,6 +25,8 @@ impl FramebufferGuard for RefMut<'_, DMatrix<Srgba<u8>>> {
 }
 
 impl<R: Region> TiaDisplayBackend<R, SoftwareRendering> for SoftwareState {
+    type FramebufferGuard<'a> = RefMut<'a, DMatrix<Srgba<u8>>>;
+
     fn new(
         _essentials: &RuntimeEssentials<SoftwareRendering>,
     ) -> (Self, ComponentFramebuffer<SoftwareRendering>) {
@@ -44,7 +46,7 @@ impl<R: Region> TiaDisplayBackend<R, SoftwareRendering> for SoftwareState {
         )
     }
 
-    fn lock_framebuffer(&self) -> impl FramebufferGuard {
+    fn lock_framebuffer(&self) -> Self::FramebufferGuard<'_> {
         self.staging_buffer.borrow_mut()
     }
 

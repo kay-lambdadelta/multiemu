@@ -5,10 +5,9 @@ members = ["gui", "utils", "lib/*", "definition/*"]
 [workspace.dependencies]
 multiemu-machine = { path = "lib/machine" }
 multiemu-rom = { path = "lib/rom" }
-multiemu-config = { path = "lib/config" }
 multiemu-input = { path = "lib/input" }
-multiemu-macros = { path = "lib/macros" }
 multiemu-audio = { path = "lib/audio" }
+multiemu-config = { path = "lib/config" }
 multiemu-save = { path = "lib/save" }
 
 multiemu-definition-misc = { path = "definition/misc" }
@@ -36,6 +35,7 @@ rayon = "1.10"
 nalgebra = { version = "0.33", features = [
     "serde-serialize",
     "convert-bytemuck",
+    "rayon",
 ] }
 bytemuck = { version = "1.23", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
@@ -43,32 +43,24 @@ arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
 bitvec = { version = "1.0", features = ["serde"] }
 vulkano = { version = "0.35", default-features = false }
-crossbeam = "0.8"
-scc = "2.3"
 rand = "0.9"
 palette = { version = "0.7", default-features = false, features = [
     "std",
     "bytemuck",
     "serializing",
 ] }
-memmap2 = "0.9"
 clap = { version = "4.5", features = ["derive"] }
-syn = { version = "2.0", features = ["full"] }
-proc-macro2 = "1.0"
-quote = "1.0"
-cfg_aliases = "0.2"
 criterion = "0.6"
 uuid = { version = "1.17", features = ["serde", "v4"] }
 ringbuffer = "0.15"
-camino = { version = "1.1", features = ["serde1"] }
 bincode = { version = "2.0", features = ["serde"] }
 rustc-hash = "2.1"
 ron = "0.10"
 data-encoding = "2.9"
-sealed = "0.6"
-arc-swap = "1.7"
 deku = "0.19"
 versions = "7.0"
+scc = "2.3"
+glow = "0.16"
 # use crates.io smallvec when they release v2
 smallvec = { git = "https://github.com/servo/rust-smallvec", rev = "4fe40688e97555f93a6861ff14720657c5161c07" }
 
@@ -76,15 +68,8 @@ smallvec = { git = "https://github.com/servo/rust-smallvec", rev = "4fe40688e975
 codes-iso-639 = { version = "0.1", features = ["part_3"] }
 codes-iso-3166 = { version = "0.1", features = ["languages"] }
 
-# Add back when I'm ready for jit supports
-# cranelift = { version = "0.118", features = ["jit", "native", "module"] }
-
 # 3DS stuff
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
-debug = true
-
-# TODO: Remove when 1.0 release
-[profile.release]
 debug = true

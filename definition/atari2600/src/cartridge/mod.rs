@@ -41,11 +41,7 @@ impl<R: RenderApi> ComponentConfig<R> for Atari2600CartridgeConfig {
 
         let mut rom = essentials
             .rom_manager
-            .open(
-                self.rom,
-                RomRequirement::Required,
-                &essentials.environment.read().unwrap().roms_directory,
-            )
+            .open(self.rom, RomRequirement::Required)
             .unwrap();
         let mut rom_bytes = Vec::default();
         std::io::copy(&mut rom, &mut rom_bytes).unwrap();

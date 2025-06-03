@@ -6,10 +6,8 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 multiemu-rom = { workspace = true }
-multiemu-config = { workspace = true }
 multiemu-machine = { workspace = true }
 multiemu-input = { workspace = true }
-multiemu-macros = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }
@@ -20,19 +18,15 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 num = { workspace = true }
-
-[build-dependencies]
-multiemu-macros = { workspace = true }
-cfg_aliases = { workspace = true }
-
-[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
 vulkano = { workspace = true, optional = true }
+glow = { workspace = true, optional = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }
 
 [features]
 vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
+opengl = ["dep:glow", "multiemu-machine/opengl"]
 
 [[bench]]
 name = "rom_parse"

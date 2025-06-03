@@ -29,7 +29,8 @@ pub struct VulkanState {
     pub render_image: ComponentFramebuffer<VulkanRendering>,
 }
 
-struct VulkanFramebufferGuard<'a, R: Region> {
+#[derive(Debug)]
+pub struct VulkanFramebufferGuard<'a, R: Region> {
     staging_buffer_guard: BufferWriteGuard<'a, [Srgba<u8>]>,
     _phantom: PhantomData<R>,
 }
@@ -45,6 +46,8 @@ impl<R: Region> FramebufferGuard for VulkanFramebufferGuard<'_, R> {
 }
 
 impl<R: Region> TiaDisplayBackend<R, VulkanRendering> for VulkanState {
+    type FramebufferGuard<'a> = VulkanFramebufferGuard<'a, R>;
+
     fn new(
         essentials: &RuntimeEssentials<VulkanRendering>,
     ) -> (Self, ComponentFramebuffer<VulkanRendering>) {
@@ -57,7 +60,8 @@ impl<R: Region> TiaDisplayBackend<R, VulkanRendering> for VulkanState {
                 ..Default::default()
             },
             AllocationCreateInfo {
-                memory_type_filter: MemoryTypeFilter::HOST_RANDOM_ACCESS,
+                memory_type_filter: MemoryTypeFilter::HOST_RANDOM_ACCESS
+                    | MemoryTypeFilter::PREFER_HOST,
                 ..Default::default()
             },
             std::iter::repeat_n(
@@ -97,7 +101,7 @@ impl<R: Region> TiaDisplayBackend<R, VulkanRendering> for VulkanState {
         )
     }
 
-    fn lock_framebuffer(&self) -> impl FramebufferGuard {
+    fn lock_framebuffer(&self) -> Self::FramebufferGuard<'_> {
         let staging_buffer_guard = self.staging_buffer.write().unwrap();
 
         VulkanFramebufferGuard::<R> {

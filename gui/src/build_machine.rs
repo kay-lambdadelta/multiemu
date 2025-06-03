@@ -1,22 +1,14 @@
-use multiemu_config::Environment;
 use multiemu_definition_atari2600::Atari2600;
 use multiemu_definition_atarilynx::AtariLynx;
 use multiemu_definition_chip8::Chip8;
 use multiemu_definition_nes::Nes;
-use multiemu_machine::{
-    MachineFactory,
-    builder::MachineBuilder,
-    display::{backend::RenderApi, shader::ShaderCache},
-};
+use multiemu_machine::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
     system::{AtariSystem, GameSystem, NintendoSystem, OtherSystem},
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug)]
 pub struct MachineFactories<R: RenderApi>(HashMap<GameSystem, Box<dyn MachineFactory<R>>>);
@@ -31,13 +23,11 @@ impl<R: RenderApi> MachineFactories<R> {
         system: GameSystem,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: ShaderCache,
     ) -> MachineBuilder<R> {
         self.0
             .get(&system)
             .unwrap_or_else(|| panic!("No factory for system {:?}", system))
-            .construct(user_specified_roms, rom_manager, environment, shader_cache)
+            .construct(user_specified_roms, rom_manager)
     }
 }
 
@@ -64,7 +54,7 @@ pub fn get_software_factories()
     factories
 }
 
-#[cfg(all(feature = "vulkan", platform_desktop))]
+#[cfg(feature = "vulkan")]
 pub fn get_vulkan_factories()
 -> MachineFactories<multiemu_machine::display::backend::vulkan::VulkanRendering> {
     let mut factories = MachineFactories::default();

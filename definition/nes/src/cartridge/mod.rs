@@ -46,11 +46,7 @@ impl<R: RenderApi> ComponentConfig<R> for NesCartridgeConfig {
 
         let mut rom_file = essentials
             .rom_manager
-            .open(
-                self.rom,
-                RomRequirement::Required,
-                &essentials.environment.read().unwrap().roms_directory,
-            )
+            .open(self.rom, RomRequirement::Required)
             .unwrap();
 
         let mut rom = Vec::default();

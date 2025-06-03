@@ -1,3 +1,5 @@
+pub use fragile::Fragile;
+pub use main_thread_queue::MainThreadQueue;
 use std::{
     cell::OnceCell,
     sync::atomic::{AtomicBool, Ordering},
@@ -5,9 +7,6 @@ use std::{
 
 mod fragile;
 mod main_thread_queue;
-
-pub use fragile::Fragile;
-pub use main_thread_queue::MainThreadQueue;
 
 thread_local! {
     static IS_MAIN_THREAD: OnceCell<()> = const { OnceCell::new() };

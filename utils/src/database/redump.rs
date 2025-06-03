@@ -53,15 +53,16 @@ pub enum RedumpAction {
 
 pub fn database_redump_download(
     systems: impl IntoIterator<Item = GameSystem>,
+    environment: Environment,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let environment = Environment::load()?;
     let rom_manager = Arc::new(
         RomManager::new(
-            Some(&environment.database_file),
-            Some(&environment.roms_directory),
+            Some(environment.database_location.0.clone()),
+            Some(environment.rom_store_directory.0.clone()),
         )
         .unwrap(),
     );
+
     for system in systems {
         if let Ok(redump_system) = RedumpSystem::try_from(system) {
             tracing::info!("Downloading redump dat for system {}", system);

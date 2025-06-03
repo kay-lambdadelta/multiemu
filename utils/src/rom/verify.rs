@@ -6,25 +6,25 @@ use std::{
     sync::Arc,
 };
 
-pub fn rom_verify() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let environment = Environment::load()?;
+pub fn rom_verify(
+    environment: Environment,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let rom_manager = Arc::new(
         RomManager::new(
-            Some(&environment.database_file),
-            Some(&environment.roms_directory),
+            Some(environment.database_location.0.clone()),
+            Some(environment.rom_store_directory.0.clone()),
         )
         .unwrap(),
     );
-    fs::create_dir_all(&environment.roms_directory)?;
+
+    fs::create_dir_all(&environment.rom_store_directory.0)?;
 
     let mut bad_roms = HashSet::new();
 
     let loaded_roms_guard = rom_manager.loaded_roms.read().unwrap();
 
     for rom_id in loaded_roms_guard.keys() {
-        let rom_path = rom_manager
-            .get_rom_path(*rom_id, &environment.roms_directory)
-            .unwrap();
+        let rom_path = rom_manager.get_rom_path(*rom_id).unwrap();
         let mut rom_file = File::open(&rom_path).unwrap();
         let calculated_rom_id = RomId::calculate_id(&mut rom_file).unwrap();
 

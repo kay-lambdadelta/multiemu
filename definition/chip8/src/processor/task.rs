@@ -3,7 +3,6 @@ use super::{
     decoder::Chip8InstructionDecoder,
 };
 use crate::{Chip8Kind, SupportedRenderApiChip8};
-use crossbeam::atomic::AtomicCell;
 use multiemu_machine::{
     input::virtual_gamepad::VirtualGamepad,
     memory::memory_translation_table::MemoryTranslationTable,
@@ -11,7 +10,7 @@ use multiemu_machine::{
 };
 use std::{
     num::NonZero,
-    sync::{Arc, atomic::Ordering},
+    sync::{Arc, Mutex, atomic::Ordering},
 };
 
 pub(crate) struct Chip8ProcessorTask<R: SupportedRenderApiChip8> {
@@ -22,7 +21,7 @@ pub(crate) struct Chip8ProcessorTask<R: SupportedRenderApiChip8> {
     /// Essential stuff the runtime provides
     pub memory_translation_table: Arc<MemoryTranslationTable>,
     // What chip8 mode we are currently in
-    pub mode: Arc<AtomicCell<Chip8Kind>>,
+    pub mode: Arc<Mutex<Chip8Kind>>,
     pub config: Chip8ProcessorConfig<R>,
 }
 

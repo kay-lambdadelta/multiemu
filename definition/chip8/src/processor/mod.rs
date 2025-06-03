@@ -4,7 +4,6 @@ use crate::{
     timer::Chip8Timer,
 };
 use arrayvec::ArrayVec;
-use crossbeam::atomic::AtomicCell;
 use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu_machine::{
@@ -61,7 +60,6 @@ impl Default for Chip8ProcessorRegisters {
 }
 
 #[derive(Debug)]
-// #[cfg_attr(jit, repr(C))]
 pub struct ProcessorState {
     registers: Chip8ProcessorRegisters,
     stack: ArrayVec<u16, 16>,
@@ -118,7 +116,7 @@ impl<R: SupportedRenderApiChip8> ComponentConfig<R> for Chip8ProcessorConfig<R> 
         Self: Sized,
     {
         let essentials = component_builder.essentials();
-        let mode = Arc::new(AtomicCell::new(self.force_mode.unwrap_or(Chip8Kind::Chip8)));
+        let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Kind::Chip8)));
         let state = Mutex::new(ProcessorState::default());
 
         let virtual_gamepad = VirtualGamepad::new(

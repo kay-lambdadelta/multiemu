@@ -1,4 +1,4 @@
-use crate::rendering_backend::RenderingBackendState;
+use crate::rendering_backend::{DisplayApiHandle, RenderingBackendState};
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
 use multiemu_config::Environment;
@@ -10,7 +10,7 @@ use multiemu_machine::{
             RenderApi,
             vulkan::{VulkanComponentInitializationData, VulkanRendering},
         },
-        shader::ShaderCache,
+        shader::{ShaderCache, spirv::SpirvShader},
     },
 };
 use nalgebra::Vector2;
@@ -55,6 +55,7 @@ pub struct VulkanRenderingRuntime {
     display_api_handle: Arc<Window>,
     environment: Arc<RwLock<Environment>>,
     gui_renderer: VulkanEguiRenderer,
+    shader_cache: ShaderCache<SpirvShader>,
 }
 
 impl RenderingBackendState for VulkanRenderingRuntime {
@@ -63,12 +64,11 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: ShaderCache,
         render_extensions: RenderExtensions<Self::RenderApi>,
+        environment: Arc<RwLock<Environment>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let window_dimensions = display_api_handle.inner_size();
-        let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
+        let window_dimensions = display_api_handle.dimensions();
+        let shader_cache: ShaderCache<SpirvShader> = ShaderCache::default();
 
         let environment_guard = environment.read().unwrap();
         let library = VulkanLibrary::new().unwrap();
@@ -195,8 +195,8 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             memory_allocator.clone(),
             command_buffer_allocator.clone(),
             descriptor_set_allocator.clone(),
-            shader_cache,
             swapchain.image_format(),
+            &shader_cache,
         );
 
         Ok(Self {
@@ -213,6 +213,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             display_api_handle,
             environment,
             gui_renderer,
+            shader_cache,
         })
     }
 
@@ -224,12 +225,12 @@ impl RenderingBackendState for VulkanRenderingRuntime {
             queues: self.queues_for_components.clone(),
             memory_allocator: self.memory_allocator.clone(),
             command_buffer_allocator: self.command_buffer_allocator.clone(),
+            shader_cache: self.shader_cache.clone(),
         }
     }
 
     fn redraw(&mut self, machine: &Machine<Self::RenderApi>) {
-        let window_dimensions = self.display_api_handle.inner_size();
-        let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
+        let window_dimensions = self.display_api_handle.dimensions();
 
         // Skip rendering if impossible window size
         if window_dimensions.min() == 0 {

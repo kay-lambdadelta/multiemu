@@ -1,6 +1,5 @@
 use super::ContextExtensionSpecification;
 use crate::display::RenderApi;
-use multiemu_config::graphics::GraphicsApi;
 use nalgebra::DMatrix;
 use palette::Srgba;
 
@@ -21,7 +20,6 @@ impl ContextExtensionSpecification for SoftwareContextExtensionSpecification {
 }
 
 impl RenderApi for SoftwareRendering {
-    const GRAPHICS_API: GraphicsApi = GraphicsApi::Software;
     type ComponentInitializationData = SoftwareComponentInitializationData;
     type ComponentFramebufferInner = DMatrix<Srgba<u8>>;
     type ContextExtensionSpecification = SoftwareContextExtensionSpecification;

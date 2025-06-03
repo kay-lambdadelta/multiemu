@@ -7,8 +7,8 @@ authors = ["Kay <lambdadeltacommunism@gmail.com>"]
 description = "A command line utility interface for multiemu, but has tools generically useful for rom organization"
 
 [dependencies]
-multiemu-config = { workspace = true }
 multiemu-rom = { workspace = true }
+multiemu-config = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 rayon = { workspace = true }
@@ -18,8 +18,9 @@ serde_with = { workspace = true }
 redb = { workspace = true }
 codes-iso-639 = { workspace = true }
 codes-iso-3166 = { workspace = true }
-scc = { workspace = true }
 strum = { workspace = true }
+scc = { workspace = true }
+ron = { workspace = true }
 quick-xml = { version = "0.37", features = ["serialize"] }
 zip = { version = "3.0", default-features = false, features = [
     "zstd",

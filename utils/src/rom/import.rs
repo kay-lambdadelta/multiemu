@@ -5,21 +5,18 @@ use multiemu_rom::{
 };
 use scc::{HashCache, hash_cache::OccupiedEntry};
 use std::{
-    cell::LazyCell,
     collections::VecDeque,
     error::Error,
     fmt::Display,
     fs::{self, File},
     io::{Read, Seek},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 use zip::ZipArchive;
 
-thread_local! {
-    /// Cache to try to avoid reading the metadata of the same file multiple times
-    static ZIP_CACHE: LazyCell<ZipCache> = LazyCell::new(ZipCache::default);
-}
+/// Cache to try to avoid reading the metadata of the same file multiple times
+static ZIP_CACHE: LazyLock<ZipCache> = LazyLock::new(ZipCache::default);
 
 pub struct ZipCache(HashCache<PathBuf, ZipArchive<File>>);
 
@@ -79,16 +76,18 @@ impl Display for SearchEntry {
 pub fn rom_import(
     paths: Vec<PathBuf>,
     symlink: bool,
+    environment: Environment,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let environment = Arc::new(Environment::load()?);
+    let environment = Arc::new(environment);
     let rom_manager = Arc::new(
         RomManager::new(
-            Some(&environment.database_file),
-            Some(&environment.roms_directory),
+            Some(environment.database_location.0.clone()),
+            Some(environment.rom_store_directory.0.clone()),
         )
         .unwrap(),
     );
-    fs::create_dir_all(&environment.roms_directory)?;
+
+    fs::create_dir_all(&environment.rom_store_directory.0)?;
 
     rayon::scope(|scope| {
         let mut stack = VecDeque::from_iter(paths.into_iter().map(SearchEntry::File));
@@ -110,6 +109,7 @@ pub fn rom_import(
                         {
                             let rom_manager = rom_manager.clone();
                             let environment = environment.clone();
+
                             let path = path.clone();
                             scope.spawn(move |_| {
                                 if let Err(err) = process_file(
@@ -127,36 +127,34 @@ pub fn rom_import(
                             });
                         }
 
-                        ZIP_CACHE.with(|zip_cache| {
-                            // Try to parse as zip file
-                            if let Ok(mut archive) = zip_cache.get(&path) {
-                                tracing::debug!(
-                                    "File \"{}\" is a zip archive with {} entries",
-                                    path.display(),
-                                    archive.len()
-                                );
+                        // Try to parse as zip file
+                        if let Ok(mut archive) = ZIP_CACHE.get(&path) {
+                            tracing::debug!(
+                                "File \"{}\" is a zip archive with {} entries",
+                                path.display(),
+                                archive.len()
+                            );
 
-                                for index in 0..archive.len() {
-                                    if let Ok(file) = archive.by_index(index) {
-                                        let Some(internal_path) = file.enclosed_name() else {
-                                            continue;
-                                        };
+                            for index in 0..archive.len() {
+                                if let Ok(file) = archive.by_index(index) {
+                                    let Some(internal_path) = file.enclosed_name() else {
+                                        continue;
+                                    };
 
-                                        stack.push_back(SearchEntry::Archive {
-                                            archive_path: path.clone(),
-                                            archive_type: ArchiveType::Zip,
-                                            path: internal_path,
-                                        });
-                                    } else {
-                                        tracing::error!(
-                                            "Failed to read entry {} in archive \"{}\"",
-                                            index,
-                                            path.display()
-                                        );
-                                    }
+                                    stack.push_back(SearchEntry::Archive {
+                                        archive_path: path.clone(),
+                                        archive_type: ArchiveType::Zip,
+                                        path: internal_path,
+                                    });
+                                } else {
+                                    tracing::error!(
+                                        "Failed to read entry {} in archive \"{}\"",
+                                        index,
+                                        path.display()
+                                    );
                                 }
                             }
-                        });
+                        }
                     }
                 }
                 SearchEntry::Archive {
@@ -213,15 +211,15 @@ fn process_file(
             archive_path,
             archive_type: ArchiveType::Zip,
             path,
-        } => ZIP_CACHE.with(|zip_cache| {
-            let mut archive = zip_cache.get(&archive_path)?;
+        } => {
+            let mut archive = ZIP_CACHE.get(&archive_path)?;
             let index = archive
                 .index_for_path(&path)
                 .ok_or_else(|| format!("Could not find entry \"{}\" in archive", path.display()))?;
             let file = archive.by_index(index)?;
 
-            Ok::<_, Box<dyn Error + Send + Sync>>(RomId::calculate_id(file)?)
-        })?,
+            RomId::calculate_id(file)?
+        }
     };
 
     // Just fetch the first one
@@ -235,7 +233,7 @@ fn process_file(
             entry
         );
 
-        let internal_rom_path = environment.roms_directory.join(rom_id.to_string());
+        let internal_rom_path = environment.rom_store_directory.0.join(rom_id.to_string());
         let _ = fs::remove_file(&internal_rom_path);
 
         if let Some(mut converted_reader) = converted_reader.take() {
@@ -267,18 +265,13 @@ fn process_file(
                     archive_type: ArchiveType::Zip,
                     path,
                 } => {
-                    ZIP_CACHE.with(|zip_cache| {
-                        let mut archive = zip_cache.get(&archive_path)?;
-                        let index = archive.index_for_path(&path).ok_or_else(|| {
-                            format!("Could not find entry \"{}\" in archive", path.display())
-                        })?;
-                        let mut file = archive.by_index(index)?;
-
-                        let mut internal_rom_file = File::create(&internal_rom_path)?;
-                        std::io::copy(&mut file, &mut internal_rom_file)?;
-
-                        Ok::<_, Box<dyn Error + Send + Sync>>(())
+                    let mut archive = ZIP_CACHE.get(&archive_path)?;
+                    let index = archive.index_for_path(&path).ok_or_else(|| {
+                        format!("Could not find entry \"{}\" in archive", path.display())
                     })?;
+                    let mut file = archive.by_index(index)?;
+                    let mut internal_rom_file = File::create(&internal_rom_path)?;
+                    std::io::copy(&mut file, &mut internal_rom_file)?;
                 }
             }
         }

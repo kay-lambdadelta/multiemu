@@ -1,3 +1,3 @@
 pub mod software;
-#[cfg(all(feature = "vulkan", platform_desktop))]
+#[cfg(feature = "vulkan")]
 pub mod vulkan;

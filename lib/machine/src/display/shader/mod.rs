@@ -1,22 +1,21 @@
-use data_encoding::HEXLOWER_PERMISSIVE;
-use multiemu_config::Environment;
 use naga::{
     Module, ShaderStage,
     valid::{Capabilities, ModuleInfo, ValidationFlags, Validator},
 };
+use rustc_hash::FxBuildHasher;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use sha2::{Digest, Sha256};
 use std::{
     any::{Any, type_name},
     borrow::Cow,
     fmt::Debug,
-    fs::{File, create_dir_all},
-    io::Seek,
-    sync::{Arc, RwLock},
+    marker::PhantomData,
+    sync::Arc,
 };
 use versions::SemVer;
 
+#[cfg(feature = "opengl")]
 pub mod glsl;
+#[cfg(feature = "vulkan")]
 pub mod spirv;
 
 pub trait ShaderFormat: Debug + Any {
@@ -53,23 +52,37 @@ impl<T: ShaderFormat> Clone for Shader<T> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ShaderCache {
-    environment: Arc<RwLock<Environment>>,
+#[allow(clippy::type_complexity)]
+#[derive(Debug)]
+pub struct ShaderCache<T: ShaderFormat> {
+    shaders: Arc<scc::HashCache<(Cow<'static, str>, SemVer), Arc<Shader<T>>, FxBuildHasher>>,
+    _format: PhantomData<T>,
 }
 
-impl ShaderCache {
-    pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
-        Self { environment }
+impl<T: ShaderFormat> Clone for ShaderCache<T> {
+    fn clone(&self) -> Self {
+        Self {
+            shaders: self.shaders.clone(),
+            _format: self._format,
+        }
     }
 }
 
-impl ShaderCache {
-    pub fn get<T: ShaderFormat>(
+impl<T: ShaderFormat> Default for ShaderCache<T> {
+    fn default() -> Self {
+        Self {
+            shaders: scc::HashCache::with_capacity_and_hasher(0, 12, FxBuildHasher).into(),
+            _format: PhantomData,
+        }
+    }
+}
+
+impl<T: ShaderFormat> ShaderCache<T> {
+    pub fn get(
         &self,
         wgsl: impl Into<Cow<'static, str>>,
         version: impl TryInto<SemVer>,
-    ) -> Result<Shader<T>, Box<dyn std::error::Error>> {
+    ) -> Result<Arc<Shader<T>>, Box<dyn std::error::Error>> {
         let Ok(version) = version.try_into() else {
             return Err("Invalid version".into());
         };
@@ -82,63 +95,9 @@ impl ShaderCache {
             version
         );
 
-        let mut hasher = Sha256::new();
-        hasher.update(wgsl.as_bytes());
-        let hash: [u8; 32] = hasher.finalize().into();
-        let hash_string = HEXLOWER_PERMISSIVE.encode(&hash);
-
-        let environment_guard = self.environment.read().unwrap();
-        let shader_path = environment_guard.shader_cache_directory.join(&hash_string);
-
-        create_dir_all(&environment_guard.shader_cache_directory)?;
-        let mut file = File::options()
-            .create(true)
-            .write(true)
-            .truncate(false)
-            .open(&shader_path)?;
-
-        match bincode::serde::decode_from_std_read(&mut file, bincode::config::standard()) {
-            Ok(module) => {
-                let mut validator = Validator::new(ValidationFlags::all(), Capabilities::all());
-                let module_info = validator.validate(&module)?;
-
-                let vertex_entry = module
-                    .entry_points
-                    .iter()
-                    .find(|e| e.stage == ShaderStage::Vertex)
-                    .unwrap()
-                    .name
-                    .clone();
-
-                let fragment_entry = module
-                    .entry_points
-                    .iter()
-                    .find(|e| e.stage == ShaderStage::Fragment)
-                    .unwrap()
-                    .name
-                    .clone();
-
-                return Ok(Shader {
-                    vertex: T::compile(
-                        &module,
-                        &module_info,
-                        version.clone(),
-                        &vertex_entry,
-                        ShaderStage::Vertex,
-                    )?,
-                    vertex_entry,
-                    fragment: T::compile(
-                        &module,
-                        &module_info,
-                        version,
-                        &fragment_entry,
-                        ShaderStage::Fragment,
-                    )?,
-                    fragment_entry,
-                    module,
-                });
-            }
-            Err(_) => {
+        match self.shaders.get(&(wgsl.clone(), version.clone())) {
+            Some(module) => Ok(module.clone()),
+            None => {
                 // Try to parse it ourself and create it
                 let module = naga::front::wgsl::parse_str(&wgsl)?;
                 let mut validator = Validator::new(ValidationFlags::all(), Capabilities::all());
@@ -160,14 +119,7 @@ impl ShaderCache {
                     .name
                     .clone();
 
-                file.seek(std::io::SeekFrom::Start(0))?;
-                bincode::serde::encode_into_std_write(
-                    &module,
-                    &mut file,
-                    bincode::config::standard(),
-                )?;
-
-                return Ok(Shader {
+                let shader = Arc::new(Shader {
                     vertex: T::compile(
                         &module,
                         &module_info,
@@ -179,13 +131,19 @@ impl ShaderCache {
                     fragment: T::compile(
                         &module,
                         &module_info,
-                        version,
+                        version.clone(),
                         &fragment_entry,
                         ShaderStage::Fragment,
                     )?,
                     fragment_entry,
                     module,
                 });
+
+                let _ = self
+                    .shaders
+                    .put((wgsl.clone(), version.clone()), shader.clone());
+
+                Ok(shader)
             }
         }
     }

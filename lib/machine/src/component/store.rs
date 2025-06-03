@@ -4,6 +4,7 @@ use multiemu_save::ComponentName;
 use rustc_hash::FxBuildHasher;
 use std::{
     any::Any,
+    boxed::Box,
     collections::HashMap,
     fmt::Debug,
     sync::{
@@ -41,7 +42,7 @@ pub struct ComponentStore
 where
     Self: Send + Sync,
 {
-    component_ids: scc::HashMap<ComponentName, ComponentId, FxBuildHasher>,
+    component_ids: RwLock<HashMap<ComponentName, ComponentId, FxBuildHasher>>,
     component_location: RwLock<HashMap<ComponentId, ComponentLocation, FxBuildHasher>>,
     pub(crate) main_thread_queue: Arc<MainThreadQueue>,
     was_started: AtomicBool,
@@ -59,24 +60,26 @@ impl ComponentStore {
         assert!(is_main_thread());
 
         Self {
-            component_ids: scc::HashMap::default(),
+            component_ids: RwLock::default(),
             component_location: RwLock::default(),
             main_thread_queue: Arc::new(MainThreadQueue::default()),
             was_started: AtomicBool::new(false),
         }
     }
 
-    pub fn on_machine_ready(&self) {
-        assert!(is_main_thread());
-
+    pub fn interact_all(&self, mut callback: impl FnMut(&dyn Component) + Send) {
         if self.was_started.swap(true, Ordering::SeqCst) {
             panic!("Machine already started");
         }
 
-        for component in self.component_location.read().unwrap().values() {
+        let component_location_guard = self.component_location.read().unwrap();
+
+        for component in component_location_guard.values() {
             match component {
-                ComponentLocation::Global(component) => component.on_machine_ready(),
-                ComponentLocation::Local(component) => component.get().unwrap().on_machine_ready(),
+                ComponentLocation::Global(component) => callback(component.as_ref()),
+                ComponentLocation::Local(component) => self
+                    .main_thread_queue
+                    .maybe_wait_on_main(|| callback(component.get().unwrap().as_ref())),
             }
         }
     }
@@ -89,7 +92,11 @@ impl ComponentStore {
     ) {
         assert!(is_main_thread());
 
-        self.component_ids.insert(name, component_id).unwrap();
+        let _ = self
+            .component_ids
+            .write()
+            .unwrap()
+            .insert(name, component_id);
 
         if self
             .component_location
@@ -113,7 +120,11 @@ impl ComponentStore {
     ) {
         assert!(is_main_thread());
 
-        self.component_ids.insert(name, component_id).unwrap();
+        let _ = self
+            .component_ids
+            .write()
+            .unwrap()
+            .insert(name, component_id);
 
         if self
             .component_location
@@ -194,7 +205,7 @@ impl ComponentStore {
         self: &Arc<Self>,
         name: &ComponentName,
     ) -> Option<ComponentRef<C>> {
-        let component_id = *self.component_ids.get(name).unwrap().get();
+        let component_id = *self.component_ids.read().unwrap().get(name).unwrap();
 
         let component = if let ComponentLocation::Global(component) =
             self.component_location.read().unwrap().get(&component_id)?

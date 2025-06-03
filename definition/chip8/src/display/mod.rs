@@ -20,7 +20,7 @@ use std::{
 };
 
 mod software;
-#[cfg(all(feature = "vulkan", platform_desktop))]
+#[cfg(feature = "vulkan")]
 mod vulkan;
 
 const CHIP8_DIMENSIONS: Vector2<u8> = Vector2::new(64, 32);

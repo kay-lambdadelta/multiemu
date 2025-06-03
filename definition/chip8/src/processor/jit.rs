@@ -2,7 +2,6 @@ use super::instruction::{Chip8InstructionSet, InstructionSetChip8, Register};
 use crate::Chip8Kind;
 use crate::processor::ProcessorState;
 use cranelift::prelude::{Block, FunctionBuilder, InstBuilder, MemFlags, Value, types};
-use crossbeam::atomic::AtomicCell;
 use rangemap::RangeInclusiveMap;
 use std::{mem::offset_of, sync::Arc};
 

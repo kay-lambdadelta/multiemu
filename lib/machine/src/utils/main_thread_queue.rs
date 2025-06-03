@@ -1,10 +1,14 @@
-use crossbeam::channel::{Receiver, Sender};
 use std::{
     any::Any,
     ops::Deref,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        Arc, Condvar, Mutex,
+        mpsc::{Receiver, RecvTimeoutError, Sender, channel},
+    },
     time::Duration,
 };
+
+use crate::utils::Fragile;
 
 use super::is_main_thread;
 
@@ -17,13 +21,16 @@ struct QueuedCallback {
 #[derive(Debug)]
 pub struct MainThreadQueue {
     sender: Sender<QueuedCallback>,
-    receiver: Receiver<QueuedCallback>,
+    receiver: Fragile<Receiver<QueuedCallback>>,
 }
 
 impl Default for MainThreadQueue {
     fn default() -> Self {
-        let (sender, receiver) = crossbeam::channel::unbounded();
-        Self { sender, receiver }
+        let (sender, receiver) = channel();
+        Self {
+            sender,
+            receiver: Fragile::new(receiver),
+        }
     }
 }
 
@@ -80,15 +87,20 @@ impl MainThreadQueue {
         assert!(is_main_thread());
 
         loop {
-            match self.receiver.recv_timeout(Duration::from_millis(10)) {
+            match self
+                .receiver
+                .get()
+                .unwrap()
+                .recv_timeout(Duration::from_millis(10))
+            {
                 Ok(callback) => {
                     let value = (callback.callback)();
                     let mut is_done_guard = callback.is_done.1.lock().unwrap();
                     *is_done_guard = Some(value);
                     callback.is_done.0.notify_one();
                 }
-                Err(crossbeam::channel::RecvTimeoutError::Timeout) => break,
-                Err(crossbeam::channel::RecvTimeoutError::Disconnected) => {
+                Err(RecvTimeoutError::Timeout) => break,
+                Err(RecvTimeoutError::Disconnected) => {
                     unreachable!()
                 }
             }
@@ -142,6 +154,5 @@ mod test {
 
         // Ensure the task executed
         assert_eq!(executed_tasks.load(Ordering::Relaxed), 0);
-        assert_eq!(queue.receiver.len(), 0);
     }
 }

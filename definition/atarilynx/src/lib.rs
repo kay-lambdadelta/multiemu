@@ -1,15 +1,11 @@
 use mapctl::MapctlConfig;
-use multiemu_config::Environment;
 use multiemu_definition_misc::memory::{
     null::NullMemoryConfig,
     rom::RomMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
 use multiemu_machine::{
-    MachineFactory,
-    builder::MachineBuilder,
-    display::{backend::RenderApi, shader::ShaderCache},
-    memory::Address,
+    MachineFactory, builder::MachineBuilder, display::backend::RenderApi, memory::Address,
 };
 use multiemu_rom::{
     id::RomId,
@@ -18,11 +14,7 @@ use multiemu_rom::{
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
-use std::{
-    ops::RangeInclusive,
-    str::FromStr,
-    sync::{Arc, RwLock},
-};
+use std::{ops::RangeInclusive, str::FromStr, sync::Arc};
 
 mod mapctl;
 mod mikey;
@@ -42,18 +34,12 @@ impl<R: RenderApi> MachineFactory<R> for AtariLynx {
         &self,
         _user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: ShaderCache,
     ) -> MachineBuilder<R> {
         // 16 Mhz
         let base_clock = Ratio::from_integer(16000000);
 
-        let machine = MachineBuilder::new(
-            GameSystem::Atari(AtariSystem::Lynx),
-            rom_manager.clone(),
-            environment,
-            shader_cache,
-        );
+        let machine =
+            MachineBuilder::new(GameSystem::Atari(AtariSystem::Lynx), rom_manager.clone());
 
         let (machine, cpu_address_space) = machine.insert_address_space(16);
 

@@ -8,16 +8,17 @@ pub fn rom_export(
     path: PathBuf,
     symlink: bool,
     style: ExportStyle,
+    environment: Environment,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let environment = Environment::load()?;
     let rom_manager = Arc::new(
         RomManager::new(
-            Some(&environment.database_file),
-            Some(&environment.roms_directory),
+            Some(environment.database_location.0.clone()),
+            Some(environment.rom_store_directory.0.clone()),
         )
         .unwrap(),
     );
-    fs::create_dir_all(&environment.roms_directory)?;
+
+    fs::create_dir_all(&environment.rom_store_directory.0)?;
     fs::create_dir_all(&path)?;
 
     let database_transaction = rom_manager.rom_information.begin_read().unwrap();
@@ -29,7 +30,7 @@ pub fn rom_export(
         for rom_info in rom_infos {
             let (rom_id, rom_info) = (rom_id.value(), rom_info?.value());
 
-            let rom_path = environment.roms_directory.join(rom_id.to_string());
+            let rom_path = environment.rom_store_directory.0.join(rom_id.to_string());
 
             if rom_path.is_file() {
                 tracing::info!("ROM \"{}\" found to be exported", rom_info.file_name);

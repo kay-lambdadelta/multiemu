@@ -1,5 +1,4 @@
 use crate::{id::RomId, info::RomInfoV0, system::GameSystem};
-use camino::Utf8PathBuf;
 use redb::{
     Database, MultimapTableDefinition, ReadableMultimapTable, TableDefinition,
     backends::InMemoryBackend,
@@ -34,13 +33,14 @@ pub enum LoadedRomLocation {
 pub struct RomManager {
     pub rom_information: Database,
     pub loaded_roms: RwLock<BTreeMap<RomId, LoadedRomLocation>>,
+    rom_store: Option<PathBuf>,
 }
 
 impl RomManager {
     /// Opens and loads the default database
     pub fn new(
-        database: Option<&Path>,
-        rom_store: Option<&Path>,
+        database: Option<PathBuf>,
+        rom_store: Option<PathBuf>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         tracing::info!("Loading ROM database at {:?}", database);
 
@@ -66,6 +66,8 @@ impl RomManager {
 
         #[cfg(not(miri))]
         {
+            use std::sync::RwLock;
+
             let mut loaded_roms = BTreeMap::new();
 
             rom_information.upgrade()?;
@@ -75,7 +77,7 @@ impl RomManager {
             database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
             database_transaction.commit()?;
 
-            if let Some(rom_store) = rom_store {
+            if let Some(rom_store) = &rom_store {
                 let _ = create_dir_all(rom_store);
                 if rom_store.is_dir() {
                     for file in fs::read_dir(rom_store)? {
@@ -101,6 +103,7 @@ impl RomManager {
             Ok(Self {
                 rom_information,
                 loaded_roms: RwLock::new(loaded_roms),
+                rom_store,
             })
         }
 
@@ -109,6 +112,7 @@ impl RomManager {
             Ok(Self {
                 rom_information,
                 loaded_roms: RwLock::default(),
+                rom_store,
             })
         }
     }
@@ -152,13 +156,8 @@ impl RomManager {
     }
 
     /// Components should use this function to load roms for themselves
-    pub fn open(
-        &self,
-        id: RomId,
-        requirement: RomRequirement,
-        internal_rom_store: impl AsRef<Path>,
-    ) -> Option<File> {
-        if let Some(path) = self.get_rom_path(id, internal_rom_store) {
+    pub fn open(&self, id: RomId, requirement: RomRequirement) -> Option<File> {
+        if let Some(path) = self.get_rom_path(id) {
             if path.is_file() {
                 return Some(File::open(path).unwrap());
             } else {
@@ -241,13 +240,11 @@ impl RomManager {
                             .unwrap_or_default()
                             .to_string_lossy()
                             .to_string(),
-                        file_name: Utf8PathBuf::from(
-                            rom_path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string(),
-                        ),
+                        file_name: rom_path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string(),
                         system: game_system,
                         languages: HashSet::new(),
                         regions: HashSet::new(),
@@ -264,12 +261,11 @@ impl RomManager {
         Ok(None)
     }
 
-    pub fn get_rom_path(&self, id: RomId, internal_rom_store: impl AsRef<Path>) -> Option<PathBuf> {
+    pub fn get_rom_path(&self, id: RomId) -> Option<PathBuf> {
         if let Some(path) = self.loaded_roms.read().unwrap().get(&id) {
             match path {
                 LoadedRomLocation::Internal => {
-                    let internal_rom_store = internal_rom_store.as_ref();
-                    return Some(internal_rom_store.join(id.to_string()));
+                    return Some(self.rom_store.as_ref().unwrap().join(id.to_string()));
                 }
                 LoadedRomLocation::External(path) => {
                     return Some(path.clone());

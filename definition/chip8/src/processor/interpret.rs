@@ -106,7 +106,7 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
                 state.registers.work_registers[destination as usize] |=
                     state.registers.work_registers[source as usize];
 
-                if self.mode.load() == Chip8Kind::Chip8 {
+                if *self.mode.lock().unwrap() == Chip8Kind::Chip8 {
                     state.registers.work_registers[0xf] = 0;
                 }
             }
@@ -117,7 +117,7 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
                 state.registers.work_registers[destination as usize] &=
                     state.registers.work_registers[source as usize];
 
-                if self.mode.load() == Chip8Kind::Chip8 {
+                if *self.mode.lock().unwrap() == Chip8Kind::Chip8 {
                     state.registers.work_registers[0xf] = 0;
                 }
             }
@@ -128,7 +128,7 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
                 state.registers.work_registers[destination as usize] ^=
                     state.registers.work_registers[source as usize];
 
-                if self.mode.load() == Chip8Kind::Chip8 {
+                if *self.mode.lock().unwrap() == Chip8Kind::Chip8 {
                     state.registers.work_registers[0xf] = 0;
                 }
             }
@@ -159,7 +159,8 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Shr { register, value }) => {
                 let mut destination_value = state.registers.work_registers[register as usize];
 
-                if self.mode.load() == Chip8Kind::Chip8 || self.config.always_shr_in_place {
+                if *self.mode.lock().unwrap() == Chip8Kind::Chip8 || self.config.always_shr_in_place
+                {
                     destination_value = state.registers.work_registers[value as usize];
                 }
 
@@ -183,7 +184,7 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Shl { register, value }) => {
                 let mut destination_value = state.registers.work_registers[register as usize];
 
-                if self.mode.load() == Chip8Kind::Chip8 {
+                if *self.mode.lock().unwrap() == Chip8Kind::Chip8 {
                     destination_value = state.registers.work_registers[value as usize];
                 }
 
@@ -204,7 +205,7 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
                 state.registers.index = value;
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Jumpi { address }) => {
-                let address = if self.mode.load() == Chip8Kind::Chip8 {
+                let address = if *self.mode.lock().unwrap() == Chip8Kind::Chip8 {
                     address.wrapping_add(state.registers.work_registers[0x0] as u16)
                 } else {
                     let register = address.view_bits::<Msb0>()[4..8].load::<u8>();
@@ -352,7 +353,7 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
                 }
 
                 // Only the original chip8 modifies the index register for this operation
-                if self.mode.load() == Chip8Kind::Chip8 {
+                if *self.mode.lock().unwrap() == Chip8Kind::Chip8 {
                     state.registers.index = state.registers.index.wrapping_add(count as u16 + 1);
                 }
             }
@@ -368,7 +369,7 @@ impl<R: SupportedRenderApiChip8> Chip8ProcessorTask<R> {
                 }
 
                 // Only the original chip8 modifies the index register for this operation
-                if self.mode.load() == Chip8Kind::Chip8 {
+                if *self.mode.lock().unwrap() == Chip8Kind::Chip8 {
                     state.registers.index = state.registers.index.wrapping_add(count as u16 + 1);
                 }
             }

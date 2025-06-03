@@ -1,5 +1,6 @@
 use crate::{
-    gui::software_rendering::SoftwareEguiRenderer, rendering_backend::RenderingBackendState,
+    gui::software_rendering::SoftwareEguiRenderer,
+    rendering_backend::{DisplayApiHandle, RenderingBackendState},
 };
 use multiemu_config::Environment;
 use multiemu_machine::{
@@ -7,7 +8,6 @@ use multiemu_machine::{
     display::{
         RenderExtensions,
         backend::{RenderApi, software::SoftwareRendering},
-        shader::ShaderCache,
     },
 };
 use nalgebra::{DMatrixViewMut, Vector2};
@@ -30,12 +30,10 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
-        environment: Arc<RwLock<Environment>>,
-        _shader_cache: ShaderCache,
         _render_extensions: RenderExtensions<Self::RenderApi>,
+        environment: Arc<RwLock<Environment>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let window_dimensions = display_api_handle.inner_size();
-        let window_dimensions = Vector2::new(window_dimensions.width, window_dimensions.height);
+        let window_dimensions = display_api_handle.dimensions();
 
         let context = Context::new(display_api_handle.clone())?;
         let mut surface = Surface::new(&context, display_api_handle.clone())?;

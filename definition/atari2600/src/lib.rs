@@ -1,7 +1,6 @@
 use cartridge::Atari2600CartridgeConfig;
 use codes_iso_3166::part_1::CountryCode;
 use gamepad::joystick::Atari2600JoystickConfig;
-use multiemu_config::Environment;
 use multiemu_definition_misc::{
     memory::mirror::MirrorMemoryConfig,
     mos6532_riot::{Mos6532Riot, Mos6532RiotConfig},
@@ -11,7 +10,6 @@ use multiemu_machine::{
     MachineFactory,
     builder::MachineBuilder,
     component::component_ref::ComponentRef,
-    display::shader::ShaderCache,
     memory::{Address, memory_translation_table::address_space::AddressSpaceHandle},
 };
 use multiemu_rom::{
@@ -20,11 +18,7 @@ use multiemu_rom::{
     system::{AtariSystem, GameSystem},
 };
 use num::rational::Ratio;
-use std::{
-    marker::PhantomData,
-    ops::RangeInclusive,
-    sync::{Arc, RwLock},
-};
+use std::{marker::PhantomData, ops::RangeInclusive, sync::Arc};
 use strum::Display;
 use tia::{
     SupportedRenderApiTia,
@@ -55,14 +49,10 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: ShaderCache,
     ) -> MachineBuilder<R> {
         let machine = MachineBuilder::new(
             GameSystem::Atari(AtariSystem::Atari2600),
             rom_manager.clone(),
-            environment,
-            shader_cache,
         );
 
         assert_eq!(

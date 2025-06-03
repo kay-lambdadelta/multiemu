@@ -5,12 +5,14 @@ use num::{
     rational::Ratio,
 };
 use std::{
+    boxed::Box,
     cmp::{Ordering, Reverse},
-    collections::BinaryHeap,
+    collections::binary_heap::BinaryHeap,
     fmt::Debug,
     num::NonZero,
     sync::{Arc, Mutex},
     time::Duration,
+    vec::Vec,
 };
 
 mod run;

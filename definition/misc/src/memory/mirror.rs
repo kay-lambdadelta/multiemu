@@ -150,32 +150,21 @@ mod test {
         mirror::MirrorMemoryConfig,
         standard::{StandardMemoryConfig, StandardMemoryInitialContents},
     };
-    use multiemu_config::Environment;
     use multiemu_machine::{
-        builder::MachineBuilder,
-        display::{backend::software::SoftwareRendering, shader::ShaderCache},
+        builder::MachineBuilder, display::backend::software::SoftwareRendering,
     };
     use multiemu_rom::{manager::RomManager, system::GameSystem};
     use rangemap::RangeInclusiveMap;
-    use std::{
-        borrow::Cow,
-        sync::{Arc, RwLock},
-    };
+    use std::{borrow::Cow, sync::Arc};
 
     #[test]
     fn basic_read() {
         unsafe { multiemu_machine::utils::force_set_main_thread() };
 
-        let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::new(environment.clone());
-        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
-            GameSystem::Unknown,
-            rom_manager,
-            environment,
-            shader_cache,
-        )
-        .insert_address_space(64);
+        let (machine, cpu_address_space) =
+            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager)
+                .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -219,17 +208,11 @@ mod test {
     fn basic_write() {
         unsafe { multiemu_machine::utils::force_set_main_thread() };
 
-        let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::new(environment.clone());
 
-        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
-            GameSystem::Unknown,
-            rom_manager,
-            environment,
-            shader_cache,
-        )
-        .insert_address_space(64);
+        let (machine, cpu_address_space) =
+            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager)
+                .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -270,16 +253,10 @@ mod test {
     fn extensive_read_test() {
         unsafe { multiemu_machine::utils::force_set_main_thread() };
 
-        let environment = Arc::new(RwLock::new(Environment::default()));
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-        let shader_cache = ShaderCache::new(environment.clone());
-        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
-            GameSystem::Unknown,
-            rom_manager,
-            environment,
-            shader_cache,
-        )
-        .insert_address_space(64);
+        let (machine, cpu_address_space) =
+            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager)
+                .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",

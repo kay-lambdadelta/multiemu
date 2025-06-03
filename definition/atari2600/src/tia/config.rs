@@ -26,15 +26,8 @@ impl<R: Region, A: SupportedRenderApiTia> ComponentConfig<A> for TiaConfig<R> {
         let state: Arc<Mutex<_>> = Arc::default();
         let essentials = component_builder.essentials();
 
-        let component_builder = component_builder
-            // TODO: Remove when the tia task is more finished
-            .insert_task(R::REFRESH_RATE, move |display: &Tia<R, A>, _period| {
-                tracing::debug!("Commiting framebuffer");
-                let backend = display.display_backend.get().unwrap();
-
-                backend.commit_display();
-            })
-            .set_display_config(None, None, move |component: &Tia<R, A>| {
+        let component_builder =
+            component_builder.set_display_config(None, None, move |component: &Tia<R, A>| {
                 let (backend, framebuffer) =
                     <A::Backend<R> as TiaDisplayBackend<R, A>>::new(essentials.as_ref());
 

@@ -1,8 +1,7 @@
 use multiemu_input::{Input, InputState, VirtualGamepadName};
 use std::{
     collections::{HashMap, HashSet},
-    ops::Deref,
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 #[derive(Debug, Clone)]
@@ -15,7 +14,7 @@ pub struct VirtualGamepadMetadata {
 pub struct VirtualGamepad {
     name: VirtualGamepadName,
     metadata: Arc<VirtualGamepadMetadata>,
-    state: scc::HashMap<Input, InputState>,
+    state: RwLock<HashMap<Input, InputState>>,
 }
 
 impl VirtualGamepad {
@@ -26,7 +25,7 @@ impl VirtualGamepad {
         Arc::new(Self {
             name,
             metadata: medadata.into(),
-            state: scc::HashMap::new(),
+            state: RwLock::default(),
         })
     }
 
@@ -40,7 +39,7 @@ impl VirtualGamepad {
 
     pub fn set(&self, input: Input, state: InputState) {
         if self.metadata.present_inputs.contains(&input) {
-            let _ = self.state.upsert(input, state);
+            self.state.write().unwrap().insert(input, state);
         }
     }
 
@@ -52,8 +51,10 @@ impl VirtualGamepad {
         );
 
         self.state
+            .read()
+            .unwrap()
             .get(&input)
-            .map(|state| *state.deref())
+            .copied()
             .unwrap_or_default()
     }
 }

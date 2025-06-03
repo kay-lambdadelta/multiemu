@@ -22,8 +22,4 @@ bincode = { workspace = true }
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 multiemu-definition-misc = { workspace = true }
 
-[build-dependencies]
-multiemu-macros = { workspace = true }
-cfg_aliases = { workspace = true }
-
 [features]

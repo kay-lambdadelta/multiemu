@@ -4,14 +4,22 @@ use strum::{Display, EnumIter};
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, EnumIter, Display, PartialEq, Eq, Default)]
 /// Graphics API the graphics runtime will use
 pub enum GraphicsApi {
-    #[cfg_attr(not(platform_desktop), default)]
-    /// Software rendering, very slow
+    #[cfg_attr(
+        not(all(
+            any(target_family = "unix", target_os = "windows"),
+            not(target_os = "horizon")
+        )),
+        default
+    )]
     Software,
-    #[cfg(platform_desktop)]
-    #[cfg_attr(platform_desktop, default)]
-    /// Vulkan rendering, very fast
+    #[cfg_attr(
+        all(
+            any(target_family = "unix", target_os = "windows"),
+            not(target_os = "horizon")
+        ),
+        default
+    )]
     Vulkan,
-    #[cfg(platform_desktop)]
     Opengl,
 }
 

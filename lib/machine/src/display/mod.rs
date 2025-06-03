@@ -1,6 +1,7 @@
 use backend::RenderApi;
-
 pub mod backend;
+
+#[cfg(any(feature = "vulkan", feature = "opengl"))]
 pub mod shader;
 
 pub struct RenderExtensions<R: RenderApi> {

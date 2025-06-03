@@ -19,9 +19,12 @@ mod color;
 pub(crate) mod config;
 mod memory;
 pub mod region;
-mod software;
 mod task;
-#[cfg(all(feature = "vulkan", platform_desktop))]
+
+#[cfg(feature = "opengl")]
+mod opengl;
+mod software;
+#[cfg(feature = "vulkan")]
 mod vulkan;
 
 const HBLANK_LENGTH: u16 = 68;
@@ -121,15 +124,17 @@ pub(crate) struct Tia<R: Region, A: SupportedRenderApiTia> {
 
 impl<R: Region, A: SupportedRenderApiTia> Component for Tia<R, A> {}
 
-pub(crate) trait FramebufferGuard {
+pub(crate) trait FramebufferGuard: Debug {
     fn get(&mut self) -> DMatrixViewMut<'_, Srgba<u8>>;
 }
 
 pub(crate) trait TiaDisplayBackend<R: Region, A: SupportedRenderApiTia>:
     Debug + Sized + 'static
 {
+    type FramebufferGuard<'a>: FramebufferGuard;
+
     fn new(essentials: &RuntimeEssentials<A>) -> (Self, ComponentFramebuffer<A>);
-    fn lock_framebuffer(&self) -> impl FramebufferGuard;
+    fn lock_framebuffer(&self) -> Self::FramebufferGuard<'_>;
     fn commit_display(&self);
 }
 

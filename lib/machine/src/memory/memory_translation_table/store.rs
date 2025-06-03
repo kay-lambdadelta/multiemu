@@ -1,8 +1,12 @@
 use super::{MemoryHandle, ReadWriteMemory};
 use crate::memory::callbacks::{ReadMemory, WriteMemory};
-use std::sync::{
-    RwLock,
-    atomic::{AtomicU16, Ordering},
+use std::{
+    boxed::Box,
+    sync::{
+        RwLock,
+        atomic::{AtomicU16, Ordering},
+    },
+    vec::Vec,
 };
 
 #[derive(Debug)]

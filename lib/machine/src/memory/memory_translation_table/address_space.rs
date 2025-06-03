@@ -1,7 +1,7 @@
 use super::MemoryHandle;
 use crate::memory::Address;
 use rangemap::RangeInclusiveMap;
-use std::{num::NonZero, ops::RangeInclusive};
+use std::{num::NonZero, ops::RangeInclusive, vec::Vec};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct AddressSpaceHandle(NonZero<u8>);

@@ -2,7 +2,7 @@ use super::ComponentBuilder;
 use crate::{
     component::Component, display::backend::RenderApi, input::virtual_gamepad::VirtualGamepad,
 };
-use std::sync::Arc;
+use std::{sync::Arc, vec::Vec};
 
 #[derive(Default)]
 pub struct InputMetadata {

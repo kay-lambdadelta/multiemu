@@ -226,7 +226,6 @@ pub struct Mos6502Config {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(jit, repr(C))]
 struct ProcessorState {
     /// Accumulator
     pub a: u8,

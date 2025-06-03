@@ -14,12 +14,12 @@ pub enum LogiqxAction {
 
 pub fn database_logiqx_import(
     files: Vec<PathBuf>,
+    environment: Environment,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let environment = Environment::load()?;
     let rom_manager = Arc::new(
         RomManager::new(
-            Some(&environment.database_file),
-            Some(&environment.roms_directory),
+            Some(environment.database_location.0.clone()),
+            Some(environment.rom_store_directory.0.clone()),
         )
         .unwrap(),
     );

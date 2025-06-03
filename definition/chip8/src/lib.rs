@@ -1,11 +1,10 @@
 use audio::Chip8AudioConfig;
 use display::{Chip8DisplayConfig, SupportedRenderApiChip8Display};
 use font::CHIP8_FONT;
-use multiemu_config::Environment;
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_machine::{MachineFactory, builder::MachineBuilder, display::shader::ShaderCache};
+use multiemu_machine::{MachineFactory, builder::MachineBuilder};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
@@ -16,10 +15,7 @@ use processor::Chip8ProcessorConfig;
 pub use processor::decoder::Chip8InstructionDecoder;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Cow,
-    sync::{Arc, RwLock},
-};
+use std::{borrow::Cow, sync::Arc};
 use timer::Chip8TimerConfig;
 
 mod audio;
@@ -49,15 +45,8 @@ impl<R: SupportedRenderApiChip8> MachineFactory<R> for Chip8 {
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
-        environment: Arc<RwLock<Environment>>,
-        shader_cache: ShaderCache,
     ) -> MachineBuilder<R> {
-        let machine = MachineBuilder::new(
-            GameSystem::Other(OtherSystem::Chip8),
-            rom_manager,
-            environment,
-            shader_cache,
-        );
+        let machine = MachineBuilder::new(GameSystem::Other(OtherSystem::Chip8), rom_manager);
 
         let (machine, cpu_address_space) = machine.insert_address_space(12);
         let (machine, timer) = machine.insert_default_component::<Chip8TimerConfig>("timer");

@@ -3,7 +3,7 @@ use crate::{
     component::Component,
     display::backend::{ComponentFramebuffer, RenderApi},
 };
-use std::any::Any;
+use std::{any::Any, boxed::Box};
 
 pub trait DisplayCallback<R: RenderApi, C: Component>: 'static {
     fn get_framebuffer(self, component: &C) -> ComponentFramebuffer<R>;

@@ -6,7 +6,6 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 multiemu-rom = { workspace = true }
-multiemu-config = { workspace = true }
 multiemu-machine = { workspace = true }
 rangemap = { workspace = true }
 rand = { workspace = true }
@@ -17,15 +16,10 @@ num = { workspace = true }
 tracing = { workspace = true }
 bincode = { workspace = true }
 
+
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }
-
-[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dependencies]
-memmap2 = { workspace = true }
-
-[build-dependencies]
-multiemu-macros = { workspace = true }
-cfg_aliases = { workspace = true }
+ron = { workspace = true }
 
 [[bench]]
 name = "read"

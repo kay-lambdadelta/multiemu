@@ -1,7 +1,19 @@
+use std::fmt::Debug;
+
 use super::is_main_thread;
 
 /// Based upon the fragile crate but made more simple for our purposes
 pub struct Fragile<T>(T);
+
+impl<T: Debug> Debug for Fragile<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if is_main_thread() {
+            f.debug_tuple("Fragile").field(&self.0).finish()
+        } else {
+            f.debug_tuple("Fragile").field(&"< unavailable >").finish()
+        }
+    }
+}
 
 impl<T> Fragile<T> {
     pub fn new(value: T) -> Self {
@@ -13,6 +25,7 @@ impl<T> Fragile<T> {
         Fragile(value)
     }
 
+    #[inline]
     pub fn get(&self) -> Option<&T> {
         if is_main_thread() {
             Some(&self.0)

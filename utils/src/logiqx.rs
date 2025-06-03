@@ -189,7 +189,7 @@ pub fn import(
 
             let info = RomInfoV0 {
                 name: machine.name.clone(),
-                file_name: rom.name.replace('\\', "/").into(),
+                file_name: rom.name.replace('\\', "/"),
                 system: data_file.header.name,
                 languages,
                 regions,

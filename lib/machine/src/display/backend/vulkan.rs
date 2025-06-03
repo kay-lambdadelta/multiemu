@@ -1,7 +1,9 @@
 use super::ContextExtensionSpecification;
-use crate::display::RenderApi;
-use multiemu_config::graphics::GraphicsApi;
-use std::sync::Arc;
+use crate::display::{
+    RenderApi,
+    shader::{ShaderCache, spirv::SpirvShader},
+};
+use std::{sync::Arc, vec::Vec};
 use vulkano::{
     command_buffer::allocator::StandardCommandBufferAllocator,
     device::{Device, DeviceExtensions, Queue},
@@ -29,7 +31,6 @@ impl ContextExtensionSpecification for VulkanContextExtensionSpecification {
 }
 
 impl RenderApi for VulkanRendering {
-    const GRAPHICS_API: GraphicsApi = GraphicsApi::Vulkan;
     type ComponentInitializationData = VulkanComponentInitializationData;
     type ComponentFramebufferInner = Image;
     type ContextExtensionSpecification = VulkanContextExtensionSpecification;
@@ -41,6 +42,7 @@ pub struct VulkanComponentInitializationData {
     pub memory_allocator: Arc<StandardMemoryAllocator>,
     pub queues: Vec<Arc<Queue>>,
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
+    pub shader_cache: ShaderCache<SpirvShader>,
 }
 
 impl VulkanComponentInitializationData {

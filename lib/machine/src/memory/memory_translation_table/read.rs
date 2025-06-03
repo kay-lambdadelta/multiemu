@@ -7,7 +7,7 @@ use crate::memory::{Address, callbacks::ReadMemory};
 use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
 use smallvec::SmallVec;
-use std::ops::RangeInclusive;
+use std::{ops::RangeInclusive, vec::Vec};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

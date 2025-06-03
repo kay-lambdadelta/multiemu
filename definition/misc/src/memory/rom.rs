@@ -12,7 +12,12 @@ use multiemu_machine::{
     },
 };
 use multiemu_rom::{id::RomId, manager::RomRequirement};
-use std::ops::RangeInclusive;
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    ops::RangeInclusive,
+    sync::Mutex,
+};
 
 #[derive(Debug)]
 pub struct RomMemoryConfig {
@@ -34,22 +39,15 @@ impl<R: RenderApi> ComponentConfig<R> for RomMemoryConfig {
     fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
         let essentials = component_builder.essentials();
 
-        let rom_file = essentials
-            .rom_manager
-            .open(
-                self.rom,
-                RomRequirement::Required,
-                &essentials.environment.read().unwrap().roms_directory,
-            )
-            .unwrap();
+        let rom = Mutex::new(
+            essentials
+                .rom_manager
+                .open(self.rom, RomRequirement::Required)
+                .unwrap(),
+        );
 
         let assigned_address_space = self.assigned_address_space;
         let assigned_range = self.assigned_range.clone();
-
-        #[cfg(platform_desktop)]
-        let rom = unsafe { memmap2::MmapOptions::new().map(&rom_file).unwrap() };
-        #[cfg(not(platform_desktop))]
-        let rom = File::open(rom_file).unwrap();
 
         let memory_operation_callbacks = MemoryCallbacks { config: self, rom };
 
@@ -65,11 +63,7 @@ impl<R: RenderApi> ComponentConfig<R> for RomMemoryConfig {
 #[derive(Debug)]
 struct MemoryCallbacks {
     config: RomMemoryConfig,
-    #[cfg(platform_desktop)]
-    rom: memmap2::Mmap,
-    // FIXME: Finish fallback for mmap-less platforms
-    #[cfg(not(platform_desktop))]
-    rom: File,
+    rom: Mutex<File>,
 }
 
 impl Memory for MemoryCallbacks {}
@@ -82,10 +76,12 @@ impl ReadMemory for MemoryCallbacks {
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let adjusted_offset = address - self.config.assigned_range.start();
-        buffer.copy_from_slice(
-            &self.rom
-                [adjusted_offset..=(adjusted_offset + (buffer.len() - 1)).min(self.rom.len()) - 1],
-        );
+
+        let mut rom_guard = self.rom.lock().unwrap();
+        rom_guard
+            .seek(SeekFrom::Start(adjusted_offset as u64))
+            .unwrap();
+        rom_guard.read_exact(buffer).unwrap();
 
         Ok(())
     }
@@ -98,10 +94,11 @@ impl ReadMemory for MemoryCallbacks {
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         let adjusted_offset = address - self.config.assigned_range.start();
 
-        buffer.copy_from_slice(
-            &self.rom
-                [adjusted_offset..=(adjusted_offset + (buffer.len() - 1)).min(self.rom.len()) - 1],
-        );
+        let mut rom_guard = self.rom.lock().unwrap();
+        rom_guard
+            .seek(SeekFrom::Start(adjusted_offset as u64))
+            .unwrap();
+        rom_guard.read_exact(buffer).unwrap();
 
         Ok(())
     }

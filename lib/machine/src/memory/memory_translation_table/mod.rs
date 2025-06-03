@@ -1,12 +1,4 @@
-use super::{
-    Address,
-    callbacks::{ReadMemory, WriteMemory},
-};
-use address_space::{AddressSpace, AddressSpaceHandle};
-use bitvec::{field::BitField, order::Lsb0};
-use rangemap::RangeInclusiveMap;
 use std::{
-    fmt::Debug,
     num::NonZero,
     ops::RangeInclusive,
     sync::{
@@ -14,6 +6,15 @@ use std::{
         atomic::{AtomicU8, Ordering},
     },
 };
+
+use super::{
+    Address,
+    callbacks::{ReadMemory, WriteMemory},
+};
+use address_space::{AddressSpace, AddressSpaceHandle};
+use bitvec::{field::BitField, order::Lsb0};
+use rangemap::RangeInclusiveMap;
+use std::{boxed::Box, vec::Vec};
 use store::MemoryStore;
 
 pub mod address_space;

@@ -109,8 +109,8 @@ impl VulkanEguiRenderer {
         memory_allocator: Arc<StandardMemoryAllocator>,
         command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
         descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
-        shader_cache: ShaderCache,
         output_format: Format,
+        shader_cache: &ShaderCache<SpirvShader>,
     ) -> Self {
         let render_pass = single_pass_renderpass!(
             device.clone(),
@@ -132,7 +132,7 @@ impl VulkanEguiRenderer {
         let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
 
         let shader = shader_cache
-            .get::<SpirvShader>(include_str!("../../../../../shaders/egui.wgsl"), "1.0.0")
+            .get(include_str!("../../../../../shaders/egui.wgsl"), "1.0.0")
             .unwrap();
 
         // SAFETY: These shaders are pre validated by naga so this should be safe
@@ -143,7 +143,7 @@ impl VulkanEguiRenderer {
         let fragment_shader = unsafe {
             ShaderModule::new(
                 device.clone(),
-                ShaderModuleCreateInfo::new(&shader.fragment),
+                ShaderModuleCreateInfo::new(shader.fragment.as_slice()),
             )
             .unwrap()
         };

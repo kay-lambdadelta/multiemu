@@ -1,6 +1,7 @@
+//! A multisystem hardware emulator
+
 #![windows_subsystem = "windows"]
 #![allow(clippy::arc_with_non_send_sync)]
-//! A multisystem hardware emulator
 
 use crate::runtime::{Platform, SoftwareRenderingRuntime};
 use multiemu_config::{Environment, graphics::GraphicsApi};
@@ -8,8 +9,10 @@ use multiemu_rom::{
     id::RomId,
     manager::{ROM_INFORMATION_TABLE, RomManager},
 };
+use ron::ser::PrettyConfig;
 use std::{
     fs::File,
+    io::Write,
     sync::{Arc, RwLock},
 };
 use tracing::level_filters::LevelFilter;
@@ -23,18 +26,25 @@ mod gui;
 mod rendering_backend;
 mod runtime;
 
-#[cfg(platform_desktop)]
+#[cfg(all(
+    any(target_family = "unix", target_os = "windows"),
+    not(target_os = "horizon")
+))]
 fn main() {
+    use std::ops::Deref;
+
     use clap::Parser;
     use cli::{Cli, CliAction};
+    use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
     use runtime::{Runtime, desktop::windowing::DesktopPlatform};
 
     // Set our current thread as our main thread
     multiemu_machine::utils::set_main_thread();
 
-    let environment = Environment::load().expect("Could not parse environment");
+    let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+    let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
 
-    let file = File::create(&environment.log_location).expect("Failed to create log file");
+    let file = File::create(&environment.log_location.0).expect("Failed to create log file");
     let stderr_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
         .with_ansi(true)
@@ -56,8 +66,8 @@ fn main() {
 
     let rom_manager = Arc::new(
         RomManager::new(
-            Some(&environment.database_file),
-            Some(&environment.roms_directory),
+            Some(environment.database_location.0.clone()),
+            Some(environment.rom_store_directory.0.clone()),
         )
         .unwrap(),
     );
@@ -129,7 +139,7 @@ fn main() {
 
                 DesktopPlatform::run(runtime).unwrap();
             }
-            #[cfg(all(feature = "vulkan", platform_desktop))]
+            #[cfg(feature = "vulkan")]
             GraphicsApi::Vulkan => {
                 use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
@@ -159,7 +169,7 @@ fn main() {
 
             DesktopPlatform::run(runtime).unwrap();
         }
-        #[cfg(all(feature = "vulkan", platform_desktop))]
+        #[cfg(feature = "vulkan")]
         GraphicsApi::Vulkan => {
             use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
@@ -179,4 +189,12 @@ fn create_filter() -> EnvFilter {
     EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy()
+}
+
+fn write_environment(writer: impl Write, environment: &Environment) -> Result<(), ron::Error> {
+    ron::Options::default().to_io_writer_pretty(
+        writer,
+        environment,
+        PrettyConfig::new().struct_names(false),
+    )
 }

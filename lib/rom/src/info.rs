@@ -1,5 +1,4 @@
 use super::system::GameSystem;
-use camino::Utf8PathBuf;
 use codes_iso_639::part_3::LanguageCode;
 use codes_iso_3166::part_1::CountryCode;
 use redb::{Key, TypeName, Value};
@@ -12,7 +11,7 @@ use std::collections::HashSet;
 /// Information about a ROM, for the database
 pub struct RomInfoV0 {
     pub name: String,
-    pub file_name: Utf8PathBuf,
+    pub file_name: String,
     pub system: GameSystem,
     #[serde(default)]
     #[serde_as(as = "HashSet<DisplayFromStr>")]

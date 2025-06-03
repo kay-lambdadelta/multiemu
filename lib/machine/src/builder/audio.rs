@@ -1,8 +1,7 @@
-use num::rational::Ratio;
-use std::{collections::HashMap, sync::Arc};
-
 use super::ComponentBuilder;
 use crate::{audio::AudioQueue, component::Component, display::backend::RenderApi};
+use num::rational::Ratio;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 pub struct AudioMetadata {

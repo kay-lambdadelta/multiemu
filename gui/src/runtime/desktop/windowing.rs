@@ -1,3 +1,7 @@
+use super::{
+    RuntimeBoundMessage,
+    input::keyboard::{KEYBOARD_ID, winit2key},
+};
 use crate::{
     rendering_backend::{DisplayApiHandle, RenderingBackendState},
     runtime::{Platform, Runtime, desktop::input::gamepad::gamepad_task},
@@ -14,15 +18,10 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use super::{
-    RuntimeBoundMessage,
-    input::keyboard::{KEYBOARD_ID, winit2key},
-};
-
 impl DisplayApiHandle for Arc<Window> {
-    fn dimensions(&self) -> nalgebra::Vector2<u16> {
+    fn dimensions(&self) -> nalgebra::Vector2<u32> {
         let size = self.inner_size();
-        Vector2::new(size.width as u16, size.height as u16)
+        Vector2::new(size.width, size.height)
     }
 }
 
@@ -111,14 +110,6 @@ impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, Ren
         match event {
             WindowEvent::CloseRequested => {
                 tracing::info!("Window close requested");
-
-                // Save the config on exit
-                self.runtime
-                    .environment
-                    .read()
-                    .unwrap()
-                    .save()
-                    .expect("Failed to save config");
 
                 event_loop.exit();
             }

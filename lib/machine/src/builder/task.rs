@@ -1,7 +1,7 @@
 use super::ComponentBuilder;
 use crate::{component::Component, display::backend::RenderApi, task::Task};
 use num::rational::Ratio;
-use std::{any::Any, num::NonZero};
+use std::{any::Any, boxed::Box, num::NonZero, vec::Vec};
 
 #[derive(Default)]
 pub struct TaskMetadata {
