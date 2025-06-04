@@ -8,7 +8,7 @@ use crate::{
     task::Mos6502Task,
 };
 use bitvec::{prelude::Msb0, view::BitView};
-use multiemu_machine::memory::Address;
+use multiemu_runtime::memory::Address;
 use num::traits::{FromBytes, ToBytes};
 use std::collections::VecDeque;
 

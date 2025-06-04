@@ -2,7 +2,7 @@ use crate::rendering_backend::{DisplayApiHandle, RenderingBackendState};
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
 use multiemu_config::Environment;
-use multiemu_machine::{
+use multiemu_runtime::{
     Machine,
     display::{
         RenderExtensions,
@@ -41,6 +41,7 @@ use winit::window::Window;
 mod create;
 mod gui;
 
+#[derive(Debug)]
 pub struct VulkanRenderingRuntime {
     device: Arc<Device>,
     gui_queue: Arc<Queue>,
@@ -229,7 +230,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         }
     }
 
-    fn redraw(&mut self, machine: &Machine<Self::RenderApi>) {
+    fn redraw(&mut self, machine: &Machine) {
         let window_dimensions = self.display_api_handle.dimensions();
 
         // Skip rendering if impossible window size
@@ -247,7 +248,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         )
         .unwrap();
 
-        for framebuffer in machine.framebuffers.get().unwrap().iter() {
+        for framebuffer in machine.framebuffers::<Self::RenderApi>().iter() {
             command_buffer
                 .blit_image(BlitImageInfo {
                     src_image_layout: ImageLayout::TransferSrcOptimal,

@@ -5,7 +5,7 @@ use crate::{
     interpret::STACK_BASE_ADDRESS,
 };
 use arrayvec::ArrayVec;
-use multiemu_machine::{
+use multiemu_runtime::{
     memory::memory_translation_table::MemoryTranslationTable,
     processor::decoder::InstructionDecoder, task::Task,
 };

@@ -1,7 +1,7 @@
 use super::{
     FramebufferGuard, SCANLINE_LENGTH, SupportedRenderApiTia, TiaDisplayBackend, region::Region,
 };
-use multiemu_machine::{
+use multiemu_runtime::{
     component::RuntimeEssentials,
     display::backend::{ComponentFramebuffer, vulkan::VulkanRendering},
 };

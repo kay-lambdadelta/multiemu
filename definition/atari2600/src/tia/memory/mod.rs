@@ -1,7 +1,7 @@
 use super::State;
 use bitvec::{order::Lsb0, view::BitView};
 use multiemu_definition_mos6502::Mos6502;
-use multiemu_machine::{
+use multiemu_runtime::{
     component::component_ref::ComponentRef,
     memory::{
         Address,

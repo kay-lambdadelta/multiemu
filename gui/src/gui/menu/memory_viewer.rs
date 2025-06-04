@@ -1,5 +1,5 @@
 use super::UiOutput;
-use multiemu_machine::{Machine, display::backend::RenderApi};
+use multiemu_runtime::Machine;
 
 const ROW_WIDTH: usize = 8;
 
@@ -7,11 +7,11 @@ const ROW_WIDTH: usize = 8;
 pub struct MemoryViewerState {}
 
 impl MemoryViewerState {
-    pub fn run<R: RenderApi>(
+    pub fn run(
         &mut self,
         _output: &mut Option<UiOutput>,
         ui: &mut egui::Ui,
-        machine: Option<&Machine<R>>,
+        machine: Option<&Machine>,
     ) {
         /*
         if let Some(machine) = machine {

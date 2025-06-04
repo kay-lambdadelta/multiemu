@@ -1,7 +1,6 @@
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::{
         Address,
         callbacks::{Memory, ReadMemory, WriteMemory},
@@ -29,10 +28,10 @@ pub struct MirrorMemory;
 
 impl Component for MirrorMemory {}
 
-impl<R: RenderApi> ComponentConfig<R> for MirrorMemoryConfig {
+impl<B: ComponentBuilder<Component = MirrorMemory>> ComponentConfig<B> for MirrorMemoryConfig {
     type Component = MirrorMemory;
 
-    fn build_component(self, mut component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, mut component_builder: B) -> B::BuildOutput {
         let callback = MirrorMemoryCallbacks {
             source_addresses: self.source_addresses.clone(),
             destination_address: *self.destination_addresses.start(),
@@ -67,7 +66,7 @@ impl<R: RenderApi> ComponentConfig<R> for MirrorMemoryConfig {
             (false, false) => unimplemented!(),
         }
 
-        component_builder.build_global(MirrorMemory);
+        component_builder.build_global(MirrorMemory)
     }
 }
 
@@ -150,16 +149,16 @@ mod test {
         mirror::MirrorMemoryConfig,
         standard::{StandardMemoryConfig, StandardMemoryInitialContents},
     };
-    use multiemu_machine::{
+    use multiemu_rom::{manager::RomManager, system::GameSystem};
+    use multiemu_runtime::{
         builder::MachineBuilder, display::backend::software::SoftwareRendering,
     };
-    use multiemu_rom::{manager::RomManager, system::GameSystem};
     use rangemap::RangeInclusiveMap;
     use std::{borrow::Cow, sync::Arc};
 
     #[test]
     fn basic_read() {
-        unsafe { multiemu_machine::utils::force_set_main_thread() };
+        unsafe { multiemu_runtime::utils::force_set_main_thread() };
 
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let (machine, cpu_address_space) =
@@ -206,7 +205,7 @@ mod test {
 
     #[test]
     fn basic_write() {
-        unsafe { multiemu_machine::utils::force_set_main_thread() };
+        unsafe { multiemu_runtime::utils::force_set_main_thread() };
 
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
 
@@ -251,7 +250,7 @@ mod test {
 
     #[test]
     fn extensive_read_test() {
-        unsafe { multiemu_machine::utils::force_set_main_thread() };
+        unsafe { multiemu_runtime::utils::force_set_main_thread() };
 
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let (machine, cpu_address_space) =

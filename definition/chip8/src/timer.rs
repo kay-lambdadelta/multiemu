@@ -1,7 +1,6 @@
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
 };
 use num::rational::Ratio;
 use std::{
@@ -30,10 +29,10 @@ impl Component for Chip8Timer {}
 #[derive(Debug, Default)]
 pub struct Chip8TimerConfig;
 
-impl<R: RenderApi> ComponentConfig<R> for Chip8TimerConfig {
+impl<B: ComponentBuilder<Component = Chip8Timer>> ComponentConfig<B> for Chip8TimerConfig {
     type Component = Chip8Timer;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let delay_timer = Arc::new(Mutex::new(0u8));
 
         component_builder
@@ -48,6 +47,6 @@ impl<R: RenderApi> ComponentConfig<R> for Chip8TimerConfig {
             })
             .build_global(Chip8Timer {
                 delay_timer: delay_timer.clone(),
-            });
+            })
     }
 }

@@ -1,6 +1,6 @@
 use bitvec::{array::BitArray, order::Lsb0};
 use color::TiaColor;
-use multiemu_machine::{
+use multiemu_runtime::{
     component::{Component, RuntimeEssentials},
     display::backend::{ComponentFramebuffer, RenderApi},
 };

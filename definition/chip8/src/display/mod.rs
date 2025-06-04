@@ -1,6 +1,6 @@
 use super::Chip8Kind;
 use bitvec::{order::Msb0, view::BitView};
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig, RuntimeEssentials},
     display::backend::{ComponentFramebuffer, RenderApi},
@@ -131,23 +131,30 @@ fn draw_sprite_common(
 #[derive(Debug, Default)]
 pub struct Chip8DisplayConfig;
 
-impl<R: SupportedRenderApiChip8Display> ComponentConfig<R> for Chip8DisplayConfig {
+impl<
+    R: SupportedRenderApiChip8Display,
+    B: ComponentBuilder<Component = Chip8Display<R>, RenderApi = R>,
+> ComponentConfig<B> for Chip8DisplayConfig
+{
     type Component = Chip8Display<R>;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let vsync_occurred: Arc<AtomicBool> = Arc::default();
 
         let essentials = component_builder.essentials();
 
-        let component_builder =
-            component_builder.set_display_config(None, None, move |component: &Self::Component| {
+        let component_builder = component_builder.insert_display_config(
+            None,
+            None,
+            move |component: &Self::Component| {
                 let (backend, framebuffer) =
                     <R::Backend as Chip8DisplayBackend<R>>::new(essentials.as_ref());
 
                 component.backend.set(backend).unwrap();
 
                 framebuffer
-            });
+            },
+        );
 
         component_builder
             .insert_task(Ratio::from_integer(60), {
@@ -168,7 +175,7 @@ impl<R: SupportedRenderApiChip8Display> ComponentConfig<R> for Chip8DisplayConfi
                 modified: RefCell::new(true),
                 mode: Arc::default(),
                 vsync_occurred,
-            });
+            })
     }
 }
 

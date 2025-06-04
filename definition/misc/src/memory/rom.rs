@@ -1,7 +1,7 @@
-use multiemu_machine::{
+use multiemu_rom::{id::RomId, manager::RomRequirement};
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::{
         Address,
         callbacks::{Memory, ReadMemory},
@@ -11,7 +11,6 @@ use multiemu_machine::{
         },
     },
 };
-use multiemu_rom::{id::RomId, manager::RomRequirement};
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
@@ -33,10 +32,10 @@ pub struct RomMemory;
 
 impl Component for RomMemory {}
 
-impl<R: RenderApi> ComponentConfig<R> for RomMemoryConfig {
+impl<B: ComponentBuilder<Component = RomMemory>> ComponentConfig<B> for RomMemoryConfig {
     type Component = RomMemory;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let essentials = component_builder.essentials();
 
         let rom = Mutex::new(
@@ -56,7 +55,7 @@ impl<R: RenderApi> ComponentConfig<R> for RomMemoryConfig {
             [(assigned_address_space, assigned_range)],
         );
 
-        component_builder.build_global(RomMemory);
+        component_builder.build_global(RomMemory)
     }
 }
 

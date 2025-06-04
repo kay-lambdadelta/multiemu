@@ -6,16 +6,17 @@ use multiemu_definition_misc::{
     mos6532_riot::{Mos6532Riot, Mos6532RiotConfig},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_machine::{
-    MachineFactory,
-    builder::MachineBuilder,
-    component::component_ref::ComponentRef,
-    memory::{Address, memory_translation_table::address_space::AddressSpaceHandle},
-};
 use multiemu_rom::{
     id::RomId,
     manager::{ROM_INFORMATION_TABLE, RomManager},
     system::{AtariSystem, GameSystem},
+};
+use multiemu_runtime::{
+    MachineFactory,
+    audio::sample::Sample,
+    builder::MachineBuilder,
+    component::component_ref::ComponentRef,
+    memory::{Address, memory_translation_table::address_space::AddressSpaceHandle},
 };
 use num::rational::Ratio;
 use std::{marker::PhantomData, ops::RangeInclusive, sync::Arc};
@@ -44,13 +45,13 @@ impl<A: SupportedRenderApiTia> SupportedRenderApiAtari2600 for A {}
 #[derive(Default, Debug)]
 pub struct Atari2600;
 
-impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
+impl<R: SupportedRenderApiAtari2600, S: Sample> MachineFactory<R, S> for Atari2600 {
     fn construct(
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
-    ) -> MachineBuilder<R> {
-        let machine = MachineBuilder::new(
+    ) -> MachineBuilder<R, S> {
+        let machine = MachineBuilder::<R, S>::new(
             GameSystem::Atari(AtariSystem::Atari2600),
             rom_manager.clone(),
         );
@@ -163,9 +164,9 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
         }
 
         let (machine, mos6532_riot) = match region {
-            RegionSelection::Ntsc => common::<Ntsc, R>(cpu_address_space, machine),
-            RegionSelection::Pal => common::<Pal, R>(cpu_address_space, machine),
-            RegionSelection::Secam => common::<Secam, R>(cpu_address_space, machine),
+            RegionSelection::Ntsc => common::<Ntsc, _, _>(cpu_address_space, machine),
+            RegionSelection::Pal => common::<Pal, _, _>(cpu_address_space, machine),
+            RegionSelection::Secam => common::<Secam, _, _>(cpu_address_space, machine),
         };
 
         let (machine, _) =
@@ -175,10 +176,10 @@ impl<R: SupportedRenderApiAtari2600> MachineFactory<R> for Atari2600 {
     }
 }
 
-fn common<R: Region, A: SupportedRenderApiAtari2600>(
+fn common<R: Region, A: SupportedRenderApiAtari2600, S: Sample>(
     cpu_address_space: AddressSpaceHandle,
-    machine: MachineBuilder<A>,
-) -> (MachineBuilder<A>, ComponentRef<Mos6532Riot>) {
+    machine: MachineBuilder<A, S>,
+) -> (MachineBuilder<A, S>, ComponentRef<Mos6532Riot>) {
     let (machine, cpu) = machine.insert_component(
         "mos_6502",
         Mos6502Config {

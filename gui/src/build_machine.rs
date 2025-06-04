@@ -2,7 +2,7 @@ use multiemu_definition_atari2600::Atari2600;
 use multiemu_definition_atarilynx::AtariLynx;
 use multiemu_definition_chip8::Chip8;
 use multiemu_definition_nes::Nes;
-use multiemu_machine::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
+use multiemu_runtime::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
@@ -11,10 +11,10 @@ use multiemu_rom::{
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug)]
-pub struct MachineFactories<R: RenderApi>(HashMap<GameSystem, Box<dyn MachineFactory<R>>>);
+pub struct MachineFactories<R: RenderApi>(HashMap<GameSystem, Box<dyn MachineFactory<R, f32>>>);
 
 impl<R: RenderApi> MachineFactories<R> {
-    pub fn insert_factory<M: MachineFactory<R> + Default>(&mut self, system: GameSystem) {
+    pub fn insert_factory<M: MachineFactory<R, f32> + Default>(&mut self, system: GameSystem) {
         self.0.insert(system, Box::new(M::default()));
     }
 
@@ -41,7 +41,7 @@ impl<R: RenderApi> Default for MachineFactories<R> {
 // Also future compatible for when we add more machines that dont cover all backends
 
 pub fn get_software_factories()
--> MachineFactories<multiemu_machine::display::backend::software::SoftwareRendering> {
+-> MachineFactories<multiemu_runtime::display::backend::software::SoftwareRendering> {
     let mut factories = MachineFactories::default();
 
     factories.insert_factory::<Atari2600>(GameSystem::Atari(AtariSystem::Atari2600));
@@ -56,7 +56,7 @@ pub fn get_software_factories()
 
 #[cfg(feature = "vulkan")]
 pub fn get_vulkan_factories()
--> MachineFactories<multiemu_machine::display::backend::vulkan::VulkanRendering> {
+-> MachineFactories<multiemu_runtime::display::backend::vulkan::VulkanRendering> {
     let mut factories = MachineFactories::default();
 
     factories.insert_factory::<Atari2600>(GameSystem::Atari(AtariSystem::Atari2600));

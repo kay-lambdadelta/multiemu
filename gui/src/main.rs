@@ -3,8 +3,8 @@
 #![windows_subsystem = "windows"]
 #![allow(clippy::arc_with_non_send_sync)]
 
-use crate::runtime::{Platform, SoftwareRenderingRuntime};
-use multiemu_config::{Environment, graphics::GraphicsApi};
+use crate::runtime::{Platform, SoftwareRenderingRuntime, state::WindowingRuntime};
+use multiemu_config::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
 use multiemu_rom::{
     id::RomId,
     manager::{ROM_INFORMATION_TABLE, RomManager},
@@ -35,11 +35,10 @@ fn main() {
 
     use clap::Parser;
     use cli::{Cli, CliAction};
-    use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
-    use runtime::{Runtime, desktop::windowing::DesktopPlatform};
+    use runtime::desktop::windowing::DesktopPlatform;
 
     // Set our current thread as our main thread
-    multiemu_machine::utils::set_main_thread();
+    multiemu_runtime::utils::set_main_thread();
 
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
@@ -129,7 +128,7 @@ fn main() {
 
         match graphics_api {
             GraphicsApi::Software => {
-                let runtime = Runtime::<SoftwareRenderingRuntime>::new_with_machine(
+                let runtime = WindowingRuntime::<SoftwareRenderingRuntime>::new_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
                     build_machine::get_software_factories(),
@@ -143,7 +142,7 @@ fn main() {
             GraphicsApi::Vulkan => {
                 use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-                let runtime = Runtime::<VulkanRenderingRuntime>::new_with_machine(
+                let runtime = WindowingRuntime::<VulkanRenderingRuntime>::new_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
                     build_machine::get_vulkan_factories(),
@@ -161,7 +160,7 @@ fn main() {
 
     match graphics_api {
         GraphicsApi::Software => {
-            let runtime = Runtime::<SoftwareRenderingRuntime>::new(
+            let runtime = WindowingRuntime::<SoftwareRenderingRuntime>::new(
                 environment.clone(),
                 rom_manager.clone(),
                 build_machine::get_software_factories(),
@@ -173,7 +172,7 @@ fn main() {
         GraphicsApi::Vulkan => {
             use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-            let runtime = Runtime::<VulkanRenderingRuntime>::new(
+            let runtime = WindowingRuntime::<VulkanRenderingRuntime>::new(
                 environment.clone(),
                 rom_manager.clone(),
                 build_machine::get_vulkan_factories(),

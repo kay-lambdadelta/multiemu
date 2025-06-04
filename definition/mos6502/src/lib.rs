@@ -2,10 +2,9 @@ use arrayvec::ArrayVec;
 use bitvec::{order::Msb0, view::BitView};
 use decoder::Mos6502InstructionDecoder;
 use instruction::Mos6502InstructionSet;
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use num::rational::Ratio;
@@ -285,10 +284,10 @@ impl Component for Mos6502 {
     }
 }
 
-impl<R: RenderApi> ComponentConfig<R> for Mos6502Config {
+impl<B: ComponentBuilder<Component = Mos6502>> ComponentConfig<B> for Mos6502Config {
     type Component = Mos6502;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let config = Arc::new(self);
         let rdy = Arc::new(AtomicBool::new(true));
         let essentials = component_builder.essentials();
@@ -305,7 +304,7 @@ impl<R: RenderApi> ComponentConfig<R> for Mos6502Config {
             .build_global(Mos6502 {
                 state: Mutex::default(),
                 rdy,
-            });
+            })
     }
 }
 

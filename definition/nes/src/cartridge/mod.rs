@@ -1,12 +1,11 @@
 use ines::INes;
 use mapper::construct_mapper;
-use multiemu_machine::{
+use multiemu_rom::{id::RomId, manager::RomRequirement};
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
-use multiemu_rom::{id::RomId, manager::RomRequirement};
 use serde::{Deserialize, Serialize};
 use std::{io::Read, sync::Arc};
 
@@ -38,10 +37,10 @@ pub struct NesCartridgeQuirks {
     pub force_mapper: u8,
 }
 
-impl<R: RenderApi> ComponentConfig<R> for NesCartridgeConfig {
+impl<B: ComponentBuilder<Component = NesCartridge>> ComponentConfig<B> for NesCartridgeConfig {
     type Component = NesCartridge;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let essentials = component_builder.essentials();
 
         let mut rom_file = essentials
@@ -62,6 +61,6 @@ impl<R: RenderApi> ComponentConfig<R> for NesCartridgeConfig {
             self.ppu_address_space,
             component_builder,
         );
-        component_builder.build_global(NesCartridge { rom: ines });
+        component_builder.build_global(NesCartridge { rom: ines })
     }
 }

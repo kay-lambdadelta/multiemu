@@ -1,18 +1,21 @@
 use egui::FullOutput;
 use multiemu_config::Environment;
-use multiemu_machine::{
+use multiemu_runtime::{
     Machine,
     display::{RenderExtensions, backend::RenderApi},
 };
 use nalgebra::Vector2;
-use std::sync::{Arc, RwLock};
+use std::{
+    fmt::Debug,
+    sync::{Arc, RwLock},
+};
 
-pub trait DisplayApiHandle: Send + Sync + Clone + 'static {
+pub trait DisplayApiHandle: Send + Sync + Clone + Debug + 'static {
     fn dimensions(&self) -> Vector2<u32>;
 }
 
 /// A backend for a given render backend
-pub trait RenderingBackendState: Sized {
+pub trait RenderingBackendState: Debug + Sized {
     type RenderApi: RenderApi;
     type DisplayApiHandle: DisplayApiHandle;
 
@@ -24,7 +27,7 @@ pub trait RenderingBackendState: Sized {
     fn component_initialization_data(
         &self,
     ) -> <Self::RenderApi as RenderApi>::ComponentInitializationData;
-    fn redraw(&mut self, machine: &Machine<Self::RenderApi>);
+    fn redraw(&mut self, machine: &Machine);
     fn redraw_menu(&mut self, egui_context: &egui::Context, full_output: FullOutput);
     fn surface_resized(&mut self) {}
 }

@@ -2,7 +2,7 @@ use super::instruction::{
     Chip8InstructionSet, InstructionSetChip8, InstructionSetSuperChip8, Register, ScrollDirection,
 };
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
-use multiemu_machine::{
+use multiemu_runtime::{
     memory::memory_translation_table::{MemoryTranslationTable, address_space::AddressSpaceHandle},
     processor::decoder::InstructionDecoder,
 };

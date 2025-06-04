@@ -1,4 +1,4 @@
-use multiemu_machine::processor::instruction::InstructionSet;
+use multiemu_runtime::processor::instruction::InstructionSet;
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, ops::Range};

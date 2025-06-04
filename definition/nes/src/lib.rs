@@ -5,11 +5,13 @@ use multiemu_definition_misc::memory::{
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_machine::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
     system::{GameSystem, NintendoSystem},
+};
+use multiemu_runtime::{
+    MachineFactory, audio::sample::Sample, builder::MachineBuilder, display::backend::RenderApi,
 };
 use num::rational::Ratio;
 use ppu::NesPpuConfig;
@@ -23,12 +25,12 @@ mod ppu;
 #[derive(Debug, Default)]
 pub struct Nes;
 
-impl<R: RenderApi> MachineFactory<R> for Nes {
+impl<R: RenderApi, S: Sample> MachineFactory<R, S> for Nes {
     fn construct(
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
-    ) -> MachineBuilder<R> {
+    ) -> MachineBuilder<R, S> {
         let machine = MachineBuilder::new(
             GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem),
             rom_manager.clone(),
@@ -69,7 +71,7 @@ impl<R: RenderApi> MachineFactory<R> for Nes {
                 destination_address_space: cpu_address_space,
             },
         );
-        let (machine, _) = machine.insert_default_component::<NesPpuConfig>("ppu");
+        let (machine, _) = machine.insert_default_component::<_, NesPpuConfig>("ppu");
 
         // Grab the timing mode
         let timing_mode = cartridge.interact(|cart| cart.rom().timing_mode).unwrap();

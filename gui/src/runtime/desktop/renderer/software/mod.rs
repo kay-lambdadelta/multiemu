@@ -3,7 +3,7 @@ use crate::{
     rendering_backend::{DisplayApiHandle, RenderingBackendState},
 };
 use multiemu_config::Environment;
-use multiemu_machine::{
+use multiemu_runtime::{
     Machine,
     display::{
         RenderExtensions,
@@ -13,7 +13,10 @@ use multiemu_machine::{
 use nalgebra::{DMatrixViewMut, Vector2};
 use palette::{Srgba, cast::Packed, rgb::channels::Argb};
 use softbuffer::{Context, Surface};
-use std::sync::{Arc, RwLock};
+use std::{
+    fmt::Debug,
+    sync::{Arc, RwLock},
+};
 use winit::window::Window;
 
 pub struct SoftwareRenderingRuntime {
@@ -22,6 +25,17 @@ pub struct SoftwareRenderingRuntime {
     egui_renderer: SoftwareEguiRenderer,
     previously_recorded_size: Vector2<u16>,
     environment: Arc<RwLock<Environment>>,
+}
+
+impl Debug for SoftwareRenderingRuntime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SoftwareRenderingRuntime")
+            .field("display_api_handle", &self.display_api_handle)
+            .field("egui_renderer", &self.egui_renderer)
+            .field("previously_recorded_size", &self.previously_recorded_size)
+            .field("environment", &self.environment)
+            .finish()
+    }
 }
 
 impl RenderingBackendState for SoftwareRenderingRuntime {
@@ -58,7 +72,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
         Default::default()
     }
 
-    fn redraw(&mut self, machine: &Machine<Self::RenderApi>) {
+    fn redraw(&mut self, machine: &Machine) {
         if self.previously_recorded_size.min() == 0 {
             return;
         }
@@ -78,7 +92,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             .graphics_setting
             .integer_scaling;
 
-        for framebuffer in machine.framebuffers.get().unwrap().iter() {
+        for framebuffer in machine.framebuffers::<Self::RenderApi>().iter() {
             if integer_scaling {
                 let framebuffer = framebuffer.load();
 

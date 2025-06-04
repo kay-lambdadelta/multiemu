@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use egui::{TextureId, epaint::Primitive};
-use multiemu_machine::display::shader::{ShaderCache, spirv::SpirvShader};
+use multiemu_runtime::display::shader::{ShaderCache, spirv::SpirvShader};
 use nalgebra::{Point2, Vector2};
 use palette::{LinSrgba, Srgba};
 use std::{
@@ -80,6 +80,7 @@ impl From<egui::epaint::Vertex> for Vertex {
 const VERTEX_INDEX_DEVICE_ALIGNMENT: DeviceAlignment = DeviceAlignment::of::<u32>();
 const VERTEX_DEVICE_ALIGNMENT: DeviceAlignment = DeviceAlignment::of::<Vertex>();
 
+#[derive(Debug)]
 pub struct VulkanEguiRenderer {
     /// Stored textures and their descriptor sets
     textures: HashMap<TextureId, (Arc<Image>, Arc<DescriptorSet>)>,
@@ -93,8 +94,6 @@ pub struct VulkanEguiRenderer {
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     /// vulkan pipeline
     pipeline: Arc<GraphicsPipeline>,
-    /// image sampler
-    sampler: Arc<Sampler>,
     vertex_buffer_pool: SubbufferAllocator,
     /// screen size uniform
     screen_size: Subbuffer<Vector2<f32>>,
@@ -293,7 +292,6 @@ impl VulkanEguiRenderer {
             descriptor_set_allocator,
             vertex_buffer_pool,
             pipeline,
-            sampler,
             screen_size,
             render_pass,
             screen_size_sampler_descriptor_set,

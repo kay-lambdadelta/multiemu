@@ -6,7 +6,7 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 multiemu-rom = { workspace = true }
-multiemu-machine = { workspace = true }
+multiemu-runtime = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
@@ -25,8 +25,8 @@ glow = { workspace = true, optional = true }
 criterion = { workspace = true }
 
 [features]
-vulkan = ["dep:vulkano", "multiemu-machine/vulkan"]
-opengl = ["dep:glow", "multiemu-machine/opengl"]
+vulkan = ["dep:vulkano", "multiemu-runtime/vulkan"]
+opengl = ["dep:glow", "multiemu-runtime/opengl"]
 
 [[bench]]
 name = "rom_parse"

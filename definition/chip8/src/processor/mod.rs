@@ -6,7 +6,7 @@ use crate::{
 use arrayvec::ArrayVec;
 use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig, component_ref::ComponentRef},
     input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
@@ -108,13 +108,12 @@ pub struct Chip8ProcessorConfig<R: SupportedRenderApiChip8> {
     pub always_shr_in_place: bool,
 }
 
-impl<R: SupportedRenderApiChip8> ComponentConfig<R> for Chip8ProcessorConfig<R> {
+impl<R: SupportedRenderApiChip8, B: ComponentBuilder<Component = Chip8Processor, RenderApi = R>>
+    ComponentConfig<B> for Chip8ProcessorConfig<B::RenderApi>
+{
     type Component = Chip8Processor;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>)
-    where
-        Self: Sized,
-    {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let essentials = component_builder.essentials();
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Kind::Chip8)));
         let state = Mutex::new(ProcessorState::default());
@@ -128,7 +127,7 @@ impl<R: SupportedRenderApiChip8> ComponentConfig<R> for Chip8ProcessorConfig<R> 
         );
 
         component_builder
-            .insert_gamepads([virtual_gamepad.clone()])
+            .insert_gamepad(virtual_gamepad.clone())
             .insert_task(
                 self.frequency,
                 Chip8ProcessorTask {
@@ -139,6 +138,6 @@ impl<R: SupportedRenderApiChip8> ComponentConfig<R> for Chip8ProcessorConfig<R> 
                     config: self,
                 },
             )
-            .build_global(Chip8Processor { state });
+            .build_global(Chip8Processor { state })
     }
 }

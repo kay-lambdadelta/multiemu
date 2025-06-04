@@ -1,6 +1,6 @@
 use super::{CHIP8_DIMENSIONS, SupportedRenderApiChip8Display};
 use crate::display::{Chip8DisplayBackend, draw_sprite_common};
-use multiemu_machine::{
+use multiemu_runtime::{
     component::RuntimeEssentials,
     display::backend::{ComponentFramebuffer, vulkan::VulkanRendering},
 };

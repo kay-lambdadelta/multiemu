@@ -272,16 +272,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'multiemu_machine'",
+            "name": "Debug unit tests in library 'multiemu_runtime'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=multiemu-machine"
+                    "--package=multiemu-runtime"
                 ],
                 "filter": {
-                    "name": "multiemu_machine",
+                    "name": "multiemu_runtime",
                     "kind": "lib"
                 }
             },

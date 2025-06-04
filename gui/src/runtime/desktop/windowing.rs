@@ -4,13 +4,13 @@ use super::{
 };
 use crate::{
     rendering_backend::{DisplayApiHandle, RenderingBackendState},
-    runtime::{Platform, Runtime, desktop::input::gamepad::gamepad_task},
+    runtime::{Platform, desktop::input::gamepad::gamepad_task, state::WindowingRuntime},
 };
 use egui::ViewportId;
 use multiemu_input::InputState;
-use multiemu_machine::display::backend::RenderApi;
+use multiemu_runtime::display::backend::RenderApi;
 use nalgebra::Vector2;
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -26,14 +26,22 @@ impl DisplayApiHandle for Arc<Window> {
 }
 
 pub struct DesktopPlatform<RS: RenderingBackendState> {
-    runtime: Runtime<RS>,
+    runtime: WindowingRuntime<RS>,
     egui_winit: Option<egui_winit::State>,
+}
+
+impl<RS: RenderingBackendState> Debug for DesktopPlatform<RS> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DesktopPlatform")
+            .field("runtime", &self.runtime)
+            .finish()
+    }
 }
 
 impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderApi = R>>
     Platform<RS> for DesktopPlatform<RS>
 {
-    fn run(runtime: Runtime<RS>) -> Result<(), Box<dyn std::error::Error>> {
+    fn run(runtime: WindowingRuntime<RS>) -> Result<(), Box<dyn std::error::Error>> {
         let event_loop = EventLoop::with_user_event().build()?;
         {
             let event_loop_proxy = event_loop.create_proxy();

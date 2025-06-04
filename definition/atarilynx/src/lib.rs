@@ -4,8 +4,8 @@ use multiemu_definition_misc::memory::{
     rom::RomMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
-use multiemu_machine::{
-    MachineFactory, builder::MachineBuilder, display::backend::RenderApi, memory::Address,
+use multiemu_runtime::{
+    audio::sample::Sample, builder::MachineBuilder, display::backend::RenderApi, memory::Address, MachineFactory
 };
 use multiemu_rom::{
     id::RomId,
@@ -29,12 +29,12 @@ const MAPCTL_ADDRESS: Address = 0xfff9;
 #[derive(Debug, Default)]
 pub struct AtariLynx;
 
-impl<R: RenderApi> MachineFactory<R> for AtariLynx {
+impl<R: RenderApi, S: Sample> MachineFactory<R, S> for AtariLynx {
     fn construct(
         &self,
         _user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
-    ) -> MachineBuilder<R> {
+    ) -> MachineBuilder<R, S> {
         // 16 Mhz
         let base_clock = Ratio::from_integer(16000000);
 

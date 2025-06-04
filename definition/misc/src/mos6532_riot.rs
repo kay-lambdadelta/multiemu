@@ -1,7 +1,6 @@
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::{
         Address,
         callbacks::{Memory, ReadMemory, WriteMemory},
@@ -105,10 +104,10 @@ impl Component for Mos6532Riot {
     }
 }
 
-impl<R: RenderApi> ComponentConfig<R> for Mos6532RiotConfig {
+impl<B: ComponentBuilder<Component = Mos6532Riot>> ComponentConfig<B> for Mos6532RiotConfig {
     type Component = Mos6532Riot;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let config = Arc::new(self);
         let ram = Arc::new(RwLock::new([0; 128]));
         let memory_callbacks = Arc::new(RamMemoryCallbacks {
@@ -201,7 +200,7 @@ impl<R: RenderApi> ComponentConfig<R> for Mos6532RiotConfig {
                 })
         };
 
-        component_builder.build_global(Self::Component { ram, registers });
+        component_builder.build_global(Self::Component { ram, registers })
     }
 }
 

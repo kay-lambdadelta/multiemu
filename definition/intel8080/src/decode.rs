@@ -2,7 +2,7 @@ use super::instruction::SingleByteArgument;
 use bitvec::field::BitField;
 use bitvec::prelude::Msb0;
 use bitvec::view::BitView;
-use multiemu_machine::memory::memory_translation_table::MemoryTranslationTable;
+use multiemu_runtime::memory::memory_translation_table::MemoryTranslationTable;
 use std::ops::Range;
 
 const INSTRUCTION_IDENTIFIER: Range<usize> = 0..2;

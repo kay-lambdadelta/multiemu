@@ -1,11 +1,10 @@
 use banking::BankingCartridgeMemoryCallback;
-use multiemu_machine::{
+use multiemu_rom::{id::RomId, manager::RomRequirement};
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
-use multiemu_rom::{id::RomId, manager::RomRequirement};
 use raw::RawCartridgeMemoryCallback;
 use serde::{Deserialize, Serialize};
 
@@ -33,10 +32,12 @@ pub struct Atari2600CartridgeConfig {
 
 impl Component for Atari2600Cartridge {}
 
-impl<R: RenderApi> ComponentConfig<R> for Atari2600CartridgeConfig {
+impl<B: ComponentBuilder<Component = Atari2600Cartridge>> ComponentConfig<B>
+    for Atari2600CartridgeConfig
+{
     type Component = Atari2600Cartridge;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let essentials = component_builder.essentials();
 
         let mut rom = essentials
@@ -77,6 +78,6 @@ impl<R: RenderApi> ComponentConfig<R> for Atari2600CartridgeConfig {
             ),
         };
 
-        component_builder.build_global(Atari2600Cartridge {});
+        component_builder.build_global(Atari2600Cartridge {})
     }
 }

@@ -3,7 +3,7 @@ use multiemu_definition_chip8::Chip8InstructionDecoder;
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::MachineBuilder, display::backend::software::SoftwareRendering,
     processor::decoder::InstructionDecoder,
 };
@@ -12,7 +12,7 @@ use rangemap::RangeInclusiveMap;
 use std::{hint::black_box, sync::Arc};
 
 fn criterion_benchmark(c: &mut Criterion) {
-    multiemu_machine::utils::set_main_thread();
+    multiemu_runtime::utils::set_main_thread();
 
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
 

@@ -1,7 +1,7 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_definition_atari2600::Atari2600;
-use multiemu_machine::{
+use multiemu_runtime::{
     MachineFactory,
     display::backend::software::{SoftwareComponentInitializationData, SoftwareRendering},
 };
@@ -9,7 +9,7 @@ use multiemu_rom::{id::RomId, manager::RomManager};
 use std::{fs::File, hint::black_box, ops::Deref, str::FromStr, sync::Arc};
 
 fn criterion_benchmark(c: &mut Criterion) {
-    multiemu_machine::utils::set_main_thread();
+    multiemu_runtime::utils::set_main_thread();
 
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();

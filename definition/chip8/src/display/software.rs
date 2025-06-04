@@ -1,6 +1,6 @@
 use super::{Chip8DisplayBackend, SupportedRenderApiChip8Display, draw_sprite_common};
 use crate::Chip8Kind;
-use multiemu_machine::{
+use multiemu_runtime::{
     component::RuntimeEssentials,
     display::backend::{ComponentFramebuffer, software::SoftwareRendering},
 };

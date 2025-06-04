@@ -1,7 +1,6 @@
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::{
         Address,
         callbacks::{Memory, ReadMemory, WriteMemory},
@@ -24,10 +23,10 @@ pub struct NullMemoryConfig {
     pub assigned_address_space: AddressSpaceHandle,
 }
 
-impl<R: RenderApi> ComponentConfig<R> for NullMemoryConfig {
+impl<B: ComponentBuilder<Component = NullMemory>> ComponentConfig<B> for NullMemoryConfig {
     type Component = NullMemory;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let (component_builder, memory_handle) = match (self.readable, self.writable) {
             (true, true) => component_builder.insert_memory(
                 MemoryCallbacks,
@@ -46,7 +45,7 @@ impl<R: RenderApi> ComponentConfig<R> for NullMemoryConfig {
             }
         };
 
-        component_builder.build_global(NullMemory { memory_handle });
+        component_builder.build_global(NullMemory { memory_handle })
     }
 }
 

@@ -212,6 +212,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2134,16 +2140,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "multiemu-audio"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "nalgebra",
- "num",
- "ringbuffer",
-]
-
-[[package]]
 name = "multiemu-config"
 version = "0.1.0"
 dependencies = [
@@ -2168,8 +2164,8 @@ dependencies = [
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
  "multiemu-input",
- "multiemu-machine",
  "multiemu-rom",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2192,8 +2188,8 @@ dependencies = [
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
  "multiemu-input",
- "multiemu-machine",
  "multiemu-rom",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2217,8 +2213,8 @@ dependencies = [
  "glow",
  "multiemu-definition-misc",
  "multiemu-input",
- "multiemu-machine",
  "multiemu-rom",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2237,8 +2233,8 @@ dependencies = [
  "bitvec",
  "bytemuck",
  "deku",
- "multiemu-machine",
  "multiemu-rom",
+ "multiemu-runtime",
  "num",
  "strum 0.27.1",
 ]
@@ -2249,8 +2245,8 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "criterion",
- "multiemu-machine",
  "multiemu-rom",
+ "multiemu-runtime",
  "num",
  "rand 0.9.1",
  "rangemap",
@@ -2269,7 +2265,7 @@ dependencies = [
  "bincode",
  "bitvec",
  "multiemu-definition-misc",
- "multiemu-machine",
+ "multiemu-runtime",
  "num",
  "rand 0.9.1",
  "serde",
@@ -2288,8 +2284,8 @@ dependencies = [
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
  "multiemu-input",
- "multiemu-machine",
  "multiemu-rom",
+ "multiemu-runtime",
  "num",
  "rangemap",
  "serde",
@@ -2313,15 +2309,14 @@ dependencies = [
  "gilrs",
  "glow",
  "image",
- "multiemu-audio",
  "multiemu-config",
  "multiemu-definition-atari2600",
  "multiemu-definition-atarilynx",
  "multiemu-definition-chip8",
  "multiemu-definition-nes",
  "multiemu-input",
- "multiemu-machine",
  "multiemu-rom",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2348,34 +2343,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "multiemu-machine"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "bitvec",
- "data-encoding",
- "glow",
- "multiemu-audio",
- "multiemu-input",
- "multiemu-rom",
- "multiemu-save",
- "naga",
- "nalgebra",
- "num",
- "palette",
- "rangemap",
- "ringbuffer",
- "rustc-hash 2.1.1",
- "scc",
- "serde",
- "smallvec 2.0.0-alpha.11",
- "thiserror 2.0.12",
- "tracing",
- "versions",
- "vulkano",
-]
-
-[[package]]
 name = "multiemu-rom"
 version = "0.1.0"
 dependencies = [
@@ -2389,6 +2356,36 @@ dependencies = [
  "sha1",
  "strum 0.27.1",
  "tracing",
+]
+
+[[package]]
+name = "multiemu-runtime"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+ "bincode",
+ "bitvec",
+ "criterion",
+ "data-encoding",
+ "glow",
+ "multiemu-input",
+ "multiemu-rom",
+ "multiemu-save",
+ "naga",
+ "nalgebra",
+ "num",
+ "palette",
+ "rangemap",
+ "ringbuffer",
+ "rustc-hash 2.1.1",
+ "scc",
+ "sealed",
+ "serde",
+ "smallvec 2.0.0-alpha.11",
+ "thiserror 2.0.12",
+ "tracing",
+ "versions",
+ "vulkano",
 ]
 
 [[package]]
@@ -3767,6 +3764,17 @@ name = "sdd"
 version = "3.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "584e070911c7017da6cb2eb0788d09f43d789029b5877d3e5ecc8acf86ceee21"
+
+[[package]]
+name = "sealed"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22f968c5ea23d555e670b449c1c5e7b2fc399fdaec1d304a17cd48e288abc107"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "serde"

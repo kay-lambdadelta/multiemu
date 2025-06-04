@@ -2,10 +2,9 @@ use crate::{
     MAPCTL_ADDRESS, MIKEY_ADDRESSES, RESERVED_MEMORY_ADDRESS, SUZY_ADDRESSES, VECTOR_ADDRESSES,
 };
 use deku::{DekuContainerRead, DekuContainerWrite, DekuRead, DekuWrite};
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::{
         Address,
         callbacks::{Memory, ReadMemory, WriteMemory},
@@ -34,10 +33,10 @@ pub struct MapctlConfig {
     pub cpu_address_space: AddressSpaceHandle,
 }
 
-impl<R: RenderApi> ComponentConfig<R> for MapctlConfig {
+impl<B: ComponentBuilder<Component = Mapctl>> ComponentConfig<B> for MapctlConfig {
     type Component = Mapctl;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let register = Arc::new(Mutex::new(MapctlStatus::default()));
 
         let (component_builder, _) = component_builder.insert_memory(
@@ -54,7 +53,7 @@ impl<R: RenderApi> ComponentConfig<R> for MapctlConfig {
             [(self.cpu_address_space, 0xfff9..=0xfff9)],
         );
 
-        component_builder.build_global(Mapctl(register));
+        component_builder.build_global(Mapctl(register))
     }
 }
 

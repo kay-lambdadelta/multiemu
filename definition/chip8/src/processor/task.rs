@@ -3,7 +3,7 @@ use super::{
     decoder::Chip8InstructionDecoder,
 };
 use crate::{Chip8Kind, SupportedRenderApiChip8};
-use multiemu_machine::{
+use multiemu_runtime::{
     input::virtual_gamepad::VirtualGamepad,
     memory::memory_translation_table::MemoryTranslationTable,
     processor::decoder::InstructionDecoder, task::Task,

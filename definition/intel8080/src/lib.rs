@@ -1,7 +1,6 @@
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
 };
 
 // mod decode;
@@ -47,10 +46,10 @@ impl Intel8080Config {
     }
 }
 
-impl<R: RenderApi> ComponentConfig<R> for Intel8080Config {
+impl<B: ComponentBuilder<Component = Intel8080>> ComponentConfig<B> for Intel8080Config {
     type Component = Intel8080;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         todo!()
     }
 }

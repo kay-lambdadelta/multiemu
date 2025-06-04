@@ -1,7 +1,6 @@
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
 };
 use num::rational::Ratio;
 use std::{
@@ -26,10 +25,10 @@ impl Component for Chip8Audio {}
 #[derive(Debug, Default)]
 pub struct Chip8AudioConfig;
 
-impl<R: RenderApi> ComponentConfig<R> for Chip8AudioConfig {
+impl<B: ComponentBuilder<Component = Chip8Audio>> ComponentConfig<B> for Chip8AudioConfig {
     type Component = Chip8Audio;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let sound_timer = Arc::new(Mutex::new(0u8));
 
         component_builder
@@ -44,6 +43,6 @@ impl<R: RenderApi> ComponentConfig<R> for Chip8AudioConfig {
             })
             .build_global(Chip8Audio {
                 sound_timer: sound_timer.clone(),
-            });
+            })
     }
 }

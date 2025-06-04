@@ -1,8 +1,6 @@
 use crate::INes;
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::Component,
-    display::backend::RenderApi,
     memory::{
         Address,
         callbacks::{Memory, ReadMemory, WriteMemory},
@@ -55,12 +53,12 @@ impl WriteMemory for NesCartidgeMemoryCallbacks {
     }
 }
 
-pub fn construct_mapper<R: RenderApi, C: Component>(
+pub fn construct_mapper<B: ComponentBuilder>(
     ines: Arc<INes>,
     cpu_address_space: AddressSpaceHandle,
     ppu_address_space: AddressSpaceHandle,
-    component_builder: ComponentBuilder<R, C>,
-) -> ComponentBuilder<R, C> {
+    component_builder: B,
+) -> B {
     match ines.mapper {
         000 => {}
         _ => unimplemented!(),

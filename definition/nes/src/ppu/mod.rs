@@ -1,7 +1,6 @@
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig},
-    display::backend::RenderApi,
     memory::Address,
 };
 
@@ -45,10 +44,10 @@ pub struct NesPpuConfig;
 pub struct NesPpu;
 impl Component for NesPpu {}
 
-impl<R: RenderApi> ComponentConfig<R> for NesPpuConfig {
+impl<B: ComponentBuilder<Component = NesPpu>> ComponentConfig<B> for NesPpuConfig {
     type Component = NesPpu;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
-        component_builder.build(NesPpu);
+    fn build_component(self, component_builder: B)-> B::BuildOutput {
+        component_builder.build(NesPpu)
     }
 }

@@ -1,10 +1,9 @@
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use multiemu_input::{Input, VirtualGamepadName, gamepad::GamepadInput};
-use multiemu_machine::{
+use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig, component_ref::ComponentRef},
-    display::backend::RenderApi,
     input::virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
 };
 use std::{
@@ -17,15 +16,17 @@ pub struct Atari2600Joystick;
 
 impl Component for Atari2600Joystick {}
 
-impl<R: RenderApi> ComponentConfig<R> for Atari2600JoystickConfig {
+impl<B: ComponentBuilder<Component = Atari2600Joystick>> ComponentConfig<B>
+    for Atari2600JoystickConfig
+{
     type Component = Atari2600Joystick;
 
-    fn build_component(self, component_builder: ComponentBuilder<R, Self::Component>) {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         let player1_gamepad = create_gamepad();
         let player2_gamepad = create_gamepad();
 
-        let component_builder =
-            component_builder.insert_gamepads([player1_gamepad.clone(), player2_gamepad.clone()]);
+        let component_builder = component_builder.insert_gamepad(player1_gamepad.clone());
+        let component_builder = component_builder.insert_gamepad(player2_gamepad.clone());
 
         self.mos6532_riot
             .interact(|riot| {
@@ -35,7 +36,7 @@ impl<R: RenderApi> ComponentConfig<R> for Atari2600JoystickConfig {
             })
             .unwrap();
 
-        component_builder.build_global(Atari2600Joystick);
+        component_builder.build_global(Atari2600Joystick)
     }
 }
 

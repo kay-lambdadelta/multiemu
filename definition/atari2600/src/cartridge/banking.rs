@@ -1,4 +1,4 @@
-use multiemu_machine::memory::{
+use multiemu_runtime::memory::{
     Address,
     callbacks::{Memory, ReadMemory},
     memory_translation_table::{

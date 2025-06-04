@@ -7,7 +7,7 @@ use bitvec::{
     view::BitView,
 };
 use multiemu_definition_mos6502::Mos6502;
-use multiemu_machine::{component::component_ref::ComponentRef, task::Task};
+use multiemu_runtime::{component::component_ref::ComponentRef, task::Task};
 use std::num::NonZero;
 
 pub struct TiaTask {
@@ -38,6 +38,8 @@ impl<R: Region, A: SupportedRenderApiTia> Task<Tia<R, A>> for TiaTask {
 
             if state_guard.electron_beam.y >= R::TOTAL_SCANLINES {
                 state_guard.electron_beam.y = 0;
+
+                target.display_backend.get().unwrap().commit_display();
             }
 
             let color = R::color_to_srgb(state_guard.get_rendered_color());
