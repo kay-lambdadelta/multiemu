@@ -3,7 +3,7 @@
 #![windows_subsystem = "windows"]
 #![allow(clippy::arc_with_non_send_sync)]
 
-use crate::runtime::{Platform, SoftwareRenderingRuntime, state::WindowingRuntime};
+use crate::runtime::{Platform, SoftwareRenderingRuntime, state::MainRuntime};
 use multiemu_config::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
 use multiemu_rom::{
     id::RomId,
@@ -50,7 +50,7 @@ fn main() {
         .with_thread_ids(true)
         .with_filter(create_filter());
     let file_layer = tracing_subscriber::fmt::layer()
-        .with_writer(Arc::new(file))
+        .with_writer(file)
         .with_ansi(false)
         .with_thread_ids(true)
         .with_filter(create_filter());
@@ -128,7 +128,7 @@ fn main() {
 
         match graphics_api {
             GraphicsApi::Software => {
-                let runtime = WindowingRuntime::<SoftwareRenderingRuntime>::new_with_machine(
+                let runtime = MainRuntime::<SoftwareRenderingRuntime, _>::new_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
                     build_machine::get_software_factories(),
@@ -142,7 +142,7 @@ fn main() {
             GraphicsApi::Vulkan => {
                 use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-                let runtime = WindowingRuntime::<VulkanRenderingRuntime>::new_with_machine(
+                let runtime = MainRuntime::<VulkanRenderingRuntime, _>::new_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
                     build_machine::get_vulkan_factories(),
@@ -152,7 +152,7 @@ fn main() {
 
                 DesktopPlatform::run(runtime).unwrap();
             }
-            GraphicsApi::Opengl => unimplemented!(),
+            _ => unimplemented!(),
         }
 
         return;
@@ -160,7 +160,7 @@ fn main() {
 
     match graphics_api {
         GraphicsApi::Software => {
-            let runtime = WindowingRuntime::<SoftwareRenderingRuntime>::new(
+            let runtime = MainRuntime::<SoftwareRenderingRuntime, _>::new(
                 environment.clone(),
                 rom_manager.clone(),
                 build_machine::get_software_factories(),
@@ -172,7 +172,7 @@ fn main() {
         GraphicsApi::Vulkan => {
             use runtime::desktop::renderer::vulkan::VulkanRenderingRuntime;
 
-            let runtime = WindowingRuntime::<VulkanRenderingRuntime>::new(
+            let runtime = MainRuntime::<VulkanRenderingRuntime, _>::new(
                 environment.clone(),
                 rom_manager.clone(),
                 build_machine::get_vulkan_factories(),
@@ -180,7 +180,7 @@ fn main() {
 
             DesktopPlatform::run(runtime).unwrap();
         }
-        GraphicsApi::Opengl => unimplemented!(),
+        _ => unimplemented!(),
     }
 }
 

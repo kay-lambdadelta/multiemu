@@ -8,6 +8,7 @@ multiemu-rom = { path = "lib/rom" }
 multiemu-input = { path = "lib/input" }
 multiemu-config = { path = "lib/config" }
 multiemu-save = { path = "lib/save" }
+multiemu-audio = { path = "lib/audio" }
 
 multiemu-definition-misc = { path = "definition/misc" }
 multiemu-definition-mos6502 = { path = "definition/mos6502" }
@@ -61,6 +62,7 @@ versions = "7.0"
 scc = "2.3"
 glow = "0.16"
 arc-swap = "1.7"
+sealed = "0.6"
 # use crates.io smallvec when they release v2
 smallvec = { git = "https://github.com/servo/rust-smallvec", rev = "4fe40688e97555f93a6861ff14720657c5161c07" }
 

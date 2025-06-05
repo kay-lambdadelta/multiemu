@@ -8,6 +8,7 @@ license = "GPL-3.0-or-later"
 multiemu-rom = { workspace = true }
 multiemu-runtime = { workspace = true }
 multiemu-input = { workspace = true }
+multiemu-audio = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }

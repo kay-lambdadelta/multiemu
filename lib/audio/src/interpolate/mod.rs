@@ -1,10 +1,14 @@
-use crate::audio::sample::Sample;
+use crate::sample::Sample;
 use nalgebra::{ComplexField, SVector};
 use num::{Float, rational::Ratio};
 
-pub mod cubic;
-pub mod linear;
-pub mod sinc;
+mod cubic;
+mod linear;
+mod sinc;
+
+pub use cubic::Cubic;
+pub use linear::Linear;
+pub use sinc::Sinc;
 
 /// Trait for interpolators, generic over frame size and sample format
 pub trait Interpolator<
@@ -13,6 +17,7 @@ pub trait Interpolator<
     INTERMEDIATE: Float + Sample + ComplexField,
 >
 {
+    /// Interpolates a sequence of samples from a source rate to a target rate given a interpolator
     fn interpolate(
         self,
         source_rate: Ratio<u32>,

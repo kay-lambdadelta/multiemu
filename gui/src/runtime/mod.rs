@@ -1,5 +1,6 @@
-use crate::{rendering_backend::RenderingBackendState, runtime::state::WindowingRuntime};
+use crate::{rendering_backend::RenderingBackendState, runtime::state::MainRuntime};
 use multiemu_runtime::Machine;
+use num::rational::Ratio;
 use std::{
     fmt::Debug,
     sync::{Arc, RwLock},
@@ -23,15 +24,17 @@ pub use nintendo_3ds::renderer::software::SoftwareRenderingRuntime;
 
 pub mod state;
 
-pub type MaybeMachine = Arc<RwLock<Option<Machine>>>;
+pub type MaybeMachine = RwLock<Option<Machine>>;
 
 /// A runtime for a given platform
-pub trait Platform<RS: RenderingBackendState>: Debug {
-    fn run(runtime: WindowingRuntime<RS>) -> Result<(), Box<dyn std::error::Error>>;
+pub trait Platform<RS: RenderingBackendState, AR: AudioRuntime>: Debug {
+    fn run(runtime: MainRuntime<RS, AR>) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 pub trait AudioRuntime: Debug {
-    fn new(machine: MaybeMachine) -> Self;
+    // We use a weak pointer so drop doesn't get called here from another thread
+    fn new(machine: Arc<MaybeMachine>) -> Self;
+    fn sample_rate(&self) -> Ratio<u32>;
     fn pause(&self);
     fn play(&self);
 }

@@ -1,8 +1,8 @@
-use crate::audio::frame::FrameIterator;
 use super::{
     Sample,
     conversion::{FromSample, IntoSample},
 };
+use crate::frame::FrameIterator;
 use nalgebra::SVector;
 
 /// Helper trait for samples

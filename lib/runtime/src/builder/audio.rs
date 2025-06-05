@@ -1,4 +1,5 @@
-use crate::audio::{AudioDataCallback, sample::Sample};
+use crate::audio::AudioDataCallback;
+use multiemu_audio::Sample;
 
 pub struct AudioMetadata<S: Sample> {
     pub audio_data_callbacks: Vec<Box<dyn AudioDataCallback<S>>>,

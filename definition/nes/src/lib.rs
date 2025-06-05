@@ -1,5 +1,6 @@
 pub use cartridge::ines::INes;
 use cartridge::{NesCartridgeConfig, ines::TimingMode};
+use multiemu_audio::Sample;
 use multiemu_definition_misc::memory::{
     mirror::MirrorMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
@@ -10,9 +11,7 @@ use multiemu_rom::{
     manager::RomManager,
     system::{GameSystem, NintendoSystem},
 };
-use multiemu_runtime::{
-    MachineFactory, audio::sample::Sample, builder::MachineBuilder, display::backend::RenderApi,
-};
+use multiemu_runtime::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
 use num::rational::Ratio;
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
@@ -30,10 +29,12 @@ impl<R: RenderApi, S: Sample> MachineFactory<R, S> for Nes {
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
+        sample_rate: Ratio<u32>,
     ) -> MachineBuilder<R, S> {
         let machine = MachineBuilder::new(
             GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem),
             rom_manager.clone(),
+            sample_rate,
         );
 
         let (machine, cpu_address_space) = machine.insert_address_space(16);

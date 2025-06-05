@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_runtime::audio::frame::FrameIterator;
+use multiemu_audio::FrameIterator;
 use nalgebra::{Vector1, Vector2, Vector4};
 use std::hint::black_box;
 

@@ -2,12 +2,13 @@ use multiemu_definition_atari2600::Atari2600;
 use multiemu_definition_atarilynx::AtariLynx;
 use multiemu_definition_chip8::Chip8;
 use multiemu_definition_nes::Nes;
-use multiemu_runtime::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
     system::{AtariSystem, GameSystem, NintendoSystem, OtherSystem},
 };
+use multiemu_runtime::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
+use num::rational::Ratio;
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug)]
@@ -23,11 +24,12 @@ impl<R: RenderApi> MachineFactories<R> {
         system: GameSystem,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
+        sample_rate: Ratio<u32>,
     ) -> MachineBuilder<R> {
         self.0
             .get(&system)
             .unwrap_or_else(|| panic!("No factory for system {:?}", system))
-            .construct(user_specified_roms, rom_manager)
+            .construct(user_specified_roms, rom_manager, sample_rate)
     }
 }
 

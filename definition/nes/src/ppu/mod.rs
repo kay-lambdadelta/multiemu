@@ -47,7 +47,7 @@ impl Component for NesPpu {}
 impl<B: ComponentBuilder<Component = NesPpu>> ComponentConfig<B> for NesPpuConfig {
     type Component = NesPpu;
 
-    fn build_component(self, component_builder: B)-> B::BuildOutput {
+    fn build_component(self, component_builder: B) -> B::BuildOutput {
         component_builder.build(NesPpu)
     }
 }

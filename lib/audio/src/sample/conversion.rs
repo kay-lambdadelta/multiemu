@@ -2,6 +2,7 @@ use super::Sample;
 
 /// Conversion trait to get from one sample format to another
 pub trait FromSample<T: Sample>: Sample {
+    /// Converts from the target sample to our sample
     fn from_sample(sample: T) -> Self;
 }
 
@@ -13,6 +14,7 @@ impl<T: Sample> FromSample<T> for T {
 
 /// Reflexive version of [FromSample]
 pub trait IntoSample<T: Sample>: Sample {
+    /// Converts from our sample to the target sample
     fn into_sample(self) -> T;
 }
 
@@ -31,13 +33,13 @@ macro_rules! conversion_impl {
             #[inline]
             fn from_sample(sample: $from) -> Self {
                 let from = sample as $conversion_space;
-                let from_min = <$from>::sample_min() as $conversion_space;
-                let from_max = <$from>::sample_max() as $conversion_space;
+                let from_min = <$from>::min_sample() as $conversion_space;
+                let from_max = <$from>::max_sample() as $conversion_space;
 
                 let norm = (from - from_min) / (from_max - from_min);
 
-                let to_min = <$to>::sample_min() as $conversion_space;
-                let to_max = <$to>::sample_max() as $conversion_space;
+                let to_min = <$to>::min_sample() as $conversion_space;
+                let to_max = <$to>::max_sample() as $conversion_space;
 
                 let scaled = norm * (to_max - to_min) + to_min;
 

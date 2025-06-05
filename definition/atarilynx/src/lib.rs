@@ -1,16 +1,17 @@
 use mapctl::MapctlConfig;
+use multiemu_audio::Sample;
 use multiemu_definition_misc::memory::{
     null::NullMemoryConfig,
     rom::RomMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
-use multiemu_runtime::{
-    audio::sample::Sample, builder::MachineBuilder, display::backend::RenderApi, memory::Address, MachineFactory
-};
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
     system::{AtariSystem, GameSystem},
+};
+use multiemu_runtime::{
+    MachineFactory, builder::MachineBuilder, display::backend::RenderApi, memory::Address,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
@@ -34,12 +35,16 @@ impl<R: RenderApi, S: Sample> MachineFactory<R, S> for AtariLynx {
         &self,
         _user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
+        sample_rate: Ratio<u32>,
     ) -> MachineBuilder<R, S> {
         // 16 Mhz
         let base_clock = Ratio::from_integer(16000000);
 
-        let machine =
-            MachineBuilder::new(GameSystem::Atari(AtariSystem::Lynx), rom_manager.clone());
+        let machine = MachineBuilder::new(
+            GameSystem::Atari(AtariSystem::Lynx),
+            rom_manager.clone(),
+            sample_rate,
+        );
 
         let (machine, cpu_address_space) = machine.insert_address_space(16);
 

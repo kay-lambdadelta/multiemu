@@ -1,6 +1,6 @@
-use std::hint::black_box;
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_runtime::audio::sample::iterator::SampleIterator;
+use multiemu_audio::SampleIterator;
+use std::hint::black_box;
 
 const BUFFER_SIZE: usize = 4096;
 

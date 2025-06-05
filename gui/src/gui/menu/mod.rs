@@ -2,8 +2,8 @@ use egui::{CentralPanel, Context, ScrollArea, SidePanel};
 use file_browser::FileBrowserState;
 use memory_viewer::MemoryViewerState;
 use multiemu_config::Environment;
-use multiemu_runtime::Machine;
 use multiemu_rom::{id::RomId, manager::RomManager};
+use multiemu_runtime::Machine;
 use options::OptionsState;
 use std::{
     fmt::Display,

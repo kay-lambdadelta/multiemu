@@ -1,13 +1,15 @@
+use crate::audio::AudioDataCallback;
 use builder::MachineBuilder;
 use display::backend::{ComponentFramebuffer, RenderApi};
 use input::{VirtualGamepadId, virtual_gamepad::VirtualGamepad};
 use memory::memory_translation_table::MemoryTranslationTable;
+use multiemu_audio::Sample;
 use multiemu_rom::{id::RomId, manager::RomManager, system::GameSystem};
+use num::rational::Ratio;
 use rustc_hash::FxBuildHasher;
 use scheduler::Scheduler;
 use std::{any::Any, collections::HashMap, fmt::Debug, sync::Arc, vec::Vec};
 use utils::Fragile;
-use crate::audio::{sample::Sample, AudioDataCallback};
 
 pub mod audio;
 pub mod builder;
@@ -54,5 +56,6 @@ pub trait MachineFactory<R: RenderApi, S: Sample>: Debug + Send + Sync + 'static
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
+        sample_rate: Ratio<u32>,
     ) -> MachineBuilder<R, S>;
 }

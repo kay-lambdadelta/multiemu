@@ -2140,6 +2140,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "multiemu-audio"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "nalgebra",
+ "num",
+ "ringbuffer",
+ "sealed",
+]
+
+[[package]]
 name = "multiemu-config"
 version = "0.1.0"
 dependencies = [
@@ -2160,6 +2171,7 @@ dependencies = [
  "codes-iso-3166",
  "criterion",
  "glow",
+ "multiemu-audio",
  "multiemu-config",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
@@ -2185,6 +2197,7 @@ dependencies = [
  "bitvec",
  "deku",
  "glow",
+ "multiemu-audio",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
  "multiemu-input",
@@ -2211,6 +2224,7 @@ dependencies = [
  "bytemuck",
  "criterion",
  "glow",
+ "multiemu-audio",
  "multiemu-definition-misc",
  "multiemu-input",
  "multiemu-rom",
@@ -2281,6 +2295,7 @@ dependencies = [
  "criterion",
  "deku",
  "glow",
+ "multiemu-audio",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
  "multiemu-input",
@@ -2309,6 +2324,7 @@ dependencies = [
  "gilrs",
  "glow",
  "image",
+ "multiemu-audio",
  "multiemu-config",
  "multiemu-definition-atari2600",
  "multiemu-definition-atarilynx",
@@ -2365,9 +2381,9 @@ dependencies = [
  "arc-swap",
  "bincode",
  "bitvec",
- "criterion",
  "data-encoding",
  "glow",
+ "multiemu-audio",
  "multiemu-input",
  "multiemu-rom",
  "multiemu-save",

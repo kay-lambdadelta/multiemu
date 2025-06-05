@@ -1,11 +1,12 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_definition_atari2600::Atari2600;
+use multiemu_rom::{id::RomId, manager::RomManager};
 use multiemu_runtime::{
     MachineFactory,
     display::backend::software::{SoftwareComponentInitializationData, SoftwareRendering},
 };
-use multiemu_rom::{id::RomId, manager::RomManager};
+use num::rational::Ratio;
 use std::{fs::File, hint::black_box, ops::Deref, str::FromStr, sync::Arc};
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -24,21 +25,23 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("initialization", |b| {
         b.iter(|| {
-            <Atari2600 as MachineFactory<SoftwareRendering>>::construct(
+            <Atari2600 as MachineFactory<SoftwareRendering, f32>>::construct(
                 &Atari2600,
                 // Donkey Kong (USA).a26
                 vec![RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()],
                 rom_manager.clone(),
+                Ratio::from_integer(44100),
             )
             .build(SoftwareComponentInitializationData)
         })
     });
 
-    let machine = MachineFactory::<SoftwareRendering>::construct(
+    let machine = MachineFactory::<SoftwareRendering, f32>::construct(
         &Atari2600,
         // Donkey Kong (USA).a26
         vec![RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()],
         rom_manager.clone(),
+        Ratio::from_integer(44100),
     )
     .build(SoftwareComponentInitializationData);
 

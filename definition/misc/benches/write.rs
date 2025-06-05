@@ -2,8 +2,9 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_runtime::{builder::MachineBuilder, display::backend::software::SoftwareRendering};
 use multiemu_rom::{manager::RomManager, system::GameSystem};
+use multiemu_runtime::{builder::MachineBuilder, display::backend::software::SoftwareRendering};
+use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use std::{hint::black_box, sync::Arc};
 
@@ -12,9 +13,12 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
 
-    let (machine, cpu_address_space) =
-        MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager)
-            .insert_address_space(64);
+    let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+        GameSystem::Unknown,
+        rom_manager,
+        Ratio::from_integer(44100),
+    )
+    .insert_address_space(64);
 
     let (machine, _) = machine.insert_component(
         "workram",

@@ -1,6 +1,6 @@
 use crate::{
     Machine,
-    audio::{AudioDataCallback, sample::Sample},
+    audio::AudioDataCallback,
     builder::display::DisplayCallback,
     component::{
         Component, ComponentConfig, ComponentId, RuntimeEssentials, component_ref::ComponentRef,
@@ -23,6 +23,7 @@ use crate::{
 use audio::AudioMetadata;
 use display::DisplayMetadata;
 use input::InputMetadata;
+use multiemu_audio::Sample;
 use multiemu_rom::{manager::RomManager, system::GameSystem};
 use multiemu_save::ComponentName;
 use num::rational::Ratio;
@@ -72,7 +73,11 @@ pub struct MachineBuilder<R: RenderApi = SoftwareRendering, S: Sample = f32> {
 }
 
 impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
-    pub fn new(game_system: GameSystem, rom_manager: Arc<RomManager>) -> Self {
+    pub fn new(
+        game_system: GameSystem,
+        rom_manager: Arc<RomManager>,
+        sample_rate: Ratio<u32>,
+    ) -> Self {
         MachineBuilder::<R, S> {
             current_component_id: ComponentId(0),
             component_store: Arc::default(),
@@ -81,6 +86,7 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
                 rom_manager,
                 memory_translation_table: Arc::default(),
                 render_initialization_data: OnceLock::default(),
+                sample_rate,
             }),
             game_system,
         }
@@ -250,7 +256,8 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
     }
 }
 
-/// Struct passed into components for their initialization purposes
+#[doc(hidden)]
+/// Struct passed into components for their initialization purposes. Do not refer to this directly.
 pub struct ComponentBuilderImpl<R: RenderApi, S: Sample, C: Component> {
     machine_builder: MachineBuilder<R, S>,
     component_id: ComponentId,
@@ -321,11 +328,8 @@ pub trait ComponentBuilder: Sized {
 #[sealed::sealed]
 impl<R: RenderApi, S: Sample, C: Component> ComponentBuilder for ComponentBuilderImpl<R, S, C> {
     type RenderApi = R;
-
     type SampleFormat = S;
-
     type Component = C;
-
     type BuildOutput = MachineBuilder<R, S>;
 
     fn essentials(&self) -> Arc<RuntimeEssentials<R>> {

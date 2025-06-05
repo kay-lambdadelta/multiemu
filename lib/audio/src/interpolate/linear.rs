@@ -1,10 +1,11 @@
 use super::Interpolator;
-use crate::audio::{frame::FrameIterator, sample::{conversion::FromSample, Sample}};
+use crate::{FromSample, frame::FrameIterator, sample::Sample};
 use nalgebra::{ComplexField, SVector};
 use num::{Float, ToPrimitive, rational::Ratio};
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 
 #[derive(Default)]
+/// Linear interpolation
 pub struct Linear;
 
 impl<S: Sample, const CHANNELS: usize, F: Float + Sample + ComplexField>

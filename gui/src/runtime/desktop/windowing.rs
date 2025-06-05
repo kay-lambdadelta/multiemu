@@ -4,7 +4,11 @@ use super::{
 };
 use crate::{
     rendering_backend::{DisplayApiHandle, RenderingBackendState},
-    runtime::{Platform, desktop::input::gamepad::gamepad_task, state::WindowingRuntime},
+    runtime::{
+        Platform,
+        desktop::{audio::CpalAudioRuntime, input::gamepad::gamepad_task},
+        state::MainRuntime,
+    },
 };
 use egui::ViewportId;
 use multiemu_input::InputState;
@@ -26,7 +30,7 @@ impl DisplayApiHandle for Arc<Window> {
 }
 
 pub struct DesktopPlatform<RS: RenderingBackendState> {
-    runtime: WindowingRuntime<RS>,
+    runtime: MainRuntime<RS, CpalAudioRuntime>,
     egui_winit: Option<egui_winit::State>,
 }
 
@@ -39,9 +43,9 @@ impl<RS: RenderingBackendState> Debug for DesktopPlatform<RS> {
 }
 
 impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderApi = R>>
-    Platform<RS> for DesktopPlatform<RS>
+    Platform<RS, CpalAudioRuntime> for DesktopPlatform<RS>
 {
-    fn run(runtime: WindowingRuntime<RS>) -> Result<(), Box<dyn std::error::Error>> {
+    fn run(runtime: MainRuntime<RS, CpalAudioRuntime>) -> Result<(), Box<dyn std::error::Error>> {
         let event_loop = EventLoop::with_user_event().build()?;
         {
             let event_loop_proxy = event_loop.create_proxy();
@@ -58,8 +62,8 @@ impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, Ren
         }
 
         let mut me = Self {
-            runtime,
             egui_winit: None,
+            runtime,
         };
         event_loop.run_app(&mut me)?;
 
@@ -154,6 +158,11 @@ impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, Ren
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         self.runtime.display_api_handle().unwrap().request_redraw();
+    }
+
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        // Forcefully drop the machine to stop it from being dropped on the audio thread and causing a panic
+        self.runtime.maybe_machine.write().unwrap().take();
     }
 }
 

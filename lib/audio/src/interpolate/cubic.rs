@@ -1,14 +1,15 @@
 use super::Interpolator;
-use crate::audio::{frame::FrameIterator, sample::{conversion::FromSample, Sample}};
+use crate::{FromSample, frame::FrameIterator, sample::Sample};
 use nalgebra::{ComplexField, SVector};
 use num::{Float, ToPrimitive, rational::Ratio};
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 
 #[derive(Default)]
-pub struct Sinc<const WINDOW_SIZE: usize>;
+/// Cubic interpolation
+pub struct Cubic;
 
-impl<S: Sample, const CHANNELS: usize, F: Float + Sample + ComplexField, const WINDOW_SIZE: usize>
-    Interpolator<S, CHANNELS, F> for Sinc<WINDOW_SIZE>
+impl<S: Sample, const CHANNELS: usize, F: Float + Sample + ComplexField>
+    Interpolator<S, CHANNELS, F> for Cubic
 where
     F: FromSample<S>,
     S: FromSample<F>,
@@ -19,12 +20,12 @@ where
         target_rate: Ratio<u32>,
         input: impl IntoIterator<Item = SVector<S, CHANNELS>>,
     ) -> impl Iterator<Item = SVector<S, CHANNELS>> {
-        interpolate_internal::<_, CHANNELS, _, WINDOW_SIZE>(source_rate, target_rate, input)
+        interpolate_internal(source_rate, target_rate, input)
     }
 }
 
-impl<S: Sample, const CHANNELS: usize, F: Float + Sample + ComplexField, const WINDOW_SIZE: usize>
-    Interpolator<S, CHANNELS, F> for &Sinc<WINDOW_SIZE>
+impl<S: Sample, const CHANNELS: usize, F: Float + Sample + ComplexField>
+    Interpolator<S, CHANNELS, F> for &Cubic
 where
     F: FromSample<S>,
     S: FromSample<F>,
@@ -35,7 +36,7 @@ where
         target_rate: Ratio<u32>,
         input: impl IntoIterator<Item = SVector<S, CHANNELS>>,
     ) -> impl Iterator<Item = SVector<S, CHANNELS>> {
-        interpolate_internal::<_, CHANNELS, _, WINDOW_SIZE>(source_rate, target_rate, input)
+        interpolate_internal(source_rate, target_rate, input)
     }
 }
 
@@ -43,8 +44,7 @@ where
 fn interpolate_internal<
     S: Sample + FromSample<F>,
     const CHANNELS: usize,
-    F: Float + Sample + FromSample<S> + ComplexField,
-    const WINDOW_SIZE: usize,
+    F: Float + Sample + FromSample<S>,
 >(
     source_rate: Ratio<u32>,
     target_rate: Ratio<u32>,
@@ -55,7 +55,7 @@ fn interpolate_internal<
 
     // Initialize the ring buffer with four samples
     let mut held_samples = ConstGenericRingBuffer::new();
-    for _ in 0..WINDOW_SIZE {
+    for _ in 0..4 {
         if let Some(sample) = input.next() {
             held_samples.push(sample);
         } else {
@@ -64,11 +64,11 @@ fn interpolate_internal<
         }
     }
 
-    for _ in 0..(WINDOW_SIZE - held_samples.len()) {
+    for _ in 0..(4 - held_samples.len()) {
         held_samples.push(SVector::from_element(F::equilibrium()));
     }
 
-    SincIterator::<F, CHANNELS, _> {
+    CubicIterator::<F, CHANNELS, _> {
         // TODO: Do this without f64 intermediary
         resampling_ratio: F::from_f64((target_rate / source_rate).to_f64().unwrap()).unwrap(),
         index: F::zero(),
@@ -80,8 +80,8 @@ fn interpolate_internal<
     .rescale::<S>()
 }
 
-struct SincIterator<
-    F: Float + Sample + ComplexField,
+struct CubicIterator<
+    F: Float + Sample,
     const CHANNELS: usize,
     I: Iterator<Item = SVector<F, CHANNELS>>,
 > {
@@ -93,11 +93,8 @@ struct SincIterator<
     input_exhausted: bool,
 }
 
-impl<
-    F: Float + Sample + ComplexField,
-    const CHANNELS: usize,
-    I: Iterator<Item = SVector<F, CHANNELS>>,
-> Iterator for SincIterator<F, CHANNELS, I>
+impl<F: Float + Sample, const CHANNELS: usize, I: Iterator<Item = SVector<F, CHANNELS>>> Iterator
+    for CubicIterator<F, CHANNELS, I>
 {
     type Item = SVector<F, CHANNELS>;
 
@@ -124,7 +121,13 @@ impl<
         let fractional_part =
             (input_target_index - (self.input_index - F::one())).clamp(F::zero(), F::one());
 
-        let interpolated_sample = sinc_interpolate(&self.held_samples, fractional_part);
+        let interpolated_sample = cubic_interpolate(
+            &self.held_samples[0],
+            &self.held_samples[1],
+            &self.held_samples[2],
+            &self.held_samples[3],
+            fractional_part,
+        );
         self.index += F::one();
 
         Some(interpolated_sample)
@@ -132,21 +135,18 @@ impl<
 }
 
 #[inline]
-fn sinc_interpolate<
-    F: Float + Sample + ComplexField,
-    const CHANNELS: usize,
-    const WINDOW_SIZE: usize,
->(
-    samples: &ConstGenericRingBuffer<SVector<F, CHANNELS>, WINDOW_SIZE>,
+fn cubic_interpolate<F: Float + Sample, const CHANNELS: usize>(
+    y0: &SVector<F, CHANNELS>,
+    y1: &SVector<F, CHANNELS>,
+    y2: &SVector<F, CHANNELS>,
+    y3: &SVector<F, CHANNELS>,
     mu: F,
 ) -> SVector<F, CHANNELS> {
-    let mut result = SVector::from_element(F::equilibrium());
+    let mu2 = mu.powi(2);
+    let a0 = y3 - y2 - y0 + y1;
+    let a1 = y0 - y1 - a0;
+    let a2 = y2 - y0;
+    let a3 = y1;
 
-    for i in 0..WINDOW_SIZE {
-        let x = mu - F::from_usize(i).unwrap();
-        let sinc_value = x.sinc();
-        result += samples[i] * sinc_value;
-    }
-
-    result
+    a0 * mu * mu2 + a1 * mu2 + a2 * mu + a3
 }

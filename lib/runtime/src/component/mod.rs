@@ -3,6 +3,7 @@ use crate::{
     memory::memory_translation_table::MemoryTranslationTable,
 };
 use multiemu_rom::manager::RomManager;
+use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
     any::Any,
@@ -19,6 +20,7 @@ pub struct RuntimeEssentials<R: RenderApi> {
     pub rom_manager: Arc<RomManager>,
     pub memory_translation_table: Arc<MemoryTranslationTable>,
     pub render_initialization_data: OnceLock<R::ComponentInitializationData>,
+    pub sample_rate: Ratio<u32>,
 }
 
 // Basic supertrait for all components

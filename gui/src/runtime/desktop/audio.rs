@@ -2,26 +2,29 @@ use crate::runtime::{AudioRuntime, MaybeMachine};
 use bytemuck::Pod;
 use cpal::{
     Device, Host, Stream, StreamConfig,
-    traits::{DeviceTrait, HostTrait},
+    traits::{DeviceTrait, HostTrait, StreamTrait},
 };
-use multiemu_runtime::audio::sample::{Sample, conversion::FromSample};
-use std::{fmt::Debug, ops::Deref};
+use multiemu_audio::{FrameIterator, FromSample, Sample};
+use nalgebra::SVector;
+use num::rational::Ratio;
+use std::{fmt::Debug, ops::Deref, sync::Arc};
 
 #[allow(unused)]
-pub struct CpalAudio {
+pub struct CpalAudioRuntime {
     host: Host,
     device: Device,
     stream: Stream,
+    sample_rate: Ratio<u32>,
 }
 
-impl Debug for CpalAudio {
+impl Debug for CpalAudioRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CpalAudio").finish()
     }
 }
 
-impl AudioRuntime for CpalAudio {
-    fn new(machine: MaybeMachine) -> Self {
+impl AudioRuntime for CpalAudioRuntime {
+    fn new(machine: Arc<MaybeMachine>) -> Self {
         let host = cpal::default_host();
         tracing::info!("Selecting audio api {:?}", host.id());
 
@@ -37,6 +40,8 @@ impl AudioRuntime for CpalAudio {
 
         let config = device.default_output_config().unwrap();
         tracing::info!("Selected audio device with config: {:#?}", config);
+
+        let sample_rate = Ratio::from_integer(config.sample_rate().0);
 
         let stream = match config.sample_format() {
             cpal::SampleFormat::I8 => build_output_stream::<i8>(&device, config.into(), machine),
@@ -56,23 +61,32 @@ impl AudioRuntime for CpalAudio {
             host,
             device,
             stream,
+            sample_rate,
         }
     }
 
-    fn pause(&self) {}
+    fn pause(&self) {
+        self.stream.pause().unwrap();
+    }
 
-    fn play(&self) {}
+    fn play(&self) {
+        self.stream.play().unwrap();
+    }
+
+    fn sample_rate(&self) -> Ratio<u32> {
+        self.sample_rate
+    }
 }
 
 pub fn build_output_stream<S: Sample + FromSample<f32> + Pod + cpal::SizedSample>(
     device: &Device,
     config: StreamConfig,
-    maybe_machine: MaybeMachine,
+    maybe_machine: Arc<MaybeMachine>,
 ) -> Stream
 where
     f32: FromSample<S>,
 {
-    let stream = match config.channels {
+    match config.channels {
         1 => fetch_audio_data_builder::<S, 1>(device, config, maybe_machine),
         2 => fetch_audio_data_builder::<S, 2>(device, config, maybe_machine),
         3 => fetch_audio_data_builder::<S, 3>(device, config, maybe_machine),
@@ -82,14 +96,13 @@ where
         7 => fetch_audio_data_builder::<S, 7>(device, config, maybe_machine),
         8 => fetch_audio_data_builder::<S, 8>(device, config, maybe_machine),
         _ => unimplemented!(),
-    };
-    stream
+    }
 }
 
 fn fetch_audio_data_builder<S: Sample + FromSample<f32> + Pod + cpal::SizedSample, const C: usize>(
     device: &Device,
     config: StreamConfig,
-    machine: MaybeMachine,
+    machine: Arc<MaybeMachine>,
 ) -> Stream
 where
     f32: FromSample<S>,
@@ -98,9 +111,22 @@ where
         .build_output_stream(
             &config,
             move |data: &mut [S], _| {
+                let data: &mut [SVector<S, C>] = bytemuck::cast_slice_mut(data);
+
                 let machine_guard = machine.read().unwrap();
 
-                if let Some(machine) = machine_guard.deref() {}
+                if let Some(machine) = machine_guard.deref() {
+                    let audio_data_callbacks = machine.audio_data_callbacks::<f32>();
+
+                    if let Some(callback) = audio_data_callbacks.first() {
+                        for (destination, source) in data
+                            .iter_mut()
+                            .zip(callback.generate_audio().remix::<C>().rescale())
+                        {
+                            *destination = source;
+                        }
+                    }
+                }
             },
             move |err| tracing::error!("an error occurred on the output audio stream: {}", err),
             None,

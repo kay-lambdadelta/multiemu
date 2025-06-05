@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_runtime::audio::{frame::FrameIterator, interpolate::{cubic::Cubic, linear::Linear, sinc::Sinc}};
+use multiemu_audio::{Cubic, FrameIterator, Linear, Sinc};
 use nalgebra::Vector2;
 use num::rational::Ratio;
 use std::hint::black_box;

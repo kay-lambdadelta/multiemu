@@ -358,12 +358,12 @@ impl StandardMemoryCallbacks {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use multiemu_rom::{manager::RomManager, system::GameSystem};
     use multiemu_runtime::{
         builder::MachineBuilder, display::backend::software::SoftwareRendering,
     };
-
-    use super::*;
+    use num::rational::Ratio;
 
     #[test]
     fn initialization() {
@@ -371,9 +371,12 @@ mod test {
 
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager.clone())
-                .insert_address_space(64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager.clone(),
+            Ratio::from_integer(44100),
+        )
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -398,9 +401,12 @@ mod test {
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager.clone())
-                .insert_address_space(64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager.clone(),
+            Ratio::from_integer(44100),
+        )
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -431,9 +437,12 @@ mod test {
         unsafe { multiemu_runtime::utils::force_set_main_thread() };
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager)
-                .insert_address_space(64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            Ratio::from_integer(44100),
+        )
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -464,9 +473,12 @@ mod test {
         unsafe { multiemu_runtime::utils::force_set_main_thread() };
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager)
-                .insert_address_space(64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            Ratio::from_integer(44100),
+        )
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -496,9 +508,12 @@ mod test {
         unsafe { multiemu_runtime::utils::force_set_main_thread() };
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager)
-                .insert_address_space(64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            Ratio::from_integer(44100),
+        )
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -535,9 +550,12 @@ mod test {
 
         let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::<SoftwareRendering>::new(GameSystem::Unknown, rom_manager)
-                .insert_address_space(64);
+        let (machine, cpu_address_space) = MachineBuilder::<SoftwareRendering>::new(
+            GameSystem::Unknown,
+            rom_manager,
+            Ratio::from_integer(44100),
+        )
+        .insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",

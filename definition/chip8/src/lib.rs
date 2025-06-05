@@ -1,6 +1,7 @@
 use audio::Chip8AudioConfig;
 use display::{Chip8DisplayConfig, SupportedRenderApiChip8Display};
 use font::CHIP8_FONT;
+use multiemu_audio::{FromSample, Sample};
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
@@ -9,7 +10,7 @@ use multiemu_rom::{
     manager::RomManager,
     system::{GameSystem, OtherSystem},
 };
-use multiemu_runtime::{MachineFactory, audio::sample::Sample, builder::MachineBuilder};
+use multiemu_runtime::{MachineFactory, builder::MachineBuilder};
 use num::rational::Ratio;
 use processor::Chip8ProcessorConfig;
 pub use processor::decoder::Chip8InstructionDecoder;
@@ -40,13 +41,18 @@ impl<A: SupportedRenderApiChip8Display> SupportedRenderApiChip8 for A {}
 #[derive(Debug, Default)]
 pub struct Chip8;
 
-impl<R: SupportedRenderApiChip8, S: Sample> MachineFactory<R, S> for Chip8 {
+impl<R: SupportedRenderApiChip8, S: Sample + FromSample<f32>> MachineFactory<R, S> for Chip8 {
     fn construct(
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
+        sample_rate: Ratio<u32>,
     ) -> MachineBuilder<R, S> {
-        let machine = MachineBuilder::new(GameSystem::Other(OtherSystem::Chip8), rom_manager);
+        let machine = MachineBuilder::new(
+            GameSystem::Other(OtherSystem::Chip8),
+            rom_manager,
+            sample_rate,
+        );
 
         let (machine, cpu_address_space) = machine.insert_address_space(12);
         let (machine, timer) = machine.insert_default_component::<_, Chip8TimerConfig>("timer");

@@ -2,17 +2,17 @@ use crate::{
     build_machine::MachineFactories,
     gui::menu::{MenuState, UiOutput},
     rendering_backend::{DisplayApiHandle, RenderingBackendState},
-    runtime::MaybeMachine,
+    runtime::{AudioRuntime, MaybeMachine},
 };
 use egui::{FontFamily, RawInput, TextStyle, TextWrapMode};
 use multiemu_config::{Environment, input::Hotkey};
 use multiemu_input::{GamepadId, Input, InputState};
-use multiemu_runtime::{display::RenderExtensions, input::VirtualGamepadId};
 use multiemu_rom::{
     id::RomId,
     manager::{ROM_INFORMATION_TABLE, RomManager},
     system::GameSystem,
 };
+use multiemu_runtime::{display::RenderExtensions, input::VirtualGamepadId};
 use nalgebra::Vector2;
 use std::{
     collections::HashMap,
@@ -55,7 +55,7 @@ enum RuntimeMode {
 }
 
 #[derive(Debug)]
-pub struct WindowingRuntime<RS: RenderingBackendState> {
+pub struct MainRuntime<RS: RenderingBackendState, AR: AudioRuntime> {
     /// If we are on the menu or in a game
     mode: RuntimeMode,
     /// What real gamepads connect to what
@@ -75,22 +75,27 @@ pub struct WindowingRuntime<RS: RenderingBackendState> {
     was_egui_context_reset: bool,
     machine_factories: MachineFactories<RS::RenderApi>,
     /// Our beloved simulator itself
-    maybe_machine: MaybeMachine,
+    pub maybe_machine: Arc<MaybeMachine>,
     /// Data that the machine simulator needs when it's possible to build it
     pending_machine_resources: Option<(GameSystem, Vec<RomId>)>,
+    audio_runtime: AR,
 }
 
-impl<RS: RenderingBackendState> WindowingRuntime<RS> {
+impl<RS: RenderingBackendState, AR: AudioRuntime> MainRuntime<RS, AR> {
     pub fn new(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
         machine_factories: MachineFactories<RS::RenderApi>,
     ) -> Self {
+        let maybe_machine: Arc<MaybeMachine> = Arc::default();
         let egui_context = egui::Context::default();
         setup_theme(&egui_context);
         let menu_state = MenuState::new(environment.clone(), rom_manager.clone());
         let gamepad_mapping = HashMap::new();
         let mode = RuntimeMode::Gui;
+        let audio_runtime = AR::new(maybe_machine.clone());
+
+        audio_runtime.play();
 
         Self {
             mode,
@@ -106,8 +111,9 @@ impl<RS: RenderingBackendState> WindowingRuntime<RS> {
             current_key_states: HashMap::new(),
             was_egui_context_reset: false,
             machine_factories,
-            maybe_machine: MaybeMachine::default(),
+            maybe_machine: maybe_machine.clone(),
             pending_machine_resources: None,
+            audio_runtime,
         }
     }
 
@@ -172,6 +178,7 @@ impl<RS: RenderingBackendState> WindowingRuntime<RS> {
             game_system,
             user_specified_roms,
             self.rom_manager.clone(),
+            self.audio_runtime.sample_rate(),
         );
 
         self.egui_context = egui::Context::default();
@@ -200,6 +207,27 @@ impl<RS: RenderingBackendState> WindowingRuntime<RS> {
                 .insert(GamepadId::PLATFORM_RESERVED, *virtual_gamepad);
         }
 
+        // Try to give the environment default bindings
+
+        let mut environment_guard = self.environment.write().unwrap();
+
+        // Make sure default mappings exist
+        for virtual_gamepad in machine.virtual_gamepads.values() {
+            environment_guard
+                .gamepad_configs
+                .entry(machine.game_system)
+                .or_default()
+                .entry(virtual_gamepad.name())
+                .or_insert(
+                    virtual_gamepad
+                        .metadata()
+                        .default_bindings
+                        .clone()
+                        .into_iter()
+                        .collect(),
+                );
+        }
+
         self.mode = RuntimeMode::Machine;
         maybe_machine_guard.replace(machine);
     }
@@ -214,12 +242,12 @@ impl<RS: RenderingBackendState> WindowingRuntime<RS> {
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
         machine_factories: MachineFactories<RS::RenderApi>,
-
         game_system: GameSystem,
         user_specified_roms: Vec<RomId>,
     ) -> Self {
         let mut me = Self::new(environment.clone(), rom_manager.clone(), machine_factories);
         me.pending_machine_resources = Some((game_system, user_specified_roms));
+        me.mode = RuntimeMode::Machine;
 
         me
     }

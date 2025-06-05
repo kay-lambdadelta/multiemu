@@ -1,11 +1,7 @@
-use crate::audio::{
-    interpolate::Interpolator,
-    sample::{Sample, conversion::FromSample},
-};
+use crate::{FromSample, IntoSample, interpolate::Interpolator, sample::Sample};
+use core::cmp::Ordering;
 use nalgebra::{ComplexField, SVector};
 use num::{Float, rational::Ratio};
-use std::cmp::Ordering;
-use crate::audio::sample::conversion::IntoSample;
 
 /// Helper iterator for operating on frames of samples
 pub trait FrameIterator<S: Sample, const CHANNELS: usize>:
@@ -27,9 +23,6 @@ pub trait FrameIterator<S: Sample, const CHANNELS: usize>:
 
     /// Normalize the samples in the iterator
     fn normalize(self) -> impl FrameIterator<S, CHANNELS>;
-
-    /// Fill a buffer with samples
-    fn fill_buf(self, buffer: &mut [SVector<S, CHANNELS>]);
 }
 
 impl<S: Sample, const CHANNELS: usize, SourceIterator: Iterator<Item = SVector<S, CHANNELS>>>
@@ -80,14 +73,5 @@ impl<S: Sample, const CHANNELS: usize, SourceIterator: Iterator<Item = SVector<S
 
     fn normalize(self) -> impl FrameIterator<S, CHANNELS> {
         self.map(|s| s.map(|s| s.normalize()))
-    }
-
-    fn fill_buf(self, buffer: &mut [SVector<S, CHANNELS>]) {
-        for (destination, sample) in buffer
-            .iter_mut()
-            .zip(self.chain(std::iter::repeat(SVector::from_element(S::equilibrium()))))
-        {
-            *destination = sample;
-        }
     }
 }

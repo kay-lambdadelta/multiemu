@@ -8,6 +8,7 @@ license = "GPL-3.0-or-later"
 multiemu-rom = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-save = { workspace = true }
+multiemu-audio = { workspace = true }
 rangemap = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
@@ -24,26 +25,11 @@ smallvec = { workspace = true }
 scc = { workspace = true }
 ringbuffer = { workspace = true }
 arc-swap = { workspace = true }
+sealed = { workspace = true }
 vulkano = { workspace = true, optional = true }
 glow = { workspace = true, optional = true }
 naga = { workspace = true, optional = true }
-sealed = "0.6"
-
-[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
-criterion = { workspace = true }
 
 [features]
 vulkan = ["dep:vulkano", "dep:naga", "naga/spv-out"]
 opengl = ["dep:glow", "dep:naga", "naga/glsl-out"]
-
-[[bench]]
-name = "conversion"
-harness = false
-
-[[bench]]
-name = "resample"
-harness = false
-
-[[bench]]
-name = "remix"
-harness = false

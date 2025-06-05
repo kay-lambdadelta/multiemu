@@ -1,6 +1,7 @@
 use cartridge::Atari2600CartridgeConfig;
 use codes_iso_3166::part_1::CountryCode;
 use gamepad::joystick::Atari2600JoystickConfig;
+use multiemu_audio::Sample;
 use multiemu_definition_misc::{
     memory::mirror::MirrorMemoryConfig,
     mos6532_riot::{Mos6532Riot, Mos6532RiotConfig},
@@ -13,7 +14,6 @@ use multiemu_rom::{
 };
 use multiemu_runtime::{
     MachineFactory,
-    audio::sample::Sample,
     builder::MachineBuilder,
     component::component_ref::ComponentRef,
     memory::{Address, memory_translation_table::address_space::AddressSpaceHandle},
@@ -50,10 +50,12 @@ impl<R: SupportedRenderApiAtari2600, S: Sample> MachineFactory<R, S> for Atari26
         &self,
         user_specified_roms: Vec<RomId>,
         rom_manager: Arc<RomManager>,
+        sample_rate: Ratio<u32>,
     ) -> MachineBuilder<R, S> {
         let machine = MachineBuilder::<R, S>::new(
             GameSystem::Atari(AtariSystem::Atari2600),
             rom_manager.clone(),
+            sample_rate,
         );
 
         assert_eq!(

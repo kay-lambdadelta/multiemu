@@ -1,27 +1,32 @@
+use core::fmt::Debug;
 use num::{
     Bounded, FromPrimitive, Integer, Num, ToPrimitive, rational::Ratio, traits::NumAssignOps,
 };
-use std::fmt::Debug;
 
-pub mod conversion;
-pub mod iterator;
+mod conversion;
+mod iterator;
+
+pub use conversion::*;
+pub use iterator::SampleIterator;
 
 /// Base trait for samples
 pub trait Sample:
     Num + NumAssignOps + PartialOrd + Debug + ToPrimitive + FromPrimitive + Copy + Send + Sync + 'static
 {
-    fn sample_min() -> Self;
+    /// The minimum value of the sample
+    fn min_sample() -> Self;
 
-    fn sample_max() -> Self;
+    /// The maximum value of the sample
+    fn max_sample() -> Self;
 
     /// The midpoint of the sample range
     fn equilibrium() -> Self {
-        (Self::sample_min() + Self::sample_max()) / (Self::one() + Self::one())
+        (Self::min_sample() + Self::max_sample()) / (Self::one() + Self::one())
     }
 
     /// Clamps the sample, should be done after every set of operations
     fn normalize(self) -> Self {
-        num::clamp(self, Self::sample_min(), Self::sample_max())
+        num::clamp(self, Self::min_sample(), Self::max_sample())
     }
 }
 
@@ -29,11 +34,11 @@ pub trait Sample:
 macro_rules! sample_impl {
     (float, $sample:ty) => {
         impl Sample for $sample {
-            fn sample_min() -> Self {
+            fn min_sample() -> Self {
                 -1.0
             }
 
-            fn sample_max() -> Self {
+            fn max_sample() -> Self {
                 1.0
             }
         }
@@ -41,11 +46,11 @@ macro_rules! sample_impl {
 
     (int, $sample:ty) => {
         impl Sample for $sample {
-            fn sample_min() -> Self {
+            fn min_sample() -> Self {
                 Self::MIN
             }
 
-            fn sample_max() -> Self {
+            fn max_sample() -> Self {
                 Self::MAX
             }
         }
@@ -80,11 +85,11 @@ impl<
 where
     Ratio<R>: ToPrimitive + FromPrimitive,
 {
-    fn sample_min() -> Self {
+    fn min_sample() -> Self {
         Ratio::from_integer(R::min_value())
     }
 
-    fn sample_max() -> Self {
+    fn max_sample() -> Self {
         Ratio::from_integer(R::max_value())
     }
 }
