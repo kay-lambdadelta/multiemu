@@ -9,6 +9,7 @@ multiemu-input = { path = "lib/input" }
 multiemu-config = { path = "lib/config" }
 multiemu-save = { path = "lib/save" }
 multiemu-audio = { path = "lib/audio" }
+multiemu-graphics = { path = "lib/graphics" }
 
 multiemu-definition-misc = { path = "definition/misc" }
 multiemu-definition-mos6502 = { path = "definition/mos6502" }
@@ -35,13 +36,13 @@ rayon = "1.10"
 nalgebra = { version = "0.33", features = [
     "serde-serialize",
     "convert-bytemuck",
-    "rayon",
 ] }
 bytemuck = { version = "1.23", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
-bitvec = { version = "1.0", features = ["serde"] }
+# crates.io bitvec has very bad atomic detection code basically making it unusuable on any unusual platform
+bitvec = { git = "https://github.com/ferrilab/ferrilab", features = ["serde"] }
 vulkano = { version = "0.35", default-features = false }
 rand = "0.9"
 palette = { version = "0.7", default-features = false, features = [

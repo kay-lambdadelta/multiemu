@@ -1,12 +1,9 @@
-use crate::component::Component;
+use crate::scheduler::Task;
 use num::rational::Ratio;
-use std::{boxed::Box, num::NonZero, vec::Vec};
+use std::{boxed::Box, vec::Vec};
 
 #[derive(Default)]
 pub struct TaskMetadata {
-    #[allow(clippy::type_complexity)]
-    pub tasks: Vec<(
-        Ratio<u32>,
-        Box<dyn FnMut(&dyn Component, NonZero<u32>) + Send + 'static>,
-    )>,
+    pub global_tasks: Vec<(Ratio<u32>, Box<dyn Task + Send>)>,
+    pub tasks: Vec<(Ratio<u32>, Box<dyn Task>)>,
 }

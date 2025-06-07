@@ -1,8 +1,14 @@
 use super::ShaderFormat;
+use crate::GraphicsVersion;
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+};
 use naga::{Module, ShaderStage, valid::ModuleInfo};
-use versions::SemVer;
 
 #[derive(Debug)]
+/// GLSL shader format, used for opengl
 pub struct GlslShader;
 
 impl ShaderFormat for GlslShader {
@@ -12,10 +18,10 @@ impl ShaderFormat for GlslShader {
     fn compile(
         module: &Module,
         module_info: &ModuleInfo,
-        version: SemVer,
+        version: GraphicsVersion,
         entry_name: &str,
         stage: ShaderStage,
-    ) -> Result<Self::Representation, Box<dyn std::error::Error>> {
+    ) -> Result<Self::Representation, Box<dyn core::error::Error>> {
         let mut output = String::default();
 
         naga::back::glsl::Writer::new(
@@ -24,7 +30,7 @@ impl ShaderFormat for GlslShader {
             module_info,
             &naga::back::glsl::Options {
                 version: naga::back::glsl::Version::Desktop(
-                    format!("{}{}{}", version.major, version.minor, version.patch)
+                    format!("{}{}0", version.major, version.minor)
                         .parse()
                         .unwrap(),
                 ),

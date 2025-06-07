@@ -1,4 +1,3 @@
-use crate::component::{Component, ComponentId, store::ComponentStore};
 use num::{
     ToPrimitive,
     integer::{gcd, lcm},
@@ -6,89 +5,107 @@ use num::{
 };
 use std::{
     boxed::Box,
-    cmp::{Ordering, Reverse},
-    collections::binary_heap::BinaryHeap,
+    cmp::Reverse,
+    collections::BinaryHeap,
     fmt::Debug,
     num::NonZero,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Barrier, Condvar, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
     vec::Vec,
 };
 
 mod run;
+mod task;
 
+pub use task::*;
+
+use crate::utils::MainThreadQueue;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+enum RunningState {
+    CanRun(NonZero<u32>),
+    Running,
+    #[default]
+    Waiting,
+}
+
+#[derive(Debug, Default)]
+struct TaskState {
+    pub running_state: Mutex<RunningState>,
+    pub condvar: Condvar,
+}
+
+#[derive(Debug)]
 struct TaskInfo {
-    pub component_id: ComponentId,
-    #[allow(clippy::type_complexity)]
-    pub task: Mutex<Box<dyn FnMut(&dyn Component, NonZero<u32>) + Send + 'static>>,
+    pub task_state: Arc<TaskState>,
     pub tick_rate: u32,
     pub next_execution: Reverse<u32>,
 }
 
-// Used ONLY for the binary heap
 impl PartialEq for TaskInfo {
     fn eq(&self, other: &Self) -> bool {
         self.next_execution == other.next_execution
     }
 }
 
+impl PartialOrd for TaskInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl Eq for TaskInfo {}
 
-impl PartialOrd for TaskInfo {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.next_execution.cmp(&other.next_execution))
-    }
-}
-
 impl Ord for TaskInfo {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.next_execution.cmp(&other.next_execution)
-    }
-}
-
-impl Debug for TaskInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StoredTask")
-            .field("component_id", &self.component_id)
-            .field("tick_rate", &self.tick_rate)
-            .field("next_execution", &self.next_execution)
-            .finish()
     }
 }
 
 #[derive(Debug)]
 pub struct Scheduler {
+    /// Global tick we are currently on
     current_tick: u32,
+    /// Rollover tick
     rollover_tick: u32,
+    /// The amount of time a tick takes
     tick_real_time: Duration,
+    /// Amount of time we can execute per pass
     allotted_time: Duration,
-    component_store: Arc<ComponentStore>,
+    /// Tasks sorted in a min heap
     tasks: BinaryHeap<TaskInfo>,
+    /// Temporary storage for tasks
     to_run: Vec<TaskInfo>,
+    /// Handle to the main thread queue
+    main_thread_queue: Arc<MainThreadQueue>,
+    /// Flag to tell if the runtime is going away
+    runtime_shutting_down: Arc<AtomicBool>,
+    /// Barrier to block tasks from running until the first pass
+    barrier: Option<Arc<Barrier>>,
+    /// Tasks that are currently executing
+    inflight: Vec<Arc<TaskState>>,
 }
 
 impl Scheduler {
     pub(crate) fn new(
-        component_store: Arc<ComponentStore>,
-        tasks: impl IntoIterator<
-            Item = (
-                ComponentId,
-                Ratio<u32>,
-                Box<dyn FnMut(&dyn Component, NonZero<u32>) + Send + 'static>,
-            ),
-        >,
+        tasks: impl IntoIterator<Item = (Ratio<u32>, Box<dyn Task>)>,
+        main_thread_queue: Arc<MainThreadQueue>,
     ) -> Self {
         pub struct PrecalculationTask {
-            pub component_id: ComponentId,
             #[allow(clippy::type_complexity)]
-            pub task: Mutex<Box<dyn FnMut(&dyn Component, NonZero<u32>) + Send + 'static>>,
+            pub task: Box<dyn Task>,
             pub frequency: Ratio<u32>,
         }
+
+        let runtime_shutting_down = Arc::new(AtomicBool::new(false));
 
         let tasks: Vec<_> = tasks
             .into_iter()
             .enumerate()
-            .map(|(task_id, (component_id, frequency, task))| {
+            .map(|(task_id, (frequency, task))| {
                 tracing::debug!(
                     "Task {} has a frequency of {} (period of {:?})",
                     task_id,
@@ -97,12 +114,14 @@ impl Scheduler {
                 );
 
                 PrecalculationTask {
-                    task: Mutex::new(task),
-                    component_id,
+                    task,
                     frequency: frequency.recip(),
                 }
             })
             .collect();
+
+        // The number of tasks + the driving thread
+        let barrier = Arc::new(Barrier::new(tasks.len() + 1));
 
         let common = Ratio::new(
             tasks
@@ -133,9 +152,27 @@ impl Scheduler {
                 let factor = rollover_tick / precalcuation_task.frequency.denom();
                 let tick_rate = precalcuation_task.frequency.numer() * factor;
 
+                let task_state = Arc::new(TaskState::default());
+                let scheduler_handle = SchedulerHandle {
+                    task_state: task_state.clone(),
+                    runtime_shutting_down: runtime_shutting_down.clone(),
+                    cycles_until_sync_required: 0,
+                };
+                let barrier = barrier.clone();
+
+                {
+                    let task = precalcuation_task.task;
+
+                    std::thread::spawn(move || {
+                        barrier.wait();
+                        drop(barrier);
+
+                        task.run(scheduler_handle);
+                    });
+                }
+
                 TaskInfo {
-                    component_id: precalcuation_task.component_id,
-                    task: precalcuation_task.task,
+                    task_state,
                     tick_rate,
                     next_execution: Reverse(0),
                 }
@@ -149,9 +186,12 @@ impl Scheduler {
             tick_real_time,
             rollover_tick,
             allotted_time: Duration::from_secs(1) / 60,
-            component_store,
-            to_run: Vec::with_capacity(tasks.len()),
             tasks,
+            to_run: Vec::default(),
+            runtime_shutting_down,
+            main_thread_queue,
+            barrier: Some(barrier),
+            inflight: Vec::default(),
         }
     }
 
@@ -182,23 +222,54 @@ impl Scheduler {
     }
 }
 
+impl Drop for Scheduler {
+    fn drop(&mut self) {
+        self.runtime_shutting_down.store(true, Ordering::Relaxed);
+    }
+}
+
+#[inline]
 fn run_task(
     to_run: impl IntoIterator<Item = (TaskInfo, NonZero<u32>)>,
-    component_store: &ComponentStore,
     heap: &mut BinaryHeap<TaskInfo>,
+    inflight: &mut Vec<Arc<TaskState>>,
+    main_thread_queue: &MainThreadQueue,
+    tick_real_time: Duration,
 ) {
-    for (mut task_info, time_slice) in to_run {
-        component_store
-            .interact_dyn_local(task_info.component_id, |component| {
-                let mut task = task_info.task.lock().unwrap();
+    // Make sure all previous tasks have been stopped
+    for inflight in inflight.drain(..) {
+        let mut running_state_guard = inflight.running_state.lock().unwrap();
 
-                task(component, time_slice);
-            })
-            .unwrap();
+        while *running_state_guard != RunningState::Waiting {
+            // Wait for it to complete
+            let (running_state, _) = inflight
+                .condvar
+                .wait_timeout(running_state_guard, tick_real_time)
+                .unwrap();
+
+            // Make sure anything that needs to run on main gets their turn
+            main_thread_queue.main_thread_poll();
+
+            // Retake our guard
+            running_state_guard = running_state;
+        }
+    }
+
+    for (mut task_info, time_slice) in to_run {
+        let mut running_state_guard = task_info.task_state.running_state.lock().unwrap();
 
         // Update the next execution
         let ticks_taken = time_slice.get() * task_info.tick_rate;
         task_info.next_execution.0 = task_info.next_execution.0.wrapping_add(ticks_taken);
+
+        // Tell it it can run again!
+        *running_state_guard = RunningState::CanRun(time_slice);
+        drop(running_state_guard);
+
+        task_info.task_state.condvar.notify_one();
+
+        // Put it inflight
+        inflight.push(task_info.task_state.clone());
 
         // Put it back on our heap and let it rearrange itself
         heap.push(task_info);

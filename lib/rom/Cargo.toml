@@ -15,3 +15,7 @@ codes-iso-3166 = { workspace = true }
 bincode = { workspace = true }
 data-encoding = { workspace = true }
 sha1 = "0.10"
+
+[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
+# FIXME: redb is broken on basically any newlib based rust std implementation until the rust "file_lock" api comes out
+redb = { workspace = true }

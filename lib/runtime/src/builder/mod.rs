@@ -1,35 +1,32 @@
 use crate::{
     Machine,
-    audio::AudioDataCallback,
-    builder::display::DisplayCallback,
+    audio::AudioCallback,
     component::{
         Component, ComponentConfig, ComponentId, RuntimeEssentials, component_ref::ComponentRef,
         store::ComponentStore,
     },
-    display::{
-        RenderExtensions,
-        backend::{ContextExtensionSpecification, RenderApi, software::SoftwareRendering},
-    },
+    graphics::GraphicsCallback,
     input::virtual_gamepad::VirtualGamepad,
     memory::{
         Address,
         callbacks::{ReadMemory, WriteMemory},
         memory_translation_table::{MemoryHandle, address_space::AddressSpaceHandle},
     },
-    scheduler::Scheduler,
-    task::Task,
+    scheduler::{Scheduler, Task},
     utils::Fragile,
 };
 use audio::AudioMetadata;
-use display::DisplayMetadata;
+use graphics::DisplayMetadata;
 use input::InputMetadata;
 use multiemu_audio::Sample;
+use multiemu_graphics::{
+    ContextExtensionSpecification, GraphicsApi, GraphicsContextExtensions, Software,
+};
 use multiemu_rom::{manager::RomManager, system::GameSystem};
 use multiemu_save::ComponentName;
 use num::rational::Ratio;
 use rangemap::RangeInclusiveSet;
 use std::{
-    any::Any,
     collections::HashMap,
     marker::PhantomData,
     ops::RangeInclusive,
@@ -39,20 +36,20 @@ use std::{
 use task::TaskMetadata;
 
 pub mod audio;
-pub mod display;
+pub mod graphics;
 pub mod input;
 pub mod memory;
 pub mod task;
 
 /// Overall data extracted from components needed for machine initialization
-pub struct ComponentMetadata<R: RenderApi, S: Sample> {
+pub struct ComponentMetadata<R: GraphicsApi, S: Sample> {
     pub task: Option<TaskMetadata>,
     pub display: Option<DisplayMetadata<R>>,
     pub input: Option<InputMetadata>,
     pub audio: Option<AudioMetadata<S>>,
 }
 
-impl<R: RenderApi, S: Sample> Default for ComponentMetadata<R, S> {
+impl<R: GraphicsApi, S: Sample> Default for ComponentMetadata<R, S> {
     fn default() -> Self {
         Self {
             task: None,
@@ -64,7 +61,7 @@ impl<R: RenderApi, S: Sample> Default for ComponentMetadata<R, S> {
 }
 
 /// Builder to produce a machine, definition crates will want to use this
-pub struct MachineBuilder<R: RenderApi = SoftwareRendering, S: Sample = f32> {
+pub struct MachineBuilder<R: GraphicsApi = Software, S: Sample = f32> {
     essentials: Arc<RuntimeEssentials<R>>,
     component_store: Arc<ComponentStore>,
     current_component_id: ComponentId,
@@ -72,7 +69,7 @@ pub struct MachineBuilder<R: RenderApi = SoftwareRendering, S: Sample = f32> {
     game_system: GameSystem,
 }
 
-impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
+impl<R: GraphicsApi, S: Sample> MachineBuilder<R, S> {
     pub fn new(
         game_system: GameSystem,
         rom_manager: Arc<RomManager>,
@@ -85,11 +82,19 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
             essentials: Arc::new(RuntimeEssentials {
                 rom_manager,
                 memory_translation_table: Arc::default(),
-                render_initialization_data: OnceLock::default(),
+                component_graphics_initialization_data: OnceLock::default(),
                 sample_rate,
             }),
             game_system,
         }
+    }
+
+    pub fn new_test(rom_manager: Arc<RomManager>) -> Self {
+        Self::new(
+            GameSystem::Unknown,
+            rom_manager,
+            Ratio::from_integer(441000),
+        )
     }
 
     /// Insert a component into the machine
@@ -110,6 +115,7 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
             .0
             .checked_add(1)
             .expect("Too many components");
+        let component_ref = ComponentRef::new(self.component_store.clone(), component_id);
 
         let component_builder = ComponentBuilderImpl {
             machine_builder: self,
@@ -118,8 +124,7 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
             name: name.clone(),
             _phantom: PhantomData,
         };
-        let me = config.build_component(component_builder);
-        let component_ref = me.component_store.get(&name).unwrap();
+        let me = config.build_component(component_ref.clone(), component_builder);
 
         (me, component_ref)
     }
@@ -146,7 +151,7 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
         (self, id)
     }
 
-    pub fn render_extensions(&self) -> RenderExtensions<R> {
+    pub fn render_extensions(&self) -> GraphicsContextExtensions<R> {
         let preferred = self
             .component_metadata
             .iter()
@@ -173,7 +178,7 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
                 a.combine(b.clone())
             });
 
-        RenderExtensions {
+        GraphicsContextExtensions {
             required,
             preferred,
         }
@@ -182,39 +187,28 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
     /// Build the machine
     pub fn build(
         mut self,
-        component_initialization_data: R::ComponentInitializationData,
+        component_initialization_data: R::ComponentGraphicsInitializationData,
     ) -> Machine {
-        let mut framebuffers = Vec::new();
         let mut tasks = Vec::new();
         let mut virtual_gamepads = Vec::default();
-        let mut audio_data_callbacks = Vec::default();
+        let mut audio_callbacks = Vec::default();
+        let mut graphics_callbacks = Vec::default();
 
         // So components do not panic
         self.essentials
-            .render_initialization_data
+            .component_graphics_initialization_data
             .set(component_initialization_data)
             .unwrap();
 
-        for (component_id, component_metadata) in self.component_metadata.drain() {
+        for (_component_id, component_metadata) in self.component_metadata.drain() {
+            // Gather the framebuffers
             if let Some(display_metadata) = component_metadata.display {
-                // Initialize all the display components
-                self.component_store
-                    .interact_dyn_local(component_id, |component| {
-                        // Call the display callback
-                        let framebuffer = (display_metadata.set_display_callback)(component);
-                        framebuffers.push(framebuffer);
-                    })
-                    .unwrap();
+                graphics_callbacks.push(display_metadata.callback);
             }
 
             // Gather the tasks
             if let Some(task_metadata) = component_metadata.task {
-                tasks.extend(
-                    task_metadata
-                        .tasks
-                        .into_iter()
-                        .map(|(frequency, callback)| (component_id, frequency, callback)),
-                );
+                tasks.extend(task_metadata.tasks);
             }
 
             if let Some(input_metadata) = component_metadata.input {
@@ -222,22 +216,21 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
             }
 
             if let Some(audio_metadata) = component_metadata.audio {
-                audio_data_callbacks.extend(audio_metadata.audio_data_callbacks);
+                audio_callbacks.extend(audio_metadata.audio_data_callbacks);
             }
         }
 
         // Create the scheduler
-        let scheduler = Scheduler::new(self.component_store.clone(), tasks);
+        let scheduler = Scheduler::new(tasks, self.component_store.main_thread_queue.clone());
 
         // Make sure all the components do their proper post initialization
         self.component_store.interact_all(|compoenent| {
-            compoenent.on_machine_ready();
+            compoenent.on_runtime_ready();
         });
 
         Machine {
             scheduler,
             memory_translation_table: self.essentials.memory_translation_table.clone(),
-            framebuffers: Fragile::new(Box::new(framebuffers)),
             virtual_gamepads: virtual_gamepads
                 .into_iter()
                 .enumerate()
@@ -251,14 +244,16 @@ impl<R: RenderApi, S: Sample> MachineBuilder<R, S> {
                 })
                 .collect(),
             game_system: self.game_system,
-            audio_data_callbacks: Box::new(audio_data_callbacks),
+            audio_callbacks: Box::new(audio_callbacks),
+            graphics_callbacks: Fragile::new(Box::new(graphics_callbacks)),
+            _component_store: self.component_store,
         }
     }
 }
 
 #[doc(hidden)]
 /// Struct passed into components for their initialization purposes. Do not refer to this directly.
-pub struct ComponentBuilderImpl<R: RenderApi, S: Sample, C: Component> {
+pub struct ComponentBuilderImpl<R: GraphicsApi, S: Sample, C: Component> {
     machine_builder: MachineBuilder<R, S>,
     component_id: ComponentId,
     component_metadata: ComponentMetadata<R, S>,
@@ -269,7 +264,7 @@ pub struct ComponentBuilderImpl<R: RenderApi, S: Sample, C: Component> {
 #[sealed::sealed]
 pub trait ComponentBuilder: Sized {
     /// Render api to use
-    type RenderApi: RenderApi;
+    type GraphicsApi: GraphicsApi;
     /// Sample format to use
     type SampleFormat: Sample;
     /// Component to use
@@ -277,7 +272,8 @@ pub trait ComponentBuilder: Sized {
     /// Build output
     type BuildOutput;
 
-    fn essentials(&self) -> Arc<RuntimeEssentials<Self::RenderApi>>;
+    /// Get the runtime essentials
+    fn essentials(&self) -> Arc<RuntimeEssentials<Self::GraphicsApi>>;
 
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
     fn build(self, component: Self::Component) -> Self::BuildOutput;
@@ -289,16 +285,17 @@ pub trait ComponentBuilder: Sized {
     where
         Self::Component: Send + Sync;
 
-    fn insert_audio_data_callback(
-        self,
-        callback: impl AudioDataCallback<Self::SampleFormat>,
-    ) -> Self;
+    fn insert_audio_callback(self, callback: impl AudioCallback<Self::SampleFormat>) -> Self;
 
-    fn insert_display_config(
+    fn insert_screen(
         self,
-        preferred_extensions: Option<<Self::RenderApi as RenderApi>::ContextExtensionSpecification>,
-        required_extensions: Option<<Self::RenderApi as RenderApi>::ContextExtensionSpecification>,
-        set_display_callback: impl DisplayCallback<Self::RenderApi, Self::Component>,
+        preferred_extensions: Option<
+            <Self::GraphicsApi as GraphicsApi>::ContextExtensionSpecification,
+        >,
+        required_extensions: Option<
+            <Self::GraphicsApi as GraphicsApi>::ContextExtensionSpecification,
+        >,
+        callback: impl GraphicsCallback<Self::GraphicsApi>,
     ) -> Self;
 
     fn insert_gamepad(self, gamepads: Arc<VirtualGamepad>) -> Self;
@@ -322,12 +319,12 @@ pub trait ComponentBuilder: Sized {
         assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<Address>)>,
     ) -> (Self, MemoryHandle);
 
-    fn insert_task(self, frequency: Ratio<u32>, callback: impl Task<Self::Component>) -> Self;
+    fn insert_task(self, frequency: Ratio<u32>, callback: impl Task) -> Self;
 }
 
 #[sealed::sealed]
-impl<R: RenderApi, S: Sample, C: Component> ComponentBuilder for ComponentBuilderImpl<R, S, C> {
-    type RenderApi = R;
+impl<R: GraphicsApi, S: Sample, C: Component> ComponentBuilder for ComponentBuilderImpl<R, S, C> {
+    type GraphicsApi = R;
     type SampleFormat = S;
     type Component = C;
     type BuildOutput = MachineBuilder<R, S>;
@@ -369,7 +366,7 @@ impl<R: RenderApi, S: Sample, C: Component> ComponentBuilder for ComponentBuilde
         self.machine_builder
     }
 
-    fn insert_audio_data_callback(mut self, callback: impl AudioDataCallback<S>) -> Self {
+    fn insert_audio_callback(mut self, callback: impl AudioCallback<S>) -> Self {
         let audio_data_callback = Box::new(callback);
         self.component_metadata
             .audio
@@ -380,19 +377,16 @@ impl<R: RenderApi, S: Sample, C: Component> ComponentBuilder for ComponentBuilde
         self
     }
 
-    fn insert_display_config(
+    fn insert_screen(
         mut self,
         preferred_extensions: Option<R::ContextExtensionSpecification>,
         required_extensions: Option<R::ContextExtensionSpecification>,
-        set_display_callback: impl DisplayCallback<R, C>,
+        callback: impl GraphicsCallback<R>,
     ) -> Self {
         self.component_metadata.display = Some(DisplayMetadata {
             preferred_extensions,
             required_extensions,
-            set_display_callback: Box::new(|component| {
-                let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
-                set_display_callback.get_framebuffer(component)
-            }),
+            callback: Box::new(callback),
         });
 
         self
@@ -501,16 +495,10 @@ impl<R: RenderApi, S: Sample, C: Component> ComponentBuilder for ComponentBuilde
         (self, memory_handle)
     }
 
-    fn insert_task(mut self, frequency: Ratio<u32>, mut callback: impl Task<C>) -> Self {
+    fn insert_task(mut self, frequency: Ratio<u32>, callback: impl Task) -> Self {
         let task_metatada = self.component_metadata.task.get_or_insert_default();
 
-        task_metatada.tasks.push((
-            frequency,
-            Box::new(move |component, period| {
-                let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
-                callback.run(component, period);
-            }),
-        ));
+        task_metatada.tasks.push((frequency, Box::new(callback)));
 
         self
     }

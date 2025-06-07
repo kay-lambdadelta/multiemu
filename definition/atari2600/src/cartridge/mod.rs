@@ -2,7 +2,7 @@ use banking::BankingCartridgeMemoryCallback;
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
     memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use raw::RawCartridgeMemoryCallback;
@@ -37,7 +37,11 @@ impl<B: ComponentBuilder<Component = Atari2600Cartridge>> ComponentConfig<B>
 {
     type Component = Atari2600Cartridge;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let essentials = component_builder.essentials();
 
         let mut rom = essentials

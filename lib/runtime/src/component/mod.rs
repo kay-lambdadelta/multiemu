@@ -1,7 +1,8 @@
 use crate::{
-    builder::ComponentBuilder, display::backend::RenderApi,
+    builder::ComponentBuilder, component::component_ref::ComponentRef,
     memory::memory_translation_table::MemoryTranslationTable,
 };
+use multiemu_graphics::GraphicsApi;
 use multiemu_rom::manager::RomManager;
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
@@ -16,10 +17,13 @@ pub(crate) mod store;
 
 /// Stuff every component optionally needs
 #[derive(Debug)]
-pub struct RuntimeEssentials<R: RenderApi> {
+pub struct RuntimeEssentials<R: GraphicsApi> {
     pub rom_manager: Arc<RomManager>,
     pub memory_translation_table: Arc<MemoryTranslationTable>,
-    pub render_initialization_data: OnceLock<R::ComponentInitializationData>,
+    /// This is not guarenteed to be initialized until [Component::on_runtime_ready] is called
+    ///
+    /// Therefore do not expect it to be filled out until then
+    pub component_graphics_initialization_data: OnceLock<R::ComponentGraphicsInitializationData>,
     pub sample_rate: Ratio<u32>,
 }
 
@@ -27,10 +31,9 @@ pub struct RuntimeEssentials<R: RenderApi> {
 #[allow(unused)]
 pub trait Component: Debug + Any {
     /// Called when machine initialization is finished
-    fn on_machine_ready(&self) {}
-
-    /// Called when a frame is about to be rendered, so things like locks on video stuff can be dropped
-    fn on_frame_start(&self) {}
+    ///
+    /// This is where you should do graphics initialization or anything that reads or writes from the memory translation table
+    fn on_runtime_ready(&self) {}
 
     /// Reset state
     fn reset(&self) {}
@@ -46,7 +49,11 @@ pub trait ComponentConfig<B: ComponentBuilder<Component = Self::Component>>:
     type Component: Component;
 
     /// Make a new component from the config
-    fn build_component(self, component_builder: B) -> B::BuildOutput;
+    fn build_component(
+        self,
+        component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -9,13 +9,13 @@ multiemu-rom = { workspace = true }
 multiemu-runtime = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-audio = { workspace = true }
+multiemu-graphics = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }
 tracing = { workspace = true }
 bitvec = { workspace = true }
 strum = { workspace = true }
-thiserror = { workspace = true }
 serde = { workspace = true }
 num = { workspace = true }
 nalgebra = { workspace = true }
@@ -30,8 +30,8 @@ ron = { workspace = true }
 criterion = { workspace = true }
 
 [features]
-vulkan = ["dep:vulkano", "multiemu-runtime/vulkan"]
-opengl = ["dep:glow", "multiemu-runtime/opengl"]
+vulkan = ["dep:vulkano"]
+opengl = ["dep:glow"]
 
 [[bench]]
 name = "benches"

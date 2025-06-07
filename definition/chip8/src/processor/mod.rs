@@ -108,12 +108,16 @@ pub struct Chip8ProcessorConfig<R: SupportedRenderApiChip8> {
     pub always_shr_in_place: bool,
 }
 
-impl<R: SupportedRenderApiChip8, B: ComponentBuilder<Component = Chip8Processor, RenderApi = R>>
-    ComponentConfig<B> for Chip8ProcessorConfig<B::RenderApi>
+impl<R: SupportedRenderApiChip8, B: ComponentBuilder<Component = Chip8Processor, GraphicsApi = R>>
+    ComponentConfig<B> for Chip8ProcessorConfig<B::GraphicsApi>
 {
     type Component = Chip8Processor;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let essentials = component_builder.essentials();
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Kind::Chip8)));
         let state = Mutex::new(ProcessorState::default());
@@ -136,6 +140,7 @@ impl<R: SupportedRenderApiChip8, B: ComponentBuilder<Component = Chip8Processor,
                     memory_translation_table: essentials.memory_translation_table.clone(),
                     mode,
                     config: self,
+                    component: component_ref,
                 },
             )
             .build_global(Chip8Processor { state })

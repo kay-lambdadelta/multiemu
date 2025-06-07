@@ -2,17 +2,11 @@ use crate::rendering_backend::{DisplayApiHandle, RenderingBackendState};
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
 use multiemu_config::Environment;
-use multiemu_runtime::{
-    Machine,
-    display::{
-        RenderExtensions,
-        backend::{
-            RenderApi,
-            vulkan::{VulkanComponentInitializationData, VulkanRendering},
-        },
-        shader::{ShaderCache, spirv::SpirvShader},
-    },
+use multiemu_graphics::{
+    GraphicsApi, GraphicsContextExtensions, Vulkan, VulkanComponentInitializationData,
+    shader::{ShaderCache, SpirvShader},
 };
+use multiemu_runtime::Machine;
 use nalgebra::Vector2;
 use std::sync::{Arc, RwLock};
 use vulkano::{
@@ -60,12 +54,12 @@ pub struct VulkanRenderingRuntime {
 }
 
 impl RenderingBackendState for VulkanRenderingRuntime {
-    type RenderApi = VulkanRendering;
+    type GraphicsApi = Vulkan;
     type DisplayApiHandle = Arc<Window>;
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
-        render_extensions: RenderExtensions<Self::RenderApi>,
+        render_extensions: GraphicsContextExtensions<Self::GraphicsApi>,
         environment: Arc<RwLock<Environment>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.dimensions();
@@ -220,7 +214,7 @@ impl RenderingBackendState for VulkanRenderingRuntime {
 
     fn component_initialization_data(
         &self,
-    ) -> <Self::RenderApi as RenderApi>::ComponentInitializationData {
+    ) -> <Self::GraphicsApi as GraphicsApi>::ComponentGraphicsInitializationData {
         VulkanComponentInitializationData {
             device: self.device.clone(),
             queues: self.queues_for_components.clone(),
@@ -248,15 +242,17 @@ impl RenderingBackendState for VulkanRenderingRuntime {
         )
         .unwrap();
 
-        for framebuffer in machine.framebuffers::<Self::RenderApi>().iter() {
-            command_buffer
-                .blit_image(BlitImageInfo {
-                    src_image_layout: ImageLayout::TransferSrcOptimal,
-                    dst_image_layout: ImageLayout::TransferDstOptimal,
-                    filter: Filter::Nearest,
-                    ..BlitImageInfo::images(framebuffer.load(), swapchain_image.clone())
-                })
-                .unwrap();
+        for graphics_callback in machine.graphics_callbacks::<Self::GraphicsApi>() {
+            graphics_callback.get_framebuffer(Box::new(|framebuffer| {
+                command_buffer
+                    .blit_image(BlitImageInfo {
+                        src_image_layout: ImageLayout::TransferSrcOptimal,
+                        dst_image_layout: ImageLayout::TransferDstOptimal,
+                        filter: Filter::Nearest,
+                        ..BlitImageInfo::images(framebuffer.clone(), swapchain_image.clone())
+                    })
+                    .unwrap();
+            }));
         }
 
         let command_buffer = command_buffer.build().unwrap();

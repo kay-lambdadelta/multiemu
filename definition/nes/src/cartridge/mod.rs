@@ -3,7 +3,7 @@ use mapper::construct_mapper;
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
     memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use serde::{Deserialize, Serialize};
@@ -40,7 +40,11 @@ pub struct NesCartridgeQuirks {
 impl<B: ComponentBuilder<Component = NesCartridge>> ComponentConfig<B> for NesCartridgeConfig {
     type Component = NesCartridge;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let essentials = component_builder.essentials();
 
         let mut rom_file = essentials

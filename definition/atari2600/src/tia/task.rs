@@ -1,52 +1,71 @@
 use super::{
-    FramebufferGuard, SCANLINE_LENGTH, State, SupportedRenderApiTia, Tia, TiaDisplayBackend,
-    color::TiaColor, region::Region,
+    SCANLINE_LENGTH, State, SupportedRenderApiTia, Tia, TiaDisplayBackend, color::TiaColor,
+    region::Region,
 };
 use bitvec::{
     order::{Lsb0, Msb0},
     view::BitView,
 };
 use multiemu_definition_mos6502::Mos6502;
-use multiemu_runtime::{component::component_ref::ComponentRef, task::Task};
-use std::num::NonZero;
+use multiemu_runtime::{
+    component::component_ref::ComponentRef,
+    scheduler::{SchedulerHandle, Task, YieldReason},
+};
 
-pub struct TiaTask {
+pub struct TiaTask<R: Region, A: SupportedRenderApiTia> {
+    pub component: ComponentRef<Tia<R, A>>,
     pub cpu: ComponentRef<Mos6502>,
 }
 
-impl<R: Region, A: SupportedRenderApiTia> Task<Tia<R, A>> for TiaTask {
-    fn run(&mut self, target: &Tia<R, A>, period: NonZero<u32>) {
-        let period = period.get();
-        let mut state_guard = target.state.lock().unwrap();
-        let mut framebuffer = target.display_backend.get().unwrap().lock_framebuffer();
+impl<R: Region, A: SupportedRenderApiTia> Task for TiaTask<R, A> {
+    fn run(self: Box<Self>, mut handle: SchedulerHandle) {
+        let mut should_exit = false;
 
-        for _ in 0..period {
-            state_guard.electron_beam.x += 1;
+        while !should_exit {
+            self.component
+                .interact(|component| {
+                    let mut state_guard = component.state.lock().unwrap();
 
-            if state_guard.electron_beam.x >= SCANLINE_LENGTH {
-                state_guard.electron_beam.x = 0;
-                state_guard.electron_beam.y += 1;
+                    state_guard.electron_beam.x += 1;
 
-                if std::mem::replace(&mut state_guard.reset_rdy_on_scanline_end, false) {
-                    self.cpu
-                        .interact(|processor| {
-                            processor.set_rdy(true);
-                        })
-                        .unwrap();
+                    if state_guard.electron_beam.x >= SCANLINE_LENGTH {
+                        state_guard.electron_beam.x = 0;
+                        state_guard.electron_beam.y += 1;
+
+                        if std::mem::replace(&mut state_guard.reset_rdy_on_scanline_end, false) {
+                            self.cpu
+                                .interact(|processor| {
+                                    processor.set_rdy(true);
+                                })
+                                .unwrap();
+                        }
+                    }
+
+                    if state_guard.electron_beam.y >= R::TOTAL_SCANLINES {
+                        state_guard.electron_beam.y = 0;
+                        component.backend.get().unwrap().commit_staging_buffer();
+                    }
+
+                    component
+                        .backend
+                        .get()
+                        .unwrap()
+                        .get_staging_buffer(|mut staging_buffer| {
+                            let color = R::color_to_srgb(state_guard.get_rendered_color());
+
+                            staging_buffer[(
+                                state_guard.electron_beam.x as usize,
+                                state_guard.electron_beam.y as usize,
+                            )] = color.into();
+                        });
+                })
+                .unwrap();
+
+            handle.tick(|reason| {
+                if reason == YieldReason::Exit {
+                    should_exit = true;
                 }
-            }
-
-            if state_guard.electron_beam.y >= R::TOTAL_SCANLINES {
-                state_guard.electron_beam.y = 0;
-
-                target.display_backend.get().unwrap().commit_display();
-            }
-
-            let color = R::color_to_srgb(state_guard.get_rendered_color());
-            framebuffer.get()[(
-                state_guard.electron_beam.x as usize,
-                state_guard.electron_beam.y as usize,
-            )] = color.into();
+            });
         }
     }
 }

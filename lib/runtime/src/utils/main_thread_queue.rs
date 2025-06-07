@@ -1,16 +1,13 @@
+use super::is_main_thread;
+use crate::utils::Fragile;
 use std::{
     any::Any,
     ops::Deref,
     sync::{
         Arc, Condvar, Mutex,
-        mpsc::{Receiver, RecvTimeoutError, Sender, channel},
+        mpsc::{Receiver, Sender, TryRecvError, channel},
     },
-    time::Duration,
 };
-
-use crate::utils::Fragile;
-
-use super::is_main_thread;
 
 #[allow(clippy::type_complexity)]
 struct QueuedCallback {
@@ -87,20 +84,15 @@ impl MainThreadQueue {
         assert!(is_main_thread());
 
         loop {
-            match self
-                .receiver
-                .get()
-                .unwrap()
-                .recv_timeout(Duration::from_millis(10))
-            {
+            match self.receiver.get().unwrap().try_recv() {
                 Ok(callback) => {
                     let value = (callback.callback)();
                     let mut is_done_guard = callback.is_done.1.lock().unwrap();
                     *is_done_guard = Some(value);
                     callback.is_done.0.notify_one();
                 }
-                Err(RecvTimeoutError::Timeout) => break,
-                Err(RecvTimeoutError::Disconnected) => {
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
                     unreachable!()
                 }
             }

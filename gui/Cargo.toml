@@ -15,21 +15,19 @@ multiemu-runtime = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-config = { workspace = true }
 multiemu-audio = { workspace = true }
+multiemu-graphics = { workspace = true }
 multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
 multiemu-definition-atari2600 = { workspace = true }
 multiemu-definition-atarilynx = { workspace = true }
 tracing = { workspace = true }
 strum = { workspace = true }
-rayon = { workspace = true }
 nalgebra = { workspace = true, features = ["rayon"] }
 bytemuck = { workspace = true }
 num = { workspace = true }
 tracing-subscriber = { workspace = true }
 palette = { workspace = true }
 uuid = { workspace = true }
-redb = { workspace = true }
-ringbuffer = { workspace = true }
 ron = { workspace = true }
 egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
 egui_extras = { version = "0.31", default-features = false, features = [
@@ -67,7 +65,7 @@ ctru-rs = { workspace = true }
 default = ["vulkan", "opengl"]
 vulkan = [
     "dep:vulkano",
-    "multiemu-runtime/vulkan",
+    "multiemu-graphics/vulkan",
     "multiemu-definition-chip8/vulkan",
     "multiemu-definition-nes/vulkan",
     "multiemu-definition-atari2600/vulkan",
@@ -75,7 +73,7 @@ vulkan = [
 ]
 opengl = [
     "dep:glow",
-    "multiemu-runtime/opengl",
+    "multiemu-graphics/opengl",
     "multiemu-definition-chip8/opengl",
     "multiemu-definition-nes/opengl",
     "multiemu-definition-atari2600/opengl",

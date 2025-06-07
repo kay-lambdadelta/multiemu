@@ -9,12 +9,14 @@ use crate::{
         desktop::{audio::CpalAudioRuntime, input::gamepad::gamepad_task},
         state::MainRuntime,
     },
+    write_environment,
 };
 use egui::ViewportId;
+use multiemu_config::ENVIRONMENT_LOCATION;
+use multiemu_graphics::GraphicsApi;
 use multiemu_input::InputState;
-use multiemu_runtime::display::backend::RenderApi;
 use nalgebra::Vector2;
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, fs::File, ops::Deref, sync::Arc};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -42,7 +44,7 @@ impl<RS: RenderingBackendState> Debug for DesktopPlatform<RS> {
     }
 }
 
-impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderApi = R>>
+impl<R: GraphicsApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, GraphicsApi = R>>
     Platform<RS, CpalAudioRuntime> for DesktopPlatform<RS>
 {
     fn run(runtime: MainRuntime<RS, CpalAudioRuntime>) -> Result<(), Box<dyn std::error::Error>> {
@@ -71,7 +73,7 @@ impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, Ren
     }
 }
 
-impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, RenderApi = R>>
+impl<R: GraphicsApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, GraphicsApi = R>>
     ApplicationHandler<RuntimeBoundMessage> for DesktopPlatform<RS>
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
@@ -163,6 +165,11 @@ impl<R: RenderApi, RS: RenderingBackendState<DisplayApiHandle = Arc<Window>, Ren
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         // Forcefully drop the machine to stop it from being dropped on the audio thread and causing a panic
         self.runtime.maybe_machine.write().unwrap().take();
+
+        // Save the config
+        let environment_guard = self.runtime.environment.read().unwrap();
+        let file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+        write_environment(file, &environment_guard).unwrap();
     }
 }
 

@@ -1,6 +1,10 @@
+use crate::GraphicsVersion;
+use alloc::{boxed::Box, string::ToString, vec::Vec};
+
 use super::ShaderFormat;
 
 #[derive(Debug)]
+/// Spirv shader format, used for vulkan
 pub struct SpirvShader;
 
 impl ShaderFormat for SpirvShader {
@@ -10,10 +14,10 @@ impl ShaderFormat for SpirvShader {
     fn compile(
         module: &naga::Module,
         module_info: &naga::valid::ModuleInfo,
-        version: versions::SemVer,
+        version: GraphicsVersion,
         entry_name: &str,
         stage: naga::ShaderStage,
-    ) -> Result<Self::Representation, Box<dyn std::error::Error>> {
+    ) -> Result<Self::Representation, Box<dyn core::error::Error>> {
         let output = naga::back::spv::write_vec(
             module,
             module_info,

@@ -9,6 +9,7 @@ multiemu-rom = { workspace = true }
 multiemu-runtime = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-audio = { workspace = true }
+multiemu-graphics = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }
@@ -24,6 +25,7 @@ palette = { workspace = true }
 vulkano = { workspace = true, optional = true }
 glow = { workspace = true, optional = true }
 
+
 [features]
-vulkan = ["dep:vulkano", "multiemu-runtime/vulkan"]
-opengl = ["dep:glow", "multiemu-runtime/opengl"]
+vulkan = ["dep:vulkano", "multiemu-graphics/vulkan"]
+opengl = ["dep:glow", "multiemu-graphics/opengl"]

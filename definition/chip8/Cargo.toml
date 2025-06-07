@@ -9,6 +9,7 @@ multiemu-rom = { workspace = true }
 multiemu-runtime = { workspace = true }
 multiemu-audio = { workspace = true }
 multiemu-input = { workspace = true }
+multiemu-graphics = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 num = { workspace = true }
 bytemuck = { workspace = true }
@@ -29,8 +30,8 @@ glow = { workspace = true, optional = true }
 criterion = { workspace = true }
 
 [features]
-vulkan = ["dep:vulkano", "multiemu-runtime/vulkan"]
-opengl = ["dep:glow", "multiemu-runtime/opengl"]
+vulkan = ["dep:vulkano", "multiemu-graphics/vulkan"]
+opengl = ["dep:glow", "multiemu-graphics/opengl"]
 
 [[bench]]
 name = "instruction_decode"

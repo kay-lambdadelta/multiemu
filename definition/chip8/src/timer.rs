@@ -1,12 +1,10 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
+    scheduler::{SchedulerHandle, YieldReason},
 };
 use num::rational::Ratio;
-use std::{
-    num::NonZero,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct Chip8Timer {
@@ -32,17 +30,31 @@ pub struct Chip8TimerConfig;
 impl<B: ComponentBuilder<Component = Chip8Timer>> ComponentConfig<B> for Chip8TimerConfig {
     type Component = Chip8Timer;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let delay_timer = Arc::new(Mutex::new(0u8));
 
         component_builder
             .insert_task(Ratio::from_integer(60), {
                 let delay_timer = delay_timer.clone();
 
-                move |_: &Self::Component, period: NonZero<u32>| {
-                    let mut delay_timer_guard = delay_timer.lock().unwrap();
-                    *delay_timer_guard = delay_timer_guard
-                        .saturating_sub(period.get().try_into().unwrap_or(u8::MAX));
+                move |mut handle: SchedulerHandle| {
+                    let mut should_exit = false;
+
+                    while !should_exit {
+                        let mut delay_timer_guard = delay_timer.lock().unwrap();
+                        *delay_timer_guard = delay_timer_guard.saturating_sub(1);
+                        drop(delay_timer_guard);
+
+                        handle.tick(|reason| {
+                            if reason == YieldReason::Exit {
+                                should_exit = true
+                            }
+                        });
+                    }
                 }
             })
             .build_global(Chip8Timer {

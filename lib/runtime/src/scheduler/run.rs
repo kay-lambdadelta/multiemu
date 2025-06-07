@@ -3,6 +3,11 @@ use std::num::NonZero;
 
 impl Scheduler {
     pub fn run(&mut self) {
+        if let Some(barrier) = self.barrier.take() {
+            // Make everyone run
+            barrier.wait();
+        }
+
         // How many ticks are allowed to be run for this pass,
         let alloted_ticks: u32 = (self.allotted_time.as_nanos() / self.tick_real_time.as_nanos())
             .try_into()
@@ -54,8 +59,10 @@ impl Scheduler {
                         {
                             run_task(
                                 [(task_info, time_slice)],
-                                &self.component_store,
                                 &mut self.tasks,
+                                &mut self.inflight,
+                                &self.main_thread_queue,
+                                self.tick_real_time,
                             );
 
                             self.current_tick = self.current_tick.wrapping_add(alloted_ticks);
@@ -65,8 +72,10 @@ impl Scheduler {
 
                             run_task(
                                 [(task_info, NonZero::new(1).unwrap())],
-                                &self.component_store,
                                 &mut self.tasks,
+                                &mut self.inflight,
+                                &self.main_thread_queue,
+                                self.tick_real_time,
                             );
 
                             self.current_tick = self.current_tick.wrapping_add(ticks_to_skip_ahead);
@@ -81,8 +90,10 @@ impl Scheduler {
                         self.to_run
                             .drain(..)
                             .map(|task_info| (task_info, NonZero::new(1).unwrap())),
-                        &self.component_store,
                         &mut self.tasks,
+                        &mut self.inflight,
+                        &self.main_thread_queue,
+                        self.tick_real_time,
                     );
 
                     self.current_tick = self.current_tick.wrapping_add(1);

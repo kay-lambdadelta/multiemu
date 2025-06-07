@@ -5,14 +5,13 @@ use multiemu_definition_misc::memory::{
     rom::RomMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
+use multiemu_graphics::GraphicsApi;
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
     system::{AtariSystem, GameSystem},
 };
-use multiemu_runtime::{
-    MachineFactory, builder::MachineBuilder, display::backend::RenderApi, memory::Address,
-};
+use multiemu_runtime::{MachineFactory, builder::MachineBuilder, memory::Address};
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use std::{ops::RangeInclusive, str::FromStr, sync::Arc};
@@ -30,7 +29,7 @@ const MAPCTL_ADDRESS: Address = 0xfff9;
 #[derive(Debug, Default)]
 pub struct AtariLynx;
 
-impl<R: RenderApi, S: Sample> MachineFactory<R, S> for AtariLynx {
+impl<R: GraphicsApi, S: Sample> MachineFactory<R, S> for AtariLynx {
     fn construct(
         &self,
         _user_specified_roms: Vec<RomId>,

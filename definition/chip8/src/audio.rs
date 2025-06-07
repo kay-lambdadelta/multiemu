@@ -1,15 +1,13 @@
 use multiemu_audio::{FromSample, Sample, SquareWave};
 use multiemu_runtime::{
-    audio::AudioDataCallback,
+    audio::AudioCallback,
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
+    scheduler::{SchedulerHandle, YieldReason},
 };
 use nalgebra::SVector;
 use num::{FromPrimitive, Zero, rational::Ratio};
-use std::{
-    num::NonZero,
-    sync::{Arc, Mutex, RwLock},
-};
+use std::sync::{Arc, Mutex, RwLock};
 
 #[derive(Debug)]
 pub struct Chip8Audio {
@@ -34,7 +32,11 @@ where
 {
     type Component = Chip8Audio;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let sound_timer = Arc::new(RwLock::new(0u8));
         let essentials = component_builder.essentials();
 
@@ -42,17 +44,28 @@ where
             .insert_task(Ratio::from_integer(60), {
                 let sound_timer = sound_timer.clone();
 
-                move |_: &Self::Component, period: NonZero<u32>| {
-                    let mut sound_timer_guard = sound_timer.write().unwrap();
-                    *sound_timer_guard = sound_timer_guard
-                        .saturating_sub(period.get().try_into().unwrap_or(u8::MAX));
+                move |mut handle: SchedulerHandle| {
+                    let mut should_exit = false;
+
+                    while !should_exit {
+                        let mut sound_timer_guard = sound_timer.write().unwrap();
+                        *sound_timer_guard = sound_timer_guard.saturating_sub(1);
+                        drop(sound_timer_guard);
+
+                        handle.tick(|reason| {
+                            if reason == YieldReason::Exit {
+                                should_exit = true
+                            }
+                        });
+                    }
                 }
             })
-            .insert_audio_data_callback(Chip8AudioDataCallback {
+            .insert_audio_callback(Chip8AudioDataCallback {
                 sound_timer: sound_timer.clone(),
                 square_wave: SquareWave::new(
                     Ratio::from_integer(440),
                     essentials.sample_rate,
+                    // TODO: Configurable?
                     B::SampleFormat::max_sample() / B::SampleFormat::from_usize(10).unwrap(),
                 )
                 .into(),
@@ -68,7 +81,7 @@ pub struct Chip8AudioDataCallback<S: Sample> {
     square_wave: Mutex<SquareWave<S, 2>>,
 }
 
-impl<S: Sample> AudioDataCallback<S> for Chip8AudioDataCallback<S>
+impl<S: Sample> AudioCallback<S> for Chip8AudioDataCallback<S>
 where
     S: FromSample<f32>,
 {

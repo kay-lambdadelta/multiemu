@@ -6,12 +6,13 @@ use multiemu_definition_misc::memory::{
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
+use multiemu_graphics::GraphicsApi;
 use multiemu_rom::{
     id::RomId,
     manager::RomManager,
     system::{GameSystem, NintendoSystem},
 };
-use multiemu_runtime::{MachineFactory, builder::MachineBuilder, display::backend::RenderApi};
+use multiemu_runtime::{MachineFactory, builder::MachineBuilder};
 use num::rational::Ratio;
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
@@ -24,7 +25,7 @@ mod ppu;
 #[derive(Debug, Default)]
 pub struct Nes;
 
-impl<R: RenderApi, S: Sample> MachineFactory<R, S> for Nes {
+impl<R: GraphicsApi, S: Sample> MachineFactory<R, S> for Nes {
     fn construct(
         &self,
         user_specified_roms: Vec<RomId>,

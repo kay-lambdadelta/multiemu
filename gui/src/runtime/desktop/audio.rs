@@ -116,7 +116,7 @@ where
                 let machine_guard = machine.read().unwrap();
 
                 if let Some(machine) = machine_guard.deref() {
-                    let audio_data_callbacks = machine.audio_data_callbacks::<f32>();
+                    let audio_data_callbacks = machine.audio_callbacks::<f32>();
 
                     if let Some(callback) = audio_data_callbacks.first() {
                         for (destination, source) in data

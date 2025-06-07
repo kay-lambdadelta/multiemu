@@ -5,14 +5,15 @@ use crate::{
     runtime::{AudioRuntime, MaybeMachine},
 };
 use egui::{FontFamily, RawInput, TextStyle, TextWrapMode};
-use multiemu_config::{Environment, input::Hotkey};
+use multiemu_config::{input::{Hotkey, DEFAULT_HOTKEYS}, Environment};
+use multiemu_graphics::GraphicsContextExtensions;
 use multiemu_input::{GamepadId, Input, InputState};
 use multiemu_rom::{
     id::RomId,
     manager::{ROM_INFORMATION_TABLE, RomManager},
     system::GameSystem,
 };
-use multiemu_runtime::{display::RenderExtensions, input::VirtualGamepadId};
+use multiemu_runtime::input::VirtualGamepadId;
 use nalgebra::Vector2;
 use std::{
     collections::HashMap,
@@ -73,7 +74,7 @@ pub struct MainRuntime<RS: RenderingBackendState, AR: AudioRuntime> {
     current_key_states: HashMap<GamepadId, HashMap<Input, InputState>>,
     /// HACK: Flag to tell the driver runtime if it needs to swap its egui integration out
     was_egui_context_reset: bool,
-    machine_factories: MachineFactories<RS::RenderApi>,
+    machine_factories: MachineFactories<RS::GraphicsApi>,
     /// Our beloved simulator itself
     pub maybe_machine: Arc<MaybeMachine>,
     /// Data that the machine simulator needs when it's possible to build it
@@ -85,7 +86,7 @@ impl<RS: RenderingBackendState, AR: AudioRuntime> MainRuntime<RS, AR> {
     pub fn new(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
-        machine_factories: MachineFactories<RS::RenderApi>,
+        machine_factories: MachineFactories<RS::GraphicsApi>,
     ) -> Self {
         let maybe_machine: Arc<MaybeMachine> = Arc::default();
         let egui_context = egui::Context::default();
@@ -94,6 +95,13 @@ impl<RS: RenderingBackendState, AR: AudioRuntime> MainRuntime<RS, AR> {
         let gamepad_mapping = HashMap::new();
         let mode = RuntimeMode::Gui;
         let audio_runtime = AR::new(maybe_machine.clone());
+
+        // Make sure we have some hotkeys at least
+        let mut environment_guard = environment.write().unwrap();
+        if environment_guard.hotkeys.is_empty() {
+            environment_guard.hotkeys = DEFAULT_HOTKEYS.clone();
+        }
+        drop(environment_guard);
 
         audio_runtime.play();
 
@@ -148,7 +156,7 @@ impl<RS: RenderingBackendState, AR: AudioRuntime> MainRuntime<RS, AR> {
 
                     let render_backend_state = RS::new(
                         display_api_handle.clone(),
-                        RenderExtensions::default(),
+                        GraphicsContextExtensions::default(),
                         self.environment.clone(),
                     )
                     .unwrap();
@@ -241,7 +249,7 @@ impl<RS: RenderingBackendState, AR: AudioRuntime> MainRuntime<RS, AR> {
     pub fn new_with_machine(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
-        machine_factories: MachineFactories<RS::RenderApi>,
+        machine_factories: MachineFactories<RS::GraphicsApi>,
         game_system: GameSystem,
         user_specified_roms: Vec<RomId>,
     ) -> Self {

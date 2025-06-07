@@ -1,7 +1,7 @@
 use multiemu_rom::{id::RomId, manager::RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
     memory::{
         Address,
         callbacks::{Memory, ReadMemory},
@@ -35,7 +35,11 @@ impl Component for RomMemory {}
 impl<B: ComponentBuilder<Component = RomMemory>> ComponentConfig<B> for RomMemoryConfig {
     type Component = RomMemory;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let essentials = component_builder.essentials();
 
         let rom = Mutex::new(

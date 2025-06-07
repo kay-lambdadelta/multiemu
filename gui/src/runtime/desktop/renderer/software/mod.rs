@@ -3,13 +3,8 @@ use crate::{
     rendering_backend::{DisplayApiHandle, RenderingBackendState},
 };
 use multiemu_config::Environment;
-use multiemu_runtime::{
-    Machine,
-    display::{
-        RenderExtensions,
-        backend::{RenderApi, software::SoftwareRendering},
-    },
-};
+use multiemu_graphics::{GraphicsApi, GraphicsContextExtensions, Software};
+use multiemu_runtime::Machine;
 use nalgebra::{DMatrixViewMut, Vector2};
 use palette::{Srgba, cast::Packed, rgb::channels::Argb};
 use softbuffer::{Context, Surface};
@@ -39,12 +34,12 @@ impl Debug for SoftwareRenderingRuntime {
 }
 
 impl RenderingBackendState for SoftwareRenderingRuntime {
-    type RenderApi = SoftwareRendering;
+    type GraphicsApi = Software;
     type DisplayApiHandle = Arc<Window>;
 
     fn new(
         display_api_handle: Self::DisplayApiHandle,
-        _render_extensions: RenderExtensions<Self::RenderApi>,
+        _render_extensions: GraphicsContextExtensions<Self::GraphicsApi>,
         environment: Arc<RwLock<Environment>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.dimensions();
@@ -68,7 +63,7 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
 
     fn component_initialization_data(
         &self,
-    ) -> <Self::RenderApi as RenderApi>::ComponentInitializationData {
+    ) -> <Self::GraphicsApi as GraphicsApi>::ComponentGraphicsInitializationData {
         Default::default()
     }
 
@@ -92,91 +87,89 @@ impl RenderingBackendState for SoftwareRenderingRuntime {
             .graphics_setting
             .integer_scaling;
 
-        for framebuffer in machine.framebuffers::<Self::RenderApi>().iter() {
-            if integer_scaling {
-                let framebuffer = framebuffer.load();
+        for framebuffer in machine.graphics_callbacks::<Self::GraphicsApi>() {
+            framebuffer.get_framebuffer(Box::new(|framebuffer| {
+                if integer_scaling {
+                    let component_display_buffer_size =
+                        Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();
 
-                let component_display_buffer_size =
-                    Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();
+                    let scaling = self
+                        .previously_recorded_size
+                        .component_div(&component_display_buffer_size)
+                        .cast::<usize>();
 
-                let scaling = self
-                    .previously_recorded_size
-                    .component_div(&component_display_buffer_size)
-                    .cast::<usize>();
+                    // Iterate over each pixel in the display component buffer
+                    for x in 0..framebuffer.nrows() {
+                        for y in 0..framebuffer.ncols() {
+                            let source_pixel = framebuffer[(x, y)];
 
-                // Iterate over each pixel in the display component buffer
-                for x in 0..framebuffer.nrows() {
-                    for y in 0..framebuffer.ncols() {
-                        let source_pixel = framebuffer[(x, y)];
-
-                        let dest_start = Vector2::new(x, y).component_mul(&scaling).zip_map(
-                            &self.previously_recorded_size.cast::<usize>(),
-                            |dest_dim, window_dim| dest_dim.min(window_dim),
-                        );
-
-                        let dest_end = Vector2::new(x, y)
-                            .add_scalar(1)
-                            .component_mul(&scaling)
-                            .zip_map(
+                            let dest_start = Vector2::new(x, y).component_mul(&scaling).zip_map(
                                 &self.previously_recorded_size.cast::<usize>(),
                                 |dest_dim, window_dim| dest_dim.min(window_dim),
                             );
 
-                        let mut destination_pixels = surface_buffer_view.view_mut(
-                            (dest_start.x, dest_start.y),
-                            (dest_end.x - dest_start.x, dest_end.y - dest_start.y),
-                        );
+                            let dest_end = Vector2::new(x, y)
+                                .add_scalar(1)
+                                .component_mul(&scaling)
+                                .zip_map(
+                                    &self.previously_recorded_size.cast::<usize>(),
+                                    |dest_dim, window_dim| dest_dim.min(window_dim),
+                                );
 
-                        destination_pixels.fill(Packed::pack(source_pixel));
+                            let mut destination_pixels = surface_buffer_view.view_mut(
+                                (dest_start.x, dest_start.y),
+                                (dest_end.x - dest_start.x, dest_end.y - dest_start.y),
+                            );
+
+                            destination_pixels.fill(Packed::pack(source_pixel));
+                        }
+                    }
+                } else {
+                    let component_display_buffer_size =
+                        Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();
+
+                    let scaling = self
+                        .previously_recorded_size
+                        .cast::<f32>()
+                        .component_div(&component_display_buffer_size.cast::<f32>());
+
+                    // Iterate over each pixel in the display component buffer
+                    for x in 0..framebuffer.nrows() {
+                        for y in 0..framebuffer.ncols() {
+                            let source_pixel = framebuffer[(x, y)];
+
+                            let dest_start = Vector2::new(x, y)
+                                .cast::<f32>()
+                                .component_mul(&scaling)
+                                .try_cast::<usize>()
+                                .unwrap()
+                                .zip_map(
+                                    &self.previously_recorded_size.cast::<usize>(),
+                                    |dest_dim, window_dim| dest_dim.min(window_dim),
+                                );
+
+                            let dest_end = Vector2::new(x, y)
+                                .cast::<f32>()
+                                .add_scalar(1.0)
+                                .component_mul(&scaling)
+                                .try_cast::<usize>()
+                                .unwrap()
+                                .zip_map(
+                                    &self.previously_recorded_size.cast::<usize>(),
+                                    |dest_dim, window_dim| dest_dim.min(window_dim),
+                                );
+
+                            // Fill the destination pixels with the source pixel
+                            let mut destination_pixels = surface_buffer_view.view_mut(
+                                (dest_start.x, dest_start.y),
+                                (dest_end.x - dest_start.x, dest_end.y - dest_start.y),
+                            );
+
+                            destination_pixels.fill(Packed::pack(source_pixel));
+                        }
                     }
                 }
-            } else {
-                let framebuffer = framebuffer.load();
-
-                let component_display_buffer_size =
-                    Vector2::new(framebuffer.nrows(), framebuffer.ncols()).cast::<u16>();
-
-                let scaling = self
-                    .previously_recorded_size
-                    .cast::<f32>()
-                    .component_div(&component_display_buffer_size.cast::<f32>());
-
-                // Iterate over each pixel in the display component buffer
-                for x in 0..framebuffer.nrows() {
-                    for y in 0..framebuffer.ncols() {
-                        let source_pixel = framebuffer[(x, y)];
-
-                        let dest_start = Vector2::new(x, y)
-                            .cast::<f32>()
-                            .component_mul(&scaling)
-                            .try_cast::<usize>()
-                            .unwrap()
-                            .zip_map(
-                                &self.previously_recorded_size.cast::<usize>(),
-                                |dest_dim, window_dim| dest_dim.min(window_dim),
-                            );
-
-                        let dest_end = Vector2::new(x, y)
-                            .cast::<f32>()
-                            .add_scalar(1.0)
-                            .component_mul(&scaling)
-                            .try_cast::<usize>()
-                            .unwrap()
-                            .zip_map(
-                                &self.previously_recorded_size.cast::<usize>(),
-                                |dest_dim, window_dim| dest_dim.min(window_dim),
-                            );
-
-                        // Fill the destination pixels with the source pixel
-                        let mut destination_pixels = surface_buffer_view.view_mut(
-                            (dest_start.x, dest_start.y),
-                            (dest_end.x - dest_start.x, dest_end.y - dest_start.y),
-                        );
-
-                        destination_pixels.fill(Packed::pack(source_pixel));
-                    }
-                }
-            }
+            }))
         }
 
         self.display_api_handle.pre_present_notify();

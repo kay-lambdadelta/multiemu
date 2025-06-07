@@ -1,9 +1,7 @@
 use bitvec::{array::BitArray, order::Lsb0};
 use color::TiaColor;
-use multiemu_runtime::{
-    component::{Component, RuntimeEssentials},
-    display::backend::{ComponentFramebuffer, RenderApi},
-};
+use multiemu_graphics::GraphicsApi;
+use multiemu_runtime::component::{Component, RuntimeEssentials};
 use nalgebra::{DMatrixViewMut, Point2};
 use palette::Srgba;
 use region::Region;
@@ -119,25 +117,26 @@ struct Player {
 #[derive(Debug)]
 pub(crate) struct Tia<R: Region, A: SupportedRenderApiTia> {
     state: Arc<Mutex<State>>,
-    display_backend: OnceCell<A::Backend<R>>,
+    backend: OnceCell<A::Backend<R>>,
+    essentials: Arc<RuntimeEssentials<A>>,
 }
 
-impl<R: Region, A: SupportedRenderApiTia> Component for Tia<R, A> {}
-
-pub(crate) trait FramebufferGuard: Debug {
-    fn get(&mut self) -> DMatrixViewMut<'_, Srgba<u8>>;
+impl<R: Region, A: SupportedRenderApiTia> Component for Tia<R, A> {
+    fn on_runtime_ready(&self) {
+        let backend = <A::Backend<R> as TiaDisplayBackend<R, A>>::new(self.essentials.as_ref());
+        self.backend.set(backend).unwrap();
+    }
 }
 
 pub(crate) trait TiaDisplayBackend<R: Region, A: SupportedRenderApiTia>:
     Debug + Sized + 'static
 {
-    type FramebufferGuard<'a>: FramebufferGuard;
-
-    fn new(essentials: &RuntimeEssentials<A>) -> (Self, ComponentFramebuffer<A>);
-    fn lock_framebuffer(&self) -> Self::FramebufferGuard<'_>;
-    fn commit_display(&self);
+    fn new(essentials: &RuntimeEssentials<A>) -> Self;
+    fn get_staging_buffer(&self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>));
+    fn commit_staging_buffer(&self);
+    fn get_framebuffer(&self, callback: impl FnOnce(&A::ComponentFramebuffer));
 }
 
-pub(crate) trait SupportedRenderApiTia: RenderApi {
+pub(crate) trait SupportedRenderApiTia: GraphicsApi {
     type Backend<R: Region>: TiaDisplayBackend<R, Self>;
 }

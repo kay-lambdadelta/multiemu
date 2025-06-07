@@ -1,4 +1,4 @@
-use super::{Component, ComponentId, component_ref::ComponentRef};
+use super::{Component, ComponentId};
 use crate::utils::{Fragile, MainThreadQueue, is_main_thread};
 use multiemu_save::ComponentName;
 use rustc_hash::FxBuildHasher;
@@ -199,22 +199,5 @@ impl ComponentStore {
             let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
             callback(component)
         })
-    }
-
-    pub(crate) fn get<C: Component>(
-        self: &Arc<Self>,
-        name: &ComponentName,
-    ) -> Option<ComponentRef<C>> {
-        let component_id = *self.component_ids.read().unwrap().get(name).unwrap();
-
-        let component = if let ComponentLocation::Global(component) =
-            self.component_location.read().unwrap().get(&component_id)?
-        {
-            Some(component.clone())
-        } else {
-            None
-        };
-
-        Some(ComponentRef::new(component_id, component, self.clone()))
     }
 }

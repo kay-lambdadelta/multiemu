@@ -1,6 +1,6 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
     memory::Address,
 };
 
@@ -47,7 +47,11 @@ impl Component for NesPpu {}
 impl<B: ComponentBuilder<Component = NesPpu>> ComponentConfig<B> for NesPpuConfig {
     type Component = NesPpu;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         component_builder.build(NesPpu)
     }
 }

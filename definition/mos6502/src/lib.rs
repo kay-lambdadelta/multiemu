@@ -4,7 +4,7 @@ use decoder::Mos6502InstructionDecoder;
 use instruction::Mos6502InstructionSet;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
     memory::memory_translation_table::address_space::AddressSpaceHandle,
 };
 use num::rational::Ratio;
@@ -287,10 +287,15 @@ impl Component for Mos6502 {
 impl<B: ComponentBuilder<Component = Mos6502>> ComponentConfig<B> for Mos6502Config {
     type Component = Mos6502;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let config = Arc::new(self);
         let rdy = Arc::new(AtomicBool::new(true));
         let essentials = component_builder.essentials();
+        let state = Arc::new(Mutex::new(ProcessorState::default()));
 
         component_builder
             .insert_task(
@@ -298,6 +303,8 @@ impl<B: ComponentBuilder<Component = Mos6502>> ComponentConfig<B> for Mos6502Con
                 Mos6502Task {
                     memory_translation_table: essentials.memory_translation_table.clone(),
                     instruction_decoder: Mos6502InstructionDecoder::new(config.kind),
+                    state: state.clone(),
+                    rdy: rdy.clone(),
                     config: config.clone(),
                 },
             )

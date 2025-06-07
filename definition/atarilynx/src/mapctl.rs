@@ -4,7 +4,7 @@ use crate::{
 use deku::{DekuContainerRead, DekuContainerWrite, DekuRead, DekuWrite};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
     memory::{
         Address,
         callbacks::{Memory, ReadMemory, WriteMemory},
@@ -36,7 +36,11 @@ pub struct MapctlConfig {
 impl<B: ComponentBuilder<Component = Mapctl>> ComponentConfig<B> for MapctlConfig {
     type Component = Mapctl;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let register = Arc::new(Mutex::new(MapctlStatus::default()));
 
         let (component_builder, _) = component_builder.insert_memory(

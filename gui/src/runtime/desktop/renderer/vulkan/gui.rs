@@ -1,6 +1,9 @@
 use bytemuck::{Pod, Zeroable};
 use egui::{TextureId, epaint::Primitive};
-use multiemu_runtime::display::shader::{ShaderCache, spirv::SpirvShader};
+use multiemu_graphics::{
+    GraphicsVersion,
+    shader::{ShaderCache, SpirvShader},
+};
 use nalgebra::{Point2, Vector2};
 use palette::{LinSrgba, Srgba};
 use std::{
@@ -131,7 +134,10 @@ impl VulkanEguiRenderer {
         let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
 
         let shader = shader_cache
-            .get(include_str!("../../../../../shaders/egui.wgsl"), "1.0.0")
+            .get(
+                include_str!("../../../../../shaders/egui.wgsl"),
+                GraphicsVersion { major: 1, minor: 0 },
+            )
             .unwrap();
 
         // SAFETY: These shaders are pre validated by naga so this should be safe

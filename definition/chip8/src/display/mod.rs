@@ -1,16 +1,18 @@
 use super::Chip8Kind;
 use bitvec::{order::Msb0, view::BitView};
+use multiemu_graphics::GraphicsApi;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, RuntimeEssentials},
-    display::backend::{ComponentFramebuffer, RenderApi},
+    component::{Component, ComponentConfig, RuntimeEssentials, component_ref::ComponentRef},
+    graphics::GraphicsCallback,
+    scheduler::{SchedulerHandle, YieldReason},
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
 use palette::{Srgb, Srgba};
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::{OnceCell, RefCell},
+    cell::RefCell,
     fmt::Debug,
     ops::Deref,
     sync::{
@@ -32,14 +34,16 @@ struct Snapshot {
 }
 
 #[derive(Debug)]
-pub struct Chip8Display<R: SupportedRenderApiChip8Display> {
-    backend: OnceCell<R::Backend>,
-    modified: RefCell<bool>,
+pub struct Chip8Display<R: SupportedGraphicsApiChip8Display> {
+    /// Actually just initialized ones
+    backend: RefCell<Option<R::Backend>>,
     mode: Arc<Mutex<Chip8Kind>>,
+    essentials: Arc<RuntimeEssentials<R>>,
+    /// The cpu reads this to see if it can continue execution post draw call
     pub vsync_occurred: Arc<AtomicBool>,
 }
 
-impl<R: SupportedRenderApiChip8Display> Chip8Display<R> {
+impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
     pub fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool {
         tracing::trace!(
             "Drawing sprite at position {} of dimensions 8x{}",
@@ -48,7 +52,7 @@ impl<R: SupportedRenderApiChip8Display> Chip8Display<R> {
         );
         self.vsync_occurred.store(false, Ordering::Relaxed);
         let mode = self.mode.lock().unwrap();
-
+        let mut backend_guard = self.backend.borrow_mut();
         let position = match mode.deref() {
             Chip8Kind::Chip8 | Chip8Kind::Chip48 => Point2::new(
                 position.x % CHIP8_DIMENSIONS.x,
@@ -61,35 +65,52 @@ impl<R: SupportedRenderApiChip8Display> Chip8Display<R> {
             _ => todo!(),
         };
 
-        *self.modified.borrow_mut() = true;
-        self.backend.get().unwrap().draw_sprite(position, sprite)
+        let mut hit_detection = false;
+
+        backend_guard
+            .as_mut()
+            .unwrap()
+            .modify_staging_buffer(|framebuffer| {
+                hit_detection = draw_sprite(position, sprite, framebuffer);
+            });
+
+        hit_detection
     }
 
     pub fn clear_display(&self) {
         tracing::trace!("Clearing display");
 
-        *self.modified.borrow_mut() = true;
-        self.backend.get().unwrap().clear_display();
+        let mut backend_guard = self.backend.borrow_mut();
+
+        backend_guard
+            .as_mut()
+            .unwrap()
+            .modify_staging_buffer(|mut framebuffer| {
+                framebuffer.fill(Srgba::new(0, 0, 0, 255));
+            });
     }
 }
 
-impl<R: SupportedRenderApiChip8Display> Component for Chip8Display<R> {
+impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
     fn reset(&self) {
         self.clear_display();
     }
+
+    fn on_runtime_ready(&self) {
+        let backend = Chip8DisplayBackend::new(&self.essentials);
+        *self.backend.borrow_mut() = Some(backend);
+    }
 }
 
-pub(crate) trait Chip8DisplayBackend<R: RenderApi>: Sized + Debug + 'static {
-    fn new(essentials: &RuntimeEssentials<R>) -> (Self, ComponentFramebuffer<R>);
-    fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool;
-    fn set_mode(&mut self, mode: Chip8Kind);
-    fn clear_display(&self);
-    fn save_screen_contents(&self) -> DMatrix<Srgb<u8>>;
-    fn load_screen_contents(&self, buffer: DMatrix<Srgb<u8>>);
-    fn commit_display(&self);
+pub(crate) trait Chip8DisplayBackend<R: GraphicsApi>: Sized + Debug + 'static {
+    fn new(essentials: &RuntimeEssentials<R>) -> Self;
+    fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>));
+    fn commit_staging_buffer(&mut self);
+    fn get_framebuffer(&mut self) -> &R::ComponentFramebuffer;
 }
 
-fn draw_sprite_common(
+#[inline]
+fn draw_sprite(
     position: Point2<u8>,
     sprite: &[u8],
     mut framebuffer: DMatrixViewMut<'_, Srgba<u8>>,
@@ -132,53 +153,85 @@ fn draw_sprite_common(
 pub struct Chip8DisplayConfig;
 
 impl<
-    R: SupportedRenderApiChip8Display,
-    B: ComponentBuilder<Component = Chip8Display<R>, RenderApi = R>,
+    R: SupportedGraphicsApiChip8Display,
+    B: ComponentBuilder<Component = Chip8Display<R>, GraphicsApi = R>,
 > ComponentConfig<B> for Chip8DisplayConfig
 {
     type Component = Chip8Display<R>;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
-        let vsync_occurred: Arc<AtomicBool> = Arc::default();
+    fn build_component(
+        self,
+        component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
+        let vsync_occurred = Arc::new(AtomicBool::default());
+        let backend = RefCell::default();
 
         let essentials = component_builder.essentials();
 
-        let component_builder = component_builder.insert_display_config(
-            None,
-            None,
-            move |component: &Self::Component| {
-                let (backend, framebuffer) =
-                    <R::Backend as Chip8DisplayBackend<R>>::new(essentials.as_ref());
-
-                component.backend.set(backend).unwrap();
-
-                framebuffer
-            },
-        );
-
-        component_builder
+        let component_builder = component_builder
             .insert_task(Ratio::from_integer(60), {
                 let vsync = vsync_occurred.clone();
+                let component = component_ref.clone();
 
-                move |display: &Chip8Display<R>, _period| {
-                    // Only update it once and if the thing is actually updated
-                    if *display.modified.borrow() {
-                        display.backend.get().unwrap().commit_display();
-                        *display.modified.borrow_mut() = false;
+                move |mut handle: SchedulerHandle| {
+                    let mut should_exit = false;
+
+                    while !should_exit {
+                        component
+                            .interact(|display| {
+                                display
+                                    .backend
+                                    .borrow_mut()
+                                    .as_mut()
+                                    .unwrap()
+                                    .commit_staging_buffer();
+                            })
+                            .unwrap();
+
+                        vsync.store(true, Ordering::Relaxed);
+
+                        handle.tick(|reason| {
+                            if reason == YieldReason::Exit {
+                                should_exit = true
+                            }
+                        });
                     }
-
-                    vsync.store(true, Ordering::Relaxed);
                 }
             })
-            .build(Chip8Display {
-                backend: OnceCell::default(),
-                modified: RefCell::new(true),
-                mode: Arc::default(),
-                vsync_occurred,
-            })
+            .insert_screen(
+                None,
+                None,
+                Chip8DisplayCallback {
+                    component: component_ref.clone(),
+                },
+            );
+
+        component_builder.build(Chip8Display {
+            backend,
+            mode: Arc::default(),
+            vsync_occurred,
+            essentials: essentials.clone(),
+        })
     }
 }
 
-pub(crate) trait SupportedRenderApiChip8Display: RenderApi {
+pub(crate) trait SupportedGraphicsApiChip8Display: GraphicsApi {
     type Backend: Chip8DisplayBackend<Self>;
+}
+
+pub struct Chip8DisplayCallback<R: SupportedGraphicsApiChip8Display> {
+    pub component: ComponentRef<Chip8Display<R>>,
+}
+
+impl<R: SupportedGraphicsApiChip8Display> GraphicsCallback<R> for Chip8DisplayCallback<R> {
+    fn get_framebuffer<'a>(&'a self, callback: Box<dyn FnOnce(&R::ComponentFramebuffer) + 'a>) {
+        self.component
+            .interact_local(|display| {
+                let mut backend_guard = display.backend.borrow_mut();
+                let framebuffer = backend_guard.as_mut().unwrap().get_framebuffer();
+                callback(framebuffer);
+            })
+            .unwrap();
+    }
 }

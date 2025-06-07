@@ -9,6 +9,7 @@ multiemu-rom = { workspace = true }
 multiemu-runtime = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-audio = { workspace = true }
+multiemu-graphics = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }
@@ -22,13 +23,6 @@ num = { workspace = true }
 vulkano = { workspace = true, optional = true }
 glow = { workspace = true, optional = true }
 
-[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
-criterion = { workspace = true }
-
 [features]
-vulkan = ["dep:vulkano", "multiemu-runtime/vulkan"]
-opengl = ["dep:glow", "multiemu-runtime/opengl"]
-
-[[bench]]
-name = "rom_parse"
-harness = false
+vulkan = ["dep:vulkano", "multiemu-graphics/vulkan"]
+opengl = ["dep:glow", "multiemu-graphics/opengl"]

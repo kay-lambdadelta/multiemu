@@ -1,5 +1,5 @@
 use audio::Chip8AudioConfig;
-use display::{Chip8DisplayConfig, SupportedRenderApiChip8Display};
+use display::{Chip8DisplayConfig, SupportedGraphicsApiChip8Display};
 use font::CHIP8_FONT;
 use multiemu_audio::{FromSample, Sample};
 use multiemu_definition_misc::memory::standard::{
@@ -35,8 +35,8 @@ pub enum Chip8Kind {
     XoChip,
 }
 
-trait SupportedRenderApiChip8: SupportedRenderApiChip8Display {}
-impl<A: SupportedRenderApiChip8Display> SupportedRenderApiChip8 for A {}
+trait SupportedRenderApiChip8: SupportedGraphicsApiChip8Display {}
+impl<A: SupportedGraphicsApiChip8Display> SupportedRenderApiChip8 for A {}
 
 #[derive(Debug, Default)]
 pub struct Chip8;

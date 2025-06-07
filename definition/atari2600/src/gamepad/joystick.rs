@@ -21,7 +21,11 @@ impl<B: ComponentBuilder<Component = Atari2600Joystick>> ComponentConfig<B>
 {
     type Component = Atari2600Joystick;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        _component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let player1_gamepad = create_gamepad();
         let player2_gamepad = create_gamepad();
 

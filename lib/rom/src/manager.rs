@@ -118,15 +118,9 @@ impl RomManager {
     }
 
     /// Imports a arbitary database into the internal database
-    pub fn load_database(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    #[allow(clippy::result_large_err)]
+    pub fn load_database(&self, path: impl AsRef<Path>) -> Result<(), redb::Error> {
         let path = path.as_ref();
-
-        if !path.is_file() {
-            return Err("Path is not a file".into());
-        }
 
         let database = Database::builder().open(path)?;
         let external_database_transaction = database.begin_read()?;

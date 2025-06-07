@@ -1,13 +1,16 @@
 use super::ContextExtensionSpecification;
-use crate::display::RenderApi;
+use crate::GraphicsApi;
 use nalgebra::DMatrix;
 use palette::Srgba;
 
-/// Marker trait for software rendering, this should be the one used in tests and as a fallback
 #[derive(Default, Debug)]
-pub struct SoftwareRendering;
+/// Marker trait for software rendering
+///
+/// This is the only graphics api that is guaranteed to always work anywhere
+pub struct Software;
 
 #[derive(Default, Clone, Debug)]
+/// Does not actually require any extensions
 pub struct SoftwareContextExtensionSpecification;
 
 impl ContextExtensionSpecification for SoftwareContextExtensionSpecification {
@@ -19,11 +22,12 @@ impl ContextExtensionSpecification for SoftwareContextExtensionSpecification {
     }
 }
 
-impl RenderApi for SoftwareRendering {
-    type ComponentInitializationData = SoftwareComponentInitializationData;
-    type ComponentFramebufferInner = DMatrix<Srgba<u8>>;
+impl GraphicsApi for Software {
+    type ComponentGraphicsInitializationData = SoftwareComponentInitializationData;
+    type ComponentFramebuffer = DMatrix<Srgba<u8>>;
     type ContextExtensionSpecification = SoftwareContextExtensionSpecification;
 }
 
 #[derive(Default, Debug)]
+/// Does not require any initialization data
 pub struct SoftwareComponentInitializationData;

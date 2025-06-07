@@ -1,61 +1,51 @@
-use super::{
-    FramebufferGuard, SCANLINE_LENGTH, SupportedRenderApiTia, TiaDisplayBackend, region::Region,
-};
-use multiemu_runtime::{
-    component::RuntimeEssentials,
-    display::backend::{ComponentFramebuffer, software::SoftwareRendering},
-};
-use nalgebra::{DMatrix, DMatrixViewMut};
+use super::{SCANLINE_LENGTH, SupportedRenderApiTia, TiaDisplayBackend, region::Region};
+use multiemu_graphics::{GraphicsApi, Software};
+use multiemu_runtime::component::RuntimeEssentials;
+use nalgebra::DMatrix;
 use palette::Srgba;
-use std::{
-    cell::{RefCell, RefMut},
-    sync::Arc,
-};
+use std::cell::RefCell;
 
 #[derive(Debug)]
 pub struct SoftwareState {
     pub staging_buffer: RefCell<DMatrix<Srgba<u8>>>,
-    pub framebuffer: ComponentFramebuffer<SoftwareRendering>,
+    pub framebuffer: RefCell<DMatrix<Srgba<u8>>>,
 }
 
-impl FramebufferGuard for RefMut<'_, DMatrix<Srgba<u8>>> {
-    fn get(&mut self) -> DMatrixViewMut<'_, Srgba<u8>> {
-        self.as_view_mut()
-    }
-}
-
-impl<R: Region> TiaDisplayBackend<R, SoftwareRendering> for SoftwareState {
-    type FramebufferGuard<'a> = RefMut<'a, DMatrix<Srgba<u8>>>;
-
-    fn new(
-        _essentials: &RuntimeEssentials<SoftwareRendering>,
-    ) -> (Self, ComponentFramebuffer<SoftwareRendering>) {
+impl<R: Region> TiaDisplayBackend<R, Software> for SoftwareState {
+    fn new(_essentials: &RuntimeEssentials<Software>) -> Self {
         let staging_buffer = DMatrix::from_element(
             SCANLINE_LENGTH as usize,
             R::TOTAL_SCANLINES as usize,
             Srgba::new(0, 0, 0, 0xff),
         );
-        let framebuffer = ComponentFramebuffer::new(Arc::new(staging_buffer.clone()));
 
-        (
-            SoftwareState {
-                staging_buffer: RefCell::new(staging_buffer),
-                framebuffer: framebuffer.clone(),
-            },
-            framebuffer,
-        )
+        SoftwareState {
+            framebuffer: RefCell::new(staging_buffer.clone()),
+            staging_buffer: RefCell::new(staging_buffer),
+        }
     }
 
-    fn lock_framebuffer(&self) -> Self::FramebufferGuard<'_> {
-        self.staging_buffer.borrow_mut()
+    fn get_staging_buffer(&self, callback: impl FnOnce(nalgebra::DMatrixViewMut<'_, Srgba<u8>>)) {
+        let mut staging_buffer_guard = self.staging_buffer.borrow_mut();
+        callback(staging_buffer_guard.as_view_mut());
     }
 
-    fn commit_display(&self) {
-        let staging_buffer = self.staging_buffer.borrow();
-        self.framebuffer.store(Arc::new(staging_buffer.clone()));
+    fn commit_staging_buffer(&self) {
+        let staging_buffer_guard = self.staging_buffer.borrow();
+        let mut framebuffer_guard = self.framebuffer.borrow_mut();
+
+        framebuffer_guard.copy_from(&staging_buffer_guard);
+    }
+
+    fn get_framebuffer(
+        &self,
+        callback: impl FnOnce(&<Software as GraphicsApi>::ComponentFramebuffer),
+    ) {
+        let framebuffer_guard = self.framebuffer.borrow();
+        callback(&framebuffer_guard);
     }
 }
 
-impl SupportedRenderApiTia for SoftwareRendering {
+impl SupportedRenderApiTia for Software {
     type Backend<R: Region> = SoftwareState;
 }

@@ -1,6 +1,6 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig},
+    component::{Component, ComponentConfig, component_ref::ComponentRef},
     memory::{
         Address,
         callbacks::{Memory, ReadMemory, WriteMemory},
@@ -9,6 +9,7 @@ use multiemu_runtime::{
             address_space::AddressSpaceHandle,
         },
     },
+    scheduler::{SchedulerHandle, YieldReason},
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
@@ -16,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::{
     fmt::Debug,
-    num::NonZero,
     sync::{
         Arc, OnceLock, RwLock,
         atomic::{AtomicU8, Ordering},
@@ -67,7 +67,7 @@ pub trait SwchbCallback: Debug + Send + Sync + 'static {
 #[derive(Debug)]
 pub struct Mos6532Riot {
     ram: Arc<RwLock<[u8; 128]>>,
-    registers: Arc<Registers>,
+    registers: Registers,
 }
 
 impl Mos6532Riot {
@@ -107,14 +107,18 @@ impl Component for Mos6532Riot {
 impl<B: ComponentBuilder<Component = Mos6532Riot>> ComponentConfig<B> for Mos6532RiotConfig {
     type Component = Mos6532Riot;
 
-    fn build_component(self, component_builder: B) -> B::BuildOutput {
+    fn build_component(
+        self,
+        component_ref: ComponentRef<Self::Component>,
+        component_builder: B,
+    ) -> B::BuildOutput {
         let config = Arc::new(self);
         let ram = Arc::new(RwLock::new([0; 128]));
         let memory_callbacks = Arc::new(RamMemoryCallbacks {
             config: config.clone(),
             ram: ram.clone(),
         });
-        let registers = Arc::new(Registers {
+        let registers = Registers {
             swcha: OnceLock::new(),
             swchb: OnceLock::new(),
             swacnt: AtomicU8::new(0),
@@ -125,7 +129,7 @@ impl<B: ComponentBuilder<Component = Mos6532Riot>> ComponentConfig<B> for Mos653
             tim8t: AtomicU8::new(0),
             tim64t: AtomicU8::new(0),
             t1024t: AtomicU8::new(0),
-        });
+        };
 
         let assigned_ranges = [(
             config.assigned_address_space,
@@ -136,7 +140,7 @@ impl<B: ComponentBuilder<Component = Mos6532Riot>> ComponentConfig<B> for Mos653
             component_builder.insert_memory(memory_callbacks.clone(), assigned_ranges);
 
         let swcha = Arc::new(SwchaMemoryCallback {
-            registers: registers.clone(),
+            component: component_ref.clone(),
         });
 
         let (component_builder, _) = component_builder.insert_memory(
@@ -148,7 +152,7 @@ impl<B: ComponentBuilder<Component = Mos6532Riot>> ComponentConfig<B> for Mos653
         );
 
         let swchb = Arc::new(SwchbMemoryCallback {
-            registers: registers.clone(),
+            component: component_ref.clone(),
         });
 
         let (component_builder, _) = component_builder.insert_memory(
@@ -159,48 +163,104 @@ impl<B: ComponentBuilder<Component = Mos6532Riot>> ComponentConfig<B> for Mos653
             )],
         );
 
-        let component_builder = {
-            // Make the timers operate
-            component_builder
-                .insert_task(config.frequency, {
-                    let registers = registers.clone();
-
-                    move |_: &Self::Component, period: NonZero<_>| {
-                        registers
-                            .tim1t
-                            .fetch_add(period.get() as u8, Ordering::Relaxed);
-                    }
-                })
-                .insert_task(config.frequency / 8, {
-                    let registers = registers.clone();
-
-                    move |_: &Self::Component, period: NonZero<_>| {
-                        registers
-                            .tim8t
-                            .fetch_add(period.get() as u8, Ordering::Relaxed);
-                    }
-                })
-                .insert_task(config.frequency / 64, {
-                    let registers = registers.clone();
-
-                    move |_: &Self::Component, period: NonZero<_>| {
-                        registers
-                            .tim64t
-                            .fetch_add(period.get() as u8, Ordering::Relaxed);
-                    }
-                })
-                .insert_task(config.frequency / 1024, {
-                    let registers = registers.clone();
-
-                    move |_: &Self::Component, period: NonZero<_>| {
-                        registers
-                            .t1024t
-                            .fetch_add(period.get() as u8, Ordering::Relaxed);
-                    }
-                })
-        };
+        let component_builder = set_up_timer_tasks(component_ref, config, component_builder);
 
         component_builder.build_global(Self::Component { ram, registers })
+    }
+}
+
+fn set_up_timer_tasks<B: ComponentBuilder<Component = Mos6532Riot>>(
+    component_ref: ComponentRef<Mos6532Riot>,
+    config: Arc<Mos6532RiotConfig>,
+    component_builder: B,
+) -> B {
+    {
+        // Make the timers operate
+        component_builder
+            .insert_task(config.frequency, {
+                let component_ref = component_ref.clone();
+
+                move |mut handle: SchedulerHandle| {
+                    let mut should_exit = false;
+
+                    while !should_exit {
+                        component_ref
+                            .interact(|component| {
+                                component.registers.tim1t.fetch_add(1, Ordering::Relaxed)
+                            })
+                            .unwrap();
+
+                        handle.tick(|reason| {
+                            if reason == YieldReason::Exit {
+                                should_exit = true;
+                            }
+                        });
+                    }
+                }
+            })
+            .insert_task(config.frequency / 8, {
+                let component_ref = component_ref.clone();
+
+                move |mut handle: SchedulerHandle| {
+                    let mut should_exit = false;
+
+                    while !should_exit {
+                        component_ref
+                            .interact(|component| {
+                                component.registers.tim8t.fetch_add(1, Ordering::Relaxed)
+                            })
+                            .unwrap();
+
+                        handle.tick(|reason| {
+                            if reason == YieldReason::Exit {
+                                should_exit = true;
+                            }
+                        });
+                    }
+                }
+            })
+            .insert_task(config.frequency / 64, {
+                let component_ref = component_ref.clone();
+
+                move |mut handle: SchedulerHandle| {
+                    let mut should_exit = false;
+
+                    while !should_exit {
+                        component_ref
+                            .interact(|component| {
+                                component.registers.tim64t.fetch_add(1, Ordering::Relaxed)
+                            })
+                            .unwrap();
+
+                        handle.tick(|reason| {
+                            if reason == YieldReason::Exit {
+                                should_exit = true;
+                            }
+                        });
+                    }
+                }
+            })
+            .insert_task(config.frequency / 1024, {
+                let component_ref = component_ref.clone();
+
+                move |mut handle: SchedulerHandle| {
+                    let mut should_exit = false;
+
+                    while !should_exit {
+                        component_ref
+                            .interact(|component| {
+                                component.registers.t1024t.fetch_add(1, Ordering::Relaxed)
+                            })
+                            .unwrap();
+
+                        handle.tick(|reason| {
+                            if reason == YieldReason::Exit {
+                                should_exit = true;
+                            }
+                        });
+                    }
+                }
+            })
     }
 }
 
@@ -270,7 +330,7 @@ impl WriteMemory for RamMemoryCallbacks {
 
 #[derive(Debug)]
 struct SwchaMemoryCallback {
-    registers: Arc<Registers>,
+    component: ComponentRef<Mos6532Riot>,
 }
 
 impl Memory for SwchaMemoryCallback {}
@@ -282,7 +342,10 @@ impl ReadMemory for SwchaMemoryCallback {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        buffer[0] = self.registers.swcha.get().unwrap().read_memory();
+        buffer[0] = self
+            .component
+            .interact(|component| component.registers.swcha.get().unwrap().read_memory())
+            .unwrap();
 
         Ok(())
     }
@@ -295,7 +358,16 @@ impl WriteMemory for SwchaMemoryCallback {
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        self.registers.swcha.get().unwrap().write_memory(buffer[0]);
+        self.component
+            .interact(|component| {
+                component
+                    .registers
+                    .swcha
+                    .get()
+                    .unwrap()
+                    .write_memory(buffer[0])
+            })
+            .unwrap();
 
         Ok(())
     }
@@ -303,7 +375,7 @@ impl WriteMemory for SwchaMemoryCallback {
 
 #[derive(Debug)]
 struct SwchbMemoryCallback {
-    registers: Arc<Registers>,
+    component: ComponentRef<Mos6532Riot>,
 }
 
 impl Memory for SwchbMemoryCallback {}
@@ -315,7 +387,10 @@ impl ReadMemory for SwchbMemoryCallback {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        buffer[0] = self.registers.swchb.get().unwrap().read_memory();
+        buffer[0] = self
+            .component
+            .interact(|component| component.registers.swchb.get().unwrap().read_memory())
+            .unwrap();
 
         Ok(())
     }
@@ -328,7 +403,16 @@ impl WriteMemory for SwchbMemoryCallback {
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        self.registers.swchb.get().unwrap().write_memory(buffer[0]);
+        self.component
+            .interact(|component| {
+                component
+                    .registers
+                    .swchb
+                    .get()
+                    .unwrap()
+                    .write_memory(buffer[0])
+            })
+            .unwrap();
 
         Ok(())
     }
