@@ -36,6 +36,7 @@ fn main() {
     use clap::Parser;
     use cli::{Cli, CliAction};
     use runtime::desktop::windowing::DesktopPlatform;
+    use tracing_subscriber::fmt::format::FmtSpan;
 
     // Set our current thread as our main thread
     multiemu_runtime::utils::set_main_thread();
@@ -45,6 +46,7 @@ fn main() {
 
     let file = File::create(&environment.log_location.0).expect("Failed to create log file");
     let stderr_layer = tracing_subscriber::fmt::layer()
+        .with_span_events(FmtSpan::CLOSE)
         .with_writer(std::io::stderr)
         .with_ansi(true)
         .with_thread_ids(true)

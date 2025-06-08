@@ -21,7 +21,7 @@ multiemu-definition-atarilynx = { path = "definition/atarilynx" }
 
 # External dependencies
 naga = { version = "25.0", features = ["wgsl-in", "serialize", "deserialize"] }
-strum = { version = "0.27", features = ["derive"] }
+strum = { version = "0.27", default-features = false, features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rangemap = { version = "1.5", features = ["serde1"] }
@@ -64,6 +64,7 @@ scc = "2.3"
 glow = "0.16"
 arc-swap = "1.7"
 sealed = "0.6"
+crossbeam = "0.8"
 # use crates.io smallvec when they release v2
 smallvec = { git = "https://github.com/servo/rust-smallvec", rev = "4fe40688e97555f93a6861ff14720657c5161c07" }
 
@@ -76,3 +77,6 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
 debug = true
+
+[patch.crates-io]
+bitvec = { git = "https://github.com/ferrilab/ferrilab" }

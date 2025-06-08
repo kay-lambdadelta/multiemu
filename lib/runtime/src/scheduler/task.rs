@@ -1,12 +1,12 @@
-use num::Zero;
-
 use crate::scheduler::{RunningState, TaskState};
+use num::Zero;
+use spin_sleep::SpinSleeper;
 use std::{
-    ops::DerefMut,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
+    time::Instant,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -23,9 +23,16 @@ pub enum YieldReason {
 }
 
 pub struct SchedulerHandle {
+    /// Our shared state with the scheduler
     pub(super) task_state: Arc<TaskState>,
+    /// Marks if our thread needs to exit
     pub(super) runtime_shutting_down: Arc<AtomicBool>,
+    /// Cycles we can execute before speaking to the scheduler
     pub(super) cycles_until_sync_required: u32,
+    /// The sleeper
+    pub(super) sleeper: SpinSleeper,
+    /// When we should stop next
+    pub(super) deadline: Instant,
 }
 
 impl SchedulerHandle {
@@ -38,30 +45,31 @@ impl SchedulerHandle {
         if self.cycles_until_sync_required.is_zero() {
             let mut running_state_guard = self.task_state.running_state.lock().unwrap();
 
-            // Show we are waiting
             *running_state_guard = RunningState::Waiting;
+            drop(running_state_guard);
 
-            cleanup_callback(YieldReason::TimeSynchronization);
+            // Sleep until our deadline
+            self.sleeper.sleep_until(self.deadline);
 
-            // Make sure the runtime is notified
-            self.task_state.condvar.notify_one();
-            let mut running_state_guard = self
-                .task_state
-                .condvar
-                .wait_while(running_state_guard, |is_ready| {
-                    // Wait for the runtime to give us the go ahead
-                    !matches!(*is_ready, RunningState::CanRun(_))
-                })
-                .unwrap();
+            // Loop here in case of spurious wakeups
+            loop {
+                let running_state_guard = self.task_state.running_state.lock().unwrap();
 
-            // Get our things
-            let RunningState::CanRun(time_slice) =
-                std::mem::replace(running_state_guard.deref_mut(), RunningState::Running)
-            else {
-                unreachable!()
-            };
+                if let RunningState::CanRun {
+                    execution_cycles,
+                    deadline,
+                } = *running_state_guard
+                {
+                    self.cycles_until_sync_required = execution_cycles.get();
+                    self.deadline = deadline;
 
-            self.cycles_until_sync_required = time_slice.get();
+                    break;
+                }
+                drop(running_state_guard);
+
+                // Park until the scheduler has assigned us that we can run again
+                std::thread::park();
+            }
         } else {
             self.cycles_until_sync_required -= 1;
         }

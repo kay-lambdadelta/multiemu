@@ -1,12 +1,11 @@
 use super::is_main_thread;
-use crate::utils::Fragile;
 use std::{
     any::Any,
+    collections::VecDeque,
+    fmt::Debug,
     ops::Deref,
-    sync::{
-        Arc, Condvar, Mutex,
-        mpsc::{Receiver, Sender, TryRecvError, channel},
-    },
+    sync::{Arc, Condvar, Mutex},
+    time::Duration,
 };
 
 #[allow(clippy::type_complexity)]
@@ -15,19 +14,15 @@ struct QueuedCallback {
     is_done: Arc<(Condvar, Mutex<Option<Box<dyn Any + Send>>>)>,
 }
 
-#[derive(Debug)]
+#[derive(Default)]
 pub struct MainThreadQueue {
-    sender: Sender<QueuedCallback>,
-    receiver: Fragile<Receiver<QueuedCallback>>,
+    queue: Mutex<VecDeque<QueuedCallback>>,
+    global_condvar: Condvar,
 }
 
-impl Default for MainThreadQueue {
-    fn default() -> Self {
-        let (sender, receiver) = channel();
-        Self {
-            sender,
-            receiver: Fragile::new(receiver),
-        }
+impl Debug for MainThreadQueue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MainThreadQueue").finish()
     }
 }
 
@@ -59,13 +54,13 @@ impl MainThreadQueue {
 
         let is_done = Arc::new((Condvar::default(), Mutex::default()));
 
-        // Put it on the queue
-        self.sender
-            .send(QueuedCallback {
-                callback,
-                is_done: is_done.clone(),
-            })
-            .unwrap();
+        let mut callback_queue_guard = self.queue.lock().unwrap();
+        callback_queue_guard.push_back(QueuedCallback {
+            callback,
+            is_done: is_done.clone(),
+        });
+        drop(callback_queue_guard);
+        self.global_condvar.notify_one();
 
         let mut is_done_guard = is_done.1.lock().unwrap();
         loop {
@@ -80,22 +75,23 @@ impl MainThreadQueue {
         }
     }
 
-    pub fn main_thread_poll(&self) {
+    pub fn main_thread_poll(&self, timeout: Duration) {
         assert!(is_main_thread());
 
-        loop {
-            match self.receiver.get().unwrap().try_recv() {
-                Ok(callback) => {
-                    let value = (callback.callback)();
-                    let mut is_done_guard = callback.is_done.1.lock().unwrap();
-                    *is_done_guard = Some(value);
-                    callback.is_done.0.notify_one();
-                }
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    unreachable!()
-                }
-            }
+        let callback_queue_guard = self.queue.lock().unwrap();
+
+        let (mut callback_queue_guard, _) = self
+            .global_condvar
+            .wait_timeout_while(callback_queue_guard, timeout, |callback_queue_guard| {
+                callback_queue_guard.is_empty()
+            })
+            .unwrap();
+
+        if let Some(callback) = callback_queue_guard.pop_front() {
+            let value = (callback.callback)();
+            let mut is_done_guard = callback.is_done.1.lock().unwrap();
+            *is_done_guard = Some(value);
+            callback.is_done.0.notify_one();
         }
     }
 }
@@ -136,8 +132,7 @@ mod test {
 
         // For our purposes here we want to check the receiver but otherwise it would just be polled forever
         while executed_tasks.load(Ordering::Relaxed) != 0 {
-            queue.main_thread_poll();
-            std::hint::spin_loop();
+            queue.main_thread_poll(Duration::from_millis(1));
         }
 
         for worker in workers {

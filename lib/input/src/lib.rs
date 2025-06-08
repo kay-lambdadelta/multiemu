@@ -1,7 +1,12 @@
+#![no_std]
+
+extern crate alloc;
+
+use alloc::borrow::Cow;
+use core::fmt::Display;
 use gamepad::GamepadInput;
 use keyboard::KeyboardInput;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt::Display};
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 
@@ -86,7 +91,7 @@ impl AsRef<str> for VirtualGamepadName {
 }
 
 impl Display for VirtualGamepadName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -112,7 +117,7 @@ impl GamepadId {
 }
 
 impl Display for GamepadId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
     }
 }

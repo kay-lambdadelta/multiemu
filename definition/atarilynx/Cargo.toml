@@ -25,7 +25,6 @@ palette = { workspace = true }
 vulkano = { workspace = true, optional = true }
 glow = { workspace = true, optional = true }
 
-
 [features]
 vulkan = ["dep:vulkano", "multiemu-graphics/vulkan"]
 opengl = ["dep:glow", "multiemu-graphics/opengl"]

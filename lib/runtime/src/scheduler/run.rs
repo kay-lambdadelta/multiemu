@@ -1,3 +1,5 @@
+use crate::scheduler::wait_on_inflight;
+
 use super::{Scheduler, TaskInfo, run_task};
 use std::num::NonZero;
 
@@ -63,6 +65,8 @@ impl Scheduler {
                                 &mut self.inflight,
                                 &self.main_thread_queue,
                                 self.tick_real_time,
+                                &mut self.previous_deadline,
+                                self.sleeper,
                             );
 
                             self.current_tick = self.current_tick.wrapping_add(alloted_ticks);
@@ -76,6 +80,8 @@ impl Scheduler {
                                 &mut self.inflight,
                                 &self.main_thread_queue,
                                 self.tick_real_time,
+                                &mut self.previous_deadline,
+                                self.sleeper,
                             );
 
                             self.current_tick = self.current_tick.wrapping_add(ticks_to_skip_ahead);
@@ -94,11 +100,21 @@ impl Scheduler {
                         &mut self.inflight,
                         &self.main_thread_queue,
                         self.tick_real_time,
+                        &mut self.previous_deadline,
+                        self.sleeper,
                     );
 
                     self.current_tick = self.current_tick.wrapping_add(1);
                 }
             }
         }
+
+        wait_on_inflight(
+            &mut self.inflight,
+            &self.main_thread_queue,
+            self.tick_real_time,
+            &mut self.previous_deadline,
+            self.sleeper,
+        )
     }
 }

@@ -3,6 +3,7 @@ use num::{
     integer::{gcd, lcm},
     rational::Ratio,
 };
+use spin_sleep::SpinSleeper;
 use std::{
     boxed::Box,
     cmp::Reverse,
@@ -10,10 +11,11 @@ use std::{
     fmt::Debug,
     num::NonZero,
     sync::{
-        Arc, Barrier, Condvar, Mutex,
+        Arc, Barrier, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    thread::Thread,
+    time::{Duration, Instant},
     vec::Vec,
 };
 
@@ -26,8 +28,10 @@ use crate::utils::MainThreadQueue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 enum RunningState {
-    CanRun(NonZero<u32>),
-    Running,
+    CanRun {
+        execution_cycles: NonZero<u32>,
+        deadline: Instant,
+    },
     #[default]
     Waiting,
 }
@@ -35,7 +39,6 @@ enum RunningState {
 #[derive(Debug, Default)]
 struct TaskState {
     pub running_state: Mutex<RunningState>,
-    pub condvar: Condvar,
 }
 
 #[derive(Debug)]
@@ -43,6 +46,7 @@ struct TaskInfo {
     pub task_state: Arc<TaskState>,
     pub tick_rate: u32,
     pub next_execution: Reverse<u32>,
+    pub thread: Thread,
 }
 
 impl PartialEq for TaskInfo {
@@ -87,6 +91,10 @@ pub struct Scheduler {
     barrier: Option<Arc<Barrier>>,
     /// Tasks that are currently executing
     inflight: Vec<Arc<TaskState>>,
+    /// Previous deadline
+    previous_deadline: Option<Instant>,
+    /// Sleeper
+    sleeper: SpinSleeper,
 }
 
 impl Scheduler {
@@ -139,6 +147,8 @@ impl Scheduler {
         let tick_real_time = Duration::from_secs_f64(common.to_f64().unwrap());
         let rollover_tick = common.recip().to_integer();
 
+        let sleeper = SpinSleeper::default();
+
         tracing::debug!(
             "Schedule ticks take {:?} and rolls over at tick {}, a full cycle takes {:?}",
             tick_real_time,
@@ -157,10 +167,13 @@ impl Scheduler {
                     task_state: task_state.clone(),
                     runtime_shutting_down: runtime_shutting_down.clone(),
                     cycles_until_sync_required: 0,
+                    // Will be overwritten anyway
+                    deadline: Instant::now() + tick_real_time * factor,
+                    sleeper,
                 };
                 let barrier = barrier.clone();
 
-                {
+                let join_handle = {
                     let task = precalcuation_task.task;
 
                     std::thread::spawn(move || {
@@ -168,13 +181,14 @@ impl Scheduler {
                         drop(barrier);
 
                         task.run(scheduler_handle);
-                    });
-                }
+                    })
+                };
 
                 TaskInfo {
                     task_state,
                     tick_rate,
                     next_execution: Reverse(0),
+                    thread: join_handle.thread().clone(),
                 }
             })
             .collect();
@@ -192,6 +206,8 @@ impl Scheduler {
             main_thread_queue,
             barrier: Some(barrier),
             inflight: Vec::default(),
+            previous_deadline: None,
+            sleeper,
         }
     }
 
@@ -235,25 +251,19 @@ fn run_task(
     inflight: &mut Vec<Arc<TaskState>>,
     main_thread_queue: &MainThreadQueue,
     tick_real_time: Duration,
+    deadline: &mut Option<Instant>,
+    sleeper: SpinSleeper,
 ) {
-    // Make sure all previous tasks have been stopped
-    for inflight in inflight.drain(..) {
-        let mut running_state_guard = inflight.running_state.lock().unwrap();
+    wait_on_inflight(
+        inflight,
+        main_thread_queue,
+        tick_real_time,
+        deadline,
+        sleeper,
+    );
 
-        while *running_state_guard != RunningState::Waiting {
-            // Wait for it to complete
-            let (running_state, _) = inflight
-                .condvar
-                .wait_timeout(running_state_guard, tick_real_time)
-                .unwrap();
-
-            // Make sure anything that needs to run on main gets their turn
-            main_thread_queue.main_thread_poll();
-
-            // Retake our guard
-            running_state_guard = running_state;
-        }
-    }
+    let now = Instant::now();
+    let mut shortest_duration = Duration::default();
 
     for (mut task_info, time_slice) in to_run {
         let mut running_state_guard = task_info.task_state.running_state.lock().unwrap();
@@ -262,16 +272,54 @@ fn run_task(
         let ticks_taken = time_slice.get() * task_info.tick_rate;
         task_info.next_execution.0 = task_info.next_execution.0.wrapping_add(ticks_taken);
 
+        let duration = tick_real_time * ticks_taken;
+        shortest_duration = shortest_duration.min(duration);
+
         // Tell it it can run again!
-        *running_state_guard = RunningState::CanRun(time_slice);
+        *running_state_guard = RunningState::CanRun {
+            execution_cycles: time_slice,
+            deadline: now + duration,
+        };
         drop(running_state_guard);
 
-        task_info.task_state.condvar.notify_one();
+        // Unpark the thread
+        task_info.thread.unpark();
 
         // Put it inflight
         inflight.push(task_info.task_state.clone());
 
         // Put it back on our heap and let it rearrange itself
         heap.push(task_info);
+    }
+
+    *deadline = Some(now + shortest_duration);
+}
+
+fn wait_on_inflight(
+    inflight: &mut Vec<Arc<TaskState>>,
+    main_thread_queue: &MainThreadQueue,
+    tick_real_time: Duration,
+    deadline: &mut Option<Instant>,
+    sleeper: SpinSleeper,
+) {
+    if let Some(deadline) = deadline {
+        sleeper.sleep_until(*deadline);
+    }
+
+    // Make sure all previous tasks have been stopped
+    for inflight in inflight.drain(..) {
+        loop {
+            // Lock the state
+            let running_state_guard = inflight.running_state.lock().unwrap();
+
+            // Break if they are ready
+            if *running_state_guard == RunningState::Waiting {
+                break;
+            }
+            drop(running_state_guard);
+
+            // Make sure anything that needs to run on main gets their turn
+            main_thread_queue.main_thread_poll(tick_real_time);
+        }
     }
 }

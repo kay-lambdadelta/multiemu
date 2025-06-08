@@ -5,7 +5,10 @@ use crate::{
     runtime::{AudioRuntime, MaybeMachine},
 };
 use egui::{FontFamily, RawInput, TextStyle, TextWrapMode};
-use multiemu_config::{input::{Hotkey, DEFAULT_HOTKEYS}, Environment};
+use multiemu_config::{
+    Environment,
+    input::{DEFAULT_HOTKEYS, Hotkey},
+};
 use multiemu_graphics::GraphicsContextExtensions;
 use multiemu_input::{GamepadId, Input, InputState};
 use multiemu_rom::{
