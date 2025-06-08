@@ -1,12 +1,8 @@
 use crate::scheduler::{RunningState, TaskState};
 use num::Zero;
-use spin_sleep::SpinSleeper;
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Instant,
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -29,10 +25,6 @@ pub struct SchedulerHandle {
     pub(super) runtime_shutting_down: Arc<AtomicBool>,
     /// Cycles we can execute before speaking to the scheduler
     pub(super) cycles_until_sync_required: u32,
-    /// The sleeper
-    pub(super) sleeper: SpinSleeper,
-    /// When we should stop next
-    pub(super) deadline: Instant,
 }
 
 impl SchedulerHandle {
@@ -48,20 +40,12 @@ impl SchedulerHandle {
             *running_state_guard = RunningState::Waiting;
             drop(running_state_guard);
 
-            // Sleep until our deadline
-            self.sleeper.sleep_until(self.deadline);
-
             // Loop here in case of spurious wakeups
             loop {
                 let running_state_guard = self.task_state.running_state.lock().unwrap();
 
-                if let RunningState::CanRun {
-                    execution_cycles,
-                    deadline,
-                } = *running_state_guard
-                {
+                if let RunningState::CanRun { execution_cycles } = *running_state_guard {
                     self.cycles_until_sync_required = execution_cycles.get();
-                    self.deadline = deadline;
 
                     break;
                 }

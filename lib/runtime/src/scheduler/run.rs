@@ -65,8 +65,6 @@ impl Scheduler {
                                 &mut self.inflight,
                                 &self.main_thread_queue,
                                 self.tick_real_time,
-                                &mut self.previous_deadline,
-                                self.sleeper,
                             );
 
                             self.current_tick = self.current_tick.wrapping_add(alloted_ticks);
@@ -80,8 +78,6 @@ impl Scheduler {
                                 &mut self.inflight,
                                 &self.main_thread_queue,
                                 self.tick_real_time,
-                                &mut self.previous_deadline,
-                                self.sleeper,
                             );
 
                             self.current_tick = self.current_tick.wrapping_add(ticks_to_skip_ahead);
@@ -100,8 +96,6 @@ impl Scheduler {
                         &mut self.inflight,
                         &self.main_thread_queue,
                         self.tick_real_time,
-                        &mut self.previous_deadline,
-                        self.sleeper,
                     );
 
                     self.current_tick = self.current_tick.wrapping_add(1);
@@ -113,8 +107,6 @@ impl Scheduler {
             &mut self.inflight,
             &self.main_thread_queue,
             self.tick_real_time,
-            &mut self.previous_deadline,
-            self.sleeper,
         )
     }
 }

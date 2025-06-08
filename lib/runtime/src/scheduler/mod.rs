@@ -3,7 +3,6 @@ use num::{
     integer::{gcd, lcm},
     rational::Ratio,
 };
-use spin_sleep::SpinSleeper;
 use std::{
     boxed::Box,
     cmp::Reverse,
@@ -15,7 +14,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread::Thread,
-    time::{Duration, Instant},
+    time::Duration,
     vec::Vec,
 };
 
@@ -30,7 +29,6 @@ use crate::utils::MainThreadQueue;
 enum RunningState {
     CanRun {
         execution_cycles: NonZero<u32>,
-        deadline: Instant,
     },
     #[default]
     Waiting,
@@ -91,10 +89,6 @@ pub struct Scheduler {
     barrier: Option<Arc<Barrier>>,
     /// Tasks that are currently executing
     inflight: Vec<Arc<TaskState>>,
-    /// Previous deadline
-    previous_deadline: Option<Instant>,
-    /// Sleeper
-    sleeper: SpinSleeper,
 }
 
 impl Scheduler {
@@ -147,8 +141,6 @@ impl Scheduler {
         let tick_real_time = Duration::from_secs_f64(common.to_f64().unwrap());
         let rollover_tick = common.recip().to_integer();
 
-        let sleeper = SpinSleeper::default();
-
         tracing::debug!(
             "Schedule ticks take {:?} and rolls over at tick {}, a full cycle takes {:?}",
             tick_real_time,
@@ -167,9 +159,6 @@ impl Scheduler {
                     task_state: task_state.clone(),
                     runtime_shutting_down: runtime_shutting_down.clone(),
                     cycles_until_sync_required: 0,
-                    // Will be overwritten anyway
-                    deadline: Instant::now() + tick_real_time * factor,
-                    sleeper,
                 };
                 let barrier = barrier.clone();
 
@@ -206,8 +195,6 @@ impl Scheduler {
             main_thread_queue,
             barrier: Some(barrier),
             inflight: Vec::default(),
-            previous_deadline: None,
-            sleeper,
         }
     }
 
@@ -251,19 +238,8 @@ fn run_task(
     inflight: &mut Vec<Arc<TaskState>>,
     main_thread_queue: &MainThreadQueue,
     tick_real_time: Duration,
-    deadline: &mut Option<Instant>,
-    sleeper: SpinSleeper,
 ) {
-    wait_on_inflight(
-        inflight,
-        main_thread_queue,
-        tick_real_time,
-        deadline,
-        sleeper,
-    );
-
-    let now = Instant::now();
-    let mut shortest_duration = Duration::default();
+    wait_on_inflight(inflight, main_thread_queue, tick_real_time);
 
     for (mut task_info, time_slice) in to_run {
         let mut running_state_guard = task_info.task_state.running_state.lock().unwrap();
@@ -272,13 +248,9 @@ fn run_task(
         let ticks_taken = time_slice.get() * task_info.tick_rate;
         task_info.next_execution.0 = task_info.next_execution.0.wrapping_add(ticks_taken);
 
-        let duration = tick_real_time * ticks_taken;
-        shortest_duration = shortest_duration.min(duration);
-
         // Tell it it can run again!
         *running_state_guard = RunningState::CanRun {
             execution_cycles: time_slice,
-            deadline: now + duration,
         };
         drop(running_state_guard);
 
@@ -291,21 +263,13 @@ fn run_task(
         // Put it back on our heap and let it rearrange itself
         heap.push(task_info);
     }
-
-    *deadline = Some(now + shortest_duration);
 }
 
 fn wait_on_inflight(
     inflight: &mut Vec<Arc<TaskState>>,
     main_thread_queue: &MainThreadQueue,
     tick_real_time: Duration,
-    deadline: &mut Option<Instant>,
-    sleeper: SpinSleeper,
 ) {
-    if let Some(deadline) = deadline {
-        sleeper.sleep_until(*deadline);
-    }
-
     // Make sure all previous tasks have been stopped
     for inflight in inflight.drain(..) {
         loop {

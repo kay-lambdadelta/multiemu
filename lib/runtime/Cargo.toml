@@ -26,4 +26,3 @@ smallvec = { workspace = true }
 ringbuffer = { workspace = true }
 sealed = { workspace = true }
 crossbeam = { workspace = true }
-spin_sleep = "1.3"
