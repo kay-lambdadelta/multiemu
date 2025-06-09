@@ -154,9 +154,9 @@ impl VulkanEguiRenderer {
         };
 
         let blend = AttachmentBlend {
+            src_alpha_blend_factor: BlendFactor::One,
             src_color_blend_factor: BlendFactor::One,
-            src_alpha_blend_factor: BlendFactor::OneMinusSrcAlpha,
-            dst_color_blend_factor: BlendFactor::One,
+            dst_color_blend_factor: BlendFactor::OneMinusSrcAlpha,
             ..AttachmentBlend::alpha()
         };
 
