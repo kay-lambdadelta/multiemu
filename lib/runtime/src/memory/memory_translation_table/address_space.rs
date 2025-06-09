@@ -53,6 +53,12 @@ impl AddressSpace {
         }
 
         for addresses in mapping {
+            tracing::debug!(
+                "Mapping memory handle {:?} to address range {:?}",
+                handle,
+                addresses
+            );
+
             self.read_members.insert(addresses.clone(), handle);
             self.write_members.insert(addresses, handle);
         }
@@ -77,6 +83,12 @@ impl AddressSpace {
         }
 
         for addresses in mapping {
+            tracing::debug!(
+                "Mapping write memory handle {:?} to address range {:?}",
+                handle,
+                addresses
+            );
+
             self.write_members.insert(addresses.clone(), handle);
         }
     }
@@ -100,6 +112,12 @@ impl AddressSpace {
         }
 
         for addresses in mapping {
+            tracing::debug!(
+                "Mapping read memory handle {:?} to address range {:?}",
+                handle,
+                addresses
+            );
+
             self.read_members.insert(addresses.clone(), handle);
         }
     }

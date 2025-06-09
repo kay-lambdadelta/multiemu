@@ -20,8 +20,8 @@
                 }
             },
             "args": [
-                "run-external",
-                "roms/octojam2title.ch8"
+                "run",
+                "6e6e37ec8d66aea1c13ed444863e3db91497aa35"
             ],
             "cwd": "${workspaceFolder}"
         },

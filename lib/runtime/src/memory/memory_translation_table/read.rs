@@ -174,7 +174,7 @@ impl MemoryTranslationTable {
             (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
 
         for (component_assignment_range, memory_handle) in address_space_info
-            .write_members
+            .read_members
             .overlapping(accessing_range.clone())
         {
             self.memory_store.interact_read(*memory_handle, |memory| {
@@ -352,7 +352,7 @@ impl MemoryTranslationTable {
             (buffer_subrange.start() + address)..=(buffer_subrange.end() + address);
 
         for (component_assignment_range, memory_handle) in address_space_info
-            .write_members
+            .read_members
             .overlapping(accessing_range.clone())
         {
             self.memory_store.interact_read(*memory_handle, |memory| {
