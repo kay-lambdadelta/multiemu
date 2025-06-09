@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use serde_with::serde_as;
@@ -21,22 +19,9 @@ pub enum Interpolation {
 
 #[serde_as]
 #[serde_inline_default]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 /// Audio settings
 pub struct AudioSettings {
-    #[serde_as(as = "serde_with::DurationSecondsWithFrac<f64>")]
-    #[serde_inline_default(Duration::from_millis(100))]
-    /// How much audio will the audio queue hold
-    pub latency: Duration,
     /// Interpolation settings
     pub interpolation: Interpolation,
-}
-
-impl Default for AudioSettings {
-    fn default() -> Self {
-        Self {
-            latency: Duration::from_millis(100),
-            interpolation: Interpolation::default(),
-        }
-    }
 }
