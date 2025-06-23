@@ -16,7 +16,7 @@ use std::{
     num::NonZero,
     ops::Deref,
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -35,10 +35,8 @@ struct Snapshot {
 
 #[derive(Debug)]
 pub struct Chip8Display<R: SupportedGraphicsApiChip8Display> {
-    /// Actually just initialized ones
-    backend: OnceLock<R::Backend>,
+    backend: R::Backend,
     mode: Arc<Mutex<Chip8Kind>>,
-    graphics_initialization_data: R::InitializationData,
     /// The cpu reads this to see if it can continue execution post draw call
     pub vsync_occurred: Arc<AtomicBool>,
 }
@@ -67,8 +65,6 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
         let mut hit_detection = false;
 
         self.backend
-            .get()
-            .unwrap()
             .modify_staging_buffer(|framebuffer| {
                 hit_detection = draw_sprite(position, sprite, framebuffer);
             });
@@ -80,8 +76,6 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
         tracing::trace!("Clearing display");
 
         self.backend
-            .get()
-            .unwrap()
             .modify_staging_buffer(|mut framebuffer| {
                 framebuffer.fill(Srgba::new(0, 0, 0, 255));
             });
@@ -91,11 +85,6 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
 impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
     fn on_reset(&self) {
         self.clear_display();
-    }
-
-    fn on_runtime_ready(&self) {
-        let backend = Chip8DisplayBackend::new(self.graphics_initialization_data.clone());
-        self.backend.set(backend).unwrap();
     }
 }
 
@@ -165,7 +154,6 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         component_builder: ComponentBuilder<P, Self::Component>,
     ) {
         let vsync_occurred = Arc::new(AtomicBool::default());
-        let backend = OnceLock::default();
 
         let graphics_initialization_data = component_builder
             .essentials()
@@ -181,7 +169,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
                 move |_: NonZero<u32>| {
                     component
                         .interact(|display| {
-                            display.backend.get().unwrap().commit_staging_buffer();
+                            display.backend.commit_staging_buffer();
                         })
                         .unwrap();
 
@@ -193,10 +181,9 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             });
 
         component_builder.build(Chip8Display {
-            backend,
+            backend: Chip8DisplayBackend::new(graphics_initialization_data),
             mode: Arc::default(),
             vsync_occurred,
-            graphics_initialization_data,
         })
     }
 }
@@ -217,7 +204,7 @@ impl<R: SupportedGraphicsApiChip8Display> DisplayCallback<R> for Chip8DisplayCal
     ) {
         self.component
             .interact_local(|display| {
-                display.backend.get().unwrap().get_framebuffer(callback);
+                display.backend.get_framebuffer(callback);
             })
             .unwrap();
     }

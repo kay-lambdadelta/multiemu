@@ -22,6 +22,7 @@ nalgebra = { workspace = true }
 palette = { workspace = true }
 codes-iso-3166 = { workspace = true }
 bytemuck = { workspace = true }
+smallvec = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 multiemu-config = { workspace = true }

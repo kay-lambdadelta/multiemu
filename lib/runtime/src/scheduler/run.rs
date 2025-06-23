@@ -1,9 +1,6 @@
 use super::Scheduler;
 use crate::scheduler::TaskToExecute;
-use std::{
-    num::NonZero,
-    time::{Duration, Instant},
-};
+use std::{num::NonZero, time::Duration};
 
 impl Scheduler {
     /// Runs the scheduler for a single pass
@@ -16,9 +13,8 @@ impl Scheduler {
         let allotted_ticks = (allotted_duration.as_nanos() / self.tick_real_time.as_nanos())
             .try_into()
             .unwrap();
-        let deadline = Instant::now() + allotted_duration;
 
-        while Instant::now() <= deadline {
+        loop {
             let ticks_passed = self.current_tick.wrapping_sub(old_current_tick);
 
             if ticks_passed >= allotted_ticks {

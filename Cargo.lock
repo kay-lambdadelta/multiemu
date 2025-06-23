@@ -2201,6 +2201,7 @@ dependencies = [
  "rangemap",
  "ron",
  "serde",
+ "smallvec 2.0.0-alpha.11",
  "strum 0.27.1",
  "tracing",
 ]

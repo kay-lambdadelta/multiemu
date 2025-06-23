@@ -105,9 +105,18 @@ pub struct FrontendRuntime<P: PlatformExt> {
     collected_frame_rates: ConstGenericRingBuffer<Duration, 5>,
     /// The timestamp previous frame
     previous_frame_timestamp: Instant,
+    /// If we are in focus rn
+    in_focus: bool,
 }
 
 impl<P: PlatformExt> FrontendRuntime<P> {
+    pub fn focus_change(&mut self, focused: bool) {
+        self.collected_frame_rates.clear();
+        self.previous_frame_timestamp = Instant::now();
+
+        self.in_focus = focused;
+    }
+
     pub fn maybe_machine(&self) -> Arc<MaybeMachine<P>> {
         self.stored_machine.maybe_machine.clone()
     }
@@ -238,6 +247,10 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     }
 
     pub fn redraw(&mut self) {
+        if !self.in_focus {
+            return;
+        }
+
         let windowing = self.windowing_context.as_mut().unwrap();
 
         let new_window_dimensions = windowing.display_api_handle.dimensions();
@@ -382,6 +395,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             main_thread_executor,
             collected_frame_rates: ConstGenericRingBuffer::default(),
             previous_frame_timestamp: Instant::now(),
+            in_focus: true,
         }
     }
 

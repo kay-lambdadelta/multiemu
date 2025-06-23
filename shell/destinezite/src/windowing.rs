@@ -205,6 +205,9 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             .on_window_event(&display_api_handle.0, &event);
 
         match event {
+            WindowEvent::Focused(focused) => {
+                self.runtime.focus_change(focused);
+            }
             WindowEvent::CloseRequested => {
                 tracing::info!("Window close requested");
 
@@ -251,7 +254,9 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        self.display_api_handle.get().unwrap().0.request_redraw();
+        if self.display_api_handle.get().unwrap().0.has_focus() {
+            self.display_api_handle.get().unwrap().0.request_redraw();
+        }
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
