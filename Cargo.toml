@@ -1,0 +1,94 @@
+[workspace]
+resolver = "3"
+members = ["utils", "lib/*", "definition/*", "shell/*"]
+
+[workspace.dependencies]
+# Main emulator runtime shared with shell and components
+multiemu-runtime = { path = "lib/runtime" }
+# Utilities to operate on roms
+multiemu-rom = { path = "lib/rom" }
+# Input definitions
+multiemu-input = { path = "lib/input" }
+# Config definitions
+multiemu-config = { path = "lib/config" }
+# Save / Snapshot definitions
+multiemu-save = { path = "lib/save" }
+# Audio processing utilities
+multiemu-audio = { path = "lib/audio" }
+# Main machinery for platform backends
+multiemu-frontend = { path = "lib/frontend" }
+# Graphics processing utilities
+multiemu-graphics = { path = "lib/graphics" }
+
+multiemu-definition-misc = { path = "definition/misc" }
+multiemu-definition-mos6502 = { path = "definition/mos6502" }
+multiemu-definition-chip8 = { path = "definition/chip8" }
+multiemu-definition-nes = { path = "definition/nes" }
+multiemu-definition-intel8080 = { path = "definition/intel8080" }
+multiemu-definition-atari2600 = { path = "definition/atari2600" }
+multiemu-definition-atarilynx = { path = "definition/atarilynx" }
+
+# External dependencies
+strum = { version = "0.27", default-features = false, features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rangemap = { version = "1.5", features = ["serde1"] }
+redb = { version = "2.6", features = ["logging"] }
+serde = { version = "1.0", default-features = false, features = [
+    "alloc",
+    "derive",
+] }
+serde_with = "3.13"
+serde-inline-default = "0.2"
+rayon = "1.10"
+nalgebra = { version = "0.33", features = [
+    "serde-serialize",
+    "convert-bytemuck",
+] }
+bytemuck = { version = "1.23", features = ["derive"] }
+num = { version = "0.4", features = ["serde"] }
+arrayvec = { version = "0.7", features = ["serde"] }
+thiserror = "2.0"
+# crates.io bitvec has very bad atomic detection code basically making it unusuable on any unusual platform
+bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "68ab1dce6ad46442fe8681df75674737120ab115", features = [
+    "std",
+    "serde",
+] }
+rand = "0.9"
+palette = { version = "0.7", default-features = false, features = [
+    "std",
+    "bytemuck",
+    "serializing",
+] }
+clap = { version = "4.5", features = ["derive"] }
+criterion = "0.6"
+uuid = { version = "1.17", features = ["serde", "v4"] }
+ringbuffer = "0.15"
+bincode = { version = "2.0", features = ["serde"] }
+rustc-hash = "2.1"
+ron = "0.10"
+data-encoding = "2.9"
+deku = "0.19"
+versions = "7.0"
+scc = "2.3"
+sealed = "0.6"
+crossbeam = "0.8"
+egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
+naga = { version = "25.0", features = ["wgsl-in", "serialize", "deserialize"] }
+raw-window-handle = "0.6"
+
+# use crates.io smallvec when they release v2
+smallvec = { git = "https://github.com/servo/rust-smallvec", rev = "4fe40688e97555f93a6861ff14720657c5161c07" }
+
+# Locale shit
+codes-iso-639 = { version = "0.1", features = ["part_3"] }
+codes-iso-3166 = { version = "0.1", features = ["languages"] }
+
+# 3DS stuff
+ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
+
+[profile.bench]
+debug = true
+
+[patch.crates-io]
+bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "68ab1dce6ad46442fe8681df75674737120ab115" }

@@ -1,0 +1,23 @@
+[package]
+name = "multiemu-graphics"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+naga = { workspace = true, optional = true }
+scc = { workspace = true, optional = true }
+nalgebra = { workspace = true }
+palette = { workspace = true }
+serde = { workspace = true }
+rustc-hash = { workspace = true }
+tracing = { workspace = true }
+
+# Vulkan support
+vulkano = { version = "0.35", default-features = false, optional = true }
+# Opengl support
+glow = { version = "0.16", optional = true }
+
+[features]
+vulkan = ["dep:vulkano", "dep:naga", "dep:scc", "naga/spv-out"]
+opengl = ["dep:glow", "dep:naga", "dep:scc", "naga/glsl-out"]
