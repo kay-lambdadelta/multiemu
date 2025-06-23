@@ -92,3 +92,4 @@ debug = true
 
 [patch.crates-io]
 bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "68ab1dce6ad46442fe8681df75674737120ab115" }
+radium = { git = "https://github.com/ferrilab/ferrilab", rev = "4a301c3a223e096626a2773d1a1eed1fc4e21140" }
