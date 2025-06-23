@@ -1,4 +1,4 @@
-use multiemu_audio::{FromSample, SampleFormat, SquareWave};
+use multiemu_audio::{SampleFormat, SquareWave};
 use multiemu_runtime::{
     audio::AudioCallback,
     builder::ComponentBuilder,
@@ -29,10 +29,7 @@ impl Component for Chip8Audio {}
 #[derive(Debug, Default)]
 pub struct Chip8AudioConfig;
 
-impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig
-where
-    P::SampleFormat: FromSample<f32>,
-{
+impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
     type Component = Chip8Audio;
 
     fn build_component(
@@ -76,10 +73,7 @@ pub struct Chip8AudioDataCallback<S: SampleFormat> {
     square_wave: Mutex<SquareWave<S, 2>>,
 }
 
-impl<S: SampleFormat> AudioCallback<S> for Chip8AudioDataCallback<S>
-where
-    S: FromSample<f32>,
-{
+impl<S: SampleFormat> AudioCallback<S> for Chip8AudioDataCallback<S> {
     fn generate_samples(&self) -> Box<dyn Iterator<Item = nalgebra::SVector<S, 2>> + '_> {
         let sound_timer_guard = self.sound_timer.read().unwrap();
         let mut square_wave_guard = self.square_wave.lock().unwrap();

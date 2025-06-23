@@ -1,7 +1,6 @@
 use audio::Chip8AudioConfig;
 use display::Chip8DisplayConfig;
 use font::CHIP8_FONT;
-use multiemu_audio::FromSample;
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
@@ -36,9 +35,7 @@ pub enum Chip8Kind {
 #[derive(Debug, Default)]
 pub struct Chip8;
 
-impl<P: Platform<SampleFormat: FromSample<f32>, GraphicsApi: SupportedGraphicsApiChip8Display>>
-    MachineFactory<P> for Chip8
-{
+impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> MachineFactory<P> for Chip8 {
     fn construct(
         &self,
         user_specified_roms: Vec<RomId>,
