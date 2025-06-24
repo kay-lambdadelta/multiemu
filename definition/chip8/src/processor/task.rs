@@ -1,5 +1,5 @@
 use super::{Chip8KeyCode, Chip8ProcessorConfig, ExecutionState, decoder::Chip8InstructionDecoder};
-use crate::{Chip8Kind, display::SupportedGraphicsApiChip8Display, processor::Chip8Processor};
+use crate::{Chip8Mode, display::SupportedGraphicsApiChip8Display, processor::Chip8Processor};
 use multiemu_runtime::{
     component::ComponentRef, input::VirtualGamepad, memory::MemoryTranslationTable,
     processor::InstructionDecoder, scheduler::Task,
@@ -19,7 +19,7 @@ pub(crate) struct Chip8ProcessorTask<G: SupportedGraphicsApiChip8Display> {
     /// Essential stuff the runtime provides
     pub memory_translation_table: Arc<MemoryTranslationTable>,
     // What chip8 mode we are currently in
-    pub mode: Arc<Mutex<Chip8Kind>>,
+    pub mode: Arc<Mutex<Chip8Mode>>,
     pub config: Chip8ProcessorConfig<G>,
 }
 
@@ -29,6 +29,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task for Chip8ProcessorTask<G> {
 
         self.component
             .interact(|component| {
+                let mut mode_guard = self.mode.lock().unwrap();
                 let mut state_guard = component.state.lock().unwrap();
 
                 while time_slice != 0 {
@@ -53,6 +54,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task for Chip8ProcessorTask<G> {
 
                                 self.interpret_instruction(
                                     &mut state_guard,
+                                    &mut mode_guard,
                                     decompiled_instruction,
                                 );
                             }
@@ -103,7 +105,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task for Chip8ProcessorTask<G> {
                                     .config
                                     .display
                                     .interact(|display| {
-                                        display.vsync_occurred.swap(false, Ordering::Relaxed)
+                                        display.vsync_occurred.load(Ordering::Relaxed)
                                     })
                                     .unwrap();
 

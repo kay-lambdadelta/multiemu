@@ -1,4 +1,4 @@
-use super::{CHIP8_DIMENSIONS, SupportedGraphicsApiChip8Display};
+use super::{LORES, SupportedGraphicsApiChip8Display};
 use crate::display::Chip8DisplayBackend;
 use multiemu_graphics::{
     GraphicsApi,
@@ -13,12 +13,12 @@ use multiemu_graphics::{
             device::Queue,
             format::Format,
             image::{Image, ImageCreateInfo, ImageType, ImageUsage},
-            memory::allocator::{AllocationCreateInfo, MemoryTypeFilter},
+            memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
             sync::GpuFuture,
         },
     },
 };
-use nalgebra::DMatrixViewMut;
+use nalgebra::{DMatrixViewMut, Vector2};
 use palette::Srgba;
 use std::sync::Arc;
 
@@ -27,7 +27,9 @@ pub struct VulkanState {
     pub staging_buffer: Subbuffer<[Srgba<u8>]>,
     pub queue: Arc<Queue>,
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-    pub render_image: <Vulkan as GraphicsApi>::FramebufferTexture,
+    pub memory_allocator: Arc<StandardMemoryAllocator>,
+    pub framebuffer: <Vulkan as GraphicsApi>::FramebufferTexture,
+    pub current_resolution: Vector2<usize>,
 }
 
 impl Chip8DisplayBackend for VulkanState {
@@ -45,16 +47,16 @@ impl Chip8DisplayBackend for VulkanState {
                     | MemoryTypeFilter::PREFER_HOST,
                 ..Default::default()
             },
-            vec![Srgba::new(0, 0, 0, 0xff); CHIP8_DIMENSIONS.cast().product()],
+            std::iter::repeat_n(Srgba::new(0, 0, 0, 0xff), LORES.cast().product()),
         )
         .unwrap();
 
-        let render_image = Image::new(
+        let framebuffer = Image::new(
             component_initialization_data.memory_allocator.clone(),
             ImageCreateInfo {
                 image_type: ImageType::Dim2d,
                 format: Format::R8G8B8A8_SRGB,
-                extent: [CHIP8_DIMENSIONS.x as u32, CHIP8_DIMENSIONS.y as u32, 1],
+                extent: [LORES.x as u32, LORES.y as u32, 1],
                 usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
                 ..Default::default()
             },
@@ -67,21 +69,67 @@ impl Chip8DisplayBackend for VulkanState {
             command_buffer_allocator: component_initialization_data
                 .command_buffer_allocator
                 .clone(),
+            memory_allocator: component_initialization_data.memory_allocator.clone(),
             staging_buffer,
-            render_image: render_image.clone(),
+            framebuffer: framebuffer.clone(),
+            current_resolution: LORES.cast(),
         }
     }
 
-    fn modify_staging_buffer(&self, callback: impl FnOnce(DMatrixViewMut<Srgba<u8>>)) {
+    fn resize(&mut self, resolution: Vector2<usize>) {
         let mut staging_buffer_guard = self.staging_buffer.write().unwrap();
+
+        let staging_buffer = DMatrixViewMut::from_slice(
+            &mut staging_buffer_guard,
+            self.current_resolution.x,
+            self.current_resolution.y,
+        )
+        .resize(resolution.x, resolution.y, Srgba::new(0, 0, 0, 0xff));
+        drop(staging_buffer_guard);
+
+        self.staging_buffer = Buffer::from_iter(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::TRANSFER_SRC,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::HOST_RANDOM_ACCESS
+                    | MemoryTypeFilter::PREFER_HOST,
+                ..Default::default()
+            },
+            staging_buffer.into_iter().copied(),
+        )
+        .unwrap();
+
+        self.framebuffer = Image::new(
+            self.memory_allocator.clone(),
+            ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: Format::R8G8B8A8_SRGB,
+                extent: [resolution.x as u32, resolution.y as u32, 1],
+                usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
+                ..Default::default()
+            },
+            AllocationCreateInfo::default(),
+        )
+        .unwrap();
+        self.current_resolution = resolution;
+
+        self.commit_staging_buffer();
+    }
+
+    fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<Srgba<u8>>)) {
+        let mut staging_buffer_guard = self.staging_buffer.write().unwrap();
+
         callback(DMatrixViewMut::from_slice(
             &mut staging_buffer_guard,
-            64,
-            32,
+            self.current_resolution.x,
+            self.current_resolution.y,
         ));
     }
 
-    fn commit_staging_buffer(&self) {
+    fn commit_staging_buffer(&mut self) {
         let mut command_buffer = AutoCommandBufferBuilder::primary(
             self.command_buffer_allocator.clone(),
             self.queue.queue_family_index(),
@@ -93,7 +141,7 @@ impl Chip8DisplayBackend for VulkanState {
             // Copy the staging buffer to the image
             .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
                 self.staging_buffer.clone(),
-                self.render_image.clone(),
+                self.framebuffer.clone(),
             ))
             .unwrap();
 
@@ -109,10 +157,10 @@ impl Chip8DisplayBackend for VulkanState {
     }
 
     fn get_framebuffer(
-        &self,
+        &mut self,
         callback: impl FnOnce(&<Self::GraphicsApi as GraphicsApi>::FramebufferTexture),
     ) {
-        callback(&self.render_image)
+        callback(&self.framebuffer)
     }
 }
 

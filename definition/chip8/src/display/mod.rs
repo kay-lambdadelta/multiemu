@@ -1,4 +1,3 @@
-use super::Chip8Kind;
 use bitvec::{order::Msb0, view::BitView};
 use multiemu_graphics::GraphicsApi;
 use multiemu_runtime::{
@@ -14,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
     num::NonZero,
-    ops::Deref,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -25,8 +23,8 @@ mod software;
 #[cfg(feature = "vulkan")]
 mod vulkan;
 
-const CHIP8_DIMENSIONS: Vector2<u8> = Vector2::new(64, 32);
-const SUPER_CHIP8_DIMENSIONS: Vector2<u8> = Vector2::new(128, 64);
+const LORES: Vector2<u8> = Vector2::new(64, 32);
+const HIRES: Vector2<u8> = Vector2::new(128, 64);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Snapshot {
@@ -35,50 +33,130 @@ struct Snapshot {
 
 #[derive(Debug)]
 pub struct Chip8Display<R: SupportedGraphicsApiChip8Display> {
-    backend: R::Backend,
-    mode: Arc<Mutex<Chip8Kind>>,
+    backend: Mutex<R::Backend>,
     /// The cpu reads this to see if it can continue execution post draw call
     pub vsync_occurred: Arc<AtomicBool>,
+    hires: AtomicBool,
+    config: Chip8DisplayConfig,
 }
 
 impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
+    pub fn set_hires(&self, is_hires: bool) {
+        let mut backend_guard = self.backend.lock().unwrap();
+
+        if self.config.clear_on_resolution_change {
+            self.clear_display();
+        }
+
+        backend_guard.resize(if is_hires { HIRES } else { LORES }.cast());
+        self.hires.store(is_hires, Ordering::Relaxed);
+    }
+
+    pub fn draw_supersized_sprite(&self, position: Point2<u8>, sprite: [u8; 32]) -> bool {
+        tracing::debug!(
+            "Drawing sprite at position {} of dimensions 16x16",
+            position,
+        );
+        let mut backend_guard = self.backend.lock().unwrap();
+
+        let screen_size = if self.hires.load(Ordering::Relaxed) {
+            HIRES
+        } else {
+            LORES
+        };
+        let position = Point2::new(position.x % screen_size.x, position.y % screen_size.y).cast();
+        self.vsync_occurred.store(false, Ordering::Relaxed);
+
+        let mut hit_detection = false;
+
+        backend_guard.modify_staging_buffer(|mut framebuffer| {
+            for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(16).enumerate() {
+                for (x, sprite_pixel) in sprite_row.iter().enumerate() {
+                    let position = position + Vector2::new(x, y);
+
+                    if position.x >= screen_size.x as usize || position.y >= screen_size.y as usize
+                    {
+                        continue;
+                    }
+
+                    let old_sprite_pixel =
+                        framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
+
+                    if *sprite_pixel && old_sprite_pixel {
+                        hit_detection = true;
+                    }
+
+                    framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel {
+                        Srgba::new(255, 255, 255, 255)
+                    } else {
+                        Srgba::new(0, 0, 0, 255)
+                    };
+                }
+            }
+        });
+
+        hit_detection
+    }
+
     pub fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool {
-        tracing::trace!(
+        tracing::debug!(
             "Drawing sprite at position {} of dimensions 8x{}",
             position,
             sprite.len()
         );
-        self.vsync_occurred.store(false, Ordering::Relaxed);
-        let mode = self.mode.lock().unwrap();
-        let position = match mode.deref() {
-            Chip8Kind::Chip8 | Chip8Kind::Chip48 => Point2::new(
-                position.x % CHIP8_DIMENSIONS.x,
-                position.y % CHIP8_DIMENSIONS.y,
-            ),
-            Chip8Kind::SuperChip8 => Point2::new(
-                position.x % SUPER_CHIP8_DIMENSIONS.x,
-                position.y % SUPER_CHIP8_DIMENSIONS.y,
-            ),
-            _ => todo!(),
-        };
+        let mut backend_guard = self.backend.lock().unwrap();
 
+        let screen_size = if self.hires.load(Ordering::Relaxed) {
+            HIRES
+        } else {
+            LORES
+        };
+        self.vsync_occurred.store(false, Ordering::Relaxed);
+
+        let position = Point2::new(position.x % screen_size.x, position.y % screen_size.y).cast();
+        let dimensions = Vector2::new(8, sprite.len());
+
+        if dimensions.min() == 0 {
+            return false;
+        }
         let mut hit_detection = false;
 
-        self.backend
-            .modify_staging_buffer(|framebuffer| {
-                hit_detection = draw_sprite(position, sprite, framebuffer);
-            });
+        backend_guard.modify_staging_buffer(|mut framebuffer| {
+            for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(8).enumerate() {
+                for (x, sprite_pixel) in sprite_row.iter().enumerate() {
+                    let position = position + Vector2::new(x, y);
+
+                    if position.x >= screen_size.x as usize || position.y >= screen_size.y as usize
+                    {
+                        continue;
+                    }
+
+                    let old_sprite_pixel =
+                        framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
+
+                    if *sprite_pixel && old_sprite_pixel {
+                        hit_detection = true;
+                    }
+
+                    framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel {
+                        Srgba::new(255, 255, 255, 255)
+                    } else {
+                        Srgba::new(0, 0, 0, 255)
+                    };
+                }
+            }
+        });
 
         hit_detection
     }
 
     pub fn clear_display(&self) {
         tracing::trace!("Clearing display");
+        let mut backend_guard = self.backend.lock().unwrap();
 
-        self.backend
-            .modify_staging_buffer(|mut framebuffer| {
-                framebuffer.fill(Srgba::new(0, 0, 0, 255));
-            });
+        backend_guard.modify_staging_buffer(|mut framebuffer| {
+            framebuffer.fill(Srgba::new(0, 0, 0, 255));
+        });
     }
 }
 
@@ -92,56 +170,19 @@ pub(crate) trait Chip8DisplayBackend: Debug + 'static {
     type GraphicsApi: GraphicsApi;
 
     fn new(initialization_data: <Self::GraphicsApi as GraphicsApi>::InitializationData) -> Self;
-    fn modify_staging_buffer(&self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>));
-    fn commit_staging_buffer(&self);
+    fn resize(&mut self, resolution: Vector2<usize>);
+    fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>));
+    fn commit_staging_buffer(&mut self);
     fn get_framebuffer(
-        &self,
+        &mut self,
         callback: impl FnOnce(&<Self::GraphicsApi as GraphicsApi>::FramebufferTexture),
     );
 }
 
-#[inline]
-fn draw_sprite(
-    position: Point2<u8>,
-    sprite: &[u8],
-    mut framebuffer: DMatrixViewMut<'_, Srgba<u8>>,
-) -> bool {
-    let position = position.cast();
-    let dimensions = Vector2::new(8, sprite.len());
-
-    if dimensions.min() == 0 {
-        return false;
-    }
-
-    let mut collided = false;
-    for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(8).enumerate() {
-        for (x, sprite_pixel) in sprite_row.iter().enumerate() {
-            let position = position + Vector2::new(x, y);
-
-            if position.x >= 64 || position.y >= 32 {
-                continue;
-            }
-
-            let old_sprite_pixel =
-                framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
-
-            if *sprite_pixel && old_sprite_pixel {
-                collided = true;
-            }
-
-            framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel {
-                Srgba::new(255, 255, 255, 255)
-            } else {
-                Srgba::new(0, 0, 0, 255)
-            };
-        }
-    }
-
-    collided
-}
-
 #[derive(Debug, Default)]
-pub struct Chip8DisplayConfig;
+pub struct Chip8DisplayConfig {
+    pub clear_on_resolution_change: bool,
+}
 
 impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig<P>
     for Chip8DisplayConfig
@@ -167,13 +208,13 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
 
                 // We ignore the time slice and only commit the buffer once
                 move |_: NonZero<u32>| {
+                    vsync.store(true, Ordering::Relaxed);
+
                     component
                         .interact(|display| {
-                            display.backend.commit_staging_buffer();
+                            display.backend.lock().unwrap().commit_staging_buffer();
                         })
                         .unwrap();
-
-                    vsync.store(true, Ordering::Relaxed);
                 }
             })
             .insert_display(Chip8DisplayCallback {
@@ -181,9 +222,10 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             });
 
         component_builder.build(Chip8Display {
-            backend: Chip8DisplayBackend::new(graphics_initialization_data),
-            mode: Arc::default(),
+            backend: Mutex::new(Chip8DisplayBackend::new(graphics_initialization_data)),
+            hires: AtomicBool::new(false),
             vsync_occurred,
+            config: self,
         })
     }
 }
@@ -204,7 +246,7 @@ impl<R: SupportedGraphicsApiChip8Display> DisplayCallback<R> for Chip8DisplayCal
     ) {
         self.component
             .interact_local(|display| {
-                display.backend.get_framebuffer(callback);
+                display.backend.lock().unwrap().get_framebuffer(callback);
             })
             .unwrap();
     }

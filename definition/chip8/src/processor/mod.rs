@@ -1,4 +1,4 @@
-use super::Chip8Kind;
+use super::Chip8Mode;
 use crate::{
     Chip8InstructionDecoder,
     audio::Chip8Audio,
@@ -106,7 +106,7 @@ pub struct Chip8ProcessorConfig<G: SupportedGraphicsApiChip8Display> {
     pub audio: ComponentRef<Chip8Audio>,
     pub timer: ComponentRef<Chip8Timer>,
     pub frequency: Ratio<u32>,
-    pub force_mode: Option<Chip8Kind>,
+    pub force_mode: Option<Chip8Mode>,
     pub always_shr_in_place: bool,
 }
 
@@ -128,7 +128,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             .essentials()
             .memory_translation_table
             .clone();
-        let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Kind::Chip8)));
+        let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Mode::Chip8)));
         let state = Mutex::new(ProcessorState::default());
 
         let virtual_gamepad = VirtualGamepad::new(

@@ -113,8 +113,10 @@ impl Scheduler {
             .into_iter()
             .enumerate()
             .map(|(task_id, precalcuation_task)| {
-                let factor = ticks_per_full_cycle / precalcuation_task.frequency.denom();
-                let tick_rate = precalcuation_task.frequency.numer() * factor;
+                let tick_rate = (Ratio::from_integer(ticks_per_full_cycle)
+                    / precalcuation_task.frequency.recip())
+                .to_integer();
+            
                 let task_id = task_id.try_into().unwrap();
 
                 (
@@ -142,7 +144,6 @@ impl Scheduler {
     fn run_tasks(
         &mut self,
         timeline: impl IntoIterator<Item = TaskToExecute>,
-        representing_time: u32,
     ) {
         for TaskToExecute { id, time_slice } in timeline {
             let representing_time = time_slice.get() * self.tasks.get(&id).unwrap().tick_rate;
@@ -157,7 +158,7 @@ impl Scheduler {
             task.run(time_slice);
         }
 
-        self.update_current_tick(representing_time);
+        self.update_current_tick(1);
     }
 
     #[inline]

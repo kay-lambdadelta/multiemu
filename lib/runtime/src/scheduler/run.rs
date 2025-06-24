@@ -21,8 +21,7 @@ impl Scheduler {
                 break;
             }
 
-            let ticks_left =
-                (allotted_ticks - ticks_passed).min(self.ticks_per_full_cycle - self.current_tick);
+            let ticks_left = allotted_ticks - ticks_passed;
 
             // It's OK to use [Option::unwrap_or_default] here; an empty Vec does not allocate in Rust
             let events = self.schedule.remove(&self.current_tick).unwrap_or_default();
@@ -48,25 +47,19 @@ impl Scheduler {
                     let event = &events[0];
                     let event_info = self.tasks.get(&event).unwrap();
 
-                    self.run_tasks(
-                        [TaskToExecute {
-                            id: *event,
-                            time_slice: NonZero::new(
-                                (max_allotted_ticks / event_info.tick_rate) + 1,
-                            )
-                            .unwrap(),
-                        }],
-                        max_allotted_ticks,
-                    );
+                    self.run_tasks([TaskToExecute {
+                        id: *event,
+                        time_slice: NonZero::new(
+                            (max_allotted_ticks / event_info.tick_rate).max(1),
+                        )
+                        .unwrap(),
+                    }]);
                 }
                 _ => {
-                    self.run_tasks(
-                        events.into_iter().map(|event| TaskToExecute {
-                            id: event,
-                            time_slice: NonZero::new(1).unwrap(),
-                        }),
-                        1,
-                    );
+                    self.run_tasks(events.into_iter().map(|event| TaskToExecute {
+                        id: event,
+                        time_slice: NonZero::new(1).unwrap(),
+                    }));
                 }
             }
         }

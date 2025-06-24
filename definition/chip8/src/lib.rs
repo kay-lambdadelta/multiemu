@@ -23,7 +23,7 @@ mod processor;
 mod timer;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug, Default)]
-pub enum Chip8Kind {
+pub enum Chip8Mode {
     #[default]
     Chip8,
     Chip8x,
@@ -56,7 +56,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> MachineFactory<
                 timer,
                 audio,
                 display,
-                frequency: Ratio::from_integer(700),
+                frequency: Ratio::from_integer(1000),
                 force_mode: None,
                 always_shr_in_place: false,
             },

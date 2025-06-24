@@ -17,8 +17,7 @@ use std::{
 };
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
-    EnvFilter, Layer, fmt::format::FmtSpan, prelude::__tracing_subscriber_SubscriberExt,
-    util::SubscriberInitExt,
+    EnvFilter, Layer, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
 };
 
 mod audio;
@@ -39,7 +38,6 @@ fn main() {
 
     let file = File::create(&environment.log_location.0).expect("Failed to create log file");
     let stderr_layer = tracing_subscriber::fmt::layer()
-        .with_span_events(FmtSpan::CLOSE)
         .with_writer(std::io::stderr)
         .with_ansi(true)
         .with_thread_ids(true)
@@ -185,6 +183,4 @@ fn create_filter() -> EnvFilter {
         .with_regex(true)
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy()
-        // wgpu has a lot of logspam
-        .add_directive("wgpu_hal=warn".parse().unwrap())
 }
