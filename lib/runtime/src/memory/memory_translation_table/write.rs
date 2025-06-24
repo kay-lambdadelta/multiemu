@@ -156,17 +156,21 @@ impl MemoryTranslationTable {
             .write_members
             .overlapping(accessing_range.clone())
         {
+            let adjusted_accessing_range = (*accessing_range
+                .start()
+                .max(component_assignment_range.start()))
+                ..=(*accessing_range.end().min(component_assignment_range.end()));
+
+            let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
+                ..=(adjusted_accessing_range.end() - address);
+
             component_store.interact_dyn(*component_id, |component| {
                 *did_handle = true;
 
-                let overlap_start = accessing_range
-                    .start()
-                    .max(component_assignment_range.start());
-
                 if let Err(errors) = component.write_memory(
-                    *overlap_start,
+                    *adjusted_accessing_range.start(),
                     address_space,
-                    &buffer[buffer_subrange.clone()],
+                    &buffer[adjusted_buffer_subrange.clone()],
                 ) {
                     let mut detected_errors = RangeInclusiveMap::default();
 
