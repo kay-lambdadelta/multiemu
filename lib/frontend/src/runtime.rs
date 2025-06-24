@@ -260,6 +260,10 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         }
         let maybe_machine_guard = self.stored_machine.maybe_machine.read().unwrap();
 
+        self.collected_frame_rates
+            .push(Instant::now() - self.previous_frame_timestamp);
+        self.previous_frame_timestamp = Instant::now();
+
         match self.mode {
             Mode::Machine => {
                 let frame_timing: Duration = if self.collected_frame_rates.is_empty() {
@@ -281,10 +285,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                         .checked_sub(render_frame_time_taken)
                         .unwrap_or(frame_timing),
                 );
-
-                self.collected_frame_rates
-                    .push(Instant::now() - self.previous_frame_timestamp);
-                self.previous_frame_timestamp = Instant::now();
             }
             Mode::Gui => {
                 let mut ui_output = None;
