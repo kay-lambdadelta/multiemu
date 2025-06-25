@@ -120,7 +120,7 @@ struct Player {
 #[derive(Debug)]
 pub(crate) struct Tia<R: Region, G: SupportedGraphicsApiTia> {
     state: Mutex<State>,
-    backend: G::Backend<R>,
+    backend: Mutex<G::Backend<R>>,
     config: TiaConfig<R>,
 }
 

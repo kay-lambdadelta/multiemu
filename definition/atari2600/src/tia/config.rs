@@ -10,7 +10,7 @@ use multiemu_runtime::{
     memory::AddressSpaceHandle,
     platform::Platform,
 };
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Mutex};
 
 #[derive(Debug, Clone)]
 pub(crate) struct TiaConfig<R: Region> {
@@ -51,7 +51,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
 
         component_builder.build(Tia {
             state: Default::default(),
-            backend: TiaDisplayBackend::new(initialization_data),
+            backend: Mutex::new(TiaDisplayBackend::new(initialization_data)),
             config: self,
         })
     }
@@ -69,7 +69,11 @@ impl<R: Region, G: SupportedGraphicsApiTia> DisplayCallback<G> for TiaDisplayCal
     ) {
         self.component
             .interact_local(|component| {
-                component.backend.access_framebuffer(callback);
+                component
+                    .backend
+                    .lock()
+                    .unwrap()
+                    .access_framebuffer(callback);
             })
             .unwrap()
     }

@@ -3,7 +3,7 @@ use crate::tia::{SCANLINE_LENGTH, region::Region};
 use multiemu_graphics::{
     GraphicsApi,
     vulkan::{
-        InitializationData, Vulkan,
+        InitializationData, OwnedBufferWriteGuard, SubbufferExt, Vulkan,
         vulkano::{
             buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
             command_buffer::{
@@ -25,6 +25,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct VulkanState {
     pub staging_buffer: Subbuffer<[Srgba<u8>]>,
+    pub staging_buffer_guard: Option<OwnedBufferWriteGuard<[Srgba<u8>]>>,
     pub queue: Arc<Queue>,
     pub command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
     pub framebuffer: Arc<Image>,
@@ -69,12 +70,15 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
             queue: initialization_data.best_queue(),
             command_buffer_allocator: initialization_data.command_buffer_allocator.clone(),
             staging_buffer,
+            staging_buffer_guard: None,
             framebuffer: framebuffer.clone(),
         }
     }
 
-    fn modify_staging_buffer(&self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>)) {
-        let mut staging_buffer_guard = self.staging_buffer.write().unwrap();
+    fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>)) {
+        let mut staging_buffer_guard = self
+            .staging_buffer_guard
+            .get_or_insert_with(|| self.staging_buffer.owned_write().unwrap());
 
         callback(DMatrixViewMut::from_slice(
             &mut staging_buffer_guard,
@@ -83,7 +87,10 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
         ));
     }
 
-    fn commit_staging_buffer(&self) {
+    fn commit_staging_buffer(&mut self) {
+        // Drop the owned guard
+        self.staging_buffer_guard.take();
+
         let mut command_buffer = AutoCommandBufferBuilder::primary(
             self.command_buffer_allocator.clone(),
             self.queue.queue_family_index(),
@@ -111,7 +118,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
     }
 
     fn access_framebuffer(
-        &self,
+        &mut self,
         callback: impl FnOnce(&<Vulkan as GraphicsApi>::FramebufferTexture),
     ) {
         callback(&self.framebuffer);

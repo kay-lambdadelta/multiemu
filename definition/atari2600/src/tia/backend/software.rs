@@ -6,12 +6,11 @@ use multiemu_graphics::{
 };
 use nalgebra::DMatrix;
 use palette::Srgba;
-use std::cell::RefCell;
 
 #[derive(Debug)]
 pub struct SoftwareState {
-    pub staging_buffer: RefCell<DMatrix<Srgba<u8>>>,
-    pub framebuffer: RefCell<DMatrix<Srgba<u8>>>,
+    pub staging_buffer: DMatrix<Srgba<u8>>,
+    pub framebuffer: DMatrix<Srgba<u8>>,
 }
 
 impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
@@ -25,32 +24,27 @@ impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
         );
 
         SoftwareState {
-            framebuffer: RefCell::new(staging_buffer.clone()),
-            staging_buffer: RefCell::new(staging_buffer),
+            framebuffer: staging_buffer.clone(),
+            staging_buffer,
         }
     }
 
     fn modify_staging_buffer(
-        &self,
+        &mut self,
         callback: impl FnOnce(nalgebra::DMatrixViewMut<'_, Srgba<u8>>),
     ) {
-        let mut staging_buffer_guard = self.staging_buffer.borrow_mut();
-        callback(staging_buffer_guard.as_view_mut());
+        callback(self.staging_buffer.as_view_mut());
     }
 
-    fn commit_staging_buffer(&self) {
-        let staging_buffer_guard = self.staging_buffer.borrow();
-        let mut framebuffer_guard = self.framebuffer.borrow_mut();
-
-        framebuffer_guard.copy_from(&staging_buffer_guard);
+    fn commit_staging_buffer(&mut self) {
+        self.framebuffer.copy_from(&self.staging_buffer);
     }
 
     fn access_framebuffer(
-        &self,
+        &mut self,
         callback: impl FnOnce(&<Software as GraphicsApi>::FramebufferTexture),
     ) {
-        let framebuffer_guard = self.framebuffer.borrow();
-        callback(&framebuffer_guard);
+        callback(&self.framebuffer);
     }
 }
 
