@@ -53,7 +53,7 @@ impl AddressSpace {
 
         for addresses in mapping {
             tracing::debug!(
-                "Mapping memory component_id {:?} to address range {:?}",
+                "Mapping memory component_id {:?} to address range {:#04x?}",
                 component_id,
                 addresses
             );
@@ -83,7 +83,7 @@ impl AddressSpace {
 
         for addresses in mapping {
             tracing::debug!(
-                "Mapping write memory component_id {:?} to address range {:?}",
+                "Mapping write memory component_id {:?} to address range {:#04x?}",
                 component_id,
                 addresses
             );
@@ -112,7 +112,7 @@ impl AddressSpace {
 
         for addresses in mapping {
             tracing::debug!(
-                "Mapping read memory component_id {:?} to address range {:?}",
+                "Mapping read memory component_id {:?} to address range {:#04x?}",
                 component_id,
                 addresses
             );

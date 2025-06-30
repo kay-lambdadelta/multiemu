@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
     sync::{
-        Arc, Mutex,
+        Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -23,6 +23,8 @@ mod decoder;
 mod instruction;
 mod interpret;
 mod task;
+#[cfg(test)]
+mod tests;
 
 const RESET_VECTOR: usize = 0xfffc;
 const PAGE_SIZE: usize = 256;
@@ -172,6 +174,7 @@ impl Mos6502Kind {
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
+/// We don't store this in memory bitpacked for performance reasons
 pub struct FlagRegister {
     negative: bool,
     overflow: bool,
@@ -263,7 +266,8 @@ impl Default for ProcessorState {
 #[derive(Debug)]
 pub struct Mos6502 {
     state: Mutex<ProcessorState>,
-    rdy: Arc<AtomicBool>,
+    rdy: AtomicBool,
+    config: Mos6502Config,
 }
 
 impl Mos6502 {
@@ -290,31 +294,28 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
 
     fn build_component(
         self,
-        _component_ref: ComponentRef<Self::Component>,
+        component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) {
-        let config = Arc::new(self);
-        let rdy = Arc::new(AtomicBool::new(true));
+        let rdy = AtomicBool::new(true);
         let memory_translation_table = component_builder
             .essentials()
             .memory_translation_table
             .clone();
-        let state = Arc::new(Mutex::new(ProcessorState::default()));
 
         component_builder
             .insert_task(
-                config.frequency,
+                self.frequency,
                 Mos6502Task {
                     memory_translation_table,
-                    instruction_decoder: Mos6502InstructionDecoder::new(config.kind),
-                    state: state.clone(),
-                    rdy: rdy.clone(),
-                    config: config.clone(),
+                    instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
+                    component: component_ref,
                 },
             )
             .build_global(Mos6502 {
                 state: Mutex::default(),
                 rdy,
+                config: self,
             })
     }
 }

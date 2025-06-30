@@ -27,6 +27,14 @@ struct TaskInfo {
     pub tick_rate: u32,
 }
 
+impl Debug for TaskInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TaskInfo")
+            .field("tick_rate", &self.tick_rate)
+            .finish()
+    }
+}
+
 #[derive(Debug)]
 struct TaskToExecute {
     pub time_slice: NonZero<u32>,
@@ -37,7 +45,8 @@ struct TaskToExecute {
 ///
 /// It is a cooperative multithreaded tick based scheduler
 ///
-/// Currently it only supports frequency based executions
+/// Currently it only supports frequency based executions'
+#[derive(Debug)]
 pub struct Scheduler {
     /// Global tick we are currently on
     current_tick: u32,
@@ -48,12 +57,6 @@ pub struct Scheduler {
     /// Tasks
     tasks: HashMap<TaskId, TaskInfo, FxBuildHasher>,
     schedule: BTreeMap<u32, Vec<TaskId>>,
-}
-
-impl Debug for Scheduler {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Scheduler").finish()
-    }
 }
 
 impl Scheduler {
@@ -116,7 +119,7 @@ impl Scheduler {
                 let tick_rate = (Ratio::from_integer(ticks_per_full_cycle)
                     / precalcuation_task.frequency.recip())
                 .to_integer();
-            
+
                 let task_id = task_id.try_into().unwrap();
 
                 (
@@ -141,10 +144,7 @@ impl Scheduler {
     }
 
     #[inline]
-    fn run_tasks(
-        &mut self,
-        timeline: impl IntoIterator<Item = TaskToExecute>,
-    ) {
+    fn run_tasks(&mut self, timeline: impl IntoIterator<Item = TaskToExecute>) {
         for TaskToExecute { id, time_slice } in timeline {
             let representing_time = time_slice.get() * self.tasks.get(&id).unwrap().tick_rate;
 

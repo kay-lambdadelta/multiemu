@@ -5,23 +5,18 @@ use std::{num::NonZero, time::Duration};
 impl Scheduler {
     /// Runs the scheduler for a single pass
     ///
-    pub fn run(&mut self, allotted_duration: Duration) {
-        // Do not allow the above runtime to undercut us stupidly
-        let allotted_duration = allotted_duration.max(self.tick_real_time);
-        let old_current_tick = self.current_tick;
 
-        let allotted_ticks = (allotted_duration.as_nanos() / self.tick_real_time.as_nanos())
-            .try_into()
-            .unwrap();
+    pub fn run_for_cycles(&mut self, cycles: u32) {
+        let old_current_tick = self.current_tick;
 
         loop {
             let ticks_passed = self.current_tick.wrapping_sub(old_current_tick);
 
-            if ticks_passed >= allotted_ticks {
+            if ticks_passed >= cycles {
                 break;
             }
 
-            let ticks_left = allotted_ticks - ticks_passed;
+            let ticks_left = cycles - ticks_passed;
 
             // It's OK to use [Option::unwrap_or_default] here; an empty Vec does not allocate in Rust
             let events = self.schedule.remove(&self.current_tick).unwrap_or_default();
@@ -63,5 +58,16 @@ impl Scheduler {
                 }
             }
         }
+    }
+
+    pub fn run(&mut self, allotted_duration: Duration) {
+        // Do not allow the above runtime to undercut us stupidly
+        let allotted_duration = allotted_duration.max(self.tick_real_time);
+
+        let allotted_ticks = (allotted_duration.as_nanos() / self.tick_real_time.as_nanos())
+            .try_into()
+            .unwrap();
+
+        self.run_for_cycles(allotted_ticks);
     }
 }

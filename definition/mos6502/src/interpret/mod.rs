@@ -3,7 +3,7 @@ use super::{
     instruction::{Mos6502InstructionSet, Mos6502Opcode},
 };
 use crate::{
-    ExecutionMode, StoreStep,
+    ExecutionMode, Mos6502Config, StoreStep,
     instruction::{AddressingMode, Mos6502AddressingMode, Opcode, Wdc65C02Opcode},
     task::Mos6502Task,
 };
@@ -15,45 +15,25 @@ use std::collections::VecDeque;
 pub const STACK_BASE_ADDRESS: Address = 0x0100;
 const INTERRUPT_VECTOR: Address = 0xfffe;
 
-#[cfg(test)]
-mod tests;
-
 // NOTE: https://www.pagetable.com/c64ref/6502
 
 impl Mos6502Task {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,
+        config: &Mos6502Config,
         instruction: Mos6502InstructionSet,
     ) {
         match instruction.opcode {
             Opcode::Mos6502(opcode) => {
                 match opcode {
                     Mos6502Opcode::Adc => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
-                        if state.flags.decimal && self.config.kind.supports_decimal() {
-                        } else {
-                            let carry = state.flags.carry as u8;
-
-                            let (first_operation_result, first_operation_overflow) =
-                                state.a.overflowing_add(value);
-
-                            let (second_operation_result, second_operation_overflow) =
-                                first_operation_result.overflowing_add(carry);
-
-                            state.flags.overflow =
-                                first_operation_overflow || second_operation_overflow;
-                            state.flags.carry =
-                                first_operation_overflow || second_operation_overflow;
-                            state.flags.negative = second_operation_result.view_bits::<Msb0>()[0];
-                            state.flags.zero = second_operation_result == 0;
-
-                            state.a = second_operation_result;
-                        }
+                        adc(state, config, value);
                     }
                     Mos6502Opcode::Anc => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = state.a & value;
 
@@ -64,7 +44,7 @@ impl Mos6502Task {
                         state.a = result;
                     }
                     Mos6502Opcode::And => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = state.a & value;
 
@@ -74,7 +54,7 @@ impl Mos6502Task {
                         state.a = result;
                     }
                     Mos6502Opcode::Arr => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let mut result = state.a & value;
 
@@ -93,7 +73,7 @@ impl Mos6502Task {
                         state.a = result;
                     }
                     Mos6502Opcode::Asl => {
-                        let mut value: u8 = self.load(state, &instruction);
+                        let mut value: u8 = self.load(state, &instruction, config);
                         let value_bits = value.view_bits::<Msb0>();
 
                         let carry = value_bits[0];
@@ -114,7 +94,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Asr => {
-                        let mut value: u8 = self.load(state, &instruction);
+                        let mut value: u8 = self.load(state, &instruction, config);
                         let value_bits = value.view_bits::<Msb0>();
 
                         let carry = value_bits[0];
@@ -136,7 +116,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Bcc => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(state, &instruction, config);
 
                         if !state.flags.carry {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
@@ -145,7 +125,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Bcs => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(state, &instruction, config);
 
                         if state.flags.carry {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
@@ -154,7 +134,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Beq => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(state, &instruction, config);
 
                         if state.flags.zero {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
@@ -163,7 +143,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Bit => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
                         let value_bits = value.view_bits::<Msb0>();
 
                         let result = state.a & value;
@@ -173,7 +153,7 @@ impl Mos6502Task {
                         state.flags.zero = result == 0;
                     }
                     Mos6502Opcode::Bmi => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(state, &instruction, config);
 
                         if state.flags.negative {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
@@ -182,7 +162,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Bne => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(state, &instruction, config);
 
                         if !state.flags.zero {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
@@ -191,7 +171,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Bpl => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(state, &instruction, config);
 
                         if !state.flags.negative {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
@@ -205,13 +185,13 @@ impl Mos6502Task {
 
                         let _ = self.memory_translation_table.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
-                            self.config.assigned_address_space,
+                            config.assigned_address_space,
                             program_bytes[0],
                         );
 
                         let _ = self.memory_translation_table.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS + 1,
-                            self.config.assigned_address_space,
+                            config.assigned_address_space,
                             program_bytes[1],
                         );
 
@@ -224,19 +204,16 @@ impl Mos6502Task {
 
                         let _ = self.memory_translation_table.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
-                            self.config.assigned_address_space,
+                            config.assigned_address_space,
                             flags.to_byte(),
                         );
 
                         let program = [
                             self.memory_translation_table
-                                .read_le_value(INTERRUPT_VECTOR, self.config.assigned_address_space)
+                                .read_le_value(INTERRUPT_VECTOR, config.assigned_address_space)
                                 .unwrap_or_default(),
                             self.memory_translation_table
-                                .read_le_value(
-                                    INTERRUPT_VECTOR + 1,
-                                    self.config.assigned_address_space,
-                                )
+                                .read_le_value(INTERRUPT_VECTOR + 1, config.assigned_address_space)
                                 .unwrap_or_default(),
                         ];
                         state.program = u16::from_le_bytes(program);
@@ -244,7 +221,7 @@ impl Mos6502Task {
                         state.stack = new_stack;
                     }
                     Mos6502Opcode::Bvc => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(state, &instruction, config);
 
                         if !state.flags.overflow {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
@@ -253,7 +230,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Bvs => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(state, &instruction, config);
 
                         if state.flags.overflow {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
@@ -274,7 +251,7 @@ impl Mos6502Task {
                         state.flags.overflow = false;
                     }
                     Mos6502Opcode::Cmp => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = state.a.wrapping_sub(value);
 
@@ -283,7 +260,7 @@ impl Mos6502Task {
                         state.flags.carry = state.a >= value;
                     }
                     Mos6502Opcode::Cpx => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = state.x.wrapping_sub(value);
 
@@ -292,7 +269,7 @@ impl Mos6502Task {
                         state.flags.carry = state.x >= value;
                     }
                     Mos6502Opcode::Cpy => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = state.y.wrapping_sub(value);
 
@@ -302,7 +279,7 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Dcp => todo!(),
                     Mos6502Opcode::Dec => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = value.wrapping_sub(1);
 
@@ -336,7 +313,7 @@ impl Mos6502Task {
                         state.y = result;
                     }
                     Mos6502Opcode::Eor => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = state.a ^ value;
 
@@ -346,7 +323,7 @@ impl Mos6502Task {
                         state.a = result;
                     }
                     Mos6502Opcode::Inc => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = value.wrapping_add(1);
 
@@ -394,15 +371,15 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Jsr => {
                         // We load the byte BEFORE the program counter
-                        let program_bytes = (state.program.wrapping_sub(1)).to_be_bytes();
+                        let program_bytes = (state.program.wrapping_sub(1)).to_le_bytes();
 
                         state.execution_mode = Some(ExecutionMode::PostInterpret {
                             queue: VecDeque::from_iter([
                                 StoreStep::PushStack {
-                                    data: program_bytes[0],
+                                    data: program_bytes[1],
                                 },
                                 StoreStep::PushStack {
-                                    data: program_bytes[1],
+                                    data: program_bytes[0],
                                 },
                                 StoreStep::BusToProgram,
                             ]),
@@ -410,13 +387,13 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Las => todo!(),
                     Mos6502Opcode::Lax => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         state.a = value;
                         state.x = value;
                     }
                     Mos6502Opcode::Lda => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         state.flags.negative = value.view_bits::<Msb0>()[0];
                         state.flags.zero = value == 0;
@@ -424,7 +401,7 @@ impl Mos6502Task {
                         state.a = value;
                     }
                     Mos6502Opcode::Ldx => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         state.flags.negative = value.view_bits::<Msb0>()[0];
                         state.flags.zero = value == 0;
@@ -432,7 +409,7 @@ impl Mos6502Task {
                         state.x = value;
                     }
                     Mos6502Opcode::Ldy => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         state.flags.negative = value.view_bits::<Msb0>()[0];
                         state.flags.zero = value == 0;
@@ -440,7 +417,7 @@ impl Mos6502Task {
                         state.y = value;
                     }
                     Mos6502Opcode::Lsr => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
                         let value_bits = value.view_bits::<Msb0>();
 
                         let carry = value_bits[0];
@@ -462,11 +439,11 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Nop => {
                         if instruction.addressing_mode.is_some() {
-                            let _: u8 = self.load(state, &instruction);
+                            let _: u8 = self.load(state, &instruction, config);
                         }
                     }
                     Mos6502Opcode::Ora => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
                         let result = state.a | value;
 
@@ -497,7 +474,7 @@ impl Mos6502Task {
                             .memory_translation_table
                             .read_le_value(
                                 state.stack as usize + STACK_BASE_ADDRESS,
-                                self.config.assigned_address_space,
+                                config.assigned_address_space,
                             )
                             .unwrap_or_default();
 
@@ -511,7 +488,7 @@ impl Mos6502Task {
                             .memory_translation_table
                             .read_le_value(
                                 state.stack as usize + STACK_BASE_ADDRESS,
-                                self.config.assigned_address_space,
+                                config.assigned_address_space,
                             )
                             .unwrap_or_default();
 
@@ -520,7 +497,7 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Rla => todo!(),
                     Mos6502Opcode::Rol => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
                         let value_bits = value.view_bits::<Msb0>();
 
                         state.flags.carry = value_bits[7];
@@ -540,7 +517,7 @@ impl Mos6502Task {
                         }
                     }
                     Mos6502Opcode::Ror => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
                         let value_bits = value.view_bits::<Msb0>();
 
                         state.flags.carry = value_bits[0];
@@ -561,52 +538,26 @@ impl Mos6502Task {
                     Mos6502Opcode::Rra => todo!(),
                     Mos6502Opcode::Rti => todo!(),
                     Mos6502Opcode::Rts => {
-                        let program = [
-                            self.memory_translation_table
-                                .read_le_value(
-                                    STACK_BASE_ADDRESS + state.stack as usize,
-                                    self.config.assigned_address_space,
-                                )
-                                .unwrap_or_default(),
-                            self.memory_translation_table
-                                .read_le_value(
-                                    STACK_BASE_ADDRESS + state.stack.wrapping_add(1) as usize,
-                                    self.config.assigned_address_space,
-                                )
-                                .unwrap_or_default(),
-                        ];
+                        let program = self
+                            .memory_translation_table
+                            .read_le_value::<u16>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                config.assigned_address_space,
+                            )
+                            .unwrap_or_default();
 
                         state.stack = state.stack.wrapping_add(2);
-                        state.program = u16::from_le_bytes(program).wrapping_add(1);
+                        state.program = program.wrapping_add(1);
                     }
                     Mos6502Opcode::Sax => {
                         let value = state.a & state.x;
 
-                        self.store(state, &instruction, value);
+                        self.store(state, &instruction, config, value);
                     }
                     Mos6502Opcode::Sbc => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
 
-                        if state.flags.decimal && self.config.kind.supports_decimal() {
-                        } else {
-                            let carry = state.flags.carry as u8;
-
-                            let (first_operation_result, first_operation_overflow) =
-                                state.a.overflowing_sub(value);
-
-                            let (second_operation_result, second_operation_overflow) =
-                                first_operation_result.overflowing_sub(carry);
-
-                            // If it overflowed at any point this is set
-                            state.flags.overflow =
-                                first_operation_overflow || second_operation_overflow;
-                            state.flags.carry =
-                                first_operation_overflow || second_operation_overflow;
-                            state.flags.negative = second_operation_result.view_bits::<Msb0>()[0];
-                            state.flags.zero = second_operation_result == 0;
-
-                            state.a = second_operation_result;
-                        }
+                        adc(state, config, !value);
                     }
                     Mos6502Opcode::Sbx => todo!(),
                     Mos6502Opcode::Sec => {
@@ -625,13 +576,13 @@ impl Mos6502Task {
                     Mos6502Opcode::Slo => todo!(),
                     Mos6502Opcode::Sre => todo!(),
                     Mos6502Opcode::Sta => {
-                        self.store(state, &instruction, state.a);
+                        self.store(state, &instruction, config, state.a);
                     }
                     Mos6502Opcode::Stx => {
-                        self.store(state, &instruction, state.x);
+                        self.store(state, &instruction, config, state.x);
                     }
                     Mos6502Opcode::Sty => {
-                        self.store(state, &instruction, state.y);
+                        self.store(state, &instruction, config, state.y);
                     }
                     Mos6502Opcode::Tax => {
                         let result = state.a;
@@ -677,7 +628,7 @@ impl Mos6502Task {
                         state.a = result;
                     }
                     Mos6502Opcode::Xaa => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(state, &instruction, config);
                         let random_value: u8 = rand::random();
 
                         let result = (state.a & random_value) & state.x & value;
@@ -691,7 +642,7 @@ impl Mos6502Task {
             }
             Opcode::Wdc65C02(opcode) => match opcode {
                 Wdc65C02Opcode::Bra => {
-                    let value: i8 = self.load(state, &instruction);
+                    let value: i8 = self.load(state, &instruction, config);
 
                     state.execution_mode = Some(ExecutionMode::PostInterpret {
                         queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
@@ -710,10 +661,12 @@ impl Mos6502Task {
         }
     }
 
+    #[inline]
     fn load<T: FromBytes<Bytes = [u8; 1]> + Default>(
         &self,
         state: &mut ProcessorState,
         instruction: &Mos6502InstructionSet,
+        config: &Mos6502Config,
     ) -> T {
         match instruction.addressing_mode {
             Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)) => {
@@ -722,18 +675,17 @@ impl Mos6502Task {
             None => unreachable!(),
             _ => self
                 .memory_translation_table
-                .read_le_value(
-                    state.address_bus as usize,
-                    self.config.assigned_address_space,
-                )
+                .read_le_value(state.address_bus as usize, config.assigned_address_space)
                 .unwrap_or_default(),
         }
     }
 
+    #[inline]
     fn store<T: ToBytes<Bytes = [u8; 1]>>(
         &self,
         state: &mut ProcessorState,
         instruction: &Mos6502InstructionSet,
+        config: &Mos6502Config,
         value: T,
     ) {
         match instruction.addressing_mode {
@@ -746,10 +698,33 @@ impl Mos6502Task {
             _ => {
                 let _ = self.memory_translation_table.write_le_value(
                     state.address_bus as usize,
-                    self.config.assigned_address_space,
+                    config.assigned_address_space,
                     value,
                 );
             }
         }
+    }
+}
+
+fn adc(state: &mut ProcessorState, config: &Mos6502Config, value: u8) {
+    if state.flags.decimal && config.kind.supports_decimal() {
+    } else {
+        let carry = state.flags.carry as u8;
+
+        let (first_operation_result, first_operation_carry) = state.a.overflowing_add(value);
+
+        let (second_operation_result, second_operation_carry) =
+            first_operation_result.overflowing_add(carry);
+
+        let a_bits = state.a.view_bits::<Msb0>();
+        let value_bits = value.view_bits::<Msb0>();
+        let result_bits = second_operation_result.view_bits::<Msb0>();
+
+        state.flags.overflow = (a_bits[0] == value_bits[0]) && (a_bits[0] != result_bits[0]);
+        state.flags.carry = first_operation_carry || second_operation_carry;
+        state.flags.negative = result_bits[0];
+        state.flags.zero = second_operation_result == 0;
+
+        state.a = second_operation_result;
     }
 }

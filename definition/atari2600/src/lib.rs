@@ -226,16 +226,26 @@ fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
 // Which would be difficult, painful, and require inefficient changes to the memory translation table
 
 fn tia_read_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
-    (1..64).map(|i| {
-        let base = i * 0x10;
-        base..=base + 0x0f
+    (0x0000..=0x0fff).step_by(0x20).skip(1).filter_map(|base| {
+        let reduced_base = base & 0xff;
+
+        if [0x00, 0x20, 0x40, 0x60].contains(&reduced_base) {
+            return Some(base..=base + 0x3f);
+        }
+
+        None
     })
 }
 
 fn tia_write_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
-    (1..32).map(|i| {
-        let base = i * 0x40;
-        base..=base + 0x3f
+    (0x0000..=0x0fff).step_by(0x40).skip(1).filter_map(|base| {
+        let reduced_base = base & 0xff;
+
+        if [0x00, 0x40].contains(&reduced_base) {
+            return Some(base..=base + 0x3f);
+        }
+
+        None
     })
 }
 

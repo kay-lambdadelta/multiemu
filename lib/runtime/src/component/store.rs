@@ -24,19 +24,11 @@ pub enum ComponentStoreError {
     ComponentUnreachable,
 }
 
+#[derive(Debug)]
 enum ComponentLocation {
     Global(Box<dyn Component + Send + Sync>),
     // Use fragile to guard thread safety
     Local(Fragile<Box<dyn Component>>),
-}
-
-impl Debug for ComponentLocation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ComponentLocation::Global(_) => f.write_str("Global"),
-            ComponentLocation::Local(_) => f.write_str("Local"),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -138,6 +130,7 @@ impl ComponentStore {
     }
 
     // Interacts with a component wherever it may be
+    #[inline]
     pub fn interact_dyn<T: Send + 'static>(
         &self,
         component_id: ComponentId,
@@ -157,6 +150,7 @@ impl ComponentStore {
     }
 
     // Interacts with a component but restricted to the local instance, mostly for graphics initialization
+    #[inline]
     pub fn interact_dyn_local<T: 'static>(
         &self,
         component_id: ComponentId,

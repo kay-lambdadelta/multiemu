@@ -1,188 +1,204 @@
 use crate::{
-    ExecutionMode, LoadStep, Mos6502Config, ProcessorState, RESET_VECTOR, StoreStep,
+    ExecutionMode, LoadStep, Mos6502, Mos6502Config, ProcessorState, RESET_VECTOR, StoreStep,
     decoder::Mos6502InstructionDecoder,
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,
 };
 use arrayvec::ArrayVec;
 use multiemu_runtime::{
-    memory::MemoryTranslationTable, processor::InstructionDecoder, scheduler::Task,
+    component::ComponentRef, memory::MemoryTranslationTable, processor::InstructionDecoder,
+    scheduler::Task,
 };
 use std::{
     collections::VecDeque,
     num::NonZero,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, atomic::Ordering},
 };
 
 pub struct Mos6502Task {
     pub memory_translation_table: Arc<MemoryTranslationTable>,
     pub instruction_decoder: Mos6502InstructionDecoder,
-    pub state: Arc<Mutex<ProcessorState>>,
-    pub rdy: Arc<AtomicBool>,
-    pub config: Arc<Mos6502Config>,
+    pub component: ComponentRef<Mos6502>,
 }
 
 impl Task for Mos6502Task {
     fn run(&mut self, time_slice: NonZero<u32>) {
-        // Keep the guard like this so doing a full load of the guard only happens occasionally
-        let mut state_guard = self.state.lock().unwrap();
-        let mut time_slice = time_slice.get();
+        self.component
+            .interact(|component| {
+                // Keep the guard like this so doing a full load of the guard only happens occasionally
+                let mut state_guard = component.state.lock().unwrap();
+                let mut time_slice = time_slice.get();
 
-        while time_slice != 0 {
-            if !self.rdy.load(Ordering::Relaxed) {
-                time_slice -= 1;
-                continue;
-            }
+                while time_slice != 0 {
+                    if !component.rdy.load(Ordering::Relaxed) {
+                        time_slice -= 1;
+                        continue;
+                    }
 
-            match state_guard.execution_mode.take().unwrap() {
-                ExecutionMode::FetchAndDecode => {
-                    tracing::debug!(
-                        "Fetching and decoding instruction from {:#04x}",
-                        state_guard.program
-                    );
+                    match state_guard.execution_mode.take().unwrap() {
+                        ExecutionMode::FetchAndDecode => {
+                            tracing::debug!(
+                                "Fetching and decoding instruction from {:#04x}",
+                                state_guard.program
+                            );
 
-                    fetch_and_decode(
-                        &mut state_guard,
-                        &self.instruction_decoder,
-                        &self.config,
-                        &self.memory_translation_table,
-                    );
+                            fetch_and_decode(
+                                &mut state_guard,
+                                &self.instruction_decoder,
+                                &component.config,
+                                &self.memory_translation_table,
+                            );
 
-                    time_slice -= 1;
-                }
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    mut latch,
-                    mut queue,
-                } => {
-                    let mut tick = false;
-
-                    match queue.pop_front() {
-                        Some(LoadStep::Data) => {
-                            let byte = self
-                                .memory_translation_table
-                                .read_le_value(
-                                    state_guard.address_bus as usize,
-                                    self.config.assigned_address_space,
-                                )
-                                .unwrap_or_default();
-
-                            latch.push(byte);
-                            state_guard.address_bus = state_guard.address_bus.wrapping_add(1);
-
-                            tick = true;
+                            time_slice -= 1;
                         }
-                        Some(LoadStep::LatchToBus) => {
-                            match latch.len() {
-                                0 => {
-                                    unreachable!()
+                        ExecutionMode::PreInterpret {
+                            instruction,
+                            mut latch,
+                            mut queue,
+                        } => {
+                            let mut tick = false;
+
+                            match queue.pop_front() {
+                                Some(LoadStep::Data) => {
+                                    let byte = self
+                                        .memory_translation_table
+                                        .read_le_value(
+                                            state_guard.address_bus as usize,
+                                            component.config.assigned_address_space,
+                                        )
+                                        .unwrap_or_default();
+
+                                    latch.push(byte);
+                                    state_guard.address_bus =
+                                        state_guard.address_bus.wrapping_add(1);
+
+                                    tick = true;
                                 }
-                                1 => {
-                                    state_guard.address_bus = latch[0] as u16;
+                                Some(LoadStep::LatchToBus) => {
+                                    match latch.len() {
+                                        0 => {
+                                            unreachable!()
+                                        }
+                                        1 => {
+                                            state_guard.address_bus = latch[0] as u16;
+                                        }
+                                        2 => {
+                                            let latch = [latch[0], latch[1]];
+                                            state_guard.address_bus = u16::from_le_bytes(latch);
+                                        }
+                                        _ => {
+                                            unreachable!()
+                                        }
+                                    }
+
+                                    latch.clear();
                                 }
-                                2 => {
-                                    let latch = [latch[0], latch[1]];
-                                    state_guard.address_bus = u16::from_le_bytes(latch);
+                                Some(LoadStep::Offset { offset }) => {
+                                    state_guard.address_bus =
+                                        state_guard.address_bus.wrapping_add(offset as u16);
+                                }
+                                _ => unreachable!(),
+                            }
+
+                            if queue.is_empty() {
+                                state_guard.execution_mode =
+                                    Some(ExecutionMode::Interpret { instruction });
+                            } else {
+                                state_guard.execution_mode = Some(ExecutionMode::PreInterpret {
+                                    instruction,
+                                    latch,
+                                    queue,
+                                });
+                            }
+
+                            if tick {
+                                time_slice -= 1;
+                            }
+                        }
+                        ExecutionMode::Jammed => {
+                            time_slice -= 1;
+                        }
+                        ExecutionMode::Wait => {
+                            time_slice -= 1;
+                        }
+                        ExecutionMode::Reset => {
+                            let program = [
+                                self.memory_translation_table
+                                    .read_le_value(
+                                        RESET_VECTOR,
+                                        component.config.assigned_address_space,
+                                    )
+                                    .unwrap_or_default(),
+                                self.memory_translation_table
+                                    .read_le_value(
+                                        RESET_VECTOR + 1,
+                                        component.config.assigned_address_space,
+                                    )
+                                    .unwrap_or_default(),
+                            ];
+
+                            state_guard.program = u16::from_le_bytes(program);
+                            state_guard.execution_mode = Some(ExecutionMode::FetchAndDecode);
+
+                            time_slice -= 1;
+                        }
+                        ExecutionMode::PostInterpret { mut queue } => {
+                            match queue.pop_front() {
+                                Some(StoreStep::BusToProgram) => {
+                                    state_guard.program = state_guard.address_bus;
+                                }
+                                Some(StoreStep::Data { value }) => {
+                                    let _ = self.memory_translation_table.write_le_value(
+                                        state_guard.address_bus as usize,
+                                        component.config.assigned_address_space,
+                                        value,
+                                    );
+                                    state_guard.address_bus =
+                                        state_guard.address_bus.wrapping_add(1);
+                                }
+                                Some(StoreStep::PushStack { data }) => {
+                                    state_guard.stack = state_guard.stack.wrapping_sub(1);
+                                    let _ = self.memory_translation_table.write_le_value(
+                                        STACK_BASE_ADDRESS + state_guard.stack as usize,
+                                        component.config.assigned_address_space,
+                                        data,
+                                    );
+                                }
+                                Some(StoreStep::AddToProgram { value }) => {
+                                    state_guard.program =
+                                        state_guard.program.wrapping_add_signed(value as i16);
                                 }
                                 _ => {
                                     unreachable!()
                                 }
                             }
 
-                            latch.clear();
+                            if queue.is_empty() {
+                                state_guard.execution_mode = Some(ExecutionMode::FetchAndDecode);
+                            } else {
+                                state_guard.execution_mode =
+                                    Some(ExecutionMode::PostInterpret { queue });
+                            }
+
+                            time_slice -= 1;
                         }
-                        Some(LoadStep::Offset { offset }) => {
-                            state_guard.address_bus =
-                                state_guard.address_bus.wrapping_add(offset as u16);
-                        }
-                        _ => unreachable!(),
-                    }
+                        ExecutionMode::Interpret { instruction } => {
+                            state_guard.execution_mode = Some(ExecutionMode::FetchAndDecode);
 
-                    if queue.is_empty() {
-                        state_guard.execution_mode = Some(ExecutionMode::Interpret { instruction });
-                    } else {
-                        state_guard.execution_mode = Some(ExecutionMode::PreInterpret {
-                            instruction,
-                            latch,
-                            queue,
-                        });
-                    }
+                            tracing::debug!("Interpreting instruction {:?}", instruction.opcode);
 
-                    if tick {
-                        time_slice -= 1;
-                    }
-                }
-                ExecutionMode::Jammed => {
-                    time_slice -= 1;
-                }
-                ExecutionMode::Wait => {
-                    time_slice -= 1;
-                }
-                ExecutionMode::Reset => {
-                    let program = [
-                        self.memory_translation_table
-                            .read_le_value(RESET_VECTOR, self.config.assigned_address_space)
-                            .unwrap_or_default(),
-                        self.memory_translation_table
-                            .read_le_value(RESET_VECTOR + 1, self.config.assigned_address_space)
-                            .unwrap_or_default(),
-                    ];
-
-                    state_guard.program = u16::from_le_bytes(program);
-                    state_guard.execution_mode = Some(ExecutionMode::FetchAndDecode);
-
-                    time_slice -= 1;
-                }
-                ExecutionMode::PostInterpret { mut queue } => {
-                    match queue.pop_front() {
-                        Some(StoreStep::BusToProgram) => {
-                            state_guard.program = state_guard.address_bus;
-                        }
-                        Some(StoreStep::Data { value }) => {
-                            let _ = self.memory_translation_table.write_le_value(
-                                state_guard.address_bus as usize,
-                                self.config.assigned_address_space,
-                                value,
+                            self.interpret_instruction(
+                                &mut state_guard,
+                                &component.config,
+                                instruction.clone(),
                             );
-                            state_guard.address_bus = state_guard.address_bus.wrapping_add(1);
-                        }
-                        Some(StoreStep::PushStack { data }) => {
-                            state_guard.stack = state_guard.stack.wrapping_sub(1);
-                            let _ = self.memory_translation_table.write_le_value(
-                                STACK_BASE_ADDRESS + state_guard.stack as usize,
-                                self.config.assigned_address_space,
-                                data,
-                            );
-                        }
-                        Some(StoreStep::AddToProgram { value }) => {
-                            state_guard.program =
-                                state_guard.program.wrapping_add_signed(value as i16);
-                        }
-                        _ => {
-                            unreachable!()
+
+                            time_slice -= 1;
                         }
                     }
-
-                    if queue.is_empty() {
-                        state_guard.execution_mode = Some(ExecutionMode::FetchAndDecode);
-                    } else {
-                        state_guard.execution_mode = Some(ExecutionMode::PostInterpret { queue });
-                    }
-
-                    time_slice -= 1;
                 }
-                ExecutionMode::Interpret { instruction } => {
-                    state_guard.execution_mode = Some(ExecutionMode::FetchAndDecode);
-
-                    self.interpret_instruction(&mut state_guard, instruction.clone());
-
-                    time_slice -= 1;
-                }
-            }
-        }
+            })
+            .unwrap();
     }
 }
 

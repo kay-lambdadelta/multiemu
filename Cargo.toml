@@ -78,7 +78,7 @@ naga = { version = "25.0", features = ["wgsl-in", "serialize", "deserialize"] }
 raw-window-handle = "0.6"
 
 # use crates.io smallvec when they release v2
-smallvec = { git = "https://github.com/servo/rust-smallvec", rev = "4fe40688e97555f93a6861ff14720657c5161c07" }
+smallvec = "2.0.0-alpha.11"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }
