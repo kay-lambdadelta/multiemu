@@ -1,9 +1,10 @@
 use super::WriteRegisters;
 use crate::tia::{
-    DelayChangeGraphicPlayer, DelayEnableChangeBall, InputControl, State, SupportedGraphicsApiTia,
-    Tia, region::Region,
+    DelayChangeGraphicPlayer, DelayEnableChangeBall, InputControl, SCANLINE_LENGTH, State,
+    SupportedGraphicsApiTia, Tia, color::TiaColor, region::Region,
 };
 use bitvec::{field::BitField, order::Msb0, slice::BitSlice, view::BitView};
+use nalgebra::Point2;
 
 impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
     pub(crate) fn handle_write_register(
@@ -15,10 +16,21 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
     ) {
         match address {
             WriteRegisters::Vsync => {
-                state_guard.in_vsync = data_bits[1];
+                if data_bits[1] {
+                    state_guard.electron_beam = Point2::new(0, 0);
+                    state_guard.cycles_waiting_for_vsync = Some(SCANLINE_LENGTH * 3);
+                } else {
+                    if let Some(cycles) = state_guard.cycles_waiting_for_vsync {
+                        if cycles != 0 {
+                            tracing::warn!("Vsync exited early");
+                        }
+                    }
+
+                    state_guard.cycles_waiting_for_vsync = None;
+                }
             }
             WriteRegisters::Vblank => {
-                state_guard.in_vblank = data_bits[1];
+                state_guard.vblank_active = data_bits[1];
 
                 state_guard.input_control[0] = if data_bits[7] {
                     InputControl::LatchedOrDumped
@@ -67,6 +79,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
                     .cpu
                     .interact(|processor| processor.set_rdy(false))
                     .unwrap();
+
                 state_guard.reset_rdy_on_scanline_end = true;
             }
             WriteRegisters::Rsync => {
@@ -74,10 +87,28 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
             }
             WriteRegisters::Nusiz0 => {}
             WriteRegisters::Nusiz1 => {}
-            WriteRegisters::Colup0 => {}
-            WriteRegisters::Colup1 => {}
-            WriteRegisters::Colupf => {}
-            WriteRegisters::Colubk => {}
+            WriteRegisters::Colup0 => {
+                let color = extract_color(data_bits);
+
+                state_guard.players[0].color = color;
+                state_guard.missiles[0].color = color;
+            }
+            WriteRegisters::Colup1 => {
+                let color = extract_color(data_bits);
+
+                state_guard.players[1].color = color;
+                state_guard.missiles[1].color = color;
+            }
+            WriteRegisters::Colupf => {
+                let color = extract_color(data_bits);
+
+                state_guard.playfield.color = color;
+            }
+            WriteRegisters::Colubk => {
+                let color = extract_color(data_bits);
+
+                state_guard.background_color = color;
+            }
             WriteRegisters::Ctrlpf => {
                 state_guard.playfield.mirror = data_bits[0];
                 state_guard.playfield.score_mode = data_bits[1];
@@ -99,11 +130,21 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
             WriteRegisters::Pf2 => {
                 state_guard.playfield.data[12..=19].copy_from_bitslice(data_bits);
             }
-            WriteRegisters::Resp0 => {}
-            WriteRegisters::Resp1 => {}
-            WriteRegisters::Resm0 => {}
-            WriteRegisters::Resm1 => {}
-            WriteRegisters::Resbl => {}
+            WriteRegisters::Resp0 => {
+                state_guard.players[0].position = state_guard.electron_beam.x;
+            }
+            WriteRegisters::Resp1 => {
+                state_guard.players[1].position = state_guard.electron_beam.x;
+            }
+            WriteRegisters::Resm0 => {
+                state_guard.missiles[0].position = state_guard.electron_beam.x;
+            }
+            WriteRegisters::Resm1 => {
+                state_guard.missiles[1].position = state_guard.electron_beam.x;
+            }
+            WriteRegisters::Resbl => {
+                state_guard.ball.position = state_guard.electron_beam.x;
+            }
             WriteRegisters::Audc0 => {}
             WriteRegisters::Audc1 => {}
             WriteRegisters::Audf0 => {}
@@ -233,7 +274,20 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
             WriteRegisters::Resmp1 => {
                 state_guard.missiles[1].locked = data_bits[1];
             }
-            WriteRegisters::Hmove => {}
+            WriteRegisters::Hmove => {
+                for player in &mut state_guard.players {
+                    player.position = player.position.wrapping_add_signed(player.motion as i16);
+                }
+
+                for missile in &mut state_guard.missiles {
+                    missile.position = missile.position.wrapping_add_signed(missile.motion as i16);
+                }
+
+                state_guard.ball.position = state_guard
+                    .ball
+                    .position
+                    .wrapping_add_signed(state_guard.ball.motion as i16);
+            }
             WriteRegisters::Hmclr => {
                 state_guard.players[0].motion = 0;
                 state_guard.players[1].motion = 0;
@@ -246,4 +300,11 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
             }
         }
     }
+}
+
+fn extract_color(data_bits: &BitSlice<u8>) -> TiaColor {
+    let luminance = data_bits[1..=3].load();
+    let hue = data_bits[4..=7].load();
+
+    TiaColor { luminance, hue }
 }

@@ -52,8 +52,8 @@ enum InputControl {
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub(crate) struct State {
     collision_matrix: HashMap<ObjectId, HashSet<ObjectId>>,
-    in_vsync: bool,
-    in_vblank: bool,
+    vblank_active: bool,
+    cycles_waiting_for_vsync: Option<u16>,
     reset_rdy_on_scanline_end: bool,
     input_control: [InputControl; 6],
     electron_beam: Point2<u16>,
@@ -62,11 +62,12 @@ pub(crate) struct State {
     players: [Player; 2],
     playfield: Playfield,
     high_playfield_ball_priority: bool,
+    background_color: TiaColor,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Missile {
-    position: Point2<u16>,
+    position: u16,
     enabled: bool,
     motion: i8,
     color: TiaColor,
@@ -83,7 +84,7 @@ enum DelayEnableChangeBall {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Ball {
-    position: Point2<u16>,
+    position: u16,
     enabled: bool,
     delay_enable_change: DelayEnableChangeBall,
     motion: i8,
@@ -109,7 +110,7 @@ enum DelayChangeGraphicPlayer {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Player {
-    position: Point2<u16>,
+    position: u16,
     graphic: u8,
     mirror: bool,
     delay_change_graphic: DelayChangeGraphicPlayer,

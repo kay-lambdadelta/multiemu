@@ -21,7 +21,7 @@ codes-iso-3166 = { workspace = true }
 strum = { workspace = true }
 scc = { workspace = true }
 ron = { workspace = true }
-quick-xml = { version = "0.37", features = ["serialize"] }
+quick-xml = { version = "0.38", features = ["serialize"] }
 zip = { version = "3.0", default-features = false, features = [
     "zstd",
     "bzip2",
