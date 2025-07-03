@@ -98,7 +98,7 @@ struct Playfield {
     color: TiaColor,
     score_mode: bool,
     // 20 bits
-    data: BitArray<[u8; 4], Lsb0>,
+    data: BitArray<[u8; 3], Lsb0>,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]

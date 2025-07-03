@@ -110,9 +110,18 @@ impl<P: Platform> MachineBuilder<P> {
     /// Insert a component into the machine
     #[inline]
     pub fn insert_component<B: ComponentConfig<P>>(
+        self,
+        name: &str,
+        config: B,
+    ) -> (Self, ComponentRef<B::Component>) {
+        self.insert_component_with_dependencies(name, config, [])
+    }
+
+    pub fn insert_component_with_dependencies<B: ComponentConfig<P>>(
         mut self,
         name: &str,
         config: B,
+        dependencies: impl IntoIterator<Item = ComponentId>,
     ) -> (Self, ComponentRef<B::Component>) {
         let name: ComponentName = name.parse().unwrap();
 
@@ -127,7 +136,11 @@ impl<P: Platform> MachineBuilder<P> {
         self.component_metadata.insert(
             component_id,
             ComponentMetadata {
-                dependencies: config.build_dependencies().into_iter().collect(),
+                dependencies: config
+                    .build_dependencies()
+                    .into_iter()
+                    .chain(dependencies)
+                    .collect(),
                 ..Default::default()
             },
         );

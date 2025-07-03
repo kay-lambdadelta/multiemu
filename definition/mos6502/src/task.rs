@@ -1,5 +1,5 @@
 use crate::{
-    ExecutionMode, LoadStep, Mos6502, Mos6502Config, ProcessorState, RESET_VECTOR, StoreStep,
+    ExecutionMode, LoadStep, Mos6502, Mos6502Config, ProcessorState, RESET_VECTOR, PostInterpretStep,
     decoder::Mos6502InstructionDecoder,
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,
@@ -144,10 +144,10 @@ impl Task for Mos6502Task {
                         }
                         ExecutionMode::PostInterpret { mut queue } => {
                             match queue.pop_front() {
-                                Some(StoreStep::BusToProgram) => {
+                                Some(PostInterpretStep::BusToProgram) => {
                                     state_guard.program = state_guard.address_bus;
                                 }
-                                Some(StoreStep::Data { value }) => {
+                                Some(PostInterpretStep::Data { value }) => {
                                     let _ = self.memory_translation_table.write_le_value(
                                         state_guard.address_bus as usize,
                                         component.config.assigned_address_space,
@@ -156,7 +156,7 @@ impl Task for Mos6502Task {
                                     state_guard.address_bus =
                                         state_guard.address_bus.wrapping_add(1);
                                 }
-                                Some(StoreStep::PushStack { data }) => {
+                                Some(PostInterpretStep::PushStack { data }) => {
                                     state_guard.stack = state_guard.stack.wrapping_sub(1);
                                     let _ = self.memory_translation_table.write_le_value(
                                         STACK_BASE_ADDRESS + state_guard.stack as usize,
@@ -164,7 +164,7 @@ impl Task for Mos6502Task {
                                         data,
                                     );
                                 }
-                                Some(StoreStep::AddToProgram { value }) => {
+                                Some(PostInterpretStep::AddToProgram { value }) => {
                                     state_guard.program =
                                         state_guard.program.wrapping_add_signed(value as i16);
                                 }

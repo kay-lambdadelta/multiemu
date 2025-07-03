@@ -1,6 +1,9 @@
 use std::num::NonZero;
 
-use crate::tia::backend::{SupportedGraphicsApiTia, TiaDisplayBackend};
+use crate::tia::{
+    VISIBLE_SCANLINE_LENGTH,
+    backend::{SupportedGraphicsApiTia, TiaDisplayBackend},
+};
 
 use super::{SCANLINE_LENGTH, State, Tia, color::TiaColor, region::Region};
 use bitvec::{
@@ -57,6 +60,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
 
                     if !(state_guard.cycles_waiting_for_vsync.is_some()
                         || state_guard.vblank_active)
+                        && (0..VISIBLE_SCANLINE_LENGTH).contains(&state_guard.electron_beam.x)
                     {
                         let color = R::color_to_srgb(state_guard.get_rendered_color());
 
@@ -85,6 +89,11 @@ impl State {
             // Check if in the bounds of ball
             if self.get_ball_color() {
                 return self.ball.color;
+            }
+
+            // Check if in the bounds of playfield
+            if let Some(color) = self.get_playfield_color() {
+                return color;
             }
 
             // Check if in the bounds of player 0
@@ -131,6 +140,11 @@ impl State {
             if self.get_ball_color() {
                 return self.ball.color;
             }
+
+            // Check if in the bounds of playfield
+            if let Some(color) = self.get_playfield_color() {
+                return color;
+            }
         }
 
         self.background_color
@@ -149,14 +163,22 @@ impl State {
             if player.mirror {
                 let slice = player.graphic.view_bits::<Lsb0>();
 
-                if *slice.get(sprite_pixel).as_deref().unwrap_or(&false) {
-                    return Some(player.color);
+                if let Some(sprite_pixel) = slice.get(sprite_pixel).as_deref() {
+                    return if *sprite_pixel {
+                        Some(player.color)
+                    } else {
+                        Some(self.background_color)
+                    };
                 }
             } else {
                 let slice = player.graphic.view_bits::<Msb0>();
 
-                if *slice.get(sprite_pixel).as_deref().unwrap_or(&false) {
-                    return Some(player.color);
+                if let Some(sprite_pixel) = slice.get(sprite_pixel).as_deref() {
+                    return if *sprite_pixel {
+                        Some(player.color)
+                    } else {
+                        Some(self.background_color)
+                    };
                 }
             }
         }
@@ -180,5 +202,41 @@ impl State {
         let ball = &self.ball;
 
         (self.electron_beam.x..=(self.electron_beam.x)).contains(&ball.position)
+    }
+
+    fn get_playfield_color(&self) -> Option<TiaColor> {
+        let playfield_position = (self.electron_beam.x / 4) as usize;
+
+        match playfield_position {
+            0..20 => {
+                if self.playfield.data[playfield_position] {
+                    if self.playfield.score_mode {
+                        Some(self.players[0].color)
+                    } else {
+                        Some(self.playfield.color)
+                    }
+                } else {
+                    Some(self.background_color)
+                }
+            }
+            20..40 => {
+                let mut data = self.playfield.data;
+
+                if self.playfield.mirror {
+                    data.reverse();
+                }
+
+                if data[playfield_position - 20] {
+                    if self.playfield.score_mode {
+                        Some(self.players[1].color)
+                    } else {
+                        Some(self.playfield.color)
+                    }
+                } else {
+                    Some(self.background_color)
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 }

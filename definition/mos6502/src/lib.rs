@@ -111,7 +111,7 @@ pub enum LoadStep {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum StoreStep {
+pub enum PostInterpretStep {
     // The CPU is putting the contents of this latch into memory
     Data {
         /// The CPU is storing a byte of data
@@ -146,7 +146,7 @@ pub enum ExecutionMode {
     /// Execute this instruction
     Interpret { instruction: Mos6502InstructionSet },
     /// Stores data for the instruction
-    PostInterpret { queue: VecDeque<StoreStep> },
+    PostInterpret { queue: VecDeque<PostInterpretStep> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

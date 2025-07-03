@@ -11,11 +11,7 @@ use multiemu_definition_misc::{
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomManager};
 use multiemu_runtime::{
-    MachineFactory,
-    builder::MachineBuilder,
-    component::ComponentRef,
-    memory::{Address, AddressSpaceHandle},
-    platform::Platform,
+    builder::MachineBuilder, component::{ComponentId, ComponentRef}, memory::{Address, AddressSpaceHandle}, platform::Platform, MachineFactory
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
@@ -75,6 +71,8 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
             .unwrap()
             .value();
 
+        let mut mirror_component_ids = Vec::default();
+
         let region = if rom_info.regions.contains(&CountryCode::US)
             || rom_info.regions.contains(&CountryCode::JP)
         {
@@ -97,51 +95,54 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
         );
 
         for (index, source_addresses) in tia_write_register_mirror_ranges().enumerate() {
-            machine = machine
-                .insert_component(
-                    &format!("tia_write_mirror_{}", index),
-                    MirrorMemoryConfig {
-                        readable: false,
-                        writable: true,
-                        source_addresses,
-                        source_address_space: cpu_address_space,
-                        destination_addresses: 0x0000..=0x003f,
-                        destination_address_space: cpu_address_space,
-                    },
-                )
-                .0;
+            let (machine_builder, component) = machine.insert_component(
+                &format!("tia_write_mirror_{}", index),
+                MirrorMemoryConfig {
+                    readable: false,
+                    writable: true,
+                    source_addresses,
+                    source_address_space: cpu_address_space,
+                    destination_addresses: 0x0000..=0x003f,
+                    destination_address_space: cpu_address_space,
+                },
+            );
+
+            machine = machine_builder;
+            mirror_component_ids.push(component.id());
         }
 
         for (index, source_addresses) in tia_read_register_mirror_ranges().enumerate() {
-            machine = machine
-                .insert_component(
-                    &format!("tia_read_mirror_{}", index),
-                    MirrorMemoryConfig {
-                        readable: true,
-                        writable: false,
-                        source_addresses,
-                        source_address_space: cpu_address_space,
-                        destination_addresses: 0x0000..=0x000f,
-                        destination_address_space: cpu_address_space,
-                    },
-                )
-                .0;
+            let (machine_builder, component) = machine.insert_component(
+                &format!("tia_read_mirror_{}", index),
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: false,
+                    source_addresses,
+                    source_address_space: cpu_address_space,
+                    destination_addresses: 0x0000..=0x000f,
+                    destination_address_space: cpu_address_space,
+                },
+            );
+
+            machine = machine_builder;
+            mirror_component_ids.push(component.id());
         }
 
         for (index, source_addresses) in riot_register_mirror_ranges().enumerate() {
-            machine = machine
-                .insert_component(
-                    &format!("mos6532_riot_register_mirror_{}", index),
-                    MirrorMemoryConfig {
-                        readable: true,
-                        writable: true,
-                        source_addresses,
-                        source_address_space: cpu_address_space,
-                        destination_addresses: 0x280..=0x283,
-                        destination_address_space: cpu_address_space,
-                    },
-                )
-                .0;
+            let (machine_builder, component) = machine.insert_component(
+                &format!("mos6532_riot_register_mirror_{}", index),
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    source_addresses,
+                    source_address_space: cpu_address_space,
+                    destination_addresses: 0x280..=0x283,
+                    destination_address_space: cpu_address_space,
+                },
+            );
+
+            machine = machine_builder;
+            mirror_component_ids.push(component.id());
         }
 
         for (index, source_addresses) in riot_ram_mirror_ranges().enumerate() {
@@ -161,9 +162,9 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
         }
 
         let (machine, mos6532_riot) = match region {
-            RegionSelection::Ntsc => common::<Ntsc, _>(cpu_address_space, machine),
-            RegionSelection::Pal => common::<Pal, _>(cpu_address_space, machine),
-            RegionSelection::Secam => common::<Secam, _>(cpu_address_space, machine),
+            RegionSelection::Ntsc => common::<Ntsc, _>(cpu_address_space, machine, mirror_component_ids),
+            RegionSelection::Pal => common::<Pal, _>(cpu_address_space, machine, mirror_component_ids),
+            RegionSelection::Secam => common::<Secam, _>(cpu_address_space, machine, mirror_component_ids),
         };
 
         let (machine, _) =
@@ -176,6 +177,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
 fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
     cpu_address_space: AddressSpaceHandle,
     machine: MachineBuilder<P>,
+    mirror_component_ids: impl IntoIterator<Item = ComponentId>,
 ) -> (MachineBuilder<P>, ComponentRef<Mos6532Riot>) {
     let (machine, cpu) = machine.insert_component(
         "mos_6502",
@@ -196,7 +198,8 @@ fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
         },
     );
 
-    let (machine, _) = machine.insert_component(
+    // For the love of god do not shadow this
+    let (machine, _) = machine.insert_component_with_dependencies(
         "mos6532_riot_ram",
         StandardMemoryConfig {
             readable: true,
@@ -205,9 +208,10 @@ fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
             assigned_address_space: cpu_address_space,
             initial_contents: RangeInclusiveMap::from_iter([(
                 0x80..=0xff,
-                StandardMemoryInitialContents::Value(0),
+                StandardMemoryInitialContents::Random,
             )]),
         },
+        mirror_component_ids,
     );
 
     let (machine, _) = machine.insert_component(

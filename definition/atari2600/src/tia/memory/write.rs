@@ -126,6 +126,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
             }
             WriteRegisters::Pf1 => {
                 state_guard.playfield.data[4..=11].copy_from_bitslice(data_bits);
+                state_guard.playfield.data[4..=11].reverse();
             }
             WriteRegisters::Pf2 => {
                 state_guard.playfield.data[12..=19].copy_from_bitslice(data_bits);

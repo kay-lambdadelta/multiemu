@@ -1,6 +1,6 @@
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
-use multiemu_input::{Input, VirtualGamepadName, gamepad::GamepadInput};
+use multiemu_input::{Input, VirtualGamepadName, gamepad::GamepadInput, keyboard::KeyboardInput};
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{Component, ComponentConfig, ComponentId, ComponentRef},
@@ -149,6 +149,26 @@ fn create_gamepad() -> Arc<VirtualGamepad> {
                 ),
                 (
                     Input::Gamepad(GamepadInput::FPadDown),
+                    Input::Gamepad(GamepadInput::FPadDown),
+                ),
+                (
+                    Input::Keyboard(KeyboardInput::ArrowDown),
+                    Input::Gamepad(GamepadInput::LeftStickDown),
+                ),
+                (
+                    Input::Keyboard(KeyboardInput::ArrowUp),
+                    Input::Gamepad(GamepadInput::LeftStickUp),
+                ),
+                (
+                    Input::Keyboard(KeyboardInput::ArrowLeft),
+                    Input::Gamepad(GamepadInput::LeftStickLeft),
+                ),
+                (
+                    Input::Keyboard(KeyboardInput::ArrowRight),
+                    Input::Gamepad(GamepadInput::LeftStickRight),
+                ),
+                (
+                    Input::Keyboard(KeyboardInput::KeyZ),
                     Input::Gamepad(GamepadInput::FPadDown),
                 ),
             ]),

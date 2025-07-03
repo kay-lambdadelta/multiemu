@@ -3,7 +3,7 @@ use super::{
     instruction::{Mos6502InstructionSet, Mos6502Opcode},
 };
 use crate::{
-    ExecutionMode, Mos6502Config, StoreStep,
+    ExecutionMode, Mos6502Config, PostInterpretStep,
     instruction::{AddressingMode, Mos6502AddressingMode, Opcode, Wdc65C02Opcode},
     task::Mos6502Task,
 };
@@ -89,7 +89,7 @@ impl Mos6502Task {
                             state.a = value;
                         } else {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
                             });
                         }
                     }
@@ -111,7 +111,7 @@ impl Mos6502Task {
                             state.a = value;
                         } else {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
                             });
                         }
                     }
@@ -120,7 +120,7 @@ impl Mos6502Task {
 
                         if !state.flags.carry {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                             });
                         }
                     }
@@ -129,7 +129,7 @@ impl Mos6502Task {
 
                         if state.flags.carry {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                             });
                         }
                     }
@@ -138,7 +138,7 @@ impl Mos6502Task {
 
                         if state.flags.zero {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                             });
                         }
                     }
@@ -157,7 +157,7 @@ impl Mos6502Task {
 
                         if state.flags.negative {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                             });
                         }
                     }
@@ -166,7 +166,7 @@ impl Mos6502Task {
 
                         if !state.flags.zero {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                             });
                         }
                     }
@@ -175,7 +175,7 @@ impl Mos6502Task {
 
                         if !state.flags.negative {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                             });
                         }
                     }
@@ -225,7 +225,7 @@ impl Mos6502Task {
 
                         if !state.flags.overflow {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                             });
                         }
                     }
@@ -234,7 +234,7 @@ impl Mos6502Task {
 
                         if state.flags.overflow {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                             });
                         }
                     }
@@ -292,7 +292,7 @@ impl Mos6502Task {
                             state.a = result;
                         } else {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::Data { value: result }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::Data { value: result }]),
                             });
                         }
                     }
@@ -331,7 +331,7 @@ impl Mos6502Task {
                         state.flags.zero = result == 0;
 
                         state.execution_mode = Some(ExecutionMode::PostInterpret {
-                            queue: VecDeque::from_iter([StoreStep::Data { value: result }]),
+                            queue: VecDeque::from_iter([PostInterpretStep::Data { value: result }]),
                         });
                     }
                     Mos6502Opcode::Inx => {
@@ -375,13 +375,13 @@ impl Mos6502Task {
 
                         state.execution_mode = Some(ExecutionMode::PostInterpret {
                             queue: VecDeque::from_iter([
-                                StoreStep::PushStack {
+                                PostInterpretStep::PushStack {
                                     data: program_bytes[1],
                                 },
-                                StoreStep::PushStack {
+                                PostInterpretStep::PushStack {
                                     data: program_bytes[0],
                                 },
-                                StoreStep::BusToProgram,
+                                PostInterpretStep::BusToProgram,
                             ]),
                         })
                     }
@@ -433,7 +433,7 @@ impl Mos6502Task {
                             state.a = value;
                         } else {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
                             });
                         }
                     }
@@ -454,7 +454,7 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Pha => {
                         state.execution_mode = Some(ExecutionMode::PostInterpret {
-                            queue: VecDeque::from_iter([StoreStep::PushStack { data: state.a }]),
+                            queue: VecDeque::from_iter([PostInterpretStep::PushStack { data: state.a }]),
                         });
                     }
                     Mos6502Opcode::Php => {
@@ -464,7 +464,7 @@ impl Mos6502Task {
                         flags.break_ = true;
 
                         state.execution_mode = Some(ExecutionMode::PostInterpret {
-                            queue: VecDeque::from_iter([StoreStep::PushStack {
+                            queue: VecDeque::from_iter([PostInterpretStep::PushStack {
                                 data: flags.to_byte(),
                             }]),
                         });
@@ -512,7 +512,7 @@ impl Mos6502Task {
                             state.a = value;
                         } else {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
                             });
                         }
                     }
@@ -531,7 +531,7 @@ impl Mos6502Task {
                             state.a = value;
                         } else {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([StoreStep::Data { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
                             });
                         }
                     }
@@ -645,7 +645,7 @@ impl Mos6502Task {
                     let value: i8 = self.load(state, &instruction, config);
 
                     state.execution_mode = Some(ExecutionMode::PostInterpret {
-                        queue: VecDeque::from_iter([StoreStep::AddToProgram { value }]),
+                        queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
                     });
                 }
                 Wdc65C02Opcode::Phx => todo!(),
