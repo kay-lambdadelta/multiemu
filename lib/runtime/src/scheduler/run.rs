@@ -1,5 +1,5 @@
 use super::Scheduler;
-use crate::scheduler::TaskToExecute;
+use crate::scheduler::TaskMode;
 use std::{num::NonZero, time::Duration};
 
 impl Scheduler {
@@ -19,42 +19,91 @@ impl Scheduler {
             let ticks_left = cycles - ticks_passed;
 
             // It's OK to use [Option::unwrap_or_default] here; an empty Vec does not allocate in Rust
-            let events = self.schedule.remove(&self.current_tick).unwrap_or_default();
-            // Try to form a execution boundary
-            let max_allotted_ticks = self
-                .schedule
-                .range(self.current_tick..)
-                .next()
-                // Until the next event
-                .map(|(event_location, _)| event_location - self.current_tick)
-                // Use the boundary from a full cycle as a placeholder if there is no next event
-                .unwrap_or(self.ticks_per_full_cycle)
-                // Do not overstep the cycle boundary
-                .min(self.ticks_per_full_cycle - self.current_tick)
-                // Do not overstep our allotted ticks
-                .min(ticks_left);
+            let active_events = self
+                .active_schedule
+                .remove(&self.current_tick)
+                .unwrap_or_default();
+            let lazy_events = self
+                .lazy_schedule
+                .remove(&self.current_tick)
+                .unwrap_or_default();
 
-            match events.len() {
+            let max_allotted_ticks = self
+                .ticks_per_full_cycle
+                .min(self.ticks_per_full_cycle - self.current_tick)
+                .min(ticks_left)
+                .min(
+                    self.active_schedule
+                        .range(self.current_tick..)
+                        .next()
+                        .map(|(tick, _)| *tick - self.current_tick)
+                        .unwrap_or(self.ticks_per_full_cycle),
+                );
+
+            for event in lazy_events {
+                let mut task_info = self.storage.tasks[event as usize].lock().unwrap();
+
+                match &mut task_info.mode {
+                    TaskMode::Lazy { debt } => {
+                        if let Some(new_debt) = debt.checked_add(1) {
+                            *debt = new_debt;
+                        } else {
+                            *debt = 0;
+                            task_info.task.run(NonZero::new(u32::MAX).unwrap());
+                        }
+
+                        // Reschedule lazy task
+                        self.lazy_schedule
+                            .entry(
+                                (self.current_tick + task_info.tick_rate)
+                                    % self.ticks_per_full_cycle,
+                            )
+                            .or_default()
+                            .push(event);
+                    }
+                    _ => unreachable!("{:?} {:?}", self, task_info),
+                }
+            }
+
+            match active_events.len() {
                 0 => {
                     self.update_current_tick(max_allotted_ticks);
                 }
                 1 => {
-                    let event = &events[0];
-                    let event_info = self.tasks.get(&event).unwrap();
+                    let event = active_events[0];
+                    let mut task_info = self.storage.tasks[event as usize].lock().unwrap();
+                    let time_slice =
+                        NonZero::new((max_allotted_ticks / task_info.tick_rate).max(1)).unwrap();
+                    let representing_time = time_slice.get() * task_info.tick_rate;
 
-                    self.run_tasks([TaskToExecute {
-                        id: *event,
-                        time_slice: NonZero::new(
-                            (max_allotted_ticks / event_info.tick_rate).max(1),
-                        )
-                        .unwrap(),
-                    }]);
+                    self.active_schedule
+                        .entry((self.current_tick + representing_time) % self.ticks_per_full_cycle)
+                        .or_default()
+                        .push(event);
+
+                    task_info.task.run(time_slice);
+                    drop(task_info);
+
+                    self.update_current_tick(1);
                 }
                 _ => {
-                    self.run_tasks(events.into_iter().map(|event| TaskToExecute {
-                        id: event,
-                        time_slice: NonZero::new(1).unwrap(),
-                    }));
+                    for event in active_events {
+                        let mut task_info = self.storage.tasks[event as usize].lock().unwrap();
+                        let time_slice = NonZero::new(1).unwrap();
+                        let representing_time = time_slice.get() * task_info.tick_rate;
+
+                        self.active_schedule
+                            .entry(
+                                (self.current_tick + representing_time) % self.ticks_per_full_cycle,
+                            )
+                            .or_default()
+                            .push(event);
+
+                        task_info.task.run(time_slice);
+                        drop(task_info);
+                    }
+
+                    self.update_current_tick(1);
                 }
             }
         }

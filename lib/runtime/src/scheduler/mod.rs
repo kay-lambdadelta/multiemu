@@ -3,17 +3,19 @@ use num::{
     integer::{gcd, lcm},
     rational::Ratio,
 };
-use rustc_hash::FxBuildHasher;
+use serde::{Deserialize, Serialize};
 use std::{
     boxed::Box,
     collections::{BTreeMap, HashMap},
     fmt::Debug,
     num::NonZero,
-    sync::Mutex,
+    sync::{Arc, Mutex},
     time::Duration,
     vec::Vec,
 };
 pub use task::*;
+
+use crate::{builder::task::StoredTask, component::ComponentId};
 
 mod run;
 mod task;
@@ -22,23 +24,61 @@ mod task;
 
 pub type TaskId = u16;
 
+#[derive(Debug)]
+enum TaskMode {
+    Active,
+    Lazy { debt: u32 },
+}
+
 struct TaskInfo {
-    pub task: Mutex<Box<dyn Task>>,
+    pub task: Box<dyn Task>,
     pub tick_rate: u32,
+    pub mode: TaskMode,
 }
 
 impl Debug for TaskInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TaskInfo")
             .field("tick_rate", &self.tick_rate)
+            .field("mode", &self.mode)
             .finish()
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct DebtClearer(Arc<TaskStorage>);
+
+impl DebtClearer {
+    #[inline]
+    /// Make sure this component is up to date
+    pub fn clear_debts(&self, component_id: ComponentId) {
+        for task_id in self
+            .0
+            .component_tasks
+            .get(component_id.get() as usize)
+            .into_iter()
+            .flatten()
+        {
+            let Ok(mut task_info) = self.0.tasks[*task_id as usize].try_lock() else {
+                continue;
+            };
+
+            if let TaskMode::Lazy { debt } = &mut task_info.mode {
+                let old_debt = *debt;
+                *debt = 0;
+
+                if let Some(debt) = NonZero::new(old_debt) {
+                    task_info.task.run(debt);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
-struct TaskToExecute {
-    pub time_slice: NonZero<u32>,
-    pub id: TaskId,
+struct TaskStorage {
+    pub tasks: Vec<Mutex<TaskInfo>>,
+    pub component_tasks: Vec<Vec<TaskId>>,
 }
 
 /// The scheduler for the emulator
@@ -54,9 +94,21 @@ pub struct Scheduler {
     ticks_per_full_cycle: u32,
     /// The amount of time a tick takes
     tick_real_time: Duration,
+    /// Active tasks
+    active_schedule: BTreeMap<u32, Vec<TaskId>>,
+    /// Lazy tasks
+    lazy_schedule: BTreeMap<u32, Vec<TaskId>>,
     /// Tasks
-    tasks: HashMap<TaskId, TaskInfo, FxBuildHasher>,
-    schedule: BTreeMap<u32, Vec<TaskId>>,
+    storage: Arc<TaskStorage>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SchedulerState {
+    current_tick: u32,
+    ticks_per_full_cycle: u32,
+    tick_real_time: Duration,
+    active_schedule: BTreeMap<u32, Vec<TaskId>>,
+    lazy_schedule: BTreeMap<u32, Vec<TaskId>>,
 }
 
 impl Scheduler {
@@ -64,38 +116,37 @@ impl Scheduler {
         self.tick_real_time * self.ticks_per_full_cycle
     }
 
-    pub(crate) fn new(tasks: impl IntoIterator<Item = (Ratio<u32>, Box<dyn Task>)>) -> Self {
-        pub struct PrecalculationTask {
-            #[allow(clippy::type_complexity)]
-            pub task: Box<dyn Task>,
-            pub frequency: Ratio<u32>,
-        }
+    pub(crate) fn new(component_tasks: HashMap<ComponentId, Vec<StoredTask>>) -> Self {
+        // Only the active tasks are put on the schedule
+        let mut tasks: BTreeMap<u16, _> = BTreeMap::new();
+        let mut component_owned_tasks: Vec<Vec<_>> = Vec::default();
 
-        let tasks: Vec<_> = tasks
+        for (component_id, task_id, task) in component_tasks
             .into_iter()
-            .enumerate()
-            .map(|(task_id, (frequency, task))| {
-                tracing::debug!(
-                    "Task {} has a frequency of {} (period of {:?})",
-                    task_id,
-                    frequency,
-                    Duration::from_secs_f64(frequency.recip().to_f64().unwrap())
-                );
-
-                PrecalculationTask {
-                    task,
-                    frequency: frequency.recip(),
-                }
+            .flat_map(|(component_id, tasks)| {
+                tasks.into_iter().map(move |task| (component_id, task))
             })
-            .collect();
+            .enumerate()
+            .map(|(task_id, (component_id, task))| {
+                (component_id, task_id.try_into().unwrap(), task)
+            })
+        {
+            tasks.insert(task_id, task);
+
+            if component_owned_tasks.len() <= component_id.get() as usize {
+                component_owned_tasks.resize_with(component_id.get() as usize + 1, Vec::new);
+            }
+
+            component_owned_tasks[component_id.get() as usize].push(task_id);
+        }
 
         let common = Ratio::new(
             tasks
-                .iter()
+                .values()
                 .map(|task| *task.frequency.numer())
                 .fold(1, gcd),
             tasks
-                .iter()
+                .values()
                 .map(|task| *task.frequency.denom())
                 .fold(1, lcm),
         );
@@ -105,65 +156,76 @@ impl Scheduler {
         let tick_real_time = Duration::from_secs_f64(common.to_f64().unwrap());
         let ticks_per_full_cycle = common.recip().to_integer();
 
-        tracing::debug!(
+        tracing::info!(
             "Schedule ticks take {:?} and rolls over at tick {}, a full cycle takes {:?}",
             tick_real_time,
             ticks_per_full_cycle,
             tick_real_time * ticks_per_full_cycle as u32
         );
 
-        let tasks: HashMap<_, _, _> = tasks
-            .into_iter()
-            .enumerate()
-            .map(|(task_id, precalcuation_task)| {
-                let tick_rate = (Ratio::from_integer(ticks_per_full_cycle)
-                    / precalcuation_task.frequency.recip())
-                .to_integer();
-
-                let task_id = task_id.try_into().unwrap();
-
-                (
-                    task_id,
-                    TaskInfo {
-                        task: Mutex::new(precalcuation_task.task),
-                        tick_rate,
+        let active_schedule = BTreeMap::from_iter([(
+            0,
+            tasks
+                .iter()
+                .filter_map(
+                    |(task_id, task)| {
+                        if task.lazy { None } else { Some(*task_id) }
                     },
                 )
+                .collect(),
+        )]);
+
+        let lazy_schedule = BTreeMap::from_iter([(
+            0,
+            tasks
+                .iter()
+                .filter_map(
+                    |(task_id, task)| {
+                        if !task.lazy { None } else { Some(*task_id) }
+                    },
+                )
+                .collect(),
+        )]);
+
+        let tasks: Vec<_> = tasks
+            .into_iter()
+            .map(|(_, task)| {
+                let tick_rate = (Ratio::from_integer(ticks_per_full_cycle)
+                    / task.frequency.recip())
+                .to_integer();
+
+                Mutex::new(TaskInfo {
+                    task: task.task,
+                    tick_rate,
+                    mode: if task.lazy {
+                        TaskMode::Lazy { debt: 0 }
+                    } else {
+                        TaskMode::Active
+                    },
+                })
             })
             .collect();
-
-        let schedule = BTreeMap::from_iter([(0, tasks.keys().copied().collect())]);
 
         Self {
             current_tick: 0,
             tick_real_time,
             ticks_per_full_cycle,
-            tasks,
-            schedule,
+            storage: Arc::new(TaskStorage {
+                tasks,
+                component_tasks: component_owned_tasks,
+            }),
+            active_schedule,
+            lazy_schedule,
         }
-    }
-
-    #[inline]
-    fn run_tasks(&mut self, timeline: impl IntoIterator<Item = TaskToExecute>) {
-        for TaskToExecute { id, time_slice } in timeline {
-            let representing_time = time_slice.get() * self.tasks.get(&id).unwrap().tick_rate;
-
-            self.schedule
-                .entry((self.current_tick + representing_time) % self.ticks_per_full_cycle)
-                .or_default()
-                .push(id);
-
-            let mut task = self.tasks.get(&id).unwrap().task.lock().unwrap();
-
-            task.run(time_slice);
-        }
-
-        self.update_current_tick(1);
     }
 
     #[inline]
     fn update_current_tick(&mut self, amount: u32) {
         self.current_tick =
             self.current_tick.checked_add(amount).unwrap() % self.ticks_per_full_cycle;
+    }
+
+    pub(crate) fn get_debt_clearer(&self) -> DebtClearer {
+        DebtClearer(self.storage.clone())
     }
 }

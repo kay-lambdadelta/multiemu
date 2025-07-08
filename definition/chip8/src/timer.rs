@@ -41,7 +41,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
         let delay_timer = Arc::new(Mutex::new(0u8));
 
         component_builder
-            .insert_task(Ratio::from_integer(60), {
+            .insert_lazy_task(Ratio::from_integer(60), {
                 let delay_timer = delay_timer.clone();
 
                 move |time_slice: NonZero<u32>| {

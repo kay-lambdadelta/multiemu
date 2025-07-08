@@ -14,7 +14,7 @@ use std::{
     fmt::Debug,
     num::NonZero,
     sync::{
-        Arc, Mutex,
+        Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -35,7 +35,7 @@ struct Snapshot {
 pub struct Chip8Display<R: SupportedGraphicsApiChip8Display> {
     backend: Mutex<R::Backend>,
     /// The cpu reads this to see if it can continue execution post draw call
-    pub vsync_occurred: Arc<AtomicBool>,
+    pub vsync_occurred: AtomicBool,
     hires: AtomicBool,
     config: Chip8DisplayConfig,
 }
@@ -194,8 +194,6 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<P, Self::Component>,
     ) {
-        let vsync_occurred = Arc::new(AtomicBool::default());
-
         let graphics_initialization_data = component_builder
             .essentials()
             .component_graphics_initialization_data
@@ -203,15 +201,13 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
 
         let (component_builder, _) = component_builder
             .insert_task(Ratio::from_integer(60), {
-                let vsync = vsync_occurred.clone();
                 let component = component_ref.clone();
 
                 // We ignore the time slice and only commit the buffer once
                 move |_: NonZero<u32>| {
-                    vsync.store(true, Ordering::Relaxed);
-
                     component
                         .interact(|display| {
+                            display.vsync_occurred.store(true, Ordering::Relaxed);
                             display.backend.lock().unwrap().commit_staging_buffer();
                         })
                         .unwrap();
@@ -224,7 +220,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         component_builder.build(Chip8Display {
             backend: Mutex::new(Chip8DisplayBackend::new(graphics_initialization_data)),
             hires: AtomicBool::new(false),
-            vsync_occurred,
+            vsync_occurred: AtomicBool::new(false),
             config: self,
         })
     }

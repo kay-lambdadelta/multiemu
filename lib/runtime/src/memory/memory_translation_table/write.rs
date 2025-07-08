@@ -1,14 +1,10 @@
 use super::{
-    MemoryTranslationTable, NEEDED_ACCESSES_BASE_CAPACITY, NeededAccess, RemapCallback,
+    MemoryTranslationTable, NeededAccess, RemapCallback,
     address_space::{AddressSpace, AddressSpaceHandle},
 };
-use crate::{
-    component::{ComponentId, ComponentStore},
-    memory::Address,
-};
+use crate::{component::ComponentId, memory::Address};
 use num::traits::ToBytes;
 use rangemap::RangeInclusiveMap;
-use smallvec::SmallVec;
 use std::{ops::RangeInclusive, vec::Vec};
 use thiserror::Error;
 
@@ -68,13 +64,12 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), WriteMemoryOperationError> {
-        let mut needed_accesses = SmallVec::from_iter([NeededAccess {
+        let mut needed_accesses = Vec::from_iter([NeededAccess {
             address,
             address_space,
             buffer_subrange: (0..=(buffer.len() - 1)),
         }]);
         let mut remap_callbacks = Vec::default();
-        let component_store = self.component_store.upgrade().unwrap();
 
         let result = (|| {
             while let Some(NeededAccess {
@@ -105,7 +100,6 @@ impl MemoryTranslationTable {
                     address_space,
                     address_space_info,
                     buffer_subrange,
-                    &component_store,
                     &mut needed_accesses,
                     &mut remap_callbacks,
                 )?;
@@ -136,8 +130,7 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         address_space_info: &AddressSpace,
         buffer_subrange: RangeInclusive<Address>,
-        component_store: &ComponentStore,
-        needed_accesses: &mut SmallVec<NeededAccess, NEEDED_ACCESSES_BASE_CAPACITY>,
+        needed_accesses: &mut Vec<NeededAccess>,
         remap_callbacks: &mut Vec<RemapCallback>,
     ) -> Result<(), WriteMemoryOperationError> {
         // Cut off address
@@ -164,7 +157,7 @@ impl MemoryTranslationTable {
             let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
                 ..=(adjusted_accessing_range.end() - address);
 
-            component_store.interact_dyn(*component_id, |component| {
+            self.component_store.interact_dyn(*component_id, |component| {
                 *did_handle = true;
 
                 if let Err(errors) = component.write_memory(

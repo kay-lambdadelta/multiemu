@@ -11,7 +11,7 @@ use multiemu_rom::RomManager;
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::{any::Any, fmt::Debug, sync::Arc};
+use std::{any::Any, fmt::Debug, num::NonZero, sync::Arc};
 
 pub use component_ref::ComponentRef;
 pub use store::*;
@@ -138,4 +138,10 @@ pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized + 'static {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
-pub struct ComponentId(pub u16);
+pub struct ComponentId(NonZero<u16>);
+
+impl ComponentId {
+    pub fn get(&self) -> u16 {
+        self.0.get() - 1
+    }
+}

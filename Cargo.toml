@@ -77,9 +77,6 @@ egui = { version = "0.31", features = ["default_fonts", "rayon", "log"] }
 naga = { version = "25.0", features = ["wgsl-in", "serialize", "deserialize"] }
 raw-window-handle = "0.6"
 
-# use crates.io smallvec when they release v2
-smallvec = "2.0.0-alpha.11"
-
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }
 codes-iso-3166 = { version = "0.1", features = ["languages"] }

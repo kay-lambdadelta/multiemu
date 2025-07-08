@@ -1,6 +1,7 @@
 use crate::{
     Machine,
     audio::{AudioCallback, AudioOutputId, AudioOutputInfo},
+    builder::task::StoredTask,
     component::{
         Component, ComponentConfig, ComponentId, ComponentRef, ComponentStore, RuntimeEssentials,
     },
@@ -77,7 +78,6 @@ pub struct MachineBuilder<P: Platform> {
     /// Component metadata
     component_metadata: HashMap<ComponentId, ComponentMetadata<P>, FxBuildHasher>,
     /// Counter for assigning things
-    current_component_id: ComponentId,
     current_audio_output_id: AudioOutputId,
     current_display_id: DisplayId,
 }
@@ -92,7 +92,6 @@ impl<P: Platform> MachineBuilder<P> {
         let component_store = ComponentStore::new(main_thread_queue.clone());
 
         MachineBuilder::<P> {
-            current_component_id: ComponentId(0),
             current_audio_output_id: AudioOutputId(0),
             current_display_id: DisplayId(0),
             component_builders: HashMap::default(),
@@ -125,12 +124,7 @@ impl<P: Platform> MachineBuilder<P> {
     ) -> (Self, ComponentRef<B::Component>) {
         let name: ComponentName = name.parse().unwrap();
 
-        let component_id = ComponentId(self.current_component_id.0);
-        self.current_component_id.0 = self
-            .current_component_id
-            .0
-            .checked_add(1)
-            .expect("Too many components");
+        let component_id = self.component_store.generate_id();
         let component_ref = ComponentRef::new(self.component_store.clone(), component_id);
 
         self.component_metadata.insert(
@@ -189,9 +183,7 @@ impl<P: Platform> MachineBuilder<P> {
         mut self,
         component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
     ) -> Machine<P> {
-        let component_ids: Vec<_> = (0..self.current_component_id.0)
-            .map(|id| ComponentId(id))
-            .collect();
+        let component_ids: Vec<_> = self.component_builders.keys().copied().collect();
 
         let initialization_order = topological_sort(&component_ids, |component_id| {
             self.component_metadata
@@ -222,12 +214,12 @@ impl<P: Platform> MachineBuilder<P> {
             tracing::debug!("Set up component: {:?}", component_name);
         }
 
-        let mut tasks = Vec::new();
+        let mut tasks: HashMap<_, Vec<_>> = HashMap::new();
         let mut virtual_gamepads = Vec::default();
         let mut audio_outputs = HashMap::default();
         let mut displays = HashMap::default();
 
-        for (_, component_metadata) in self.component_metadata.drain() {
+        for (component_id, component_metadata) in self.component_metadata.drain() {
             // Gather the framebuffers
             if let Some(graphics_metadata) = component_metadata.graphics {
                 displays.extend(graphics_metadata.displays);
@@ -235,7 +227,9 @@ impl<P: Platform> MachineBuilder<P> {
 
             // Gather the tasks
             if let Some(task_metadata) = component_metadata.task {
-                tasks.extend(task_metadata.tasks);
+                for task in task_metadata.tasks {
+                    tasks.entry(component_id).or_default().push(task);
+                }
             }
 
             if let Some(input_metadata) = component_metadata.input {
@@ -249,6 +243,10 @@ impl<P: Platform> MachineBuilder<P> {
 
         // Create the scheduler
         let scheduler = Scheduler::new(tasks);
+        let debt_clearer = scheduler.get_debt_clearer();
+
+        // Give the component store a handle to the scheduler
+        self.component_store.set_debt_clearer(debt_clearer);
 
         // Make sure all the components do their proper post initialization
         self.component_store.interact_all(|compoenent| {
@@ -465,10 +463,32 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self
     }
 
+    /// Insert a task to be executed by the scheduler at the given frequency
     pub fn insert_task(mut self, frequency: Ratio<u32>, callback: impl Task) -> Self {
         let task_metatada = self.metadata().task.get_or_insert_default();
 
-        task_metatada.tasks.push((frequency, Box::new(callback)));
+        task_metatada.tasks.push(StoredTask {
+            frequency: frequency.recip(),
+            lazy: false,
+            task: Box::new(callback),
+        });
+
+        self
+    }
+
+    /// Insert a task to be executed by the scheduler at the given frequency
+    ///
+    /// This task will be lazily executed, i.e. only when the component that inserted it actually interacts with it
+    ///
+    /// As such, any side effects of the task may be out of order (apart from interactions with the component that inserted it), so use it for tasks that have no side effects
+    pub fn insert_lazy_task(mut self, frequency: Ratio<u32>, callback: impl Task) -> Self {
+        let task_metatada = self.metadata().task.get_or_insert_default();
+
+        task_metatada.tasks.push(StoredTask {
+            frequency: frequency.recip(),
+            lazy: true,
+            task: Box::new(callback),
+        });
 
         self
     }

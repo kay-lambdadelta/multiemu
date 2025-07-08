@@ -12,7 +12,6 @@ use bitvec::{
 };
 use multiemu_definition_mos6502::Mos6502;
 use multiemu_runtime::{component::ComponentRef, scheduler::Task};
-use smallvec::SmallVec;
 
 pub struct TiaTask<R: Region, G: SupportedGraphicsApiTia> {
     pub component: ComponentRef<Tia<R, G>>,
@@ -22,7 +21,7 @@ pub struct TiaTask<R: Region, G: SupportedGraphicsApiTia> {
 impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
     fn run(&mut self, time_slice: NonZero<u32>) {
         // This task will usually get called with a time slice of 3 since its 3 times faster than the cpu and the fastest timer in the atari 2600
-        let mut pixels = SmallVec::<_, 3>::new();
+        let mut pixels = Vec::with_capacity(time_slice.get() as usize);
 
         self.component
             .interact(|component| {

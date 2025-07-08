@@ -1,5 +1,5 @@
 use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
-use crate::tia::{SCANLINE_LENGTH, region::Region};
+use crate::tia::{region::Region, VISIBLE_SCANLINE_LENGTH};
 use multiemu_graphics::{
     GraphicsApi,
     software::{InitializationData, Software},
@@ -18,7 +18,7 @@ impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
 
     fn new(_: InitializationData) -> Self {
         let staging_buffer = DMatrix::from_element(
-            SCANLINE_LENGTH as usize,
+            VISIBLE_SCANLINE_LENGTH as usize,
             R::TOTAL_SCANLINES as usize,
             Srgba::new(0, 0, 0, 0xff),
         );

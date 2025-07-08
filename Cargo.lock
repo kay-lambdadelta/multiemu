@@ -504,9 +504,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.27"
+version = "1.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d487aa071b5f64da6f19a3e848e3578944b726ee5a4854b82172f02aa876bfdc"
+checksum = "5c1599538de2394445747c8cf7935946e3cc27e9625f889d979bfb2aaf569362"
 dependencies = [
  "jobserver",
  "libc",
@@ -2201,7 +2201,6 @@ dependencies = [
  "rangemap",
  "ron",
  "serde",
- "smallvec 2.0.0-alpha.11",
  "strum 0.27.1",
  "tracing",
 ]
@@ -2406,9 +2405,9 @@ dependencies = [
  "rangemap",
  "ringbuffer",
  "rustc-hash 2.1.1",
+ "scc",
  "sealed",
  "serde",
- "smallvec 2.0.0-alpha.11",
  "thiserror 2.0.12",
  "tracing",
  "versions",
@@ -3184,7 +3183,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall 0.5.13",
- "smallvec 1.15.1",
+ "smallvec",
  "windows-targets 0.52.6",
 ]
 
@@ -3885,9 +3884,9 @@ dependencies = [
 
 [[package]]
 name = "schemars"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1375ba8ef45a6f15d83fa8748f1079428295d403d6ea991d09ab100155fbc06d"
+checksum = "82d20c4491bc164fa2f6c5d44565947a52ad80b9505d8e36f8d54c27c739fcd0"
 dependencies = [
  "dyn-clone",
  "ref-cast",
@@ -3985,7 +3984,7 @@ dependencies = [
  "indexmap 1.9.3",
  "indexmap 2.10.0",
  "schemars 0.9.0",
- "schemars 1.0.3",
+ "schemars 1.0.4",
  "serde",
  "serde_derive",
  "serde_json",
@@ -4112,12 +4111,6 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
-
-[[package]]
-name = "smallvec"
-version = "2.0.0-alpha.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87b96efa4bd6bdd2ff0c6615cc36fc4970cbae63cfd46ddff5cee35a1b4df570"
 
 [[package]]
 name = "smithay-client-toolkit"
@@ -4517,7 +4510,7 @@ dependencies = [
  "once_cell",
  "regex",
  "sharded-slab",
- "smallvec 1.15.1",
+ "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
@@ -4751,7 +4744,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slabbin",
- "smallvec 1.15.1",
+ "smallvec",
  "thread_local",
  "vk-parse",
 ]
@@ -4862,7 +4855,7 @@ dependencies = [
  "downcast-rs",
  "rustix 0.38.44",
  "scoped-tls",
- "smallvec 1.15.1",
+ "smallvec",
  "wayland-sys",
 ]
 

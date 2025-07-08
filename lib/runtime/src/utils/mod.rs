@@ -1,20 +1,34 @@
 pub use fragile::Fragile;
 pub use main_thread_queue::*;
-use std::{sync::OnceLock, thread::ThreadId};
+use std::{
+    cell::LazyCell,
+    num::NonZero,
+    ops::Deref,
+    sync::{
+        OnceLock,
+        atomic::{AtomicU32, Ordering},
+    },
+};
 
 mod fragile;
 mod main_thread_queue;
 
+type ThreadId = NonZero<u32>;
+
 static MAIN_THREAD: OnceLock<ThreadId> = OnceLock::new();
+static MAIN_THREAD_COUNTER: AtomicU32 = AtomicU32::new(1);
+
+thread_local! {
+    static THREAD_ID: LazyCell<ThreadId> = LazyCell::new(||  {
+        let id = MAIN_THREAD_COUNTER.fetch_add(1, Ordering::SeqCst);
+        NonZero::new(id).expect("Main thread counter overflowed")
+    });
+}
 
 #[inline]
 /// Checks if the current thread is the main thread
 pub fn is_main_thread() -> bool {
-    if let Some(thread_id) = MAIN_THREAD.get() {
-        return *thread_id == std::thread::current().id();
-    } else {
-        unreachable!("Main thread was not set")
-    }
+    THREAD_ID.with(|id| MAIN_THREAD.get() == Some(id.deref()))
 }
 
 #[inline]
@@ -25,6 +39,6 @@ pub fn is_main_thread() -> bool {
 /// Not using it at all is asking for a crash
 pub fn set_main_thread() {
     MAIN_THREAD
-        .set(std::thread::current().id())
+        .set(THREAD_ID.with(|id| *id.deref()))
         .expect("Main thread already set");
 }

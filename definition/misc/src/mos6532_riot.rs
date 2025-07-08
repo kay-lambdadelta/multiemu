@@ -236,7 +236,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
     {
         // Make the timers operate
         component_builder
-            .insert_task(config.frequency, {
+            .insert_lazy_task(config.frequency, {
                 let component_ref = component_ref.clone();
 
                 move |slice: NonZero<u32>| {
@@ -250,7 +250,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                         .unwrap();
                 }
             })
-            .insert_task(config.frequency / 8, {
+            .insert_lazy_task(config.frequency / 8, {
                 let component_ref = component_ref.clone();
 
                 move |slice: NonZero<u32>| {
@@ -264,7 +264,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                         .unwrap();
                 }
             })
-            .insert_task(config.frequency / 64, {
+            .insert_lazy_task(config.frequency / 64, {
                 let component_ref = component_ref.clone();
 
                 move |slice: NonZero<u32>| {
@@ -278,7 +278,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                         .unwrap();
                 }
             })
-            .insert_task(config.frequency / 1024, {
+            .insert_lazy_task(config.frequency / 1024, {
                 let component_ref = component_ref.clone();
 
                 move |slice: NonZero<u32>| {

@@ -1,5 +1,5 @@
 use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
-use crate::tia::{SCANLINE_LENGTH, region::Region};
+use crate::tia::{region::Region, VISIBLE_SCANLINE_LENGTH};
 use multiemu_graphics::{
     GraphicsApi,
     vulkan::{
@@ -48,7 +48,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
             },
             std::iter::repeat_n(
                 Srgba::new(0, 0, 0, 0xff),
-                SCANLINE_LENGTH as usize * R::TOTAL_SCANLINES as usize,
+                VISIBLE_SCANLINE_LENGTH as usize * R::TOTAL_SCANLINES as usize,
             ),
         )
         .unwrap();
@@ -58,7 +58,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
             ImageCreateInfo {
                 image_type: ImageType::Dim2d,
                 format: Format::R8G8B8A8_SRGB,
-                extent: [SCANLINE_LENGTH as u32, R::TOTAL_SCANLINES as u32, 1],
+                extent: [VISIBLE_SCANLINE_LENGTH as u32, R::TOTAL_SCANLINES as u32, 1],
                 usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
                 ..Default::default()
             },
@@ -82,7 +82,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
 
         callback(DMatrixViewMut::from_slice(
             &mut staging_buffer_guard,
-            SCANLINE_LENGTH as usize,
+            VISIBLE_SCANLINE_LENGTH as usize,
             R::TOTAL_SCANLINES as usize,
         ));
     }

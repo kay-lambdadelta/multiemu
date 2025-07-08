@@ -1,14 +1,10 @@
 use super::{
-    MemoryTranslationTable, NEEDED_ACCESSES_BASE_CAPACITY, NeededAccess, RemapCallback,
+    MemoryTranslationTable, NeededAccess, RemapCallback,
     address_space::{AddressSpace, AddressSpaceHandle},
 };
-use crate::{
-    component::{ComponentId, ComponentStore},
-    memory::Address,
-};
+use crate::{component::ComponentId, memory::Address};
 use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
-use smallvec::SmallVec;
 use std::{ops::RangeInclusive, vec::Vec};
 use thiserror::Error;
 
@@ -101,20 +97,19 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryOperationError> {
-        let mut needed_accesses = SmallVec::from_iter([NeededAccess {
+        let mut needed_access = Vec::from_iter([NeededAccess {
             address,
             address_space,
             buffer_subrange: (0..=(buffer.len() - 1)),
         }]);
         let mut remap_callbacks = Vec::default();
-        let component_store = self.component_store.upgrade().unwrap();
 
         let result = (|| {
             while let Some(NeededAccess {
                 address,
                 address_space,
                 buffer_subrange,
-            }) = needed_accesses.pop()
+            }) = needed_access.pop()
             {
                 let mut did_handle = false;
 
@@ -138,8 +133,7 @@ impl MemoryTranslationTable {
                     address_space,
                     address_space_info,
                     buffer_subrange,
-                    &component_store,
-                    &mut needed_accesses,
+                    &mut needed_access,
                     &mut remap_callbacks,
                 )?;
 
@@ -169,8 +163,7 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         address_space_info: &AddressSpace,
         buffer_subrange: RangeInclusive<Address>,
-        component_store: &ComponentStore,
-        needed_accesses: &mut SmallVec<NeededAccess, NEEDED_ACCESSES_BASE_CAPACITY>,
+        needed_accesses: &mut Vec<NeededAccess>,
         remap_callbacks: &mut Vec<RemapCallback>,
     ) -> Result<(), ReadMemoryOperationError> {
         // Cut off address
@@ -197,7 +190,7 @@ impl MemoryTranslationTable {
             let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
                 ..=(adjusted_accessing_range.end() - address);
 
-            component_store.interact_dyn(*component_id, |component| {
+            self.component_store.interact_dyn(*component_id, |component| {
                 *did_handle = true;
 
                 if let Err(errors) = component.read_memory(
@@ -210,7 +203,7 @@ impl MemoryTranslationTable {
                     for (range, error) in errors.records {
                         match error {
                             ReadMemoryRecord::Denied => {
-                                tracing::debug!("Write memory operation denied at {:#04x?}", range);
+                                tracing::debug!("Read memory operation denied at {:#04x?}", range);
 
                                 detected_errors
                                     .insert(range, ReadMemoryOperationErrorFailureType::Denied);
@@ -292,12 +285,11 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), PreviewMemoryOperationError> {
-        let mut needed_accesses = SmallVec::from_iter([NeededAccess {
+        let mut needed_accesses = Vec::from_iter([NeededAccess {
             address,
             address_space,
             buffer_subrange: (0..=(buffer.len() - 1)),
         }]);
-        let component_store = self.component_store.upgrade().unwrap();
 
         while let Some(NeededAccess {
             address,
@@ -327,7 +319,6 @@ impl MemoryTranslationTable {
                 address_space,
                 address_space_info,
                 buffer_subrange,
-                &component_store,
                 &mut needed_accesses,
             )?;
 
@@ -354,8 +345,7 @@ impl MemoryTranslationTable {
         address_space: AddressSpaceHandle,
         address_space_info: &AddressSpace,
         buffer_subrange: RangeInclusive<Address>,
-        component_store: &ComponentStore,
-        needed_accesses: &mut SmallVec<NeededAccess, NEEDED_ACCESSES_BASE_CAPACITY>,
+        needed_accesses: &mut Vec<NeededAccess>,
     ) -> Result<(), PreviewMemoryOperationError> {
         // Cut off address
         let address = address & address_space_info.width_mask;
@@ -381,7 +371,7 @@ impl MemoryTranslationTable {
             let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
                 ..=(adjusted_accessing_range.end() - address);
 
-            component_store.interact_dyn(*component_id, |component| {
+            self.component_store.interact_dyn(*component_id, |component| {
                 *did_handle = true;
 
                 if let Err(errors) = component.preview_memory(

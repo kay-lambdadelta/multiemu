@@ -52,6 +52,7 @@ impl<C: Component> ComponentRef<C> {
     }
 
     /// Interacts with this component
+    #[inline]
     pub fn interact<T: Send + 'static>(
         &self,
         callback: impl FnOnce(&C) -> T + Send,
@@ -60,6 +61,8 @@ impl<C: Component> ComponentRef<C> {
     }
 
     /// Interacts with this component if its on the same (main) thread
+    #[inline]
+
     pub fn interact_local<T: 'static>(
         &self,
         callback: impl FnOnce(&C) -> T,
@@ -70,6 +73,7 @@ impl<C: Component> ComponentRef<C> {
             .interact_local(self.id, callback)
     }
 
+    #[inline]
     pub fn id(&self) -> ComponentId {
         self.id
     }

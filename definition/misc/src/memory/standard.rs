@@ -14,10 +14,10 @@ use std::{
     borrow::Cow,
     io::Read,
     ops::RangeInclusive,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex},
 };
 
-const PAGE_SIZE: usize = 4096 - size_of::<RwLock<()>>();
+const PAGE_SIZE: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StandardMemoryInitialContents {
@@ -43,7 +43,7 @@ pub struct StandardMemoryConfig {
 pub struct StandardMemory {
     rom_manager: Arc<RomManager>,
     config: StandardMemoryConfig,
-    buffer: Vec<RwLock<[u8; PAGE_SIZE]>>,
+    buffer: Vec<Mutex<[u8; PAGE_SIZE]>>,
 }
 
 impl Component for StandardMemory {
@@ -176,7 +176,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         let buffer_size = self.assigned_range.clone().count();
         let chunks_needed = buffer_size.div_ceil(PAGE_SIZE);
         let buffer =
-            Vec::from_iter(std::iter::repeat_n([0; PAGE_SIZE], chunks_needed).map(RwLock::new));
+            Vec::from_iter(std::iter::repeat_n([0; PAGE_SIZE], chunks_needed).map(Mutex::new));
         let assigned_range = self.assigned_range.clone();
         let assigned_address_space = self.assigned_address_space;
 
@@ -231,7 +231,7 @@ impl StandardMemory {
             };
 
             // Lock the chunk and read the relevant part
-            let mut locked_chunk = chunk.write().unwrap();
+            let mut locked_chunk = chunk.lock().unwrap();
             let chunk_range = chunk_start..=chunk_end;
             let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
 
@@ -270,7 +270,7 @@ impl StandardMemory {
             };
 
             // Lock the chunk and read the relevant part
-            let locked_chunk = chunk.read().unwrap();
+            let locked_chunk = chunk.lock().unwrap();
             let chunk_range = chunk_start..=chunk_end;
             let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
 

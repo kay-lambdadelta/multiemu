@@ -7,7 +7,7 @@ use std::{
     boxed::Box,
     ops::RangeInclusive,
     sync::{
-        Arc, RwLock, Weak,
+        Arc, RwLock,
         atomic::{AtomicU16, Ordering},
     },
     vec::Vec,
@@ -20,9 +20,6 @@ mod write;
 pub use address_space::AddressSpaceHandle;
 pub use read::*;
 pub use write::*;
-
-/// For the initial access
-const NEEDED_ACCESSES_BASE_CAPACITY: usize = 1;
 
 /// Callback to be able to remap the memory translation table without a deadlock
 pub struct RemapCallback {
@@ -61,7 +58,7 @@ impl<R> From<RangeInclusiveMap<Address, R>> for MemoryOperationError<R> {
 pub struct MemoryTranslationTable {
     address_spaces: RwLock<Vec<AddressSpace>>,
     current_address_space: AtomicU16,
-    component_store: Weak<ComponentStore>,
+    component_store: Arc<ComponentStore>,
 }
 
 impl MemoryTranslationTable {
@@ -69,7 +66,7 @@ impl MemoryTranslationTable {
         Self {
             address_spaces: RwLock::new(Vec::new()),
             current_address_space: AtomicU16::new(1),
-            component_store: Arc::downgrade(&component_store),
+            component_store,
         }
     }
 

@@ -22,8 +22,8 @@ rustc-hash = { workspace = true }
 data-encoding = { workspace = true }
 bincode = { workspace = true }
 versions = { workspace = true }
-smallvec = { workspace = true }
 ringbuffer = { workspace = true }
 sealed = { workspace = true }
 crossbeam = { workspace = true }
+scc = { workspace = true }
 pathfinding = "4.14"
