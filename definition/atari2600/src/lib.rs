@@ -11,7 +11,11 @@ use multiemu_definition_misc::{
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomManager};
 use multiemu_runtime::{
-    builder::MachineBuilder, component::{ComponentId, ComponentRef}, memory::{Address, AddressSpaceHandle}, platform::Platform, MachineFactory
+    MachineFactory,
+    builder::MachineBuilder,
+    component::{ComponentId, ComponentRef},
+    memory::{Address, AddressSpaceHandle},
+    platform::Platform,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
@@ -94,32 +98,15 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
             },
         );
 
-        for (index, source_addresses) in tia_write_register_mirror_ranges().enumerate() {
+        for (index, source_addresses) in tia_register_mirror_ranges().enumerate() {
             let (machine_builder, component) = machine.insert_component(
-                &format!("tia_write_mirror_{}", index),
+                &format!("tia_mirror_{}", index),
                 MirrorMemoryConfig {
-                    readable: false,
+                    readable: true,
                     writable: true,
                     source_addresses,
                     source_address_space: cpu_address_space,
                     destination_addresses: 0x0000..=0x003f,
-                    destination_address_space: cpu_address_space,
-                },
-            );
-
-            machine = machine_builder;
-            mirror_component_ids.push(component.id());
-        }
-
-        for (index, source_addresses) in tia_read_register_mirror_ranges().enumerate() {
-            let (machine_builder, component) = machine.insert_component(
-                &format!("tia_read_mirror_{}", index),
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: false,
-                    source_addresses,
-                    source_address_space: cpu_address_space,
-                    destination_addresses: 0x0000..=0x000f,
                     destination_address_space: cpu_address_space,
                 },
             );
@@ -146,25 +133,32 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
         }
 
         for (index, source_addresses) in riot_ram_mirror_ranges().enumerate() {
-            machine = machine
-                .insert_component(
-                    &format!("mos6532_riot_ram_mirror_{}", index),
-                    MirrorMemoryConfig {
-                        readable: true,
-                        writable: true,
-                        source_addresses,
-                        source_address_space: cpu_address_space,
-                        destination_addresses: 0x80..=0xff,
-                        destination_address_space: cpu_address_space,
-                    },
-                )
-                .0;
+            let (machine_builder, component) = machine.insert_component(
+                &format!("mos6532_riot_ram_mirror_{}", index),
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    source_addresses,
+                    source_address_space: cpu_address_space,
+                    destination_addresses: 0x80..=0xff,
+                    destination_address_space: cpu_address_space,
+                },
+            );
+
+            machine = machine_builder;
+            mirror_component_ids.push(component.id());
         }
 
         let (machine, mos6532_riot) = match region {
-            RegionSelection::Ntsc => common::<Ntsc, _>(cpu_address_space, machine, mirror_component_ids),
-            RegionSelection::Pal => common::<Pal, _>(cpu_address_space, machine, mirror_component_ids),
-            RegionSelection::Secam => common::<Secam, _>(cpu_address_space, machine, mirror_component_ids),
+            RegionSelection::Ntsc => {
+                common::<Ntsc, _>(cpu_address_space, machine, mirror_component_ids)
+            }
+            RegionSelection::Pal => {
+                common::<Pal, _>(cpu_address_space, machine, mirror_component_ids)
+            }
+            RegionSelection::Secam => {
+                common::<Secam, _>(cpu_address_space, machine, mirror_component_ids)
+            }
         };
 
         let (machine, _) =
@@ -229,28 +223,15 @@ fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
 // These three functions hardcode mirror addresses instead of trying to mechanically replicate partial address decoding
 // Which would be difficult, painful, and require inefficient changes to the memory translation table
 
-fn tia_read_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
-    (0x0000..=0x0fff).step_by(0x20).skip(1).filter_map(|base| {
-        let reduced_base = base & 0xff;
-
-        if [0x00, 0x20, 0x40, 0x60].contains(&reduced_base) {
-            return Some(base..=base + 0x3f);
-        }
-
-        None
-    })
-}
-
-fn tia_write_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
-    (0x0000..=0x0fff).step_by(0x40).skip(1).filter_map(|base| {
-        let reduced_base = base & 0xff;
-
-        if [0x00, 0x40].contains(&reduced_base) {
-            return Some(base..=base + 0x3f);
-        }
-
-        None
-    })
+fn tia_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
+    [
+        0x0000, 0x0040, 0x0100, 0x0140, 0x0200, 0x0240, 0x0300, 0x0340, 0x0400, 0x0440, 0x0500,
+        0x0540, 0x0600, 0x0640, 0x0700, 0x0740, 0x0800, 0x0840, 0x0900, 0x0940, 0x0a00, 0x0a40,
+        0x0b00, 0x0b40, 0x0c00, 0x0c40, 0x0d00, 0x0d40, 0x0e00, 0x0e40, 0x0f00, 0x0f40,
+    ]
+    .into_iter()
+    .skip(1)
+    .map(|start_range| start_range..=start_range + 0x003f)
 }
 
 // 0x280..=0x283
@@ -267,4 +248,58 @@ fn riot_ram_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
     [0x0180, 0x0480, 0x0580, 0x0880, 0x0980, 0x0c80, 0x0d80]
         .into_iter()
         .map(|range| range..=range + 0x7f)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Atari2600;
+    use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
+    use multiemu_rom::{RomId, RomManager};
+    use multiemu_runtime::{
+        MachineFactory,
+        platform::TestPlatform,
+        utils::{DirectMainThreadExecutor, set_main_thread},
+    };
+    use num::rational::Ratio;
+    use std::{fs::File, ops::Deref, str::FromStr, sync::Arc};
+
+    #[test]
+    fn riot_ram_access() {
+        set_main_thread();
+
+        let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+        let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
+
+        let rom_manager = Arc::new(
+            RomManager::new(
+                Some(environment.database_location.0.clone()),
+                Some(environment.rom_store_directory.0.clone()),
+            )
+            .unwrap(),
+        );
+
+        // Torture it
+        for _ in 0..100 {
+            let machine = MachineFactory::<TestPlatform>::construct(
+                &Atari2600,
+                // Donkey Kong (USA).a26
+                vec![RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()],
+                rom_manager.clone(),
+                Ratio::from_integer(44100),
+                Arc::new(DirectMainThreadExecutor),
+            )
+            .build(Default::default());
+
+            let cpu_address_space = machine
+                .memory_translation_table
+                .address_spaces()
+                .next()
+                .unwrap();
+
+            let _: u8 = machine
+                .memory_translation_table
+                .read_le_value(0x180, cpu_address_space)
+                .expect(&format!("{:#04x?}", machine));
+        }
+    }
 }

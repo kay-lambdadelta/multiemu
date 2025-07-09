@@ -95,6 +95,12 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
         _component_ref: ComponentRef<Self::Component>,
         mut component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) {
+        assert_eq!(
+            self.source_addresses.clone().count(),
+            self.destination_addresses.clone().count(),
+            "Source and destination ranges must be the same length"
+        );
+
         match (self.readable, self.writable) {
             (true, true) => {
                 component_builder = component_builder

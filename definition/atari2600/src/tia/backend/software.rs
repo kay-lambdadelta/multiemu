@@ -1,5 +1,7 @@
+use std::fmt::Debug;
+
 use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
-use crate::tia::{region::Region, VISIBLE_SCANLINE_LENGTH};
+use crate::tia::{VISIBLE_SCANLINE_LENGTH, region::Region};
 use multiemu_graphics::{
     GraphicsApi,
     software::{InitializationData, Software},
@@ -7,10 +9,17 @@ use multiemu_graphics::{
 use nalgebra::DMatrix;
 use palette::Srgba;
 
-#[derive(Debug)]
 pub struct SoftwareState {
     pub staging_buffer: DMatrix<Srgba<u8>>,
     pub framebuffer: DMatrix<Srgba<u8>>,
+}
+
+// elide the buffers
+
+impl Debug for SoftwareState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SoftwareState").finish()
+    }
 }
 
 impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
