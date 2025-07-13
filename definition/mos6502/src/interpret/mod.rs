@@ -120,7 +120,9 @@ impl Mos6502Task {
 
                         if !state.flags.carry {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
+                                    value,
+                                }]),
                             });
                         }
                     }
@@ -129,7 +131,9 @@ impl Mos6502Task {
 
                         if state.flags.carry {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
+                                    value,
+                                }]),
                             });
                         }
                     }
@@ -138,7 +142,9 @@ impl Mos6502Task {
 
                         if state.flags.zero {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
+                                    value,
+                                }]),
                             });
                         }
                     }
@@ -157,7 +163,9 @@ impl Mos6502Task {
 
                         if state.flags.negative {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
+                                    value,
+                                }]),
                             });
                         }
                     }
@@ -166,7 +174,9 @@ impl Mos6502Task {
 
                         if !state.flags.zero {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
+                                    value,
+                                }]),
                             });
                         }
                     }
@@ -175,7 +185,9 @@ impl Mos6502Task {
 
                         if !state.flags.negative {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
+                                    value,
+                                }]),
                             });
                         }
                     }
@@ -225,7 +237,9 @@ impl Mos6502Task {
 
                         if !state.flags.overflow {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
+                                    value,
+                                }]),
                             });
                         }
                     }
@@ -234,7 +248,9 @@ impl Mos6502Task {
 
                         if state.flags.overflow {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
+                                    value,
+                                }]),
                             });
                         }
                     }
@@ -292,7 +308,9 @@ impl Mos6502Task {
                             state.a = result;
                         } else {
                             state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::Data { value: result }]),
+                                queue: VecDeque::from_iter([PostInterpretStep::Data {
+                                    value: result,
+                                }]),
                             });
                         }
                     }
@@ -454,7 +472,9 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Pha => {
                         state.execution_mode = Some(ExecutionMode::PostInterpret {
-                            queue: VecDeque::from_iter([PostInterpretStep::PushStack { data: state.a }]),
+                            queue: VecDeque::from_iter([PostInterpretStep::PushStack {
+                                data: state.a,
+                            }]),
                         });
                     }
                     Mos6502Opcode::Php => {

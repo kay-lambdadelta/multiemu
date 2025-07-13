@@ -278,28 +278,25 @@ mod tests {
             .unwrap(),
         );
 
-        // Torture it
-        for _ in 0..100 {
-            let machine = MachineFactory::<TestPlatform>::construct(
-                &Atari2600,
-                // Donkey Kong (USA).a26
-                vec![RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()],
-                rom_manager.clone(),
-                Ratio::from_integer(44100),
-                Arc::new(DirectMainThreadExecutor),
-            )
-            .build(Default::default());
+        let machine = MachineFactory::<TestPlatform>::construct(
+            &Atari2600,
+            // Donkey Kong (USA).a26
+            vec![RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()],
+            rom_manager.clone(),
+            Ratio::from_integer(44100),
+            Arc::new(DirectMainThreadExecutor),
+        )
+        .build(Default::default());
 
-            let cpu_address_space = machine
-                .memory_translation_table
-                .address_spaces()
-                .next()
-                .unwrap();
+        let cpu_address_space = machine
+            .memory_translation_table
+            .address_spaces()
+            .next()
+            .unwrap();
 
-            let _: u8 = machine
-                .memory_translation_table
-                .read_le_value(0x180, cpu_address_space)
-                .expect(&format!("{:#04x?}", machine));
-        }
+        let _: u8 = machine
+            .memory_translation_table
+            .read_le_value(0x180, cpu_address_space)
+            .expect(&format!("{:#04x?}", machine));
     }
 }

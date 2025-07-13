@@ -20,20 +20,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         .unwrap(),
     );
 
-    c.bench_function("initialization", |b| {
-        b.iter(|| {
-            <Atari2600 as MachineFactory<TestPlatform>>::construct(
-                &Atari2600,
-                // Donkey Kong (USA).a26
-                vec![RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()],
-                rom_manager.clone(),
-                Ratio::from_integer(44100),
-                Arc::new(DirectMainThreadExecutor),
-            )
-            .build(Default::default())
-        })
-    });
-
     let machine = MachineFactory::<TestPlatform>::construct(
         &Atari2600,
         // Donkey Kong (USA).a26

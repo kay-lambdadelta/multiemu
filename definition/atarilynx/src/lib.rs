@@ -12,6 +12,8 @@ use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use std::{ops::RangeInclusive, str::FromStr, sync::Arc};
 
+use crate::suzy::SuzyConfig;
+
 mod mapctl;
 mod mikey;
 mod suzy;
@@ -75,12 +77,14 @@ impl<P: Platform> MachineFactory<P> for AtariLynx {
             },
         );
 
+        let (machine, suzy) = machine.insert_component("suzy", SuzyConfig { cpu_address_space });
+
         let (machine, _) = machine.insert_component(
             "mapctl",
             MapctlConfig {
                 cpu_address_space,
                 ram: ram.id(),
-                suzy: todo!(),
+                suzy: suzy.id(),
                 mikey: todo!(),
                 vector: todo!(),
                 reserved: todo!(),

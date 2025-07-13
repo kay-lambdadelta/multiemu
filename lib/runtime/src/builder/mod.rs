@@ -23,7 +23,7 @@ use pathfinding::prelude::topological_sort;
 use rangemap::RangeInclusiveSet;
 use rustc_hash::FxBuildHasher;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     marker::PhantomData,
     ops::RangeInclusive,
     sync::{Arc, Mutex},
@@ -72,7 +72,7 @@ pub struct MachineBuilder<P: Platform> {
     /// The store for components
     component_store: Arc<ComponentStore>,
     /// Stored component builder callbacks for late initialization
-    component_builders: HashMap<ComponentId, ComponentBuilderCallback<P>>,
+    component_builders: BTreeMap<ComponentId, ComponentBuilderCallback<P>>,
     /// Graphics requirements
     graphics_requirements: GraphicsRequirements<P::GraphicsApi>,
     /// Component metadata
@@ -94,7 +94,7 @@ impl<P: Platform> MachineBuilder<P> {
         MachineBuilder::<P> {
             current_audio_output_id: AudioOutputId(0),
             current_display_id: DisplayId(0),
-            component_builders: HashMap::default(),
+            component_builders: BTreeMap::new(),
             memory_translation_table: Arc::new(MemoryTranslationTable::new(
                 component_store.clone(),
             )),

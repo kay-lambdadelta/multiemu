@@ -1,7 +1,8 @@
 use multiemu_input::{Input, InputState, VirtualGamepadName};
+use rustc_hash::FxBuildHasher;
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 #[derive(Debug, Clone)]
@@ -16,7 +17,7 @@ pub struct VirtualGamepadMetadata {
 pub struct VirtualGamepad {
     name: VirtualGamepadName,
     metadata: Arc<VirtualGamepadMetadata>,
-    state: RwLock<HashMap<Input, InputState>>,
+    state: scc::HashMap<Input, InputState, FxBuildHasher>,
 }
 
 impl VirtualGamepad {
@@ -27,7 +28,7 @@ impl VirtualGamepad {
         Arc::new(Self {
             name,
             metadata: medadata.into(),
-            state: RwLock::default(),
+            state: Default::default(),
         })
     }
 
@@ -41,7 +42,7 @@ impl VirtualGamepad {
 
     pub fn set(&self, input: Input, state: InputState) {
         if self.metadata.present_inputs.contains(&input) {
-            self.state.write().unwrap().insert(input, state);
+            self.state.upsert(input, state);
         }
     }
 
@@ -53,9 +54,8 @@ impl VirtualGamepad {
         );
 
         self.state
-            .read()
-            .unwrap()
             .get(&input)
+            .as_deref()
             .copied()
             .unwrap_or_default()
     }

@@ -41,7 +41,7 @@ impl Scheduler {
                 );
 
             for event in lazy_events {
-                let mut task_info = self.storage.tasks[event as usize].lock().unwrap();
+                let mut task_info = self.storage.tasks[&event].lock().unwrap();
 
                 match &mut task_info.mode {
                     TaskMode::Lazy { debt } => {
@@ -66,29 +66,25 @@ impl Scheduler {
             }
 
             match active_events.len() {
-                0 => {
-                    self.update_current_tick(max_allotted_ticks);
-                }
+                0 => {}
                 1 => {
                     let event = active_events[0];
-                    let mut task_info = self.storage.tasks[event as usize].lock().unwrap();
+                    let mut task_info = self.storage.tasks[&event].lock().unwrap();
                     let time_slice =
                         NonZero::new((max_allotted_ticks / task_info.tick_rate).max(1)).unwrap();
                     let representing_time = time_slice.get() * task_info.tick_rate;
 
                     self.active_schedule
                         .entry((self.current_tick + representing_time) % self.ticks_per_full_cycle)
-                        .or_default()
+                        .or_insert_with(|| Vec::with_capacity(1))
                         .push(event);
 
                     task_info.task.run(time_slice);
                     drop(task_info);
-
-                    self.update_current_tick(1);
                 }
                 _ => {
                     for event in active_events {
-                        let mut task_info = self.storage.tasks[event as usize].lock().unwrap();
+                        let mut task_info = self.storage.tasks[&event].lock().unwrap();
                         let time_slice = NonZero::new(1).unwrap();
                         let representing_time = time_slice.get() * task_info.tick_rate;
 
@@ -96,16 +92,16 @@ impl Scheduler {
                             .entry(
                                 (self.current_tick + representing_time) % self.ticks_per_full_cycle,
                             )
-                            .or_default()
+                            .or_insert_with(|| Vec::with_capacity(1))
                             .push(event);
 
                         task_info.task.run(time_slice);
                         drop(task_info);
                     }
-
-                    self.update_current_tick(1);
                 }
             }
+
+            self.update_current_tick(1);
         }
     }
 

@@ -1,3 +1,4 @@
+use nohash::BuildNoHashHasher;
 use num::{
     ToPrimitive,
     integer::{gcd, lcm},
@@ -55,11 +56,11 @@ impl DebtClearer {
         for task_id in self
             .0
             .component_tasks
-            .get(component_id.get() as usize)
+            .get(&component_id)
             .into_iter()
             .flatten()
         {
-            let Ok(mut task_info) = self.0.tasks[*task_id as usize].try_lock() else {
+            let Ok(mut task_info) = self.0.tasks.get(task_id).unwrap().try_lock() else {
                 continue;
             };
 
@@ -77,8 +78,8 @@ impl DebtClearer {
 
 #[derive(Debug)]
 struct TaskStorage {
-    pub tasks: Vec<Mutex<TaskInfo>>,
-    pub component_tasks: Vec<Vec<TaskId>>,
+    tasks: HashMap<TaskId, Mutex<TaskInfo>, BuildNoHashHasher<u16>>,
+    component_tasks: HashMap<ComponentId, Vec<TaskId>, BuildNoHashHasher<u16>>,
 }
 
 /// The scheduler for the emulator
@@ -119,7 +120,7 @@ impl Scheduler {
     pub(crate) fn new(component_tasks: HashMap<ComponentId, Vec<StoredTask>>) -> Self {
         // Only the active tasks are put on the schedule
         let mut tasks: BTreeMap<u16, _> = BTreeMap::new();
-        let mut component_owned_tasks: Vec<Vec<_>> = Vec::default();
+        let mut component_owned_tasks: HashMap<_, Vec<_>, _> = HashMap::default();
 
         for (component_id, task_id, task) in component_tasks
             .into_iter()
@@ -133,11 +134,10 @@ impl Scheduler {
         {
             tasks.insert(task_id, task);
 
-            if component_owned_tasks.len() <= component_id.get() as usize {
-                component_owned_tasks.resize_with(component_id.get() as usize + 1, Vec::new);
-            }
-
-            component_owned_tasks[component_id.get() as usize].push(task_id);
+            component_owned_tasks
+                .entry(component_id)
+                .or_default()
+                .push(task_id);
         }
 
         let common = Ratio::new(
@@ -187,22 +187,25 @@ impl Scheduler {
                 .collect(),
         )]);
 
-        let tasks: Vec<_> = tasks
+        let tasks = tasks
             .into_iter()
-            .map(|(_, task)| {
+            .map(|(task_id, task)| {
                 let tick_rate = (Ratio::from_integer(ticks_per_full_cycle)
                     / task.frequency.recip())
                 .to_integer();
 
-                Mutex::new(TaskInfo {
-                    task: task.task,
-                    tick_rate,
-                    mode: if task.lazy {
-                        TaskMode::Lazy { debt: 0 }
-                    } else {
-                        TaskMode::Active
-                    },
-                })
+                (
+                    task_id,
+                    Mutex::new(TaskInfo {
+                        mode: if task.lazy {
+                            TaskMode::Lazy { debt: 0 }
+                        } else {
+                            TaskMode::Active
+                        },
+                        task: task.task,
+                        tick_rate,
+                    }),
+                )
             })
             .collect();
 

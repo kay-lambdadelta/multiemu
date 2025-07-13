@@ -5,9 +5,11 @@ use crate::{
     utils::{Fragile, MainThreadQueue},
 };
 use multiemu_save::ComponentName;
+use nohash::BuildNoHashHasher;
 use std::{
     any::Any,
     boxed::Box,
+    collections::HashMap,
     fmt::Debug,
     sync::{
         Arc, OnceLock, RwLock,
@@ -25,7 +27,7 @@ pub enum ComponentStoreError {
 
 #[derive(Debug)]
 enum ComponentLocation {
-    Global(Arc<dyn Component + Send + Sync>),
+    Global(Box<dyn Component + Send + Sync>),
     // Use fragile to guard thread safety
     Local(Fragile<Box<dyn Component>>),
 }
@@ -43,7 +45,7 @@ pub struct ComponentStore
 where
     Self: Send + Sync,
 {
-    components: RwLock<Vec<OnceLock<ComponentInfo>>>,
+    components: RwLock<HashMap<ComponentId, ComponentInfo, BuildNoHashHasher<u16>>>,
     main_thread_queue: Arc<MainThreadQueue>,
     was_started: AtomicBool,
     current_component_id: AtomicU16,
@@ -70,8 +72,8 @@ impl ComponentStore {
         self.components
             .read()
             .unwrap()
-            .get(component_id.get() as usize)
-            .and_then(|component_info| Some(component_info.get()?.name.clone()))
+            .get(&component_id)
+            .map(|component_info| component_info.name.clone())
     }
 
     pub(crate) fn interact_all(&self, mut callback: impl FnMut(&dyn Component) + Send) {
@@ -81,10 +83,7 @@ impl ComponentStore {
 
         let component_location_guard = self.components.read().unwrap();
 
-        for component_info in component_location_guard
-            .iter()
-            .filter_map(|component_info| component_info.get())
-        {
+        for component_info in component_location_guard.values() {
             match &component_info.location {
                 ComponentLocation::Global(component) => callback(component.as_ref()),
                 ComponentLocation::Local(component) => self
@@ -95,8 +94,6 @@ impl ComponentStore {
     }
 
     pub fn generate_id(&self) -> ComponentId {
-        self.components.write().unwrap().push(OnceLock::new());
-
         ComponentId(
             self.current_component_id
                 .fetch_add(1, Ordering::SeqCst)
@@ -111,16 +108,14 @@ impl ComponentStore {
         component_id: ComponentId,
         component: impl Component,
     ) {
-        let components_guard = self.components.read().unwrap();
+        let mut components_guard = self.components.write().unwrap();
 
         components_guard
-            .get(component_id.get() as usize)
-            .unwrap()
-            .set(ComponentInfo {
+            .entry(component_id)
+            .or_insert(ComponentInfo {
                 location: ComponentLocation::Local(Fragile::new(Box::new(component))),
                 name,
-            })
-            .expect("Component already exists");
+            });
     }
 
     pub(crate) fn insert_component_global(
@@ -129,14 +124,14 @@ impl ComponentStore {
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
-        let components_guard = self.components.read().unwrap();
+        let mut components_guard = self.components.write().unwrap();
 
-        components_guard[component_id.get() as usize]
-            .set(ComponentInfo {
-                location: ComponentLocation::Global(Arc::new(component)),
+        components_guard
+            .entry(component_id)
+            .or_insert(ComponentInfo {
+                location: ComponentLocation::Global(Box::new(component)),
                 name,
-            })
-            .expect("Component already exists");
+            });
     }
 
     // Interacts with a component wherever it may be
@@ -153,8 +148,8 @@ impl ComponentStore {
             debt_clearer.clear_debts(component_id);
         }
 
-        match &component_location_guard[component_id.get() as usize]
-            .get()
+        match &component_location_guard
+            .get(&component_id)
             .ok_or(ComponentStoreError::ComponentNotFound)?
             .location
         {
@@ -178,9 +173,9 @@ impl ComponentStore {
         if let Some(debt_clearer) = self.debt_clearer.get() {
             debt_clearer.clear_debts(component_id);
         }
-        
-        match &component_location_guard[component_id.get() as usize]
-            .get()
+
+        match &component_location_guard
+            .get(&component_id)
             .ok_or(ComponentStoreError::ComponentNotFound)?
             .location
         {
@@ -214,10 +209,7 @@ impl ComponentStore {
     }
 
     pub fn get<C: Component>(self: &Arc<Self>, id: ComponentId) -> Option<ComponentRef<C>> {
-        if self.components.read().unwrap()[id.get() as usize]
-            .get()
-            .is_some()
-        {
+        if self.components.read().unwrap().contains_key(&id) {
             Some(ComponentRef::new(self.clone(), id))
         } else {
             None

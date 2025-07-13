@@ -1,5 +1,5 @@
 use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
-use crate::tia::{region::Region, VISIBLE_SCANLINE_LENGTH};
+use crate::tia::{VISIBLE_SCANLINE_LENGTH, region::Region};
 use multiemu_graphics::{
     GraphicsApi,
     vulkan::{

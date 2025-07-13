@@ -8,10 +8,11 @@ use crate::{
 };
 use multiemu_graphics::{GraphicsApi, GraphicsContextFeatures};
 use multiemu_rom::RomManager;
+use nohash::IsEnabled;
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::{any::Any, fmt::Debug, num::NonZero, sync::Arc};
+use std::{any::Any, fmt::Debug, hash::Hash, num::NonZero, sync::Arc};
 
 pub use component_ref::ComponentRef;
 pub use store::*;
@@ -137,11 +138,13 @@ pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized + 'static {
     );
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct ComponentId(NonZero<u16>);
 
-impl ComponentId {
-    pub fn get(&self) -> u16 {
-        self.0.get() - 1
+impl Hash for ComponentId {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_u16(self.0.get());
     }
 }
+
+impl IsEnabled for ComponentId {}

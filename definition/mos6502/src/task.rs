@@ -1,5 +1,6 @@
 use crate::{
-    ExecutionMode, LoadStep, Mos6502, Mos6502Config, ProcessorState, RESET_VECTOR, PostInterpretStep,
+    ExecutionMode, LoadStep, Mos6502, Mos6502Config, PostInterpretStep, ProcessorState,
+    RESET_VECTOR,
     decoder::Mos6502InstructionDecoder,
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,

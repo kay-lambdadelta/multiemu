@@ -119,9 +119,3 @@ impl MemoryTranslationTable {
         }
     }
 }
-
-struct NeededAccess {
-    pub address: Address,
-    pub address_space: AddressSpaceHandle,
-    pub buffer_subrange: RangeInclusive<Address>,
-}
