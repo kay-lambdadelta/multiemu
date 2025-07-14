@@ -1,19 +1,29 @@
 use crate::{component::ComponentId, memory::Address};
+use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
-use std::{num::NonZero, ops::RangeInclusive, vec::Vec};
+use std::{
+    hash::{Hash, Hasher},
+    num::NonZero,
+    ops::RangeInclusive,
+    vec::Vec,
+};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct AddressSpaceHandle(NonZero<u16>);
 
 impl AddressSpaceHandle {
     pub fn new(id: u16) -> Option<Self> {
         NonZero::new(id).map(AddressSpaceHandle)
     }
+}
 
-    pub fn get(self) -> u16 {
-        self.0.get() - 1
+impl Hash for AddressSpaceHandle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u16(self.0.get());
     }
 }
+
+impl IsEnabled for AddressSpaceHandle {}
 
 #[derive(Debug)]
 pub(super) struct AddressSpace {
@@ -23,6 +33,14 @@ pub(super) struct AddressSpace {
 }
 
 impl AddressSpace {
+    pub fn new(width_mask: Address) -> Self {
+        Self {
+            width_mask,
+            read_members: RangeInclusiveMap::new(),
+            write_members: RangeInclusiveMap::new(),
+        }
+    }
+
     /// Removes all memory maps for a component_id and remaps it like so
     pub fn remap_memory(
         &mut self,

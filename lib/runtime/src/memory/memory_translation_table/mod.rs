@@ -2,15 +2,16 @@ use super::Address;
 use crate::component::{ComponentId, ComponentStore};
 use address_space::AddressSpace;
 use bitvec::{field::BitField, order::Lsb0};
+use nohash::BuildNoHashHasher;
 use rangemap::RangeInclusiveMap;
 use std::{
     boxed::Box,
+    collections::HashMap,
     ops::RangeInclusive,
     sync::{
         Arc, RwLock,
         atomic::{AtomicU16, Ordering},
     },
-    vec::Vec,
 };
 
 mod address_space;
@@ -52,11 +53,10 @@ impl<R> From<RangeInclusiveMap<Address, R>> for MemoryOperationError<R> {
         }
     }
 }
-
 #[derive(Debug)]
 /// The main structure representing the devices memory address spaces
 pub struct MemoryTranslationTable {
-    address_spaces: RwLock<Vec<AddressSpace>>,
+    address_spaces: RwLock<HashMap<AddressSpaceHandle, AddressSpace, BuildNoHashHasher<u16>>>,
     current_address_space: AtomicU16,
     component_store: Arc<ComponentStore>,
 }
@@ -64,7 +64,7 @@ pub struct MemoryTranslationTable {
 impl MemoryTranslationTable {
     pub(crate) fn new(component_store: Arc<ComponentStore>) -> Self {
         Self {
-            address_spaces: RwLock::new(Vec::new()),
+            address_spaces: Default::default(),
             current_address_space: AtomicU16::new(1),
             component_store,
         }
@@ -81,11 +81,7 @@ impl MemoryTranslationTable {
         mask[..address_space_width as usize].fill(true);
         let width_mask = mask.load();
 
-        address_spaces_guard.push(AddressSpace {
-            width_mask,
-            read_members: RangeInclusiveMap::new(),
-            write_members: RangeInclusiveMap::new(),
-        });
+        address_spaces_guard.insert(id, AddressSpace::new(width_mask));
 
         id
     }
@@ -105,9 +101,7 @@ impl MemoryTranslationTable {
         mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
     ) {
         let mut address_spaces_guard = self.address_spaces.write().unwrap();
-        let address_space = address_spaces_guard
-            .get_mut(address_space.get() as usize)
-            .unwrap();
+        let address_space = address_spaces_guard.get_mut(&address_space).unwrap();
 
         address_space.remap_memory(component_id, mapping);
     }

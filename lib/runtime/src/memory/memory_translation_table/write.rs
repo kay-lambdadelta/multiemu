@@ -44,9 +44,7 @@ impl MemoryTranslationTable {
         mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
     ) {
         let mut address_spaces_guard = self.address_spaces.write().unwrap();
-        let address_space = address_spaces_guard
-            .get_mut(address_space.get() as usize)
-            .unwrap();
+        let address_space = address_spaces_guard.get_mut(&address_space).unwrap();
 
         address_space.remap_write_memory(component_id, mapping);
     }
@@ -99,21 +97,19 @@ impl MemoryTranslationTable {
         remap_callbacks: &mut Vec<RemapCallback>,
     ) -> Result<(), WriteMemoryOperationError> {
         let address_spaces_guard = self.address_spaces.read().unwrap();
-        let address_space_info = address_spaces_guard
-            .get(address_space.get() as usize)
-            .ok_or_else(|| {
-                WriteMemoryOperationError(RangeInclusiveMap::from_iter([(
-                    (buffer_subrange.start() + address)..=(buffer_subrange.end() + address),
-                    WriteMemoryOperationErrorFailureType::OutOfBus,
-                )]))
-            })?;
+        let address_space_info = address_spaces_guard.get(&address_space).ok_or_else(|| {
+            WriteMemoryOperationError(RangeInclusiveMap::from_iter([(
+                (buffer_subrange.start() + address)..=(buffer_subrange.end() + address),
+                WriteMemoryOperationErrorFailureType::OutOfBus,
+            )]))
+        })?;
 
         // TODO: Handle width mask wraparound properly
         let accessing_range = (buffer_subrange.start() + address) & address_space_info.width_mask
             ..=(buffer_subrange.end() + address) & address_space_info.width_mask;
         let address = address & address_space_info.width_mask;
 
-        for (component_assignment_range, component_id) in address_space_info
+        for (component_assigned_range, component_id) in address_space_info
             .read_members
             .overlapping(accessing_range.clone())
         {
@@ -121,8 +117,8 @@ impl MemoryTranslationTable {
                 .interact_dyn(*component_id, |component| {
                     let adjusted_accessing_range = (*accessing_range
                         .start()
-                        .max(component_assignment_range.start()))
-                        ..=(*accessing_range.end().min(component_assignment_range.end()));
+                        .max(component_assigned_range.start()))
+                        ..=(*accessing_range.end().min(component_assigned_range.end()));
 
                     let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
                         ..=(adjusted_accessing_range.end() - address);
@@ -149,10 +145,10 @@ impl MemoryTranslationTable {
                                     address_space: redirect_address_space,
                                 } => {
                                     assert!(
-                                        !component_assignment_range.contains(&redirect_address)
+                                        !component_assigned_range.contains(&redirect_address)
                                             && address_space == redirect_address_space,
                                         "Memory attempted to redirect to itself {:x?} -> {:x}",
-                                        component_assignment_range,
+                                        component_assigned_range,
                                         redirect_address,
                                     );
 
