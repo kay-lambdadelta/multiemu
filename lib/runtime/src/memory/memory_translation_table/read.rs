@@ -1,10 +1,5 @@
 use super::{MemoryTranslationTable, RemapCallback, address_space::AddressSpaceHandle};
-use crate::{
-    component::ComponentId,
-    memory::{
-        Address,
-    },
-};
+use crate::{component::ComponentId, memory::Address};
 use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
 use std::{ops::RangeInclusive, vec::Vec};

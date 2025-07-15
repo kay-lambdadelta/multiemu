@@ -468,7 +468,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         let task_metatada = self.metadata().task.get_or_insert_default();
 
         task_metatada.tasks.push(StoredTask {
-            frequency: frequency.recip(),
+            period: frequency.reduced().recip(),
             lazy: false,
             task: Box::new(callback),
         });
@@ -485,7 +485,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         let task_metatada = self.metadata().task.get_or_insert_default();
 
         task_metatada.tasks.push(StoredTask {
-            frequency: frequency.recip(),
+            period: frequency.reduced().recip(),
             lazy: true,
             task: Box::new(callback),
         });
