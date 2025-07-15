@@ -1,4 +1,4 @@
-use super::{MemoryTranslationTable, RemapCallback, address_space::AddressSpaceHandle};
+use super::{MemoryAccessTable, RemapCallback, address_space::AddressSpaceHandle};
 use crate::{component::ComponentId, memory::Address};
 use num::traits::ToBytes;
 use rangemap::RangeInclusiveMap;
@@ -35,7 +35,7 @@ pub enum WriteMemoryRecord {
     },
 }
 
-impl MemoryTranslationTable {
+impl MemoryAccessTable {
     /// Remap a write memory in a specific address space, clearing previous mappings
     pub fn remap_write_memory(
         &self,

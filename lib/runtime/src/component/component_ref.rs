@@ -1,6 +1,6 @@
 use super::{
     Component, ComponentId,
-    store::{ComponentStore, ComponentStoreError},
+    registry::{ComponentRegistry, ComponentStoreError},
 };
 use std::{
     fmt::Debug,
@@ -10,7 +10,7 @@ use std::{
 pub struct ComponentRef<C: Component> {
     id: ComponentId,
     // Stop potential cycles
-    store: Weak<ComponentStore>,
+    registry: Weak<ComponentRegistry>,
     _phantom: std::marker::PhantomData<C>,
 }
 
@@ -18,7 +18,7 @@ impl<C: Component> Clone for ComponentRef<C> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
-            store: self.store.clone(),
+            registry: self.registry.clone(),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -43,10 +43,10 @@ unsafe impl<C: Component> Send for ComponentRef<C> {}
 unsafe impl<C: Component> Sync for ComponentRef<C> {}
 
 impl<C: Component> ComponentRef<C> {
-    pub(crate) fn new(component_store: Arc<ComponentStore>, component_id: ComponentId) -> Self {
+    pub(crate) fn new(component_store: Arc<ComponentRegistry>, component_id: ComponentId) -> Self {
         Self {
             id: component_id,
-            store: Arc::downgrade(&component_store),
+            registry: Arc::downgrade(&component_store),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -57,7 +57,7 @@ impl<C: Component> ComponentRef<C> {
         &self,
         callback: impl FnOnce(&C) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
-        self.store.upgrade().unwrap().interact(self.id, callback)
+        self.registry.upgrade().unwrap().interact(self.id, callback)
     }
 
     /// Interacts with this component if its on the same (main) thread
@@ -67,7 +67,7 @@ impl<C: Component> ComponentRef<C> {
         &self,
         callback: impl FnOnce(&C) -> T,
     ) -> Result<T, ComponentStoreError> {
-        self.store
+        self.registry
             .upgrade()
             .unwrap()
             .interact_local(self.id, callback)

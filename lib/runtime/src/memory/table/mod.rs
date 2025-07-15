@@ -1,5 +1,5 @@
 use super::Address;
-use crate::component::{ComponentId, ComponentStore};
+use crate::component::{ComponentId, ComponentRegistry};
 use address_space::AddressSpace;
 use bitvec::{field::BitField, order::Lsb0};
 use nohash::BuildNoHashHasher;
@@ -24,12 +24,12 @@ pub use write::*;
 
 /// Callback to be able to remap the memory translation table without a deadlock
 pub struct RemapCallback {
-    callback: Box<dyn FnOnce(&MemoryTranslationTable) + Send>,
+    callback: Box<dyn FnOnce(&MemoryAccessTable) + Send>,
 }
 
 impl RemapCallback {
     /// Create a new remap callback from a closure
-    pub fn new(callback: impl FnOnce(&MemoryTranslationTable) + Send + 'static) -> Self {
+    pub fn new(callback: impl FnOnce(&MemoryAccessTable) + Send + 'static) -> Self {
         Self {
             callback: Box::new(callback),
         }
@@ -55,14 +55,14 @@ impl<R> From<RangeInclusiveMap<Address, R>> for MemoryOperationError<R> {
 }
 #[derive(Debug)]
 /// The main structure representing the devices memory address spaces
-pub struct MemoryTranslationTable {
+pub struct MemoryAccessTable {
     address_spaces: RwLock<HashMap<AddressSpaceHandle, AddressSpace, BuildNoHashHasher<u16>>>,
     current_address_space: AtomicU16,
-    component_store: Arc<ComponentStore>,
+    component_store: Arc<ComponentRegistry>,
 }
 
-impl MemoryTranslationTable {
-    pub(crate) fn new(component_store: Arc<ComponentStore>) -> Self {
+impl MemoryAccessTable {
+    pub(crate) fn new(component_store: Arc<ComponentRegistry>) -> Self {
         Self {
             address_spaces: Default::default(),
             current_address_space: AtomicU16::new(1),

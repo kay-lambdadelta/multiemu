@@ -40,7 +40,7 @@ struct ComponentInfo {
 
 #[derive(Debug)]
 /// The store for components
-pub struct ComponentStore
+pub struct ComponentRegistry
 // This absolutely has to be thread-safe
 where
     Self: Send + Sync,
@@ -52,7 +52,7 @@ where
     debt_clearer: OnceLock<DebtClearer>,
 }
 
-impl ComponentStore {
+impl ComponentRegistry {
     pub fn new(main_thread_queue: Arc<MainThreadQueue>) -> Arc<Self> {
         Self {
             components: RwLock::default(),

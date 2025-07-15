@@ -3,7 +3,7 @@ use super::instruction::{
 };
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use multiemu_runtime::{
-    memory::{AddressSpaceHandle, MemoryTranslationTable},
+    memory::{AddressSpaceHandle, MemoryAccessTable},
     processor::InstructionDecoder,
 };
 use nalgebra::Point2;
@@ -18,7 +18,7 @@ impl InstructionDecoder for Chip8InstructionDecoder {
         &self,
         cursor: usize,
         address_space: AddressSpaceHandle,
-        memory_translation_table: &MemoryTranslationTable,
+        memory_translation_table: &MemoryAccessTable,
     ) -> Option<(Chip8InstructionSet, u8)> {
         let mut instruction = [0; 2];
         memory_translation_table

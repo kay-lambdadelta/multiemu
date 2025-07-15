@@ -1,5 +1,5 @@
 use super::instruction::InstructionSet;
-use crate::memory::memory_translation_table::MemoryTranslationTable;
+use crate::memory::memory_translation_table::MemoryAccessTable;
 use cranelift::{
     jit::{JITBuilder, JITModule},
     module::default_libcall_names,
@@ -62,7 +62,7 @@ impl<T: InstructionTranslator> InstructionJitExecutor<T> {
     pub fn run<PS: ProcessorState>(
         &mut self,
         cursor: usize,
-        memory_translation_table: &MemoryTranslationTable,
+        memory_translation_table: &MemoryAccessTable,
         state: &mut PS,
     ) {
     }

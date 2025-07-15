@@ -1,4 +1,4 @@
-use super::{MemoryTranslationTable, RemapCallback, address_space::AddressSpaceHandle};
+use super::{MemoryAccessTable, RemapCallback, address_space::AddressSpaceHandle};
 use crate::{component::ComponentId, memory::Address};
 use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
@@ -69,7 +69,7 @@ pub enum PreviewMemoryRecord {
     Impossible,
 }
 
-impl MemoryTranslationTable {
+impl MemoryAccessTable {
     pub fn remap_read_memory(
         &self,
         component_id: ComponentId,

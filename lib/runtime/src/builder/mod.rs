@@ -3,11 +3,11 @@ use crate::{
     audio::{AudioCallback, AudioOutputId, AudioOutputInfo},
     builder::task::StoredTask,
     component::{
-        Component, ComponentConfig, ComponentId, ComponentRef, ComponentStore, RuntimeEssentials,
+        Component, ComponentConfig, ComponentId, ComponentRef, ComponentRegistry, RuntimeEssentials,
     },
     graphics::{DisplayCallback, DisplayId, DisplayInfo, GraphicsRequirements},
     input::{VirtualGamepad, VirtualGamepadId},
-    memory::{Address, AddressSpaceHandle, MemoryTranslationTable},
+    memory::{Address, AddressSpaceHandle, MemoryAccessTable},
     platform::{Platform, TestPlatform},
     scheduler::{Scheduler, Task},
     utils::{DirectMainThreadExecutor, MainThreadQueue},
@@ -64,13 +64,13 @@ pub type ComponentBuilderCallback<P> =
 /// Builder to produce a machine, definition crates will want to use this
 pub struct MachineBuilder<P: Platform> {
     /// Memory translation table
-    memory_translation_table: Arc<MemoryTranslationTable>,
+    memory_translation_table: Arc<MemoryAccessTable>,
     /// Rom manager
     rom_manager: Arc<RomManager>,
     /// Selected sample rate
     sample_rate: Ratio<u32>,
     /// The store for components
-    component_store: Arc<ComponentStore>,
+    component_store: Arc<ComponentRegistry>,
     /// Stored component builder callbacks for late initialization
     component_builders: BTreeMap<ComponentId, ComponentBuilderCallback<P>>,
     /// Graphics requirements
@@ -89,15 +89,13 @@ impl<P: Platform> MachineBuilder<P> {
         main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
         let main_thread_queue = MainThreadQueue::new(main_thread_executor);
-        let component_store = ComponentStore::new(main_thread_queue.clone());
+        let component_store = ComponentRegistry::new(main_thread_queue.clone());
 
         MachineBuilder::<P> {
             current_audio_output_id: AudioOutputId(0),
             current_display_id: DisplayId(0),
             component_builders: BTreeMap::new(),
-            memory_translation_table: Arc::new(MemoryTranslationTable::new(
-                component_store.clone(),
-            )),
+            memory_translation_table: Arc::new(MemoryAccessTable::new(component_store.clone())),
             component_store,
             rom_manager,
             sample_rate,

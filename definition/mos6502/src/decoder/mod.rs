@@ -8,7 +8,7 @@ use group1::decode_group1_space_instruction;
 use group2::decode_group2_space_instruction;
 use group3::decode_group3_space_instruction;
 use multiemu_runtime::{
-    memory::{Address, AddressSpaceHandle, MemoryTranslationTable},
+    memory::{Address, AddressSpaceHandle, MemoryAccessTable},
     processor::InstructionDecoder,
 };
 use std::ops::Range;
@@ -40,7 +40,7 @@ impl InstructionDecoder for Mos6502InstructionDecoder {
         &self,
         address: Address,
         address_space: AddressSpaceHandle,
-        memory_translation_table: &MemoryTranslationTable,
+        memory_translation_table: &MemoryAccessTable,
     ) -> Option<(Self::InstructionSet, u8)> {
         let byte: u8 = memory_translation_table
             .read_le_value(address, address_space)

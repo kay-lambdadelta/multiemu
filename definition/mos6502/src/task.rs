@@ -7,7 +7,7 @@ use crate::{
 };
 use arrayvec::ArrayVec;
 use multiemu_runtime::{
-    component::ComponentRef, memory::MemoryTranslationTable, processor::InstructionDecoder,
+    component::ComponentRef, memory::MemoryAccessTable, processor::InstructionDecoder,
     scheduler::Task,
 };
 use std::{
@@ -17,7 +17,7 @@ use std::{
 };
 
 pub struct Mos6502Task {
-    pub memory_translation_table: Arc<MemoryTranslationTable>,
+    pub memory_translation_table: Arc<MemoryAccessTable>,
     pub instruction_decoder: Mos6502InstructionDecoder,
     pub component: ComponentRef<Mos6502>,
 }
@@ -208,7 +208,7 @@ fn fetch_and_decode(
     state_guard: &mut ProcessorState,
     instruction_decoder: &Mos6502InstructionDecoder,
     config: &Mos6502Config,
-    memory_translation_table: &MemoryTranslationTable,
+    memory_translation_table: &MemoryAccessTable,
 ) {
     let (instruction, identifiying_bytes_length) = instruction_decoder
         .decode(

@@ -1,8 +1,8 @@
 use crate::{
     builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, MemoryTranslationTable,
-        PreviewMemoryRecord, ReadMemoryRecord, WriteMemoryRecord,
+        Address, AddressSpaceHandle, MemoryAccessTable, MemoryOperationError, PreviewMemoryRecord,
+        ReadMemoryRecord, WriteMemoryRecord,
     },
     platform::Platform,
 };
@@ -15,10 +15,10 @@ use serde::{Deserialize, Serialize};
 use std::{any::Any, fmt::Debug, hash::Hash, num::NonZero, sync::Arc};
 
 pub use component_ref::ComponentRef;
-pub use store::*;
+pub use registry::*;
 
 mod component_ref;
-mod store;
+mod registry;
 
 /// Stuff every component optionally needs
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub struct RuntimeEssentials<P: Platform> {
     /// The configured ROM manager
     pub rom_manager: Arc<RomManager>,
     /// The memory translation table
-    pub memory_translation_table: Arc<MemoryTranslationTable>,
+    pub memory_translation_table: Arc<MemoryAccessTable>,
     /// This is not guarenteed to be initialized until [Component::on_runtime_ready] is called
     ///
     /// Therefore do not expect it to be filled out until then

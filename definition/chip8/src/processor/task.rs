@@ -1,7 +1,7 @@
 use super::{Chip8KeyCode, Chip8ProcessorConfig, ExecutionState, decoder::Chip8InstructionDecoder};
 use crate::{Chip8Mode, display::SupportedGraphicsApiChip8Display, processor::Chip8Processor};
 use multiemu_runtime::{
-    component::ComponentRef, input::VirtualGamepad, memory::MemoryTranslationTable,
+    component::ComponentRef, input::VirtualGamepad, memory::MemoryAccessTable,
     processor::InstructionDecoder, scheduler::Task,
 };
 use std::{
@@ -17,7 +17,7 @@ pub(crate) struct Chip8ProcessorTask<G: SupportedGraphicsApiChip8Display> {
     /// Keypad virtual gamepad
     pub virtual_gamepad: Arc<VirtualGamepad>,
     /// Essential stuff the runtime provides
-    pub memory_translation_table: Arc<MemoryTranslationTable>,
+    pub memory_translation_table: Arc<MemoryAccessTable>,
     // What chip8 mode we are currently in
     pub mode: Arc<Mutex<Chip8Mode>>,
     pub config: Chip8ProcessorConfig<G>,

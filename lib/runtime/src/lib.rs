@@ -5,9 +5,9 @@
 use crate::{
     audio::{AudioOutputId, AudioOutputInfo},
     builder::MachineBuilder,
-    component::ComponentStore,
+    component::ComponentRegistry,
     graphics::{DisplayId, DisplayInfo},
-    memory::MemoryTranslationTable,
+    memory::MemoryAccessTable,
     platform::Platform,
 };
 use input::{VirtualGamepad, VirtualGamepadId};
@@ -56,11 +56,11 @@ where
     /// Scheduler loaded with tasks
     pub scheduler: Mutex<Scheduler>,
     /// Memory translation table
-    pub memory_translation_table: Arc<MemoryTranslationTable>,
+    pub memory_translation_table: Arc<MemoryAccessTable>,
     /// All virtual gamepads inserted by components
     pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>, FxBuildHasher>,
     /// The store to interact with components
-    pub component_store: Arc<ComponentStore>,
+    pub component_store: Arc<ComponentRegistry>,
     /// All displays this machine has
     pub displays: HashMap<DisplayId, DisplayInfo<P::GraphicsApi>, FxBuildHasher>,
     /// All audio outputs this machine has

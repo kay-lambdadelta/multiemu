@@ -1,6 +1,6 @@
-pub use memory_translation_table::*;
+pub use table::*;
 
-mod memory_translation_table;
+mod table;
 
 /// Memory address
 pub type Address = usize;
