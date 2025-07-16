@@ -68,7 +68,7 @@ fn interpolate_internal<
     let mut held_samples = ConstGenericRingBuffer::new();
     for _ in 0..WINDOW_SIZE {
         if let Some(sample) = input.next() {
-            held_samples.push(sample);
+            held_samples.enqueue(sample);
         } else {
             input_exhausted = true;
             break;
@@ -76,7 +76,7 @@ fn interpolate_internal<
     }
 
     for _ in 0..(WINDOW_SIZE - held_samples.len()) {
-        held_samples.push(SVector::from_element(F::equilibrium()));
+        held_samples.enqueue(SVector::from_element(F::equilibrium()));
     }
 
     SincIterator::<F, CHANNELS, _> {
@@ -117,7 +117,7 @@ impl<
 
         while self.input_index < input_target_index {
             if let Some(sample) = self.input.next() {
-                self.held_samples.push(sample);
+                self.held_samples.enqueue(sample);
             } else {
                 self.input_exhausted = true;
                 break;

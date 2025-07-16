@@ -261,7 +261,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         let maybe_machine_guard = self.stored_machine.maybe_machine.read().unwrap();
 
         self.collected_frame_rates
-            .push(Instant::now() - self.previous_frame_timestamp);
+            .enqueue(Instant::now() - self.previous_frame_timestamp);
         self.previous_frame_timestamp = Instant::now();
 
         match self.mode {

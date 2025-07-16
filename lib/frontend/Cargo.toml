@@ -18,7 +18,7 @@ tracing = { workspace = true }
 strum = { workspace = true }
 egui = { workspace = true }
 raw-window-handle = { workspace = true }
-egui_extras = { version = "0.31", default-features = false, features = [
+egui_extras = { version = "0.32", default-features = false, features = [
     "image",
 ] }
 image = { version = "0.25", default-features = false, features = ["webp"] }

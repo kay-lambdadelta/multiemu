@@ -1,7 +1,7 @@
 use egui::{FullOutput, TextureId};
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Scalar, Vector2, Vector3, Vector4};
 use palette::{
-    LinSrgba, Srgba,
+    Srgba,
     cast::{ComponentOrder, Packed},
 };
 use std::collections::HashMap;
@@ -95,20 +95,6 @@ impl SoftwareEguiRenderer {
                         .collect();
 
                     DMatrix::from_vec(image.size[0], image.size[1], converted_image)
-                }
-                egui::ImageData::Font(font_image) => {
-                    let converted_image = font_image
-                        .pixels
-                        .clone()
-                        .into_iter()
-                        .map(|coverage| {
-                            Srgba::from_linear(LinSrgba::new(
-                                coverage, coverage, coverage, coverage,
-                            ))
-                        })
-                        .collect();
-
-                    DMatrix::from_vec(font_image.size[0], font_image.size[1], converted_image)
                 }
             };
 

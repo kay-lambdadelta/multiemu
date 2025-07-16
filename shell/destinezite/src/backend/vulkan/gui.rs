@@ -56,7 +56,7 @@ use multiemu_graphics::{
     },
 };
 use nalgebra::{Point2, Vector2};
-use palette::{LinSrgba, Srgba};
+use palette::Srgba;
 use std::{
     collections::{HashMap, HashSet},
     mem::offset_of,
@@ -379,25 +379,6 @@ impl VulkanEguiRenderer {
                         .clone()
                         .into_iter()
                         .map(|pixel| Srgba::from_components(pixel.to_tuple()));
-
-                    Buffer::from_iter(
-                        self.memory_allocator.clone(),
-                        BufferCreateInfo {
-                            usage: BufferUsage::TRANSFER_SRC,
-                            ..Default::default()
-                        },
-                        AllocationCreateInfo {
-                            memory_type_filter: MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-                            ..Default::default()
-                        },
-                        image_converter,
-                    )
-                    .expect("Failed to create staging buffer")
-                }
-                egui::ImageData::Font(font_image) => {
-                    let image_converter = font_image.pixels.clone().into_iter().map(|coverage| {
-                        Srgba::from_linear(LinSrgba::new(coverage, coverage, coverage, coverage))
-                    });
 
                     Buffer::from_iter(
                         self.memory_allocator.clone(),

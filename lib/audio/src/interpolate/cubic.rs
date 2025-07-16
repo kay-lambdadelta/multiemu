@@ -57,7 +57,7 @@ fn interpolate_internal<
     let mut held_samples = ConstGenericRingBuffer::new();
     for _ in 0..4 {
         if let Some(sample) = input.next() {
-            held_samples.push(sample);
+            held_samples.enqueue(sample);
         } else {
             input_exhausted = true;
             break;
@@ -65,7 +65,7 @@ fn interpolate_internal<
     }
 
     for _ in 0..(4 - held_samples.len()) {
-        held_samples.push(SVector::from_element(F::equilibrium()));
+        held_samples.enqueue(SVector::from_element(F::equilibrium()));
     }
 
     CubicIterator::<F, CHANNELS, _> {
@@ -103,7 +103,7 @@ impl<F: Float + SampleFormat, const CHANNELS: usize, I: Iterator<Item = SVector<
 
         while self.input_index < input_target_index {
             if let Some(sample) = self.input.next() {
-                self.held_samples.push(sample);
+                self.held_samples.enqueue(sample);
             } else {
                 self.input_exhausted = true;
                 break;
