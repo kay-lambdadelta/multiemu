@@ -39,7 +39,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             let _ = decoder.decode(
                 black_box(address),
                 cpu_address_space,
-                black_box(&machine.memory_translation_table),
+                black_box(&machine.memory_access_table),
             );
         })
     });

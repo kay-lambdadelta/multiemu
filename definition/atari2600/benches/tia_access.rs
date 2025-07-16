@@ -31,7 +31,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     .build(Default::default());
 
     let cpu_address_space = machine
-        .memory_translation_table
+        .memory_access_table
         .address_spaces()
         .next()
         .unwrap();
@@ -40,7 +40,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let _: u8 = black_box(
                 machine
-                    .memory_translation_table
+                    .memory_access_table
                     .read_le_value(black_box(0x180), cpu_address_space)
                     .unwrap(),
             );

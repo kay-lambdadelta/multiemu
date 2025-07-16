@@ -33,5 +33,5 @@ vulkan = ["multiemu-graphics/vulkan"]
 opengl = ["multiemu-graphics/opengl"]
 
 [[bench]]
-name = "benches"
+name = "tia_access"
 harness = false

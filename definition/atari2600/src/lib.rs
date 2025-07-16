@@ -289,13 +289,13 @@ mod tests {
         .build(Default::default());
 
         let cpu_address_space = machine
-            .memory_translation_table
+            .memory_access_table
             .address_spaces()
             .next()
             .unwrap();
 
         let _: u8 = machine
-            .memory_translation_table
+            .memory_access_table
             .read_le_value(0x180, cpu_address_space)
             .expect(&format!("{:#04x?}", machine));
     }

@@ -172,7 +172,7 @@ mod test {
         let mut buffer = [0; 8];
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .read(8, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0, 1, 2, 3, 4, 5, 6, 7]);
@@ -217,7 +217,7 @@ mod test {
         let buffer = [0; 8];
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .write(8, cpu_address_space, &buffer)
             .unwrap();
     }
@@ -279,7 +279,7 @@ mod test {
 
         for (i, b) in buffer.iter_mut().enumerate() {
             *b = machine
-                .memory_translation_table
+                .memory_access_table
                 .read_le_value(i + 8, cpu_address_space)
                 .unwrap();
         }

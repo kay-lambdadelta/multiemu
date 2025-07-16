@@ -56,7 +56,7 @@ where
     /// Scheduler loaded with tasks
     pub scheduler: Mutex<Scheduler>,
     /// Memory translation table
-    pub memory_translation_table: Arc<MemoryAccessTable>,
+    pub memory_access_table: Arc<MemoryAccessTable>,
     /// All virtual gamepads inserted by components
     pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>, FxBuildHasher>,
     /// The store to interact with components

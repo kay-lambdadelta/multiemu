@@ -34,7 +34,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("read1", |b| {
         b.iter(|| {
             machine
-                .memory_translation_table
+                .memory_access_table
                 .read(0x1000, cpu_address_space, black_box(&mut buffer))
                 .unwrap();
         })
@@ -44,7 +44,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("read2", |b| {
         b.iter(|| {
             machine
-                .memory_translation_table
+                .memory_access_table
                 .read(0x1000, cpu_address_space, black_box(&mut buffer))
                 .unwrap();
         })
@@ -54,7 +54,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("read4", |b| {
         b.iter(|| {
             machine
-                .memory_translation_table
+                .memory_access_table
                 .read(0x1000, cpu_address_space, black_box(&mut buffer))
                 .unwrap();
         })
@@ -64,7 +64,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("read8", |b| {
         b.iter(|| {
             machine
-                .memory_translation_table
+                .memory_access_table
                 .read(0x1000, cpu_address_space, black_box(&mut buffer))
                 .unwrap();
         })

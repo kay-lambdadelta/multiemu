@@ -253,7 +253,7 @@ impl<P: Platform> MachineBuilder<P> {
 
         Machine {
             scheduler: Mutex::new(scheduler),
-            memory_translation_table: self.memory_translation_table.clone(),
+            memory_access_table: self.memory_translation_table.clone(),
             virtual_gamepads: virtual_gamepads
                 .into_iter()
                 .enumerate()

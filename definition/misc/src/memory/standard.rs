@@ -368,7 +368,7 @@ mod test {
         let mut buffer = [0; 4];
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .read(0, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
@@ -394,7 +394,7 @@ mod test {
         let mut buffer = [0; 4];
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .read(0, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
@@ -427,7 +427,7 @@ mod test {
         let mut buffer = [0; 8];
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .read(0, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
@@ -460,7 +460,7 @@ mod test {
         let buffer = [0; 8];
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .write(0, cpu_address_space, &buffer)
             .unwrap();
     }
@@ -492,12 +492,12 @@ mod test {
         let mut buffer = [0xff; 8];
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .write(0, cpu_address_space, &buffer)
             .unwrap();
         buffer.fill(0);
         machine
-            .memory_translation_table
+            .memory_access_table
             .read(0, cpu_address_space, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
@@ -530,48 +530,48 @@ mod test {
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];
             machine
-                .memory_translation_table
+                .memory_access_table
                 .write(i, cpu_address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
-                .memory_translation_table
+                .memory_access_table
                 .read(i, cpu_address_space, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 1]);
 
             let mut buffer = [0xff; 2];
             machine
-                .memory_translation_table
+                .memory_access_table
                 .write(i, cpu_address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
-                .memory_translation_table
+                .memory_access_table
                 .read(i, cpu_address_space, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 2]);
 
             let mut buffer = [0xff; 4];
             machine
-                .memory_translation_table
+                .memory_access_table
                 .write(i, cpu_address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
-                .memory_translation_table
+                .memory_access_table
                 .read(i, cpu_address_space, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 4]);
 
             let mut buffer = [0xff; 8];
             machine
-                .memory_translation_table
+                .memory_access_table
                 .write(i, cpu_address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
-                .memory_translation_table
+                .memory_access_table
                 .read(i, cpu_address_space, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 8]);

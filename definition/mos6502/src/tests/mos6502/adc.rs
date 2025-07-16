@@ -21,7 +21,7 @@ pub fn adc_immediate() {
         .unwrap();
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .write(0x0000, cpu_address_space, &[0x69, value])
             .unwrap();
 
@@ -60,7 +60,7 @@ pub fn adc_absolute() {
         let (machine, cpu, cpu_address_space) = instruction_test_boilerplate();
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .write_le_value::<u8>(0x3, cpu_address_space, value)
             .unwrap();
 
@@ -75,12 +75,12 @@ pub fn adc_absolute() {
 
         // ADC 0x0003
         machine
-            .memory_translation_table
+            .memory_access_table
             .write_le_value::<u8>(0x0000, cpu_address_space, 0x6d)
             .unwrap();
 
         machine
-            .memory_translation_table
+            .memory_access_table
             .write_le_value::<u16>(0x0001, cpu_address_space, 0x3)
             .unwrap();
 
