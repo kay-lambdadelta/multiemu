@@ -123,7 +123,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
                     writable: true,
                     source_addresses,
                     source_address_space: cpu_address_space,
-                    destination_addresses: 0x280..=0x283,
+                    destination_addresses: 0x280..=0x29f,
                     destination_address_space: cpu_address_space,
                 },
             );
@@ -171,7 +171,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
 fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
     cpu_address_space: AddressSpaceHandle,
     machine: MachineBuilder<P>,
-    mirror_component_ids: impl IntoIterator<Item = ComponentId>,
+    mirror_component_ids: Vec<ComponentId>,
 ) -> (MachineBuilder<P>, ComponentRef<Mos6532Riot>) {
     let (machine, cpu) = machine.insert_component(
         "mos_6502",
@@ -183,13 +183,14 @@ fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
         },
     );
 
-    let (machine, mos6532_riot) = machine.insert_component(
+    let (machine, mos6532_riot) = machine.insert_component_with_dependencies(
         "mos6532_riot",
         Mos6532RiotConfig {
             frequency: R::frequency() / Ratio::from_integer(3),
             registers_assigned_address: 0x280,
             assigned_address_space: cpu_address_space,
         },
+        mirror_component_ids.clone(),
     );
 
     // For the love of god do not shadow this
@@ -234,20 +235,40 @@ fn tia_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>>
     .map(|start_range| start_range..=start_range + 0x003f)
 }
 
-// 0x280..=0x283
+// 0x280..=0x29f
+#[rustfmt::skip]
 fn riot_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
-    (1..16).map(|i| {
-        let base = 0x280 + i * 0x08;
-
-        base..=base + 0x03
-    })
+    [
+        0x280, 0x2a0, 0x2c0, 0x2e0, 
+        0x380, 0x3a0, 0x3c0, 0x3e0, 
+        0x680,  0x6a0, 0x6c0, 0x6e0,
+        0x780, 0x7a0, 0x7c0, 0x7e0,
+        0xa80, 0xaa0, 0xac0, 0xae0,
+        0xb80, 0xba0, 0xbc0, 0xbe0,
+        0xe80, 0xea0, 0xec0, 0xee0,
+        0xf80, 0xfa0, 0xfc0, 0xfe0,
+        0x2280, 0x22a0, 0x22c0, 0x22e0,
+        0x2380, 0x23a0, 0x23c0, 0x23e0,
+        0x2680, 0x26a0, 0x26c0, 0x26e0,
+        0x2780, 0x27a0, 0x27c0, 0x27e0,
+        0x2a80, 0x2aa0, 0x2ac0, 0x2ae0,
+        0x2b80, 0x2ba0, 0x2bc0, 0x2be0,
+        0x2e80, 0x2ea0, 0x2ec0, 0x2ee0,
+        0x2f80, 0x2fa0, 0x2fc0, 0x2fe0
+    ]
+    .into_iter()
+    .skip(1)
+    .map(|range| range..=range + 0x1f)
 }
 
 // 0x80..=0xff
 fn riot_ram_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
-    [0x0180, 0x0480, 0x0580, 0x0880, 0x0980, 0x0c80, 0x0d80]
-        .into_iter()
-        .map(|range| range..=range + 0x7f)
+    [
+        0x080, 0x0180, 0x0480, 0x0580, 0x0880, 0x0980, 0x0c80, 0x0d80,
+    ]
+    .into_iter()
+    .skip(1)
+    .map(|range| range..=range + 0x7f)
 }
 
 #[cfg(test)]
@@ -288,11 +309,7 @@ mod tests {
         )
         .build(Default::default());
 
-        let cpu_address_space = machine
-            .memory_access_table
-            .address_spaces()
-            .next()
-            .unwrap();
+        let cpu_address_space = machine.memory_access_table.address_spaces().next().unwrap();
 
         let _: u8 = machine
             .memory_access_table
