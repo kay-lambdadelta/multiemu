@@ -10,11 +10,12 @@ use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_i
 use instruction::Register;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentId, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentId, ComponentRef},
     input::{VirtualGamepad, VirtualGamepadMetadata},
     memory::AddressSpaceHandle,
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -92,7 +93,7 @@ pub struct Chip8ProcessorSnapshot {
 }
 
 impl Component for Chip8Processor {
-    fn on_reset(&self) {
+    fn reset(&self) {
         let mut state = self.state.lock().unwrap();
 
         *state = ProcessorState::default();
@@ -123,11 +124,9 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
-        let memory_translation_table = component_builder
-            .essentials()
-            .memory_translation_table
-            .clone();
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
+        let memory_translation_table = component_builder.essentials().memory_access_table.clone();
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Mode::Chip8)));
         let state = Mutex::new(ProcessorState::default());
 
@@ -152,6 +151,8 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
                     component: component_ref,
                 },
             )
-            .build_global(Chip8Processor { state })
+            .build_global(Chip8Processor { state });
+
+        Ok(())
     }
 }

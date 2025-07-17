@@ -1,8 +1,9 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use num::rational::Ratio;
 use std::{
     num::NonZero,
@@ -37,7 +38,8 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         let delay_timer = Arc::new(Mutex::new(0u8));
 
         component_builder
@@ -52,6 +54,8 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
             })
             .build_global(Chip8Timer {
                 delay_timer: delay_timer.clone(),
-            })
+            });
+
+        Ok(())
     }
 }

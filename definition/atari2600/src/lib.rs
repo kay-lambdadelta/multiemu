@@ -9,7 +9,7 @@ use multiemu_definition_misc::{
     mos6532_riot::{Mos6532Riot, Mos6532RiotConfig},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomManager};
+use multiemu_rom::ROM_INFORMATION_TABLE;
 use multiemu_runtime::{
     MachineFactory,
     builder::MachineBuilder,
@@ -19,7 +19,7 @@ use multiemu_runtime::{
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
-use std::{marker::PhantomData, ops::RangeInclusive, sync::Arc};
+use std::{marker::PhantomData, ops::RangeInclusive};
 use strum::Display;
 use tia::{
     config::TiaConfig,
@@ -43,21 +43,9 @@ enum RegionSelection {
 pub struct Atari2600;
 
 impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for Atari2600 {
-    fn construct(
-        &self,
-        user_specified_roms: Vec<RomId>,
-        rom_manager: Arc<RomManager>,
-        sample_rate: Ratio<u32>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
-    ) -> MachineBuilder<P> {
-        let machine =
-            MachineBuilder::<P>::new(rom_manager.clone(), sample_rate, main_thread_executor);
-
-        assert_eq!(
-            user_specified_roms.len(),
-            1,
-            "Atari 2600 only requires 1 ROM"
-        );
+    fn construct(&self, machine: MachineBuilder<P>) -> MachineBuilder<P> {
+        let rom = machine.user_specified_roms().unwrap().main;
+        let rom_manager = machine.rom_manager().clone();
 
         // Atari 2600 CPU only has 13 address lines
         let (machine, cpu_address_space) = machine.insert_address_space(13);
@@ -67,13 +55,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
         let table = database_transaction
             .open_multimap_table(ROM_INFORMATION_TABLE)
             .unwrap();
-        let rom_info = table
-            .get(&user_specified_roms[0])
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap()
-            .value();
+        let rom_info = table.get(&rom).unwrap().next().unwrap().unwrap().value();
 
         let mut mirror_component_ids = Vec::default();
 
@@ -92,7 +74,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
         let (mut machine, _) = machine.insert_component(
             "cartridge",
             Atari2600CartridgeConfig {
-                rom: user_specified_roms[0],
+                rom,
                 cpu_address_space,
                 force_cart_type: None,
             },
@@ -205,6 +187,7 @@ fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
                 0x80..=0xff,
                 StandardMemoryInitialContents::Random,
             )]),
+            sram: false,
         },
         mirror_component_ids,
     );
@@ -275,14 +258,16 @@ fn riot_ram_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
 mod tests {
     use crate::Atari2600;
     use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
-    use multiemu_rom::{RomId, RomManager};
+    use multiemu_rom::{AtariSystem, RomId, RomManager, System};
     use multiemu_runtime::{
-        MachineFactory,
+        MachineFactory, UserSpecifiedRoms,
+        builder::MachineBuilder,
         platform::TestPlatform,
         utils::{DirectMainThreadExecutor, set_main_thread},
     };
+    use multiemu_save::{SaveManager, SnapshotManager};
     use num::rational::Ratio;
-    use std::{fs::File, ops::Deref, str::FromStr, sync::Arc};
+    use std::{borrow::Cow, fs::File, ops::Deref, str::FromStr, sync::Arc};
 
     #[test]
     fn riot_ram_access() {
@@ -298,16 +283,25 @@ mod tests {
             )
             .unwrap(),
         );
+        let save_manager = Arc::new(SaveManager::new(None));
+        let snapshot_manager = Arc::new(SnapshotManager::new(None));
 
-        let machine = MachineFactory::<TestPlatform>::construct(
-            &Atari2600,
-            // Donkey Kong (USA).a26
-            vec![RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()],
-            rom_manager.clone(),
+        let machine = MachineBuilder::new(
+            Some(UserSpecifiedRoms {
+                // Donkey Kong (USA).a26
+                main: RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap(),
+                sub: Cow::Borrowed(&[]),
+            }),
+            System::Atari(AtariSystem::Atari2600),
+            rom_manager,
+            save_manager,
+            snapshot_manager,
             Ratio::from_integer(44100),
             Arc::new(DirectMainThreadExecutor),
-        )
-        .build(Default::default());
+        );
+
+        let machine = MachineFactory::<TestPlatform>::construct(&Atari2600, machine)
+            .build(Default::default());
 
         let cpu_address_space = machine.memory_access_table.address_spaces().next().unwrap();
 

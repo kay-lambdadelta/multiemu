@@ -4,13 +4,13 @@ use multiemu_definition_misc::memory::{
     rom::RomMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
-use multiemu_rom::{RomId, RomManager};
+use multiemu_rom::RomId;
 use multiemu_runtime::{
     MachineFactory, builder::MachineBuilder, memory::Address, platform::Platform,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
-use std::{ops::RangeInclusive, str::FromStr, sync::Arc};
+use std::{ops::RangeInclusive, str::FromStr};
 
 use crate::suzy::SuzyConfig;
 
@@ -28,18 +28,9 @@ const MAPCTL_ADDRESS: Address = 0xfff9;
 pub struct AtariLynx;
 
 impl<P: Platform> MachineFactory<P> for AtariLynx {
-    fn construct(
-        &self,
-        _user_specified_roms: Vec<RomId>,
-        rom_manager: Arc<RomManager>,
-        sample_rate: Ratio<u32>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
-    ) -> MachineBuilder<P> {
+    fn construct(&self, machine: MachineBuilder<P>) -> MachineBuilder<P> {
         // 16 Mhz
         let base_clock = Ratio::from_integer(16000000);
-
-        let machine = MachineBuilder::new(rom_manager.clone(), sample_rate, main_thread_executor);
-
         let (machine, cpu_address_space) = machine.insert_address_space(16);
 
         // A good portion of this will be initially shadowed
@@ -54,6 +45,7 @@ impl<P: Platform> MachineFactory<P> for AtariLynx {
                     0x0000..=0xffff,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
+                sram: false,
             },
         );
 

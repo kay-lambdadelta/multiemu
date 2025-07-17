@@ -10,7 +10,10 @@ use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_frontend::PlatformExt;
 use multiemu_graphics::software::Software;
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomManager};
+use multiemu_runtime::UserSpecifiedRoms;
+use multiemu_save::{SaveManager, SnapshotManager};
 use std::{
+    borrow::Cow,
     fs::{File, create_dir_all},
     ops::Deref,
     sync::{Arc, RwLock},
@@ -34,7 +37,13 @@ fn main() {
     create_dir_all(multiemu_config::STORAGE_DIRECTORY.deref()).unwrap();
 
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
-    let environment = Environment::load(environment_file).unwrap_or_default();
+    let environment = match Environment::load(environment_file) {
+        Ok(config) => config,
+        Err(err) => {
+            tracing::error!("Failed to load environment: {}", err);
+            Environment::default()
+        }
+    };
 
     let file = File::create(&environment.log_location.0).expect("Failed to create log file");
     let stderr_layer = tracing_subscriber::fmt::layer()
@@ -63,15 +72,20 @@ fn main() {
         )
         .unwrap(),
     );
+    let save_manager = Arc::new(SaveManager::new(Some(environment.save_directory.0.clone())));
+    let snapshot_manager = Arc::new(SnapshotManager::new(Some(
+        environment.snapshot_directory.0.clone(),
+    )));
+
     let environment = Arc::new(RwLock::new(environment));
 
     let cli = Cli::parse();
 
     // TODO: Move this somewhere else
     if let Some(action) = cli.action {
-        let (game_system, user_specified_roms) = match action {
+        let (system, user_specified_roms) = match action {
             CliAction::Run {
-                roms,
+                mut roms,
                 forced_system,
             } => {
                 let system = forced_system.unwrap_or_else(|| {
@@ -88,24 +102,32 @@ fn main() {
                         .value();
                     rom_info.system
                 });
-                (system, roms)
+                let main_rom = roms.remove(0);
+
+                (
+                    system,
+                    UserSpecifiedRoms {
+                        main: main_rom,
+                        sub: Cow::Owned(roms),
+                    },
+                )
             }
             CliAction::RunExternal {
                 roms,
                 forced_system,
             } => {
-                let rom_ids: Vec<RomId> = roms
+                let mut roms: Vec<RomId> = roms
                     .into_iter()
                     .map(|rom| rom_manager.identify_rom(rom).unwrap().unwrap())
                     .collect();
 
-                let game_system = forced_system.unwrap_or_else(|| {
+                let system = forced_system.unwrap_or_else(|| {
                     let database_transaction = rom_manager.rom_information.begin_read().unwrap();
                     let database_table = database_transaction
                         .open_multimap_table(ROM_INFORMATION_TABLE)
                         .unwrap();
                     let rom_info = database_table
-                        .get(&rom_ids[0])
+                        .get(&roms[0])
                         .unwrap()
                         .next()
                         .unwrap()
@@ -114,7 +136,15 @@ fn main() {
                     rom_info.system
                 });
 
-                (game_system, rom_ids)
+                let main_rom = roms.remove(0);
+
+                (
+                    system,
+                    UserSpecifiedRoms {
+                        main: main_rom,
+                        sub: Cow::Owned(roms),
+                    },
+                )
             }
         };
 
@@ -125,8 +155,10 @@ fn main() {
                 DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
+                    save_manager.clone(),
+                    snapshot_manager.clone(),
                     build_machine::get_software_factories(),
-                    game_system,
+                    system,
                     user_specified_roms,
                 )
                 .unwrap();
@@ -139,8 +171,10 @@ fn main() {
                 DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
+                    save_manager.clone(),
+                    snapshot_manager.clone(),
                     build_machine::get_vulkan_factories(),
-                    game_system,
+                    system,
                     user_specified_roms,
                 )
                 .unwrap();
@@ -158,6 +192,8 @@ fn main() {
             DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run(
                 environment.clone(),
                 rom_manager.clone(),
+                save_manager.clone(),
+                snapshot_manager.clone(),
                 build_machine::get_software_factories(),
             )
             .unwrap();
@@ -170,6 +206,8 @@ fn main() {
             DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run(
                 environment.clone(),
                 rom_manager.clone(),
+                save_manager.clone(),
+                snapshot_manager.clone(),
                 build_machine::get_vulkan_factories(),
             )
             .unwrap();

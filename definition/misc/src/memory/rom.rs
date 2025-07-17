@@ -1,12 +1,13 @@
 use multiemu_rom::{RomId, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
     },
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
@@ -72,7 +73,14 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
+        if self.assigned_range.is_empty() {
+            return Err(BuildError::InvalidConfig(
+                "Memory assigned must be non-empty".into(),
+            ));
+        }
+
         let essentials = component_builder.essentials();
 
         let rom = Mutex::new(
@@ -88,6 +96,8 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
         let component_builder =
             component_builder.map_memory_read([(assigned_address_space, assigned_range)]);
 
-        component_builder.build_global(RomMemory { config: self, rom })
+        component_builder.build_global(RomMemory { config: self, rom });
+
+        Ok(())
     }
 }

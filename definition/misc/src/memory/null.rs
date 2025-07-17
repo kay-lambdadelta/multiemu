@@ -1,9 +1,10 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::{Address, AddressSpaceHandle},
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use std::ops::RangeInclusive;
 
 #[derive(Debug, Clone)]
@@ -23,7 +24,14 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
+        if self.assigned_range.is_empty() {
+            return Err(BuildError::InvalidConfig(
+                "Memory assigned must be non-empty".into(),
+            ));
+        }
+
         let component_builder = match (self.readable, self.writable) {
             (true, true) => component_builder
                 .map_memory([(self.assigned_address_space, self.assigned_range.clone())]),
@@ -34,7 +42,9 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
             (false, false) => component_builder,
         };
 
-        component_builder.build_global(NullMemory)
+        component_builder.build_global(NullMemory);
+
+        Ok(())
     }
 }
 

@@ -2,18 +2,14 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_rom::RomManager;
 use multiemu_runtime::builder::MachineBuilder;
 use rangemap::RangeInclusiveMap;
-use std::{hint::black_box, sync::Arc};
+use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
     multiemu_runtime::utils::set_main_thread();
 
-    let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
-    let (machine, cpu_address_space) =
-        MachineBuilder::new_test(rom_manager).insert_address_space(64);
+    let (machine, cpu_address_space) = MachineBuilder::new_test_minimal().insert_address_space(64);
 
     let (machine, _) = machine.insert_component(
         "workram",
@@ -26,6 +22,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 0..=0xffff,
                 StandardMemoryInitialContents::Value(0x00),
             )]),
+            sram: false,
         },
     );
     let machine = machine.build(Default::default());

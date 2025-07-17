@@ -5,8 +5,10 @@ edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
+multiemu-rom = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true }
 serde_with = { workspace = true }
-versions = { workspace = true }
 thiserror = { workspace = true }
+redb = { workspace = true }
+scc = { workspace = true }

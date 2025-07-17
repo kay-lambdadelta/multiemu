@@ -1,12 +1,13 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use rangemap::RangeInclusiveMap;
 use std::ops::RangeInclusive;
 
@@ -94,12 +95,19 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         mut component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
-        assert_eq!(
-            self.source_addresses.clone().count(),
-            self.destination_addresses.clone().count(),
-            "Source and destination ranges must be the same length"
-        );
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
+        if self.source_addresses.clone().count() != self.destination_addresses.clone().count() {
+            return Err(BuildError::InvalidConfig(
+                "Source and destination ranges must be the same length".into(),
+            ));
+        }
+
+        if self.source_addresses.is_empty() {
+            return Err(BuildError::InvalidConfig(
+                "Memory assigned must be non-empty".into(),
+            ));
+        }
 
         match (self.readable, self.writable) {
             (true, true) => {
@@ -117,7 +125,9 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
             (false, false) => {}
         }
 
-        component_builder.build_global(MirrorMemory { config: self })
+        component_builder.build_global(MirrorMemory { config: self });
+
+        Ok(())
     }
 }
 
@@ -127,18 +137,16 @@ mod test {
         mirror::MirrorMemoryConfig,
         standard::{StandardMemoryConfig, StandardMemoryInitialContents},
     };
-    use multiemu_rom::RomManager;
     use multiemu_runtime::{builder::MachineBuilder, utils::set_main_thread};
     use rangemap::RangeInclusiveMap;
-    use std::{borrow::Cow, sync::Arc};
+    use std::borrow::Cow;
 
     #[test]
     fn basic_read() {
         set_main_thread();
 
-        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -153,6 +161,7 @@ mod test {
                         (0..=7).map(|i| i as u8).collect(),
                     )),
                 )]),
+                sram: false,
             },
         );
         let (machine, _) = machine.insert_component(
@@ -182,10 +191,8 @@ mod test {
     fn basic_write() {
         set_main_thread();
 
-        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -198,6 +205,7 @@ mod test {
                     0..=7,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
+                sram: false,
             },
         );
         let (machine, _) = machine.insert_component(
@@ -226,9 +234,8 @@ mod test {
     fn extensive_read_test() {
         set_main_thread();
 
-        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -243,6 +250,7 @@ mod test {
                         (0..=3).map(|i| i as u8).collect(),
                     )),
                 )]),
+                sram: false,
             },
         );
 
@@ -259,6 +267,7 @@ mod test {
                         (4..=7).map(|i| i as u8).collect(),
                     )),
                 )]),
+                sram: false,
             },
         );
 

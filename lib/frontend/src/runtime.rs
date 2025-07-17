@@ -12,13 +12,16 @@ use multiemu_input::{
     GamepadId, Input, InputState,
     hotkey::{DEFAULT_HOTKEYS, Hotkey},
 };
-use multiemu_rom::{GameSystem, ROM_INFORMATION_TABLE, RomId, RomManager};
+use multiemu_rom::{ROM_INFORMATION_TABLE, RomManager, System};
 use multiemu_runtime::{
-    Machine, graphics::GraphicsRequirements, input::VirtualGamepadId, platform::Platform,
+    Machine, UserSpecifiedRoms, builder::MachineBuilder, graphics::GraphicsRequirements,
+    input::VirtualGamepadId, platform::Platform,
 };
+use multiemu_save::{SaveManager, SnapshotManager};
 use nalgebra::Vector2;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 use std::{
+    borrow::Cow,
     collections::HashMap,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
@@ -46,8 +49,8 @@ fn setup_theme(egui_context: &egui::Context) {
 
 #[derive(Debug)]
 struct PendingMachineResources {
-    pub game_system: GameSystem,
-    pub user_specified_roms: Vec<RomId>,
+    pub system: System,
+    pub user_specified_roms: UserSpecifiedRoms,
 }
 
 #[derive(Debug)]
@@ -68,7 +71,7 @@ pub type MaybeMachine<P> = RwLock<Option<Machine<P>>>;
 #[derive(Debug)]
 pub struct StoredMachine<P: Platform> {
     pub maybe_machine: Arc<MaybeMachine<P>>,
-    pub system: Option<GameSystem>,
+    pub system: Option<System>,
 }
 
 #[derive(Debug)]
@@ -81,6 +84,8 @@ pub struct FrontendRuntime<P: PlatformExt> {
     gamepad_mapping: HashMap<GamepadId, VirtualGamepadId>,
     /// The rom manager in use
     rom_manager: Arc<RomManager>,
+    save_manager: Arc<SaveManager>,
+    snapshot_manager: Arc<SnapshotManager>,
     /// Environment to read/modify
     environment: Arc<RwLock<Environment>>,
     /// Egui context
@@ -143,7 +148,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             }
             Mode::Gui => {
                 if let Some(PendingMachineResources {
-                    game_system,
+                    system: game_system,
                     user_specified_roms,
                 }) = self.pending_machine_resources.take()
                 {
@@ -334,7 +339,10 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                         self.setup_runtime_for_new_machine(
                             display_api_handle,
                             rom_info.system,
-                            vec![rom_id],
+                            UserSpecifiedRoms {
+                                main: rom_id,
+                                sub: Cow::Borrowed(&[]),
+                            },
                             egui_platform_integration,
                         );
 
@@ -356,6 +364,8 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     pub fn new(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
+        save_manager: Arc<SaveManager>,
+        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<P>,
         main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
@@ -384,6 +394,8 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             gamepad_mapping,
             environment,
             rom_manager,
+            save_manager,
+            snapshot_manager,
             egui_context,
             menu_state,
             windowing_context: None,
@@ -402,19 +414,23 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     pub fn new_with_machine(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
+        save_manager: Arc<SaveManager>,
+        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<P>,
         main_thread_executor: Arc<P::MainThreadExecutor>,
-        game_system: GameSystem,
-        user_specified_roms: Vec<RomId>,
+        game_system: System,
+        user_specified_roms: UserSpecifiedRoms,
     ) -> Self {
         let mut me = Self::new(
             environment.clone(),
             rom_manager.clone(),
+            save_manager.clone(),
+            snapshot_manager.clone(),
             machine_factories,
             main_thread_executor,
         );
         me.pending_machine_resources = Some(PendingMachineResources {
-            game_system,
+            system: game_system,
             user_specified_roms,
         });
         me
@@ -423,8 +439,8 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     pub(super) fn setup_runtime_for_new_machine(
         &mut self,
         display_api_handle: <P::GraphicsRuntime as GraphicsRuntime<P>>::DisplayApiHandle,
-        game_system: GameSystem,
-        user_specified_roms: Vec<RomId>,
+        system: System,
+        user_specified_roms: UserSpecifiedRoms,
         mut egui_platform_integration: P::EguiPlatformIntegration,
     ) {
         let mut maybe_machine_guard = self.stored_machine.maybe_machine.write().unwrap();
@@ -435,13 +451,17 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         maybe_machine_guard.take();
         self.stored_machine.system = None;
 
-        let machine_builder = self.machine_factories.construct_machine(
-            game_system,
-            user_specified_roms,
+        let machine_builder = MachineBuilder::new(
+            Some(user_specified_roms),
+            system,
             self.rom_manager.clone(),
+            self.save_manager.clone(),
+            self.snapshot_manager.clone(),
             self.audio_runtime.sample_rate(),
             self.main_thread_executor.clone(),
         );
+
+        let machine_builder = self.machine_factories.construct_machine(machine_builder);
 
         self.egui_context = egui::Context::default();
         setup_theme(&self.egui_context);
@@ -484,7 +504,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         for virtual_gamepad in machine.virtual_gamepads.values() {
             environment_guard
                 .gamepad_configs
-                .entry(game_system)
+                .entry(system)
                 .or_default()
                 .entry(virtual_gamepad.name())
                 .or_insert(
@@ -498,7 +518,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         }
 
         *maybe_machine_guard = Some(machine);
-        self.stored_machine.system = Some(game_system);
+        self.stored_machine.system = Some(system);
         self.mode = Mode::Machine;
     }
 }

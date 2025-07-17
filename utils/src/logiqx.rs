@@ -1,6 +1,6 @@
 use codes_iso_639::part_3::LanguageCode;
 use codes_iso_3166::part_1::CountryCode;
-use multiemu_rom::{GameSystem, ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager};
+use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager, System};
 use serde::Deserialize;
 use serde_with::{DisplayFromStr, serde_as};
 use std::{
@@ -21,7 +21,7 @@ pub struct Datafile {
 #[derive(Debug, Deserialize)]
 pub struct Header {
     #[serde_as(as = "DisplayFromStr")]
-    pub name: GameSystem,
+    pub name: System,
 }
 
 #[derive(Debug, Deserialize)]

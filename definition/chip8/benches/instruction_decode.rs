@@ -3,18 +3,14 @@ use multiemu_definition_chip8::Chip8InstructionDecoder;
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_rom::RomManager;
 use multiemu_runtime::{builder::MachineBuilder, processor::InstructionDecoder};
 use rangemap::RangeInclusiveMap;
-use std::{hint::black_box, sync::Arc};
+use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
     multiemu_runtime::utils::set_main_thread();
 
-    let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
-    let (machine, cpu_address_space) =
-        MachineBuilder::new_test(rom_manager).insert_address_space(64);
+    let (machine, cpu_address_space) = MachineBuilder::new_test_minimal().insert_address_space(64);
 
     let (machine, _) = machine.insert_component(
         "workram",
@@ -27,6 +23,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 0x0000..=0xffff,
                 StandardMemoryInitialContents::Random,
             )]),
+            sram: false,
         },
     );
     let machine = machine.build(Default::default());

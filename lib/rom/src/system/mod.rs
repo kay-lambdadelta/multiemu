@@ -11,7 +11,7 @@ mod guess;
     Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
 /// Game systems organized by vendor
-pub enum GameSystem {
+pub enum System {
     /// Nintendo systems
     Nintendo(NintendoSystem),
     /// Sega systems
@@ -27,16 +27,16 @@ pub enum GameSystem {
     Unknown,
 }
 
-impl GameSystem {
+impl System {
     /// Iterate over all possible game systems
     pub fn iter() -> impl Iterator<Item = Self> {
         NintendoSystem::iter()
-            .map(GameSystem::Nintendo)
-            .chain(SegaSystem::iter().map(GameSystem::Sega))
-            .chain(SonySystem::iter().map(GameSystem::Sony))
-            .chain(AtariSystem::iter().map(GameSystem::Atari))
-            .chain(OtherSystem::iter().map(GameSystem::Other))
-            .chain(once(GameSystem::Unknown))
+            .map(System::Nintendo)
+            .chain(SegaSystem::iter().map(System::Sega))
+            .chain(SonySystem::iter().map(System::Sony))
+            .chain(AtariSystem::iter().map(System::Atari))
+            .chain(OtherSystem::iter().map(System::Other))
+            .chain(once(System::Unknown))
     }
 
     /// Get a well known file extension for the files this system supports
@@ -145,7 +145,7 @@ impl AtariSystem {
     pub const NAME: &str = "Atari";
 }
 
-impl FromStr for GameSystem {
+impl FromStr for System {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -161,9 +161,9 @@ impl FromStr for GameSystem {
         .replace(' ', "");
 
         thread_local! {
-            static SYSTEMS_AS_STRINGS: LazyCell<HashMap<String, GameSystem>> = LazyCell::new(
+            static SYSTEMS_AS_STRINGS: LazyCell<HashMap<String, System>> = LazyCell::new(
                 || {
-                    GameSystem::iter()
+                    System::iter()
                         .map(|system| (system.to_string().to_lowercase().replace(' ', ""), system))
                     .collect()
                 }
@@ -216,60 +216,60 @@ impl FromStr for GameSystem {
 }
 
 /// Exports a well formed No-Intro style system name
-impl Display for GameSystem {
+impl Display for System {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GameSystem::Nintendo(NintendoSystem::GameBoy) => write!(f, "Nintendo - Game Boy"),
-            GameSystem::Nintendo(NintendoSystem::GameBoyColor) => {
+            System::Nintendo(NintendoSystem::GameBoy) => write!(f, "Nintendo - Game Boy"),
+            System::Nintendo(NintendoSystem::GameBoyColor) => {
                 write!(f, "Nintendo - Game Boy Color")
             }
-            GameSystem::Nintendo(NintendoSystem::GameBoyAdvance) => {
+            System::Nintendo(NintendoSystem::GameBoyAdvance) => {
                 write!(f, "Nintendo - Game Boy Advance")
             }
-            GameSystem::Nintendo(NintendoSystem::GameCube) => {
+            System::Nintendo(NintendoSystem::GameCube) => {
                 write!(f, "Nintendo - Nintendo GameCube")
             }
-            GameSystem::Nintendo(NintendoSystem::Wii) => write!(f, "Nintendo - Wii"),
-            GameSystem::Nintendo(NintendoSystem::WiiU) => write!(f, "Nintendo - Wii U"),
-            GameSystem::Nintendo(NintendoSystem::SuperNintendoEntertainmentSystem) => {
+            System::Nintendo(NintendoSystem::Wii) => write!(f, "Nintendo - Wii"),
+            System::Nintendo(NintendoSystem::WiiU) => write!(f, "Nintendo - Wii U"),
+            System::Nintendo(NintendoSystem::SuperNintendoEntertainmentSystem) => {
                 write!(f, "Nintendo - Super Nintendo Entertainment System")
             }
-            GameSystem::Nintendo(NintendoSystem::NintendoEntertainmentSystem) => {
+            System::Nintendo(NintendoSystem::NintendoEntertainmentSystem) => {
                 write!(f, "Nintendo - Nintendo Entertainment System")
             }
-            GameSystem::Nintendo(NintendoSystem::Nintendo64) => write!(f, "Nintendo - Nintendo 64"),
-            GameSystem::Nintendo(NintendoSystem::NintendoDS) => write!(f, "Nintendo - Nintendo DS"),
-            GameSystem::Nintendo(NintendoSystem::NintendoDSi) => {
+            System::Nintendo(NintendoSystem::Nintendo64) => write!(f, "Nintendo - Nintendo 64"),
+            System::Nintendo(NintendoSystem::NintendoDS) => write!(f, "Nintendo - Nintendo DS"),
+            System::Nintendo(NintendoSystem::NintendoDSi) => {
                 write!(f, "Nintendo - Nintendo DSi")
             }
-            GameSystem::Nintendo(NintendoSystem::Nintendo3DS) => {
+            System::Nintendo(NintendoSystem::Nintendo3DS) => {
                 write!(f, "Nintendo - Nintendo 3DS")
             }
-            GameSystem::Nintendo(NintendoSystem::PokemonMini) => {
+            System::Nintendo(NintendoSystem::PokemonMini) => {
                 write!(f, "Nintendo - Pokemon Mini")
             }
-            GameSystem::Nintendo(NintendoSystem::VirtualBoy) => {
+            System::Nintendo(NintendoSystem::VirtualBoy) => {
                 write!(f, "Nintendo - Virtual Boy")
             }
-            GameSystem::Sony(SonySystem::Playstation) => write!(f, "Sony - PlayStation"),
-            GameSystem::Sony(SonySystem::Playstation2) => write!(f, "Sony - PlayStation 2"),
-            GameSystem::Sony(SonySystem::Playstation3) => write!(f, "Sony - PlayStation 3"),
-            GameSystem::Sony(SonySystem::PlaystationPortable) => {
+            System::Sony(SonySystem::Playstation) => write!(f, "Sony - PlayStation"),
+            System::Sony(SonySystem::Playstation2) => write!(f, "Sony - PlayStation 2"),
+            System::Sony(SonySystem::Playstation3) => write!(f, "Sony - PlayStation 3"),
+            System::Sony(SonySystem::PlaystationPortable) => {
                 write!(f, "Sony - PlayStation Portable")
             }
-            GameSystem::Sony(SonySystem::PlaystationVita) => write!(f, "Sony - PlayStation Vita"),
-            GameSystem::Sega(SegaSystem::MasterSystem) => write!(f, "Sega - Master System"),
-            GameSystem::Sega(SegaSystem::GameGear) => write!(f, "Sega - Game Gear"),
-            GameSystem::Sega(SegaSystem::Genesis) => write!(f, "Sega - Mega Drive - Genesis"),
-            GameSystem::Sega(SegaSystem::SegaCD) => write!(f, "Sega - Sega CD"),
-            GameSystem::Sega(SegaSystem::Sega32X) => write!(f, "Sega - 32X"),
-            GameSystem::Other(OtherSystem::Chip8) => write!(f, "Other - Chip8"),
-            GameSystem::Atari(AtariSystem::Atari2600) => write!(f, "Atari - 2600"),
-            GameSystem::Atari(AtariSystem::Atari5200) => write!(f, "Atari - 5200"),
-            GameSystem::Atari(AtariSystem::Atari7800) => write!(f, "Atari - 7800"),
-            GameSystem::Atari(AtariSystem::Lynx) => write!(f, "Atari - Atari Lynx"),
-            GameSystem::Atari(AtariSystem::Jaguar) => write!(f, "Atari - Jaguar"),
-            GameSystem::Unknown => write!(f, "Unknown"),
+            System::Sony(SonySystem::PlaystationVita) => write!(f, "Sony - PlayStation Vita"),
+            System::Sega(SegaSystem::MasterSystem) => write!(f, "Sega - Master System"),
+            System::Sega(SegaSystem::GameGear) => write!(f, "Sega - Game Gear"),
+            System::Sega(SegaSystem::Genesis) => write!(f, "Sega - Mega Drive - Genesis"),
+            System::Sega(SegaSystem::SegaCD) => write!(f, "Sega - Sega CD"),
+            System::Sega(SegaSystem::Sega32X) => write!(f, "Sega - 32X"),
+            System::Other(OtherSystem::Chip8) => write!(f, "Other - Chip8"),
+            System::Atari(AtariSystem::Atari2600) => write!(f, "Atari - 2600"),
+            System::Atari(AtariSystem::Atari5200) => write!(f, "Atari - 5200"),
+            System::Atari(AtariSystem::Atari7800) => write!(f, "Atari - 7800"),
+            System::Atari(AtariSystem::Lynx) => write!(f, "Atari - Atari Lynx"),
+            System::Atari(AtariSystem::Jaguar) => write!(f, "Atari - Jaguar"),
+            System::Unknown => write!(f, "Unknown"),
         }
     }
 }

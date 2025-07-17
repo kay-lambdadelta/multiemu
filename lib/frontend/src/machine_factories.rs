@@ -1,33 +1,27 @@
-use multiemu_rom::{GameSystem, RomId, RomManager};
+use multiemu_rom::System;
 use multiemu_runtime::{MachineFactory, builder::MachineBuilder, platform::Platform};
-use num::rational::Ratio;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Debug};
 
-#[derive(Debug)]
-pub struct MachineFactories<P: Platform>(HashMap<GameSystem, Box<dyn MachineFactory<P>>>);
+pub struct MachineFactories<P: Platform>(HashMap<System, Box<dyn MachineFactory<P>>>);
+
+impl<P: Platform> Debug for MachineFactories<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MachineFactories").finish()
+    }
+}
 
 impl<P: Platform> MachineFactories<P> {
-    pub fn insert_factory<M: MachineFactory<P> + Default>(&mut self, system: GameSystem) {
+    pub fn insert_factory<M: MachineFactory<P> + Default>(&mut self, system: System) {
         self.0.insert(system, Box::new(M::default()));
     }
 
-    pub fn construct_machine(
-        &self,
-        system: GameSystem,
-        user_specified_roms: Vec<RomId>,
-        rom_manager: Arc<RomManager>,
-        sample_rate: Ratio<u32>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
-    ) -> MachineBuilder<P> {
+    pub fn construct_machine(&self, machine_builder: MachineBuilder<P>) -> MachineBuilder<P> {
+        let system = machine_builder.system();
+
         self.0
             .get(&system)
             .unwrap_or_else(|| panic!("No factory for system {:?}", system))
-            .construct(
-                user_specified_roms,
-                rom_manager,
-                sample_rate,
-                main_thread_executor,
-            )
+            .construct(machine_builder)
     }
 }
 

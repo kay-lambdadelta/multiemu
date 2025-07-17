@@ -1,3 +1,4 @@
+use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -75,5 +76,36 @@ impl FromStr for ComponentName {
 impl AsRef<str> for ComponentName {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
+    }
+}
+
+impl Value for ComponentName {
+    type SelfType<'a> = Self;
+
+    type AsBytes<'a> = &'a [u8];
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn type_name() -> TypeName {
+        TypeName::new("component_name")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'b,
+    {
+        value.0.as_bytes()
+    }
+
+    fn from_bytes<'a>(bytes: Self::AsBytes<'a>) -> Self::SelfType<'a> {
+        Self(String::from_utf8_lossy(bytes).to_string())
+    }
+}
+
+impl Key for ComponentName {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
     }
 }

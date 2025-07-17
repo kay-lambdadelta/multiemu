@@ -2,12 +2,13 @@ use ines::INes;
 use multiemu_rom::{RomId, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
     },
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use serde::{Deserialize, Serialize};
 use std::{io::Read, sync::Arc};
 
@@ -76,7 +77,8 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         let essentials = component_builder.essentials();
 
         let mut rom_file = essentials
@@ -97,6 +99,8 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
         component_builder.build_global(NesCartridge {
             rom: ines,
             bus_conflict: false,
-        })
+        });
+
+        Ok(())
     }
 }

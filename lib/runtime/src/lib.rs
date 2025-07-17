@@ -12,14 +12,14 @@ use crate::{
 };
 use input::{VirtualGamepad, VirtualGamepadId};
 use multiemu_rom::{RomId, RomManager};
-use num::rational::Ratio;
+use multiemu_save::{SaveManager, SnapshotManager};
 use rustc_hash::FxBuildHasher;
 use scheduler::Scheduler;
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fmt::Debug,
     sync::{Arc, Mutex},
-    vec::Vec,
 };
 
 /// Audio related types
@@ -60,21 +60,35 @@ where
     /// All virtual gamepads inserted by components
     pub virtual_gamepads: HashMap<VirtualGamepadId, Arc<VirtualGamepad>, FxBuildHasher>,
     /// The store to interact with components
-    pub component_store: Arc<ComponentRegistry>,
+    pub component_registry: Arc<ComponentRegistry>,
     /// All displays this machine has
     pub displays: HashMap<DisplayId, DisplayInfo<P::GraphicsApi>, FxBuildHasher>,
     /// All audio outputs this machine has
     pub audio_outputs: HashMap<AudioOutputId, AudioOutputInfo<P::SampleFormat>, FxBuildHasher>,
+    pub rom_manager: Arc<RomManager>,
+    pub save_manager: Arc<SaveManager>,
+    pub snapshot_manager: Arc<SnapshotManager>,
 }
 
 /// Helper trait representing a fully constructed machine
-pub trait MachineFactory<P: Platform>: Debug + Send + Sync + 'static {
+pub trait MachineFactory<P: Platform>: Send + Sync + 'static {
     /// Construct a new machine given the parameters
-    fn construct(
-        &self,
-        user_specified_roms: Vec<RomId>,
-        rom_manager: Arc<RomManager>,
-        sample_rate: Ratio<u32>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
-    ) -> MachineBuilder<P>;
+    fn construct(&self, machine_builder: MachineBuilder<P>) -> MachineBuilder<P>;
+}
+
+/// Implement for closures
+impl<P: Platform, F: Fn(MachineBuilder<P>) -> MachineBuilder<P> + Send + Sync + 'static>
+    MachineFactory<P> for F
+{
+    fn construct(&self, machine_builder: MachineBuilder<P>) -> MachineBuilder<P> {
+        self(machine_builder)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UserSpecifiedRoms {
+    /// The ROM the machine will base identification on
+    pub main: RomId,
+    /// Associated subroms
+    pub sub: Cow<'static, [RomId]>,
 }

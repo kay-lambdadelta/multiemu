@@ -8,11 +8,12 @@ use crate::{
 };
 use multiemu_graphics::{GraphicsApi, GraphicsContextFeatures};
 use multiemu_rom::RomManager;
+use multiemu_save::{ComponentSave, ComponentVersion};
 use nohash::IsEnabled;
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::{any::Any, fmt::Debug, hash::Hash, num::NonZero, sync::Arc};
+use std::{any::Any, borrow::Cow, fmt::Debug, hash::Hash, num::NonZero, sync::Arc};
 
 pub use component_ref::ComponentRef;
 pub use registry::*;
@@ -20,33 +21,35 @@ pub use registry::*;
 mod component_ref;
 mod registry;
 
-/// Stuff every component optionally needs
-#[derive(Debug)]
-pub struct RuntimeEssentials<P: Platform> {
-    /// The configured ROM manager
-    pub rom_manager: Arc<RomManager>,
-    /// The memory translation table
-    pub memory_translation_table: Arc<MemoryAccessTable>,
-    /// This is not guarenteed to be initialized until [Component::on_runtime_ready] is called
-    ///
-    /// Therefore do not expect it to be filled out until then
-    pub component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
-    /// Sample rate for the audio hardware
-    pub sample_rate: Ratio<u32>,
-}
-
 #[allow(unused)]
 /// Basic supertrait for all components
 pub trait Component: Debug + Any {
     /// Called when machine initialization is finished
     ///
     /// This is where you should do graphics initialization or anything that reads or writes from the memory translation table
-    fn on_runtime_ready(&self) {}
+    fn runtime_ready(&self) {}
 
     /// Reset state
-    fn on_reset(&self) {}
+    fn reset(&self) {}
 
-    // Memory map related functions
+    /// Load Snapshot
+    fn load_snapshot(
+        &self,
+        snapshot_version: ComponentVersion,
+        data: &[u8],
+    ) -> Result<(), SnapshotError> {
+        Ok(())
+    }
+
+    /// Save Snapshot
+    fn save_snapshot(&self) -> Result<Vec<u8>, SnapshotError> {
+        Ok(Vec::new())
+    }
+
+    /// Load Save
+    fn save(&self) -> Result<Vec<u8>, SaveError> {
+        Ok(Vec::new())
+    }
 
     /// Reads memory at the specified address in the specified address space to fill the buffer
     fn read_memory(
@@ -120,6 +123,10 @@ pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized + 'static {
     /// Paramters to create this component
     type Component: Component;
 
+    fn current_version(&self) -> ComponentVersion {
+        ComponentVersion::default()
+    }
+
     /// Components this one depends on for building
     fn build_dependencies(&self) -> impl IntoIterator<Item = ComponentId> {
         std::iter::empty()
@@ -135,7 +142,23 @@ pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized + 'static {
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<P, Self::Component>,
-    );
+        save: Option<ComponentSave>,
+    ) -> Result<(), BuildError>;
+}
+
+/// Stuff every component optionally needs
+#[derive(Debug)]
+pub struct RuntimeEssentials<P: Platform> {
+    /// The configured ROM manager
+    pub rom_manager: Arc<RomManager>,
+    /// The memory translation table
+    pub memory_access_table: Arc<MemoryAccessTable>,
+    /// This is not guarenteed to be initialized until [Component::runtime_ready] is called
+    ///
+    /// Therefore do not expect it to be filled out until then
+    pub component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
+    /// Sample rate for the audio hardware
+    pub sample_rate: Ratio<u32>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -148,3 +171,29 @@ impl Hash for ComponentId {
 }
 
 impl IsEnabled for ComponentId {}
+
+#[derive(thiserror::Error, Debug)]
+pub enum SaveError {
+    #[error("Invalid version")]
+    InvalidVersion,
+    #[error("Invalid data")]
+    InvalidData,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum SnapshotError {
+    #[error("Invalid version")]
+    InvalidVersion,
+    #[error("Invalid data")]
+    InvalidData,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum BuildError {
+    #[error("Save error: {0:#?}")]
+    LoadingSave(#[from] SaveError),
+    #[error("Invalid config {0:}")]
+    InvalidConfig(Cow<'static, str>),
+    #[error("IO error: {0:#?}")]
+    IoError(#[from] std::io::Error),
+}

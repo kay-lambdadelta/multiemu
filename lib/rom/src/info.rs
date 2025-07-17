@@ -1,4 +1,4 @@
-use super::system::GameSystem;
+use super::system::System;
 use codes_iso_639::part_3::LanguageCode;
 use codes_iso_3166::part_1::CountryCode;
 use redb::{Key, TypeName, Value};
@@ -15,7 +15,7 @@ pub struct RomInfoV0 {
     /// The path of the ROM file
     pub path: Vec<String>,
     /// The system this ROM is associated with
-    pub system: GameSystem,
+    pub system: System,
     #[serde(default)]
     #[serde_as(as = "HashSet<DisplayFromStr>")]
     /// The languages this ROM is available in

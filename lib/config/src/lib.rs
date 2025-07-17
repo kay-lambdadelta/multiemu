@@ -4,7 +4,7 @@ use multiemu_input::{
     Input, VirtualGamepadName,
     hotkey::{DEFAULT_HOTKEYS, Hotkey},
 };
-use multiemu_rom::GameSystem;
+use multiemu_rom::System;
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
@@ -56,7 +56,7 @@ pub enum ProcessorExecutionMode {
 pub struct Environment {
     #[serde(default)]
     /// Gamepad configs populated by machines or edited by the user
-    pub gamepad_configs: BTreeMap<GameSystem, BTreeMap<VirtualGamepadName, BTreeMap<Input, Input>>>,
+    pub gamepad_configs: BTreeMap<System, BTreeMap<VirtualGamepadName, BTreeMap<Input, Input>>>,
     #[serde_inline_default(DEFAULT_HOTKEYS.clone())]
     /// Hotkeys for the application
     ///

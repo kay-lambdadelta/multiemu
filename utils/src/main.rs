@@ -7,7 +7,7 @@ use crate::{
 use clap::Parser;
 use database::redump::RedumpAction;
 use multiemu_config::ENVIRONMENT_LOCATION;
-use multiemu_rom::GameSystem;
+use multiemu_rom::System;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
@@ -62,7 +62,7 @@ fn main() {
         Cli::Database(DatabaseAction::Redump {
             action: RedumpAction::DownloadAll,
         }) => {
-            database::redump::database_redump_download(GameSystem::iter(), environment).unwrap();
+            database::redump::database_redump_download(System::iter(), environment).unwrap();
         }
         Cli::Database(DatabaseAction::ScreenScraper {}) => {}
         Cli::Rom(RomAction::Import { paths, symlink }) => {

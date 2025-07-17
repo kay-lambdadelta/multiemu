@@ -1,16 +1,13 @@
+use crate::{Mos6502, Mos6502Config, Mos6502Kind};
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_rom::RomManager;
 use multiemu_runtime::{
     Machine, builder::MachineBuilder, component::ComponentRef, memory::AddressSpaceHandle,
     platform::TestPlatform,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
-use std::sync::Arc;
-
-use crate::{Mos6502, Mos6502Config, Mos6502Kind};
 
 mod adc;
 
@@ -19,10 +16,7 @@ fn instruction_test_boilerplate() -> (
     ComponentRef<Mos6502>,
     AddressSpaceHandle,
 ) {
-    let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
-    let (machine, cpu_address_space) =
-        MachineBuilder::new_test(rom_manager).insert_address_space(16);
+    let (machine, cpu_address_space) = MachineBuilder::new_test_minimal().insert_address_space(16);
 
     let (machine, cpu) = machine.insert_component(
         "mos6502",
@@ -45,6 +39,7 @@ fn instruction_test_boilerplate() -> (
                 0x0000..=0xffff,
                 StandardMemoryInitialContents::Value(0),
             )]),
+            sram: false,
         },
     );
 

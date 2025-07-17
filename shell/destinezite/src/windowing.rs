@@ -14,11 +14,13 @@ use multiemu_frontend::{
 };
 use multiemu_graphics::GraphicsApi;
 use multiemu_input::{GamepadId, Input, InputState};
-use multiemu_rom::{GameSystem, RomId, RomManager};
+use multiemu_rom::{RomManager, System};
 use multiemu_runtime::{
+    UserSpecifiedRoms,
     platform::Platform,
     utils::{MainThreadCallback, MainThreadExecutor},
 };
+use multiemu_save::{SaveManager, SnapshotManager};
 use nalgebra::Vector2;
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
@@ -146,9 +148,18 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
     fn run(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
+        save_manager: Arc<SaveManager>,
+        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        Self::run_common(environment, rom_manager, machine_factories, None)?;
+        Self::run_common(
+            environment,
+            rom_manager,
+            save_manager,
+            snapshot_manager,
+            machine_factories,
+            None,
+        )?;
 
         Ok(())
     }
@@ -156,13 +167,17 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
     fn run_with_machine(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
+        save_manager: Arc<SaveManager>,
+        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
-        game_system: multiemu_rom::GameSystem,
-        user_specified_roms: Vec<multiemu_rom::RomId>,
+        game_system: System,
+        user_specified_roms: UserSpecifiedRoms,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Self::run_common(
             environment,
             rom_manager,
+            save_manager,
+            snapshot_manager,
             machine_factories,
             Some((game_system, user_specified_roms)),
         )?;
@@ -276,8 +291,10 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
     fn run_common(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
+        save_manager: Arc<SaveManager>,
+        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
-        machine_setup_stuff: Option<(GameSystem, Vec<RomId>)>,
+        machine_setup_stuff: Option<(System, UserSpecifiedRoms)>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let event_loop = EventLoop::with_user_event().build()?;
 
@@ -303,6 +320,8 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             FrontendRuntime::new_with_machine(
                 environment.clone(),
                 rom_manager,
+                save_manager,
+                snapshot_manager,
                 machine_factories,
                 main_thread_executor,
                 game_system,
@@ -312,6 +331,8 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             FrontendRuntime::new(
                 environment.clone(),
                 rom_manager,
+                save_manager,
+                snapshot_manager,
                 machine_factories,
                 main_thread_executor,
             )

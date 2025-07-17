@@ -14,6 +14,7 @@ multiemu-config = { workspace = true }
 multiemu-audio = { workspace = true }
 multiemu-frontend = { workspace = true }
 multiemu-graphics = { workspace = true }
+multiemu-save = { workspace = true }
 multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
 multiemu-definition-atari2600 = { workspace = true }
@@ -36,13 +37,9 @@ winit = { version = "0.30", default-features = false, features = [
     "wayland-dlopen",
     "x11",
     "rwh_06",
-    "android-game-activity",
+    "android-native-activity",
 ] }
-egui-winit = { version = "0.32", default-features = false, features = [
-    "android-game-activity",
-    "wayland",
-    "x11",
-] }
+egui-winit = { version = "0.32" }
 cpal = "0.16"
 gilrs = "0.11"
 softbuffer = "0.4"

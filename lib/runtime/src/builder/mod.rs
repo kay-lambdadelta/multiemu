@@ -1,5 +1,5 @@
 use crate::{
-    Machine,
+    Machine, UserSpecifiedRoms,
     audio::{AudioCallback, AudioOutputId, AudioOutputInfo},
     builder::task::StoredTask,
     component::{
@@ -16,8 +16,8 @@ use audio::AudioMetadata;
 use graphics::GraphicsMetadata;
 use input::InputMetadata;
 use multiemu_graphics::GraphicsApi;
-use multiemu_rom::RomManager;
-use multiemu_save::ComponentName;
+use multiemu_rom::{RomManager, System};
+use multiemu_save::{ComponentName, SaveManager, SnapshotManager};
 use num::rational::Ratio;
 use pathfinding::prelude::topological_sort;
 use rangemap::RangeInclusiveSet;
@@ -67,6 +67,10 @@ pub struct MachineBuilder<P: Platform> {
     memory_translation_table: Arc<MemoryAccessTable>,
     /// Rom manager
     rom_manager: Arc<RomManager>,
+    /// Save manager
+    save_manager: Arc<SaveManager>,
+    /// Snapshot manager
+    snapshot_manager: Arc<SnapshotManager>,
     /// Selected sample rate
     sample_rate: Ratio<u32>,
     /// The store for components
@@ -77,6 +81,10 @@ pub struct MachineBuilder<P: Platform> {
     graphics_requirements: GraphicsRequirements<P::GraphicsApi>,
     /// Component metadata
     component_metadata: HashMap<ComponentId, ComponentMetadata<P>, FxBuildHasher>,
+    /// Roms we were opened with
+    user_specified_roms: Option<UserSpecifiedRoms>,
+    /// System this is
+    system: System,
     /// Counter for assigning things
     current_audio_output_id: AudioOutputId,
     current_display_id: DisplayId,
@@ -84,7 +92,11 @@ pub struct MachineBuilder<P: Platform> {
 
 impl<P: Platform> MachineBuilder<P> {
     pub fn new(
+        user_specified_roms: Option<UserSpecifiedRoms>,
+        system: System,
         rom_manager: Arc<RomManager>,
+        save_manager: Arc<SaveManager>,
+        snapshot_manager: Arc<SnapshotManager>,
         sample_rate: Ratio<u32>,
         main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
@@ -96,12 +108,36 @@ impl<P: Platform> MachineBuilder<P> {
             current_display_id: DisplayId(0),
             component_builders: BTreeMap::new(),
             memory_translation_table: Arc::new(MemoryAccessTable::new(component_store.clone())),
+            save_manager,
+            snapshot_manager,
             component_store,
             rom_manager,
             sample_rate,
             graphics_requirements: GraphicsRequirements::default(),
             component_metadata: HashMap::default(),
+            user_specified_roms,
+            system,
         }
+    }
+
+    pub fn system(&self) -> System {
+        self.system
+    }
+
+    pub fn user_specified_roms(&self) -> Option<&UserSpecifiedRoms> {
+        self.user_specified_roms.as_ref()
+    }
+
+    pub fn rom_manager(&self) -> &Arc<RomManager> {
+        &self.rom_manager
+    }
+
+    pub fn save_manager(&self) -> &Arc<SaveManager> {
+        &self.save_manager
+    }
+
+    pub fn snapshot_manager(&self) -> &Arc<SnapshotManager> {
+        &self.snapshot_manager
     }
 
     /// Insert a component into the machine
@@ -141,6 +177,20 @@ impl<P: Platform> MachineBuilder<P> {
             let component_ref = component_ref.clone();
 
             Box::new(move |machine_builder, runtime_essentials| {
+                let save = if let Some(main) = machine_builder
+                    .user_specified_roms
+                    .as_ref()
+                    .map(|roms| roms.main)
+                {
+                    let (transaction, table) = machine_builder.save_manager.open(main).unwrap();
+                    let save = table.get(name.clone()).unwrap().map(|guard| guard.value());
+                    drop(transaction);
+
+                    save
+                } else {
+                    None
+                };
+
                 let component_builder = ComponentBuilder::<P, B::Component> {
                     runtime_essentials,
                     machine_builder,
@@ -149,7 +199,9 @@ impl<P: Platform> MachineBuilder<P> {
                     _phantom: PhantomData,
                 };
 
-                config.build_component(component_ref.clone(), component_builder);
+                config
+                    .build_component(component_ref.clone(), component_builder, save)
+                    .expect("Failed to build component");
             })
         });
 
@@ -194,7 +246,7 @@ impl<P: Platform> MachineBuilder<P> {
         .expect("Cyclic dependency detected");
 
         let runtime_essentials = RuntimeEssentials {
-            memory_translation_table: self.memory_translation_table.clone(),
+            memory_access_table: self.memory_translation_table.clone(),
             rom_manager: self.rom_manager.clone(),
             component_graphics_initialization_data,
             sample_rate: self.sample_rate,
@@ -248,7 +300,7 @@ impl<P: Platform> MachineBuilder<P> {
 
         // Make sure all the components do their proper post initialization
         self.component_store.interact_all(|compoenent| {
-            compoenent.on_runtime_ready();
+            compoenent.runtime_ready();
         });
 
         Machine {
@@ -268,17 +320,41 @@ impl<P: Platform> MachineBuilder<P> {
                     )
                 })
                 .collect(),
-            component_store: self.component_store,
+            component_registry: self.component_store,
             displays,
             audio_outputs,
+            rom_manager: self.rom_manager,
+            save_manager: self.save_manager,
+            snapshot_manager: self.snapshot_manager,
         }
     }
 }
 
 impl MachineBuilder<TestPlatform> {
-    pub fn new_test(rom_manager: Arc<RomManager>) -> Self {
+    pub fn new_test(
+        user_specified_roms: Option<UserSpecifiedRoms>,
+        rom_manager: Arc<RomManager>,
+        save_manager: Arc<SaveManager>,
+        snapshot_manager: Arc<SnapshotManager>,
+    ) -> Self {
         Self::new(
+            user_specified_roms,
+            System::Unknown,
             rom_manager,
+            save_manager,
+            snapshot_manager,
+            Ratio::from_integer(441000),
+            Arc::new(DirectMainThreadExecutor),
+        )
+    }
+
+    pub fn new_test_minimal() -> Self {
+        Self::new(
+            None,
+            System::Unknown,
+            Arc::new(RomManager::new(None, None).unwrap()),
+            Arc::new(SaveManager::new(None)),
+            Arc::new(SnapshotManager::new(None)),
             Ratio::from_integer(441000),
             Arc::new(DirectMainThreadExecutor),
         )

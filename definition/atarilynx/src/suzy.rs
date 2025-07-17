@@ -2,13 +2,14 @@ use std::ops::RangeInclusive;
 
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use rangemap::RangeInclusiveMap;
 
 use crate::SUZY_ADDRESSES;
@@ -200,9 +201,12 @@ impl<P: Platform> ComponentConfig<P> for SuzyConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         component_builder
             .map_memory([(self.cpu_address_space, SUZY_ADDRESSES)])
             .build_global(Suzy {});
+
+        Ok(())
     }
 }

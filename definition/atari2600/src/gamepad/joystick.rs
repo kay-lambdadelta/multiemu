@@ -3,10 +3,11 @@ use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use multiemu_input::{Input, VirtualGamepadName, gamepad::GamepadInput, keyboard::KeyboardInput};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentId, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentId, ComponentRef},
     input::{VirtualGamepad, VirtualGamepadMetadata},
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -28,7 +29,8 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         let player1_gamepad = create_gamepad();
         let player2_gamepad = create_gamepad();
 
@@ -43,7 +45,9 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
             })
             .unwrap();
 
-        component_builder.build_global(Atari2600Joystick)
+        component_builder.build_global(Atari2600Joystick);
+
+        Ok(())
     }
 }
 

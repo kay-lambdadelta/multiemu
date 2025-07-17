@@ -5,12 +5,10 @@ use multiemu_definition_misc::memory::{
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_rom::{RomId, RomManager};
 use multiemu_runtime::{MachineFactory, builder::MachineBuilder, platform::Platform};
 use num::rational::Ratio;
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
-use std::sync::Arc;
 
 mod apu;
 mod cartridge;
@@ -20,22 +18,15 @@ mod ppu;
 pub struct Nes;
 
 impl<P: Platform> MachineFactory<P> for Nes {
-    fn construct(
-        &self,
-        user_specified_roms: Vec<RomId>,
-        rom_manager: Arc<RomManager>,
-        sample_rate: Ratio<u32>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
-    ) -> MachineBuilder<P> {
-        let machine = MachineBuilder::new(rom_manager.clone(), sample_rate, main_thread_executor);
-
+    fn construct(&self, machine: MachineBuilder<P>) -> MachineBuilder<P> {
         let (machine, cpu_address_space) = machine.insert_address_space(16);
         let (machine, ppu_address_space) = machine.insert_address_space(16);
 
+        let rom = machine.user_specified_roms().unwrap().main;
         let (machine, cartridge) = machine.insert_component(
             "cartridge",
             NesCartridgeConfig {
-                rom: user_specified_roms[0],
+                rom,
                 cpu_address_space,
                 ppu_address_space,
             },
@@ -51,6 +42,7 @@ impl<P: Platform> MachineFactory<P> for Nes {
                     0x0000..=0xffff,
                     StandardMemoryInitialContents::Random,
                 )]),
+                sram: false,
             },
         );
         let (machine, _) = machine.insert_component(

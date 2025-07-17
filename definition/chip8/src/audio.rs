@@ -2,9 +2,10 @@ use multiemu_audio::{SampleFormat, SquareWave};
 use multiemu_runtime::{
     audio::AudioCallback,
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use nalgebra::SVector;
 use num::{FromPrimitive, Zero, rational::Ratio};
 use std::{
@@ -36,7 +37,8 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         let sound_timer = Arc::new(RwLock::new(0u8));
         let sample_rate = component_builder.essentials().sample_rate;
 
@@ -63,7 +65,9 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
             .0
             .build_global(Chip8Audio {
                 sound_timer: sound_timer.clone(),
-            })
+            });
+
+        Ok(())
     }
 }
 

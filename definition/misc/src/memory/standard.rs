@@ -1,13 +1,14 @@
 use multiemu_rom::{RomId, RomManager, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use rand::RngCore;
 use rangemap::RangeInclusiveMap;
 use std::{
@@ -31,12 +32,10 @@ pub enum StandardMemoryInitialContents {
 pub struct StandardMemoryConfig {
     pub readable: bool,
     pub writable: bool,
-    // Memory region this buffer will be mapped to
     pub assigned_range: RangeInclusive<Address>,
-    /// Address space this exists on
     pub assigned_address_space: AddressSpaceHandle,
-    // Initial contents
     pub initial_contents: RangeInclusiveMap<usize, StandardMemoryInitialContents>,
+    pub sram: bool,
 }
 
 #[derive(Debug)]
@@ -47,7 +46,7 @@ pub struct StandardMemory {
 }
 
 impl Component for StandardMemory {
-    fn on_reset(&self) {
+    fn reset(&self) {
         self.initialize_buffer();
     }
 
@@ -165,11 +164,13 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
-        assert!(
-            !self.assigned_range.is_empty(),
-            "Memory assigned must be non-empty"
-        );
+        save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
+        if self.assigned_range.is_empty() {
+            return Err(BuildError::InvalidConfig(
+                "Memory assigned must be non-empty".into(),
+            ));
+        }
 
         let rom_manager = component_builder.essentials().rom_manager.clone();
 
@@ -185,7 +186,16 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
             buffer,
             rom_manager: rom_manager.clone(),
         };
-        component.initialize_buffer();
+
+        match save {
+            Some(ComponentSave { component_data, .. }) if self.sram => {
+                // We serialize and deserialize using the raw data
+                component.write_internal(0, &component_data);
+            }
+            _ => {
+                component.initialize_buffer();
+            }
+        }
 
         let component_builder = match (self.readable, self.writable) {
             (true, true) => {
@@ -200,7 +210,9 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
             (false, false) => component_builder,
         };
 
-        component_builder.build_global(component)
+        component_builder.build_global(component);
+
+        Ok(())
     }
 }
 
@@ -345,10 +357,8 @@ mod test {
     fn initialization() {
         set_main_thread();
 
-        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager.clone()).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -361,6 +371,7 @@ mod test {
                     0..=3,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
+                sram: false,
             },
         );
         let machine = machine.build(Default::default());
@@ -374,7 +385,7 @@ mod test {
         assert_eq!(buffer, [0xff; 4]);
 
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager.clone()).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -387,6 +398,7 @@ mod test {
                     0..=3,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
+                sram: false,
             },
         );
         let machine = machine.build(Default::default());
@@ -404,10 +416,8 @@ mod test {
     fn basic_read() {
         set_main_thread();
 
-        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -420,6 +430,7 @@ mod test {
                     0..=7,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
+                sram: false,
             },
         );
         let machine = machine.build(Default::default());
@@ -437,10 +448,8 @@ mod test {
     fn basic_write() {
         set_main_thread();
 
-        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -453,6 +462,7 @@ mod test {
                     0..=7,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
+                sram: false,
             },
         );
         let machine = machine.build(Default::default());
@@ -469,10 +479,8 @@ mod test {
     fn basic_read_write() {
         set_main_thread();
 
-        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -485,6 +493,7 @@ mod test {
                     0..=7,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
+                sram: false,
             },
         );
         let machine = machine.build(Default::default());
@@ -507,10 +516,8 @@ mod test {
     fn extensive() {
         set_main_thread();
 
-        let rom_manager = Arc::new(RomManager::new(None, None).unwrap());
-
         let (machine, cpu_address_space) =
-            MachineBuilder::new_test(rom_manager).insert_address_space(64);
+            MachineBuilder::new_test_minimal().insert_address_space(64);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -523,6 +530,7 @@ mod test {
                     0..=0xffff,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
+                sram: false,
             },
         );
         let machine = machine.build(Default::default());

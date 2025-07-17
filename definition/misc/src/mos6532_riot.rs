@@ -1,12 +1,13 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
@@ -80,7 +81,7 @@ impl Mos6532Riot {
 }
 
 impl Component for Mos6532Riot {
-    fn on_reset(&self) {
+    fn reset(&self) {
         self.registers.swacnt.store(false, Ordering::Release);
         self.registers.swbcnt.store(false, Ordering::Release);
         self.registers.intim.store(0, Ordering::Release);
@@ -304,7 +305,8 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         let registers = Registers {
             swcha: OnceLock::new(),
             swchb: OnceLock::new(),
@@ -327,7 +329,9 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
         component_builder.build_global(Self::Component {
             registers,
             config: self,
-        })
+        });
+
+        Ok(())
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{id::RomId, info::RomInfoV0, system::GameSystem};
+use crate::{id::RomId, info::RomInfoV0, system::System};
 use redb::{Database, MultimapTableDefinition, ReadableMultimapTable, backends::InMemoryBackend};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -208,7 +208,7 @@ impl RomManager {
                     .next()
                     .and_then(|entry| entry.ok().map(|v| v.value().system))
             })
-            .or_else(|| GameSystem::guess(rom_path));
+            .or_else(|| System::guess(rom_path));
 
         if let Some(game_system) = game_system {
             // Update the ROM location

@@ -1,9 +1,10 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::Address,
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 
 /*
 const ASSIGNED_AREAS: [(AddressSpaceId, Range<usize>); 2] = [
@@ -48,7 +49,10 @@ impl<P: Platform> ComponentConfig<P> for NesPpuConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
-        component_builder.build(NesPpu)
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
+        component_builder.build(NesPpu);
+
+        Ok(())
     }
 }

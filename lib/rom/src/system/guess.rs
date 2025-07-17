@@ -1,4 +1,4 @@
-use super::{AtariSystem, GameSystem, NintendoSystem, OtherSystem, SegaSystem};
+use super::{AtariSystem, NintendoSystem, OtherSystem, SegaSystem, System};
 use std::{
     collections::HashMap,
     fs::File,
@@ -13,11 +13,11 @@ struct MagicTableEntry {
 }
 
 /// Magic number table
-static MAGIC_TABLE: LazyLock<HashMap<GameSystem, Vec<MagicTableEntry>>> = LazyLock::new(|| {
-    let mut table: HashMap<GameSystem, Vec<MagicTableEntry>> = HashMap::new();
+static MAGIC_TABLE: LazyLock<HashMap<System, Vec<MagicTableEntry>>> = LazyLock::new(|| {
+    let mut table: HashMap<System, Vec<MagicTableEntry>> = HashMap::new();
 
     table
-        .entry(GameSystem::Nintendo(NintendoSystem::GameBoy))
+        .entry(System::Nintendo(NintendoSystem::GameBoy))
         .or_default()
         .extend([MagicTableEntry {
             bytes: &[0xce, 0xed, 0x66, 0x66, 0xcc, 0x0d, 0x00, 0x0b],
@@ -25,7 +25,7 @@ static MAGIC_TABLE: LazyLock<HashMap<GameSystem, Vec<MagicTableEntry>>> = LazyLo
         }]);
 
     table
-        .entry(GameSystem::Nintendo(
+        .entry(System::Nintendo(
             NintendoSystem::NintendoEntertainmentSystem,
         ))
         .or_default()
@@ -35,7 +35,7 @@ static MAGIC_TABLE: LazyLock<HashMap<GameSystem, Vec<MagicTableEntry>>> = LazyLo
         }]);
 
     table
-        .entry(GameSystem::Sega(SegaSystem::Genesis))
+        .entry(System::Sega(SegaSystem::Genesis))
         .or_default()
         .extend([
             MagicTableEntry {
@@ -49,7 +49,7 @@ static MAGIC_TABLE: LazyLock<HashMap<GameSystem, Vec<MagicTableEntry>>> = LazyLo
         ]);
 
     table
-        .entry(GameSystem::Sega(SegaSystem::MasterSystem))
+        .entry(System::Sega(SegaSystem::MasterSystem))
         .or_default()
         .extend([
             MagicTableEntry {
@@ -70,7 +70,7 @@ static MAGIC_TABLE: LazyLock<HashMap<GameSystem, Vec<MagicTableEntry>>> = LazyLo
 });
 
 /// Guess a the system from a rom file on disk, using a variety of heuristics
-pub fn guess_system(rom_path: impl AsRef<Path>) -> Option<GameSystem> {
+pub fn guess_system(rom_path: impl AsRef<Path>) -> Option<System> {
     let rom_path = rom_path.as_ref();
     let mut rom = File::open(rom_path).unwrap();
 
@@ -109,28 +109,28 @@ pub fn guess_system(rom_path: impl AsRef<Path>) -> Option<GameSystem> {
 }
 
 /// Try to guess the system from the file extension
-fn guess_by_extension(rom: &Path) -> Option<GameSystem> {
+fn guess_by_extension(rom: &Path) -> Option<System> {
     if let Some(file_extension) = rom
         .extension()
         .map(|ext| ext.to_string_lossy().to_lowercase())
     {
         if let Some(system) = match file_extension.as_str() {
-            "gb" => Some(GameSystem::Nintendo(NintendoSystem::GameBoy)),
-            "gbc" => Some(GameSystem::Nintendo(NintendoSystem::GameBoyColor)),
-            "gba" => Some(GameSystem::Nintendo(NintendoSystem::GameBoyAdvance)),
-            "nes" => Some(GameSystem::Nintendo(
+            "gb" => Some(System::Nintendo(NintendoSystem::GameBoy)),
+            "gbc" => Some(System::Nintendo(NintendoSystem::GameBoyColor)),
+            "gba" => Some(System::Nintendo(NintendoSystem::GameBoyAdvance)),
+            "nes" => Some(System::Nintendo(
                 NintendoSystem::NintendoEntertainmentSystem,
             )),
-            "sfc" | "smc" => Some(GameSystem::Nintendo(
+            "sfc" | "smc" => Some(System::Nintendo(
                 NintendoSystem::SuperNintendoEntertainmentSystem,
             )),
-            "n64" | "z64" => Some(GameSystem::Nintendo(NintendoSystem::Nintendo64)),
-            "md" => Some(GameSystem::Sega(SegaSystem::MasterSystem)),
-            "gg" => Some(GameSystem::Sega(SegaSystem::GameGear)),
-            "ch8" | "c8" => Some(GameSystem::Other(OtherSystem::Chip8)),
-            "a26" => Some(GameSystem::Atari(AtariSystem::Atari2600)),
-            "a52" => Some(GameSystem::Atari(AtariSystem::Atari5200)),
-            "a78" => Some(GameSystem::Atari(AtariSystem::Atari7800)),
+            "n64" | "z64" => Some(System::Nintendo(NintendoSystem::Nintendo64)),
+            "md" => Some(System::Sega(SegaSystem::MasterSystem)),
+            "gg" => Some(System::Sega(SegaSystem::GameGear)),
+            "ch8" | "c8" => Some(System::Other(OtherSystem::Chip8)),
+            "a26" => Some(System::Atari(AtariSystem::Atari2600)),
+            "a52" => Some(System::Atari(AtariSystem::Atari5200)),
+            "a78" => Some(System::Atari(AtariSystem::Atari7800)),
             _ => None,
         } {
             tracing::info!(

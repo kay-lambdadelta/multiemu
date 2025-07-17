@@ -1,4 +1,5 @@
 use crate::tia::{
+    backend::TiaDisplayBackend,
     config::TiaConfig,
     memory::{ReadRegisters, WriteRegisters},
 };
@@ -6,12 +7,14 @@ pub(crate) use backend::SupportedGraphicsApiTia;
 use bitvec::{array::BitArray, order::Lsb0, view::BitView};
 use color::TiaColor;
 use multiemu_runtime::{
-    component::Component,
+    component::{Component, SnapshotError},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
     },
 };
-use nalgebra::Point2;
+use multiemu_save::ComponentVersion;
+use nalgebra::{DMatrix, Point2};
+use palette::Srgba;
 use rangemap::RangeInclusiveMap;
 use region::Region;
 use serde::{Deserialize, Serialize};
@@ -31,6 +34,12 @@ mod task;
 const HBLANK_LENGTH: u16 = 68;
 const VISIBLE_SCANLINE_LENGTH: u16 = 160;
 const SCANLINE_LENGTH: u16 = HBLANK_LENGTH + VISIBLE_SCANLINE_LENGTH;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TiaSnapshotV0 {
+    state: State,
+    buffer: DMatrix<Srgba<u8>>,
+}
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Serialize, Deserialize)]
 enum ObjectId {
@@ -126,6 +135,33 @@ pub(crate) struct Tia<R: Region, G: SupportedGraphicsApiTia> {
 }
 
 impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
+    fn load_snapshot(
+        &self,
+        snapshot_version: ComponentVersion,
+        data: &[u8],
+    ) -> Result<(), SnapshotError> {
+        let mut state_guard = self.state.lock().unwrap();
+        let mut backend_guard = self.backend.lock().unwrap();
+
+        match snapshot_version {
+            0 => {
+                let snapshot: TiaSnapshotV0 =
+                    bincode::serde::decode_from_slice(data, bincode::config::standard())
+                        .unwrap()
+                        .0;
+
+                *state_guard = snapshot.state;
+
+                backend_guard.modify_staging_buffer(|mut framebuffer| {
+                    framebuffer.copy_from(&snapshot.buffer);
+                });
+            }
+            _ => return Err(SnapshotError::InvalidVersion),
+        }
+
+        Ok(())
+    }
+
     fn read_memory(
         &self,
         address: Address,

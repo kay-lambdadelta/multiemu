@@ -1,15 +1,15 @@
-use crate::tia::backend::{SupportedGraphicsApiTia, TiaDisplayBackend};
-
 use super::{Tia, region::Region, task::TiaTask};
+use crate::tia::backend::{SupportedGraphicsApiTia, TiaDisplayBackend};
 use multiemu_definition_mos6502::Mos6502;
 use multiemu_graphics::GraphicsApi;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{ComponentConfig, ComponentRef},
+    component::{BuildError, ComponentConfig, ComponentRef},
     graphics::DisplayCallback,
     memory::AddressSpaceHandle,
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use std::{marker::PhantomData, sync::Mutex};
 
 #[derive(Debug, Clone)]
@@ -28,7 +28,8 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         let initialization_data = component_builder
             .essentials()
             .component_graphics_initialization_data
@@ -53,7 +54,9 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
             state: Default::default(),
             backend: Mutex::new(TiaDisplayBackend::new(initialization_data)),
             config: self,
-        })
+        });
+
+        Ok(())
     }
 }
 

@@ -2,10 +2,11 @@ use bitvec::{order::Msb0, view::BitView};
 use multiemu_graphics::GraphicsApi;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     graphics::DisplayCallback,
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
 use palette::{Srgb, Srgba};
@@ -161,7 +162,7 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
 }
 
 impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
-    fn on_reset(&self) {
+    fn reset(&self) {
         self.clear_display();
     }
 }
@@ -193,7 +194,8 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         let graphics_initialization_data = component_builder
             .essentials()
             .component_graphics_initialization_data
@@ -222,7 +224,9 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             hires: AtomicBool::new(false),
             vsync_occurred: AtomicBool::new(false),
             config: self,
-        })
+        });
+
+        Ok(())
     }
 }
 

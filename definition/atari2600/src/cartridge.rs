@@ -1,10 +1,11 @@
 use multiemu_rom::{RomId, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     memory::{Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord},
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -59,7 +60,8 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         let essentials = component_builder.essentials();
 
         let mut rom = essentials
@@ -84,6 +86,8 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
             .build_global(Atari2600Cartridge {
                 cart_type,
                 rom: rom_bytes,
-            })
+            });
+
+        Ok(())
     }
 }

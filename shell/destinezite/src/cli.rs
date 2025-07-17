@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use multiemu_rom::{GameSystem, RomId};
+use multiemu_rom::{RomId, System};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -17,13 +17,13 @@ pub enum CliAction {
         #[clap(required=true, num_args=1..)]
         roms: Vec<RomId>,
         #[clap(short, long)]
-        forced_system: Option<GameSystem>,
+        forced_system: Option<System>,
     },
     /// Run a ROM(s) according to their path on your filesystem
     RunExternal {
         #[clap(required=true, num_args=1..)]
         roms: Vec<PathBuf>,
         #[clap(short, long)]
-        forced_system: Option<GameSystem>,
+        forced_system: Option<System>,
     },
 }

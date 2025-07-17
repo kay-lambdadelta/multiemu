@@ -1,6 +1,6 @@
 use clap::Subcommand;
 use multiemu_config::Environment;
-use multiemu_rom::{GameSystem, NintendoSystem, RomManager, SegaSystem, SonySystem};
+use multiemu_rom::{NintendoSystem, RomManager, SegaSystem, SonySystem, System};
 use std::{
     error::Error,
     io::{BufReader, Seek},
@@ -22,18 +22,18 @@ pub enum RedumpSystem {
     Mcd,
 }
 
-impl TryFrom<GameSystem> for RedumpSystem {
+impl TryFrom<System> for RedumpSystem {
     type Error = ();
 
-    fn try_from(value: GameSystem) -> Result<Self, Self::Error> {
+    fn try_from(value: System) -> Result<Self, Self::Error> {
         match value {
-            GameSystem::Nintendo(NintendoSystem::GameCube) => Ok(Self::Gc),
-            GameSystem::Nintendo(NintendoSystem::Wii) => Ok(Self::Wii),
-            GameSystem::Sony(SonySystem::Playstation) => Ok(Self::Psx),
-            GameSystem::Sony(SonySystem::Playstation2) => Ok(Self::Ps2),
-            GameSystem::Sony(SonySystem::Playstation3) => Ok(Self::Ps3),
-            GameSystem::Sony(SonySystem::PlaystationPortable) => Ok(Self::Psp),
-            GameSystem::Sega(SegaSystem::SegaCD) => Ok(Self::Mcd),
+            System::Nintendo(NintendoSystem::GameCube) => Ok(Self::Gc),
+            System::Nintendo(NintendoSystem::Wii) => Ok(Self::Wii),
+            System::Sony(SonySystem::Playstation) => Ok(Self::Psx),
+            System::Sony(SonySystem::Playstation2) => Ok(Self::Ps2),
+            System::Sony(SonySystem::Playstation3) => Ok(Self::Ps3),
+            System::Sony(SonySystem::PlaystationPortable) => Ok(Self::Psp),
+            System::Sega(SegaSystem::SegaCD) => Ok(Self::Mcd),
             _ => Err(()),
         }
     }
@@ -43,13 +43,13 @@ impl TryFrom<GameSystem> for RedumpSystem {
 pub enum RedumpAction {
     Download {
         #[clap(required=true, num_args=1..)]
-        systems: Vec<GameSystem>,
+        systems: Vec<System>,
     },
     DownloadAll,
 }
 
 pub fn database_redump_download(
-    systems: impl IntoIterator<Item = GameSystem>,
+    systems: impl IntoIterator<Item = System>,
     environment: Environment,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let rom_manager = Arc::new(

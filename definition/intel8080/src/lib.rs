@@ -1,8 +1,9 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     platform::Platform,
 };
+use multiemu_save::ComponentSave;
 
 // mod decode;
 // mod instruction;
@@ -54,7 +55,8 @@ impl<P: Platform> ComponentConfig<P> for Intel8080Config {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) {
+        _save: Option<ComponentSave>,
+    ) -> Result<(), BuildError> {
         todo!()
     }
 }
