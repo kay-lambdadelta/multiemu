@@ -38,7 +38,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let delay_timer = Arc::new(Mutex::new(0u8));
 

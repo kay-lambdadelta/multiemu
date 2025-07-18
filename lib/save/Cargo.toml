@@ -10,5 +10,4 @@ bincode = { workspace = true }
 serde = { workspace = true }
 serde_with = { workspace = true }
 thiserror = { workspace = true }
-redb = { workspace = true }
 scc = { workspace = true }

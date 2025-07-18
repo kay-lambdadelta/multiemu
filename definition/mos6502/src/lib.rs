@@ -297,7 +297,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let rdy = AtomicBool::new(true);
         let memory_translation_table = component_builder.essentials().memory_access_table.clone();

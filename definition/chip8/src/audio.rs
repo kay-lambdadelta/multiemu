@@ -37,7 +37,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let sound_timer = Arc::new(RwLock::new(0u8));
         let sample_rate = component_builder.essentials().sample_rate;

@@ -28,7 +28,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let initialization_data = component_builder
             .essentials()

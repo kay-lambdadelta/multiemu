@@ -46,7 +46,7 @@ pub trait Component: Debug + Any {
         Ok(Vec::new())
     }
 
-    /// Load Save
+    /// Save
     fn save(&self) -> Result<Vec<u8>, SaveError> {
         Ok(Vec::new())
     }
@@ -142,7 +142,7 @@ pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized + 'static {
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<P, Self::Component>,
-        save: Option<ComponentSave>,
+        save: Option<&ComponentSave>,
     ) -> Result<(), BuildError>;
 }
 

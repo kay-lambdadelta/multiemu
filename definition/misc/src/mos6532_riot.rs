@@ -305,7 +305,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let registers = Registers {
             swcha: OnceLock::new(),

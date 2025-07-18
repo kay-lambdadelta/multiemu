@@ -164,7 +164,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        save: Option<ComponentSave>,
+        save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         if self.assigned_range.is_empty() {
             return Err(BuildError::InvalidConfig(

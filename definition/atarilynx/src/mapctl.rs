@@ -121,7 +121,7 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         self,
         component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let component_builder =
             component_builder.map_memory([(self.cpu_address_space, 0xfff9..=0xfff9)]);

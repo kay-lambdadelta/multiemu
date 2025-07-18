@@ -201,7 +201,7 @@ impl<P: Platform> ComponentConfig<P> for SuzyConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         component_builder
             .map_memory([(self.cpu_address_space, SUZY_ADDRESSES)])

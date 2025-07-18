@@ -55,7 +55,7 @@ impl<P: Platform> ComponentConfig<P> for Intel8080Config {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         todo!()
     }

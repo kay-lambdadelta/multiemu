@@ -49,7 +49,7 @@ impl<P: Platform> ComponentConfig<P> for NesPpuConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         component_builder.build(NesPpu);
 

@@ -95,7 +95,7 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
         self,
         _component_ref: ComponentRef<Self::Component>,
         mut component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<ComponentSave>,
+        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         if self.source_addresses.clone().count() != self.destination_addresses.clone().count() {
             return Err(BuildError::InvalidConfig(

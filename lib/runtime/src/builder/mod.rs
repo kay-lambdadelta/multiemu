@@ -182,14 +182,11 @@ impl<P: Platform> MachineBuilder<P> {
                     .as_ref()
                     .map(|roms| roms.main)
                 {
-                    let (transaction, table) = machine_builder.save_manager.open(main).unwrap();
-                    let save = table.get(name.clone()).unwrap().map(|guard| guard.value());
-                    drop(transaction);
-
-                    save
+                    machine_builder.save_manager.get(main).unwrap()
                 } else {
                     None
                 };
+                let component_save = save.as_ref().and_then(|save| save.components.get(&name));
 
                 let component_builder = ComponentBuilder::<P, B::Component> {
                     runtime_essentials,
@@ -200,7 +197,7 @@ impl<P: Platform> MachineBuilder<P> {
                 };
 
                 config
-                    .build_component(component_ref.clone(), component_builder, save)
+                    .build_component(component_ref.clone(), component_builder, component_save)
                     .expect("Failed to build component");
             })
         });
