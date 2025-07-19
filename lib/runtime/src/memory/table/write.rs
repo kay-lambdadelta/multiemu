@@ -105,10 +105,13 @@ impl MemoryAccessTable {
         })?;
 
         // TODO: Handle width mask wraparound properly
+        
+        // Crop the accessing range and the address
         let accessing_range = (buffer_subrange.start() + address) & address_space_info.width_mask
             ..=(buffer_subrange.end() + address) & address_space_info.width_mask;
         let address = address & address_space_info.width_mask;
 
+        // Step through the memory translation table
         for (component_assigned_range, component_id) in address_space_info
             .read_members
             .overlapping(accessing_range.clone())

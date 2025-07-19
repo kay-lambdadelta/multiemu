@@ -3,9 +3,7 @@ use crate::scheduler::{ScheduleEntry, TaskMode};
 use std::{num::NonZero, time::Duration};
 
 impl Scheduler {
-    /// Runs the scheduler for a single pass
-    ///
-
+    /// Runs the scheduler for X number of passes
     pub fn run_for_cycles(&mut self, cycles: u32) {
         for _ in 0..cycles {
             for ScheduleEntry {

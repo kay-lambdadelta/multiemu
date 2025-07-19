@@ -10,23 +10,30 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize, Debug)]
+/// Individual component snapshot
 pub struct ComponentSnapshot {
+    /// Version of the component
     pub component_version: ComponentVersion,
+    /// Data of the component
     pub component_data: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// On disk format for snapshots
 pub struct SnapshotFile {
+    /// Components
     pub components: HashMap<ComponentName, ComponentSnapshot>,
 }
 
 #[derive(Debug)]
+/// Manager helper for snapshots
 pub struct SnapshotManager {
     snapshot_files: scc::HashCache<(RomId, u8), Arc<SnapshotFile>>,
     snapshot_directory: Option<PathBuf>,
 }
 
 impl SnapshotManager {
+    /// Pass in [None] for tests
     pub fn new(snapshot_directory: Option<PathBuf>) -> Self {
         Self {
             snapshot_files: scc::HashCache::with_capacity(0, 4),
@@ -34,6 +41,7 @@ impl SnapshotManager {
         }
     }
 
+    /// Retrieve a snapshot if it exists
     pub fn get(
         &self,
         slot: u8,
@@ -42,6 +50,10 @@ impl SnapshotManager {
         let entry = match self.snapshot_files.entry((rom_id, slot)) {
             scc::hash_cache::Entry::Occupied(occupied_entry) => occupied_entry,
             scc::hash_cache::Entry::Vacant(vacant_entry) => {
+                if self.snapshot_directory.is_none() {
+                    return Ok(None);
+                }
+
                 let path = self
                     .snapshot_directory
                     .as_ref()
@@ -69,6 +81,7 @@ impl SnapshotManager {
         Ok(Some(entry.clone()))
     }
 
+    /// Add a snapshot to the store
     pub fn insert(
         &mut self,
         slot: u8,

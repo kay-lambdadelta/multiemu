@@ -14,7 +14,7 @@ pub trait Platform: Debug + 'static {
 }
 
 #[derive(Debug)]
-/// Test platform not useful for much
+/// Test platform
 pub struct TestPlatform;
 
 impl Platform for TestPlatform {

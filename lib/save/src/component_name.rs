@@ -2,32 +2,31 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Error for invalid component names
 pub enum ComponentNameError {
     #[error("Component name contains whitespace")]
+    /// Component names cannot contain whitespaces
     Whitespace,
-    #[error("Component name contains banned characters")]
-    BadCharacter,
     #[error("Component name is too long")]
+    /// Component names cannot be longer than 100 characters
     TooLong,
     #[error("Component name is too short")]
+    /// Component names cannot be empty
     TooShort,
 }
 
-pub const BANNED_CHARACTERS: &[char] = &['\\', '/', ':', '*', '?', '"', '<', '>', '|', '\''];
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// A component name, works as its on disk identifier
 pub struct ComponentName(String);
 
 impl ComponentName {
+    /// Maximum length of a component name, in bytes
     pub const MAX_NAME_LENGTH: usize = 100;
 
+    /// Checks if a string is a valid component name
     fn validity_checks(string: &str) -> Option<ComponentNameError> {
         if string.chars().any(|c| c.is_whitespace()) {
             return Some(ComponentNameError::Whitespace);
-        }
-
-        if string.chars().any(|c| BANNED_CHARACTERS.contains(&c)) {
-            return Some(ComponentNameError::BadCharacter);
         }
 
         if string.is_empty() {

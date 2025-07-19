@@ -38,6 +38,10 @@ impl SaveManager {
         let entry = match self.save_files.entry(rom_id) {
             scc::hash_cache::Entry::Occupied(occupied_entry) => occupied_entry,
             scc::hash_cache::Entry::Vacant(vacant_entry) => {
+                if self.save_directory.is_none() {
+                    return Ok(None);
+                }
+
                 let path = self.save_directory.as_ref().unwrap();
                 create_dir_all(&path)?;
                 let path = path.join(rom_id.to_string());
