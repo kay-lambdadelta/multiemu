@@ -7,7 +7,6 @@ use multiemu_runtime::{
     },
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
@@ -20,6 +19,8 @@ use std::{
         atomic::{AtomicBool, AtomicU8, Ordering},
     },
 };
+
+use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -303,9 +304,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
 
     fn build_component(
         self,
-        component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let registers = Registers {
             swcha: OnceLock::new(),
@@ -320,13 +319,33 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
             t1024t: AtomicU8::new(0),
         };
 
+        let ram_assigned_addresses =
+            self.ram_assigned_address..=self.ram_assigned_address.checked_add(0x7f).unwrap();
+
         let component_builder = component_builder.map_memory([(
             self.assigned_address_space,
             self.registers_assigned_address..=self.registers_assigned_address + 0x1f,
         )]);
-        let component_builder = set_up_timer_tasks(component_ref, &self, component_builder);
 
-        component_builder.build_global(Self::Component {
+        let (component_builder, _) = component_builder.insert_child_component(
+            "ram",
+            StandardMemoryConfig {
+                readable: true,
+                writable: true,
+                assigned_range: ram_assigned_addresses.clone(),
+                assigned_address_space: self.assigned_address_space,
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    ram_assigned_addresses,
+                    StandardMemoryInitialContents::Random,
+                )]),
+                sram: false,
+            },
+        );
+
+        let component_builder =
+            set_up_timer_tasks(component_builder.component_ref(), &self, component_builder);
+
+        component_builder.build_global(|_| Self::Component {
             registers,
             config: self,
         });
@@ -340,71 +359,70 @@ fn set_up_timer_tasks<'a, P: Platform>(
     config: &Mos6532RiotConfig,
     component_builder: ComponentBuilder<'a, P, Mos6532Riot>,
 ) -> ComponentBuilder<'a, P, Mos6532Riot> {
-    {
-        // Make the timers operate
-        component_builder
-            .insert_lazy_task(config.frequency, {
-                let component_ref = component_ref.clone();
+    // Make the timers operate
+    component_builder
+        .insert_lazy_task(config.frequency, {
+            let component_ref = component_ref.clone();
 
-                move |slice: NonZero<u32>| {
-                    component_ref
-                        .interact(|component| {
-                            component.registers.tim1t.fetch_add(
-                                slice.get().try_into().unwrap_or(u8::MAX),
-                                Ordering::Acquire,
-                            )
-                        })
-                        .unwrap();
-                }
-            })
-            .insert_lazy_task(config.frequency / 8, {
-                let component_ref = component_ref.clone();
+            move |slice: NonZero<u32>| {
+                component_ref
+                    .interact(|component| {
+                        component
+                            .registers
+                            .tim1t
+                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::Acquire)
+                    })
+                    .unwrap();
+            }
+        })
+        .insert_lazy_task(config.frequency / 8, {
+            let component_ref = component_ref.clone();
 
-                move |slice: NonZero<u32>| {
-                    component_ref
-                        .interact(|component| {
-                            component.registers.tim8t.fetch_add(
-                                slice.get().try_into().unwrap_or(u8::MAX),
-                                Ordering::Acquire,
-                            )
-                        })
-                        .unwrap();
-                }
-            })
-            .insert_lazy_task(config.frequency / 64, {
-                let component_ref = component_ref.clone();
+            move |slice: NonZero<u32>| {
+                component_ref
+                    .interact(|component| {
+                        component
+                            .registers
+                            .tim8t
+                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::Acquire)
+                    })
+                    .unwrap();
+            }
+        })
+        .insert_lazy_task(config.frequency / 64, {
+            let component_ref = component_ref.clone();
 
-                move |slice: NonZero<u32>| {
-                    component_ref
-                        .interact(|component| {
-                            component.registers.tim64t.fetch_add(
-                                slice.get().try_into().unwrap_or(u8::MAX),
-                                Ordering::Acquire,
-                            )
-                        })
-                        .unwrap();
-                }
-            })
-            .insert_lazy_task(config.frequency / 1024, {
-                let component_ref = component_ref.clone();
+            move |slice: NonZero<u32>| {
+                component_ref
+                    .interact(|component| {
+                        component
+                            .registers
+                            .tim64t
+                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::Acquire)
+                    })
+                    .unwrap();
+            }
+        })
+        .insert_lazy_task(config.frequency / 1024, {
+            let component_ref = component_ref.clone();
 
-                move |slice: NonZero<u32>| {
-                    component_ref
-                        .interact(|component| {
-                            component.registers.t1024t.fetch_add(
-                                slice.get().try_into().unwrap_or(u8::MAX),
-                                Ordering::Acquire,
-                            )
-                        })
-                        .unwrap();
-                }
-            })
-    }
+            move |slice: NonZero<u32>| {
+                component_ref
+                    .interact(|component| {
+                        component
+                            .registers
+                            .t1024t
+                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::Acquire)
+                    })
+                    .unwrap();
+            }
+        })
 }
 
 #[derive(Debug)]
 pub struct Mos6532RiotConfig {
     pub frequency: Ratio<u32>,
     pub registers_assigned_address: Address,
+    pub ram_assigned_address: Address,
     pub assigned_address_space: AddressSpaceHandle,
 }

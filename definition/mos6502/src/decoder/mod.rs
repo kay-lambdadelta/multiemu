@@ -40,9 +40,9 @@ impl InstructionDecoder for Mos6502InstructionDecoder {
         &self,
         address: Address,
         address_space: AddressSpaceHandle,
-        memory_translation_table: &MemoryAccessTable,
+        memory_access_table: &MemoryAccessTable,
     ) -> Option<(Self::InstructionSet, u8)> {
-        let byte: u8 = memory_translation_table
+        let byte: u8 = memory_access_table
             .read_le_value(address, address_space)
             .unwrap_or_default();
 

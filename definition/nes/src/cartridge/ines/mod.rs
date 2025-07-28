@@ -1,7 +1,7 @@
-use std::{collections::HashMap, fmt::Debug, io::Read};
-
 use bitvec::{field::BitField, prelude::Msb0, ptr::BitSpanError, view::BitView};
 use expansion_device::DefaultExpansionDevice;
+use rustc_hash::FxBuildHasher;
+use std::{collections::HashMap, fmt::Debug, io::Read};
 use thiserror::Error;
 
 pub mod expansion_device;
@@ -72,7 +72,7 @@ pub struct INes {
     pub mirroring: Mirroring,
     pub version: INesVersion,
     pub timing_mode: TimingMode,
-    pub roms: HashMap<RomType, Vec<u8>>,
+    pub roms: HashMap<RomType, Vec<u8>, FxBuildHasher>,
 }
 
 impl Debug for INes {
@@ -85,7 +85,7 @@ impl Debug for INes {
             .field("version", &self.version)
             .field("timing_mode", &self.timing_mode)
             // Omit the rom bytecode
-            .field("roms", &"..")
+            .field("roms", &())
             .finish()
     }
 }

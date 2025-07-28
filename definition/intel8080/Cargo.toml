@@ -7,7 +7,7 @@ license = "GPL-3.0-or-later"
 [dependencies]
 multiemu-rom = { workspace = true }
 multiemu-runtime = { workspace = true }
-multiemu-save = { workspace = true }
+
 deku = { workspace = true }
 num = { workspace = true }
 strum = { workspace = true }

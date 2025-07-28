@@ -11,6 +11,6 @@ mod manager;
 mod system;
 
 pub use id::RomId;
-pub use info::RomInfoV0 as RomInfo;
+pub use info::RomInfo;
 pub use manager::{RomManager, *};
 pub use system::{AtariSystem, NintendoSystem, OtherSystem, SegaSystem, SonySystem, System};

@@ -195,13 +195,13 @@ impl Mos6502Task {
                         let new_stack = state.stack.wrapping_sub(2);
                         let program_bytes = state.program.to_le_bytes();
 
-                        let _ = self.memory_translation_table.write_le_value(
+                        let _ = self.memory_access_table.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
                             config.assigned_address_space,
                             program_bytes[0],
                         );
 
-                        let _ = self.memory_translation_table.write_le_value(
+                        let _ = self.memory_access_table.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS + 1,
                             config.assigned_address_space,
                             program_bytes[1],
@@ -214,17 +214,17 @@ impl Mos6502Task {
 
                         let new_stack = new_stack.wrapping_sub(1);
 
-                        let _ = self.memory_translation_table.write_le_value(
+                        let _ = self.memory_access_table.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
                             config.assigned_address_space,
                             flags.to_byte(),
                         );
 
                         let program = [
-                            self.memory_translation_table
+                            self.memory_access_table
                                 .read_le_value(INTERRUPT_VECTOR, config.assigned_address_space)
                                 .unwrap_or_default(),
-                            self.memory_translation_table
+                            self.memory_access_table
                                 .read_le_value(INTERRUPT_VECTOR + 1, config.assigned_address_space)
                                 .unwrap_or_default(),
                         ];
@@ -491,7 +491,7 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Pla => {
                         state.a = self
-                            .memory_translation_table
+                            .memory_access_table
                             .read_le_value(
                                 state.stack as usize + STACK_BASE_ADDRESS,
                                 config.assigned_address_space,
@@ -505,7 +505,7 @@ impl Mos6502Task {
                     }
                     Mos6502Opcode::Plp => {
                         let value = self
-                            .memory_translation_table
+                            .memory_access_table
                             .read_le_value(
                                 state.stack as usize + STACK_BASE_ADDRESS,
                                 config.assigned_address_space,
@@ -559,7 +559,7 @@ impl Mos6502Task {
                     Mos6502Opcode::Rti => todo!(),
                     Mos6502Opcode::Rts => {
                         let program = self
-                            .memory_translation_table
+                            .memory_access_table
                             .read_le_value::<u16>(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 config.assigned_address_space,
@@ -694,7 +694,7 @@ impl Mos6502Task {
             }
             None => unreachable!(),
             _ => self
-                .memory_translation_table
+                .memory_access_table
                 .read_le_value(state.address_bus as usize, config.assigned_address_space)
                 .unwrap_or_default(),
         }
@@ -716,7 +716,7 @@ impl Mos6502Task {
                 unreachable!()
             }
             _ => {
-                let _ = self.memory_translation_table.write_le_value(
+                let _ = self.memory_access_table.write_le_value(
                     state.address_bus as usize,
                     config.assigned_address_space,
                     value,

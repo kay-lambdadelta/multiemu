@@ -10,12 +10,11 @@ use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_i
 use instruction::Register;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentId, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     input::{VirtualGamepad, VirtualGamepadMetadata},
     memory::AddressSpaceHandle,
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -116,19 +115,14 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
 {
     type Component = Chip8Processor;
 
-    fn build_dependencies(&self) -> impl IntoIterator<Item = ComponentId> {
-        [self.display.id(), self.audio.id(), self.timer.id()]
-    }
-
     fn build_component(
         self,
-        component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
-        let memory_translation_table = component_builder.essentials().memory_access_table.clone();
+        let memory_access_table = component_builder.memory_access_table();
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Mode::Chip8)));
         let state = Mutex::new(ProcessorState::default());
+        let component = component_builder.component_ref();
 
         let virtual_gamepad = VirtualGamepad::new(
             CHIP8_KEYPAD_GAMEPAD_TYPE,
@@ -145,13 +139,13 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
                 Chip8ProcessorTask {
                     instruction_decoder: Chip8InstructionDecoder,
                     virtual_gamepad,
-                    memory_translation_table,
+                    memory_access_table,
                     mode,
                     config: self,
-                    component: component_ref,
+                    component,
                 },
             )
-            .build_global(Chip8Processor { state });
+            .build_global(|_| Chip8Processor { state });
 
         Ok(())
     }

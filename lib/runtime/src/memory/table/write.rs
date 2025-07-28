@@ -105,7 +105,7 @@ impl MemoryAccessTable {
         })?;
 
         // TODO: Handle width mask wraparound properly
-        
+
         // Crop the accessing range and the address
         let accessing_range = (buffer_subrange.start() + address) & address_space_info.width_mask
             ..=(buffer_subrange.end() + address) & address_space_info.width_mask;

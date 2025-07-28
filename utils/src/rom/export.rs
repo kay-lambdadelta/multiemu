@@ -35,7 +35,7 @@ pub fn rom_export(
             if rom_path.is_file() {
                 tracing::info!(
                     "ROM \"{:?}\" found to be exported",
-                    PathBuf::from_iter(rom_info.path.iter())
+                    PathBuf::from_iter(rom_info.path().iter())
                 );
             } else {
                 continue;
@@ -43,10 +43,10 @@ pub fn rom_export(
 
             let target_rom_path = match style {
                 ExportStyle::NoIntro => {
-                    let system_folder_name = rom_info.system.to_string();
+                    let system_folder_name = rom_info.system().to_string();
                     let system_folder = path.join(system_folder_name);
-                    let game_folder = system_folder.join(rom_info.name);
-                    let final_path = game_folder.join(PathBuf::from_iter(rom_info.path.iter()));
+                    let game_folder = system_folder.join(rom_info.name());
+                    let final_path = game_folder.join(PathBuf::from_iter(rom_info.path().iter()));
 
                     fs::create_dir_all(final_path.parent().unwrap())?;
 

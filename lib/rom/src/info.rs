@@ -9,24 +9,72 @@ use std::collections::HashSet;
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 /// Information about a ROM, for the database
-pub struct RomInfoV0 {
-    /// Identifiable name of the game
-    pub name: String,
-    /// The path of the ROM file
-    pub path: Vec<String>,
-    /// The system this ROM is associated with
-    pub system: System,
-    #[serde(default)]
-    #[serde_as(as = "HashSet<DisplayFromStr>")]
-    /// The languages this ROM is available in
-    pub languages: HashSet<LanguageCode>,
-    #[serde(default)]
-    #[serde_as(as = "HashSet<DisplayFromStr>")]
-    /// The regions this ROM is available in
-    pub regions: HashSet<CountryCode>,
+pub enum RomInfo {
+    /// Version 0
+    #[serde(rename = "0")]
+    V0 {
+        /// Identifiable name of the game
+        name: String,
+        /// The path of the ROM file
+        path: Vec<String>,
+        /// The system this ROM is associated with
+        system: System,
+        #[serde(default)]
+        #[serde_as(as = "HashSet<DisplayFromStr>")]
+        /// The languages this ROM is available in
+        languages: HashSet<LanguageCode>,
+        #[serde(default)]
+        #[serde_as(as = "HashSet<DisplayFromStr>")]
+        /// The regions this ROM is available in
+        regions: HashSet<CountryCode>,
+    },
 }
 
-impl Value for RomInfoV0 {
+impl RomInfo {
+    /// Returns the name of the ROM
+    pub fn name(&self) -> &str {
+        match self {
+            RomInfo::V0 { name, .. } => name,
+        }
+    }
+
+    /// Returns the path of the ROM
+    pub fn path(&self) -> &[String] {
+        match self {
+            RomInfo::V0 { path, .. } => path,
+        }
+    }
+
+    /// Returns the system of the ROM
+    pub fn system(&self) -> System {
+        match self {
+            RomInfo::V0 { system, .. } => *system,
+        }
+    }
+
+    /// Returns the languages that the ROM supports
+    pub fn languages(&self) -> &HashSet<LanguageCode> {
+        match self {
+            RomInfo::V0 { languages, .. } => languages,
+        }
+    }
+
+    /// Returns the regions that the ROM supports
+    pub fn regions(&self) -> &HashSet<CountryCode> {
+        match self {
+            RomInfo::V0 { regions, .. } => regions,
+        }
+    }
+
+    /// Converts this to the latest version
+    pub fn mitigate(self) -> Self {
+        match self {
+            RomInfo::V0 { .. } => self,
+        }
+    }
+}
+
+impl Value for RomInfo {
     type SelfType<'a> = Self;
 
     type AsBytes<'a> = Vec<u8>;
@@ -56,15 +104,17 @@ impl Value for RomInfoV0 {
     }
 }
 
-impl Key for RomInfoV0 {
+impl Key for RomInfo {
     fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
         let value1 = Self::from_bytes(data1);
         let value2 = Self::from_bytes(data2);
 
         // Only the path and name are unique
-        value1
-            .path
-            .cmp(&value2.path)
-            .then_with(|| value1.name.to_lowercase().cmp(&value2.name.to_lowercase()))
+        value1.path().cmp(value2.path()).then_with(|| {
+            value1
+                .name()
+                .to_lowercase()
+                .cmp(&value2.name().to_lowercase())
+        })
     }
 }

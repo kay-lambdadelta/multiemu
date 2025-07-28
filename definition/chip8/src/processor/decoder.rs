@@ -18,10 +18,10 @@ impl InstructionDecoder for Chip8InstructionDecoder {
         &self,
         cursor: usize,
         address_space: AddressSpaceHandle,
-        memory_translation_table: &MemoryAccessTable,
+        memory_access_table: &MemoryAccessTable,
     ) -> Option<(Chip8InstructionSet, u8)> {
         let mut instruction = [0; 2];
-        memory_translation_table
+        memory_access_table
             .read(cursor, address_space, &mut instruction)
             .unwrap();
 

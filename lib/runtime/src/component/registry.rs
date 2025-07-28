@@ -1,11 +1,11 @@
 use super::{Component, ComponentId};
 use crate::{
-    component::ComponentRef,
+    component::{ComponentPath, ComponentRef},
     scheduler::DebtClearer,
     utils::{Fragile, MainThreadQueue},
 };
-use multiemu_save::ComponentName;
 use nohash::BuildNoHashHasher;
+use rustc_hash::FxBuildHasher;
 use std::{
     any::Any,
     boxed::Box,
@@ -13,7 +13,7 @@ use std::{
     fmt::Debug,
     sync::{
         Arc, OnceLock, RwLock,
-        atomic::{AtomicBool, AtomicU16, Ordering},
+        atomic::{AtomicU16, Ordering},
     },
 };
 
@@ -35,7 +35,7 @@ enum ComponentLocation {
 #[derive(Debug)]
 struct ComponentInfo {
     location: ComponentLocation,
-    name: ComponentName,
+    path: ComponentPath,
 }
 
 #[derive(Debug)]
@@ -47,9 +47,9 @@ where
 {
     components: RwLock<HashMap<ComponentId, ComponentInfo, BuildNoHashHasher<u16>>>,
     main_thread_queue: Arc<MainThreadQueue>,
-    was_started: AtomicBool,
     current_component_id: AtomicU16,
     debt_clearer: OnceLock<DebtClearer>,
+    component_ids: RwLock<HashMap<ComponentPath, ComponentId, FxBuildHasher>>,
 }
 
 impl ComponentRegistry {
@@ -57,9 +57,9 @@ impl ComponentRegistry {
         Self {
             components: RwLock::default(),
             main_thread_queue,
-            was_started: AtomicBool::new(false),
             current_component_id: AtomicU16::new(1),
             debt_clearer: OnceLock::new(),
+            component_ids: RwLock::default(),
         }
         .into()
     }
@@ -68,27 +68,34 @@ impl ComponentRegistry {
         self.debt_clearer.set(debt_clearer).unwrap();
     }
 
-    pub fn get_name(&self, component_id: ComponentId) -> Option<ComponentName> {
+    pub fn get_path(&self, component_id: ComponentId) -> Option<ComponentPath> {
         self.components
             .read()
             .unwrap()
             .get(&component_id)
-            .map(|component_info| component_info.name.clone())
+            .map(|component_info| component_info.path.clone())
     }
 
-    pub(crate) fn interact_all(&self, mut callback: impl FnMut(&dyn Component) + Send) {
-        if self.was_started.swap(true, Ordering::SeqCst) {
-            panic!("Machine already started");
-        }
+    pub fn get_id(&self, path: &ComponentPath) -> Option<ComponentId> {
+        self.component_ids.read().unwrap().get(&path).copied()
+    }
 
+    pub(crate) fn interact_all(
+        &self,
+        mut callback: impl FnMut(&ComponentPath, &dyn Component) + Send,
+    ) {
         let component_location_guard = self.components.read().unwrap();
 
         for component_info in component_location_guard.values() {
             match &component_info.location {
-                ComponentLocation::Global(component) => callback(component.as_ref()),
-                ComponentLocation::Local(component) => self
-                    .main_thread_queue
-                    .maybe_wait_on_main(|| callback(component.get().unwrap().as_ref())),
+                ComponentLocation::Global(component) => {
+                    callback(&component_info.path, component.as_ref())
+                }
+                ComponentLocation::Local(component) => {
+                    self.main_thread_queue.maybe_wait_on_main(|| {
+                        callback(&component_info.path, component.get().unwrap().as_ref())
+                    })
+                }
             }
         }
     }
@@ -104,7 +111,7 @@ impl ComponentRegistry {
 
     pub fn insert_component(
         &self,
-        name: ComponentName,
+        path: ComponentPath,
         component_id: ComponentId,
         component: impl Component,
     ) {
@@ -114,13 +121,13 @@ impl ComponentRegistry {
             .entry(component_id)
             .or_insert(ComponentInfo {
                 location: ComponentLocation::Local(Fragile::new(Box::new(component))),
-                name,
+                path,
             });
     }
 
     pub(crate) fn insert_component_global(
         &self,
-        name: ComponentName,
+        path: ComponentPath,
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
@@ -130,7 +137,7 @@ impl ComponentRegistry {
             .entry(component_id)
             .or_insert(ComponentInfo {
                 location: ComponentLocation::Global(Box::new(component)),
-                name,
+                path,
             });
     }
 

@@ -10,7 +10,7 @@ multiemu-input = { workspace = true }
 multiemu-config = { workspace = true }
 multiemu-audio = { workspace = true }
 multiemu-graphics = { workspace = true }
-multiemu-save = { workspace = true }
+
 nalgebra = { workspace = true }
 num = { workspace = true }
 palette = { workspace = true }

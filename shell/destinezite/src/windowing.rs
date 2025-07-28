@@ -14,13 +14,13 @@ use multiemu_frontend::{
 };
 use multiemu_graphics::GraphicsApi;
 use multiemu_input::{GamepadId, Input, InputState};
-use multiemu_rom::{RomManager, System};
+use multiemu_rom::RomManager;
 use multiemu_runtime::{
     UserSpecifiedRoms,
     platform::Platform,
+    save::{SaveManager, SnapshotManager},
     utils::{MainThreadCallback, MainThreadExecutor},
 };
-use multiemu_save::{SaveManager, SnapshotManager};
 use nalgebra::Vector2;
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
@@ -170,7 +170,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
         save_manager: Arc<SaveManager>,
         snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
-        game_system: System,
         user_specified_roms: UserSpecifiedRoms,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Self::run_common(
@@ -179,7 +178,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
             save_manager,
             snapshot_manager,
             machine_factories,
-            Some((game_system, user_specified_roms)),
+            Some(user_specified_roms),
         )?;
 
         Ok(())
@@ -294,7 +293,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
         save_manager: Arc<SaveManager>,
         snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
-        machine_setup_stuff: Option<(System, UserSpecifiedRoms)>,
+        machine_setup_stuff: Option<UserSpecifiedRoms>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let event_loop = EventLoop::with_user_event().build()?;
 
@@ -316,7 +315,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             event_loop_proxy: event_loop.create_proxy(),
         });
 
-        let runtime = if let Some((game_system, user_specified_roms)) = machine_setup_stuff {
+        let runtime = if let Some(user_specified_roms) = machine_setup_stuff {
             FrontendRuntime::new_with_machine(
                 environment.clone(),
                 rom_manager,
@@ -324,7 +323,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
                 snapshot_manager,
                 machine_factories,
                 main_thread_executor,
-                game_system,
                 user_specified_roms,
             )
         } else {

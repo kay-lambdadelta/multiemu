@@ -2,7 +2,7 @@ use super::instruction::SingleByteArgument;
 use bitvec::field::BitField;
 use bitvec::prelude::Msb0;
 use bitvec::view::BitView;
-use multiemu_runtime::memory::memory_translation_table::MemoryAccessTable;
+use multiemu_runtime::memory::memory_access_table::MemoryAccessTable;
 use std::ops::Range;
 
 const INSTRUCTION_IDENTIFIER: Range<usize> = 0..2;
@@ -11,10 +11,10 @@ const ARGUMENT: Range<usize> = 2..5;
 
 pub fn decode_instruction(
     cursor: usize,
-    memory_translation_table: &MemoryAccessTable,
+    memory_access_table: &MemoryAccessTable,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut instruction_first_byte = 0;
-    memory_translation_table.read(cursor, std::slice::from_mut(&mut instruction_first_byte));
+    memory_access_table.read(cursor, std::slice::from_mut(&mut instruction_first_byte));
     let instruction_first_byte = instruction_first_byte.view_bits::<Msb0>();
     let instruction_identifier = instruction_first_byte[INSTRUCTION_IDENTIFIER].load::<u8>();
 

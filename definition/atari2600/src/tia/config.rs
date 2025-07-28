@@ -9,7 +9,6 @@ use multiemu_runtime::{
     memory::AddressSpaceHandle,
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use std::{marker::PhantomData, sync::Mutex};
 
 #[derive(Debug, Clone)]
@@ -26,17 +25,12 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
 
     fn build_component(
         self,
-        component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
-        let initialization_data = component_builder
-            .essentials()
-            .component_graphics_initialization_data
-            .clone();
+        let component = component_builder.component_ref();
 
         let (component_builder, _) = component_builder.insert_display(TiaDisplayCallback {
-            component: component_ref.clone(),
+            component: component.clone(),
         });
 
         let component_builder =
@@ -45,14 +39,16 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
         let component_builder = component_builder.insert_task(
             R::frequency(),
             TiaTask {
-                component: component_ref.clone(),
+                component: component,
                 cpu: self.cpu.clone(),
             },
         );
 
-        component_builder.build(Tia {
+        component_builder.build(|lazy| Tia {
             state: Default::default(),
-            backend: Mutex::new(TiaDisplayBackend::new(initialization_data)),
+            backend: Mutex::new(TiaDisplayBackend::new(
+                lazy.component_graphics_initialization_data.clone(),
+            )),
             config: self,
         });
 

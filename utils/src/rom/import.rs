@@ -226,7 +226,7 @@ fn process_file(
         tracing::info!(
             "Found ROM {} with name \"{:?}\" in file \"{}\"",
             rom_id,
-            PathBuf::from_iter(rom_info.path.iter()),
+            PathBuf::from_iter(rom_info.path().iter()),
             entry
         );
 

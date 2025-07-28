@@ -22,15 +22,6 @@ impl<P: Platform> MachineFactory<P> for Nes {
         let (machine, cpu_address_space) = machine.insert_address_space(16);
         let (machine, ppu_address_space) = machine.insert_address_space(16);
 
-        let rom = machine.user_specified_roms().unwrap().main;
-        let (machine, cartridge) = machine.insert_component(
-            "cartridge",
-            NesCartridgeConfig {
-                rom,
-                cpu_address_space,
-                ppu_address_space,
-            },
-        );
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
@@ -46,7 +37,7 @@ impl<P: Platform> MachineFactory<P> for Nes {
             },
         );
         let (machine, _) = machine.insert_component(
-            "workram-mirror",
+            "workram-mirror-0",
             MirrorMemoryConfig {
                 readable: true,
                 writable: true,
@@ -56,7 +47,56 @@ impl<P: Platform> MachineFactory<P> for Nes {
                 destination_address_space: cpu_address_space,
             },
         );
-        let (machine, _) = machine.insert_default_component::<NesPpuConfig>("ppu");
+        let (machine, _) = machine.insert_component(
+            "workram-mirror-1",
+            MirrorMemoryConfig {
+                readable: true,
+                writable: true,
+                source_addresses: 0x1000..=0x17ff,
+                source_address_space: cpu_address_space,
+                destination_addresses: 0x0800..=0x0fff,
+                destination_address_space: cpu_address_space,
+            },
+        );
+        let (machine, _) = machine.insert_component(
+            "workram-mirror-2",
+            MirrorMemoryConfig {
+                readable: true,
+                writable: true,
+                source_addresses: 0x1800..=0x1fff,
+                source_address_space: cpu_address_space,
+                destination_addresses: 0x1000..=0x17ff,
+                destination_address_space: cpu_address_space,
+            },
+        );
+
+        let (mut machine, _) = machine.insert_default_component::<NesPpuConfig>("ppu");
+
+        for (index, address) in (0x2000..=0x3fff).step_by(8).skip(1).enumerate() {
+            machine = machine
+                .insert_component(
+                    &format!("ppu-register-mirror-{}", index),
+                    MirrorMemoryConfig {
+                        readable: true,
+                        writable: true,
+                        source_addresses: address..=address + 7,
+                        source_address_space: cpu_address_space,
+                        destination_addresses: address - 8..=address - 1,
+                        destination_address_space: cpu_address_space,
+                    },
+                )
+                .0;
+        }
+
+        let rom = machine.user_specified_roms().unwrap().main.id;
+        let (machine, cartridge) = machine.insert_component(
+            "cartridge",
+            NesCartridgeConfig {
+                rom,
+                cpu_address_space,
+                ppu_address_space,
+            },
+        );
 
         // Grab the timing mode
         let timing_mode = cartridge.interact(|cart| cart.rom().timing_mode).unwrap();

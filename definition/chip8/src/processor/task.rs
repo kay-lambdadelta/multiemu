@@ -17,7 +17,7 @@ pub(crate) struct Chip8ProcessorTask<G: SupportedGraphicsApiChip8Display> {
     /// Keypad virtual gamepad
     pub virtual_gamepad: Arc<VirtualGamepad>,
     /// Essential stuff the runtime provides
-    pub memory_translation_table: Arc<MemoryAccessTable>,
+    pub memory_access_table: Arc<MemoryAccessTable>,
     // What chip8 mode we are currently in
     pub mode: Arc<Mutex<Chip8Mode>>,
     pub config: Chip8ProcessorConfig<G>,
@@ -41,7 +41,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task for Chip8ProcessorTask<G> {
                                     .decode(
                                         state_guard.registers.program as usize,
                                         self.config.cpu_address_space,
-                                        &self.memory_translation_table,
+                                        &self.memory_access_table,
                                     )
                                     .expect("Failed to decode instruction");
 

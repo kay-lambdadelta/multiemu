@@ -182,7 +182,7 @@ pub fn import(
                 regions.extend(name_metadata.regions);
             }
 
-            let info = RomInfo {
+            let info = RomInfo::V0 {
                 name: machine.name.clone(),
                 path: rom.name.split('\\').map(String::from).collect(),
                 system: data_file.header.name,

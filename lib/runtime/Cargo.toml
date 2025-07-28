@@ -7,7 +7,7 @@ license = "GPL-3.0-or-later"
 [dependencies]
 multiemu-rom = { workspace = true }
 multiemu-input = { workspace = true }
-multiemu-save = { workspace = true }
+
 multiemu-graphics = { workspace = true }
 multiemu-audio = { workspace = true }
 rangemap = { workspace = true }
@@ -26,5 +26,6 @@ sealed = { workspace = true }
 crossbeam = { workspace = true }
 scc = { workspace = true }
 redb = { workspace = true }
-pathfinding = "4.14"
+itertools = { workspace = true }
+indexmap = "2.10"
 nohash = "0.2"

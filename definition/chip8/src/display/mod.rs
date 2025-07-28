@@ -6,7 +6,6 @@ use multiemu_runtime::{
     graphics::DisplayCallback,
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
 use palette::{Srgb, Srgba};
@@ -192,18 +191,13 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
 
     fn build_component(
         self,
-        component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
-        let graphics_initialization_data = component_builder
-            .essentials()
-            .component_graphics_initialization_data
-            .clone();
+        let component = component_builder.component_ref();
 
         let (component_builder, _) = component_builder
             .insert_task(Ratio::from_integer(60), {
-                let component = component_ref.clone();
+                let component = component.clone();
 
                 // We ignore the time slice and only commit the buffer once
                 move |_: NonZero<u32>| {
@@ -215,12 +209,12 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
                         .unwrap();
                 }
             })
-            .insert_display(Chip8DisplayCallback {
-                component: component_ref.clone(),
-            });
+            .insert_display(Chip8DisplayCallback { component });
 
-        component_builder.build(Chip8Display {
-            backend: Mutex::new(Chip8DisplayBackend::new(graphics_initialization_data)),
+        component_builder.build(|late| Chip8Display {
+            backend: Mutex::new(Chip8DisplayBackend::new(
+                late.component_graphics_initialization_data.clone(),
+            )),
             hires: AtomicBool::new(false),
             vsync_occurred: AtomicBool::new(false),
             config: self,

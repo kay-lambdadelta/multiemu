@@ -1,13 +1,12 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use rangemap::RangeInclusiveMap;
 use std::ops::RangeInclusive;
 
@@ -93,9 +92,7 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
 
     fn build_component(
         self,
-        _component_ref: ComponentRef<Self::Component>,
         mut component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         if self.source_addresses.clone().count() != self.destination_addresses.clone().count() {
             return Err(BuildError::InvalidConfig(
@@ -125,7 +122,7 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
             (false, false) => {}
         }
 
-        component_builder.build_global(MirrorMemory { config: self });
+        component_builder.build_global(|_| MirrorMemory { config: self });
 
         Ok(())
     }

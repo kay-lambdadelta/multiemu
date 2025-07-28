@@ -64,11 +64,11 @@ pub fn database_native_fuzzy_search(
         })
         .flatten()
     {
-        let calculated_similarity = strsim::jaro_winkler(&search, &rom_info.path.last().unwrap());
+        let calculated_similarity = strsim::jaro_winkler(&search, &rom_info.path().last().unwrap());
 
         if calculated_similarity >= similarity {
             found_games
-                .entry(rom_info.system)
+                .entry(rom_info.system())
                 .or_default()
                 .push((rom_info.clone(), calculated_similarity));
         }

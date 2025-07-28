@@ -14,7 +14,7 @@ multiemu-config = { workspace = true }
 multiemu-audio = { workspace = true }
 multiemu-frontend = { workspace = true }
 multiemu-graphics = { workspace = true }
-multiemu-save = { workspace = true }
+
 multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
 multiemu-definition-atari2600 = { workspace = true }

@@ -12,12 +12,14 @@ use multiemu_input::{
     GamepadId, Input, InputState,
     hotkey::{DEFAULT_HOTKEYS, Hotkey},
 };
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomManager, System};
+use multiemu_rom::{ROM_INFORMATION_TABLE, RomManager};
 use multiemu_runtime::{
-    Machine, UserSpecifiedRoms, builder::MachineBuilder, graphics::GraphicsRequirements,
-    input::VirtualGamepadId, platform::Platform,
+    Machine, RomSpecification, UserSpecifiedRoms,
+    builder::MachineBuilder,
+    graphics::GraphicsRequirements,
+    input::VirtualGamepadId,
+    save::{SaveManager, SnapshotManager},
 };
-use multiemu_save::{SaveManager, SnapshotManager};
 use nalgebra::Vector2;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 use std::{
@@ -49,7 +51,6 @@ fn setup_theme(egui_context: &egui::Context) {
 
 #[derive(Debug)]
 struct PendingMachineResources {
-    pub system: System,
     pub user_specified_roms: UserSpecifiedRoms,
 }
 
@@ -69,15 +70,9 @@ enum Mode {
 pub type MaybeMachine<P> = RwLock<Option<Machine<P>>>;
 
 #[derive(Debug)]
-pub struct StoredMachine<P: Platform> {
-    pub maybe_machine: Arc<MaybeMachine<P>>,
-    pub system: Option<System>,
-}
-
-#[derive(Debug)]
 pub struct FrontendRuntime<P: PlatformExt> {
     /// Main swappable machine
-    stored_machine: StoredMachine<P>,
+    maybe_machine: Arc<MaybeMachine<P>>,
     /// What mode the runtime is in right now
     mode: Mode,
     /// Gamepad to emulated gamepad mappings
@@ -123,7 +118,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     }
 
     pub fn maybe_machine(&self) -> Arc<MaybeMachine<P>> {
-        self.stored_machine.maybe_machine.clone()
+        self.maybe_machine.clone()
     }
 
     pub fn egui_platform_integration(&mut self) -> &mut P::EguiPlatformIntegration {
@@ -148,7 +143,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             }
             Mode::Gui => {
                 if let Some(PendingMachineResources {
-                    system: game_system,
                     user_specified_roms,
                 }) = self.pending_machine_resources.take()
                 {
@@ -156,7 +150,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
 
                     self.setup_runtime_for_new_machine(
                         display_api_handle,
-                        game_system,
                         user_specified_roms,
                         egui_platform_integration,
                     );
@@ -192,7 +185,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
 
         // check for hotkeys
 
-        let maybe_machine_guard = self.stored_machine.maybe_machine.read().unwrap();
+        let maybe_machine_guard = self.maybe_machine.read().unwrap();
         let enviroment_guard = self.environment.read().unwrap();
 
         for (keys_to_press, action) in enviroment_guard.hotkeys.iter() {
@@ -226,12 +219,13 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         match self.mode {
             Mode::Machine => {
                 let machine = maybe_machine_guard.as_ref().unwrap();
+                let system = machine.system().unwrap();
 
                 if let Some(virtual_id) = self.gamepad_mapping.get(&id) {
                     if let Some(virtual_gamepad) = machine.virtual_gamepads.get(virtual_id) {
                         if let Some(transformed_input) = enviroment_guard
                             .gamepad_configs
-                            .get(&self.stored_machine.system.unwrap())
+                            .get(&system)
                             .and_then(|gamepad_types| gamepad_types.get(&virtual_gamepad.name()))
                             .and_then(|gamepad_transformer| gamepad_transformer.get(&input))
                         {
@@ -263,7 +257,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             windowing.graphics_runtime.display_resized();
             self.previous_window_size = new_window_dimensions;
         }
-        let maybe_machine_guard = self.stored_machine.maybe_machine.read().unwrap();
+        let maybe_machine_guard = self.maybe_machine.read().unwrap();
 
         self.collected_frame_rates
             .enqueue(Instant::now() - self.previous_frame_timestamp);
@@ -278,7 +272,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                         / self.collected_frame_rates.len() as u32
                 };
 
-                let maybe_machine_guard = self.stored_machine.maybe_machine.read().unwrap();
+                let maybe_machine_guard = self.maybe_machine.read().unwrap();
                 let maybe_machine = maybe_machine_guard.as_ref().unwrap();
 
                 let render_frame_start_timestamp = Instant::now();
@@ -338,9 +332,11 @@ impl<P: PlatformExt> FrontendRuntime<P> {
 
                         self.setup_runtime_for_new_machine(
                             display_api_handle,
-                            rom_info.system,
                             UserSpecifiedRoms {
-                                main: rom_id,
+                                main: RomSpecification {
+                                    id: rom_id,
+                                    identity: rom_info,
+                                },
                                 sub: Cow::Borrowed(&[]),
                             },
                             egui_platform_integration,
@@ -387,10 +383,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
 
         Self {
             mode: Mode::Gui,
-            stored_machine: StoredMachine {
-                maybe_machine,
-                system: None,
-            },
+            maybe_machine,
             gamepad_mapping,
             environment,
             rom_manager,
@@ -418,7 +411,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<P>,
         main_thread_executor: Arc<P::MainThreadExecutor>,
-        game_system: System,
         user_specified_roms: UserSpecifiedRoms,
     ) -> Self {
         let mut me = Self::new(
@@ -430,7 +422,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             main_thread_executor,
         );
         me.pending_machine_resources = Some(PendingMachineResources {
-            system: game_system,
             user_specified_roms,
         });
         me
@@ -439,21 +430,19 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     pub(super) fn setup_runtime_for_new_machine(
         &mut self,
         display_api_handle: <P::GraphicsRuntime as GraphicsRuntime<P>>::DisplayApiHandle,
-        system: System,
         user_specified_roms: UserSpecifiedRoms,
         mut egui_platform_integration: P::EguiPlatformIntegration,
     ) {
-        let mut maybe_machine_guard = self.stored_machine.maybe_machine.write().unwrap();
+        let mut maybe_machine_guard = self.maybe_machine.write().unwrap();
 
         // Drop old machine otherwise it will segfault when we try to use the new video context
         // I dunno how we could prevent this unsafety but beware future programmers
 
         maybe_machine_guard.take();
-        self.stored_machine.system = None;
+        let system = user_specified_roms.main.identity.system();
 
         let machine_builder = MachineBuilder::new(
             Some(user_specified_roms),
-            system,
             self.rom_manager.clone(),
             self.save_manager.clone(),
             self.snapshot_manager.clone(),
@@ -518,7 +507,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         }
 
         *maybe_machine_guard = Some(machine);
-        self.stored_machine.system = Some(system);
         self.mode = Mode::Machine;
     }
 }

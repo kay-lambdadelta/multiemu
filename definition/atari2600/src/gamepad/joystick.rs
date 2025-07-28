@@ -3,11 +3,10 @@ use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use multiemu_input::{Input, VirtualGamepadName, gamepad::GamepadInput, keyboard::KeyboardInput};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentId, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
     input::{VirtualGamepad, VirtualGamepadMetadata},
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -21,15 +20,9 @@ impl Component for Atari2600Joystick {}
 impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
     type Component = Atari2600Joystick;
 
-    fn build_dependencies(&self) -> impl IntoIterator<Item = ComponentId> {
-        [self.mos6532_riot.id()]
-    }
-
     fn build_component(
         self,
-        _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let player1_gamepad = create_gamepad();
         let player2_gamepad = create_gamepad();
@@ -37,15 +30,17 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
         let component_builder = component_builder.insert_gamepad(player1_gamepad.clone());
         let component_builder = component_builder.insert_gamepad(player2_gamepad.clone());
 
-        self.mos6532_riot
-            .interact(|riot| {
-                riot.install_swcha(JoystickSwchaCallback {
-                    gamepads: [player1_gamepad, player2_gamepad],
-                });
-            })
-            .unwrap();
+        component_builder.build_global(move |_| {
+            self.mos6532_riot
+                .interact(|riot| {
+                    riot.install_swcha(JoystickSwchaCallback {
+                        gamepads: [player1_gamepad, player2_gamepad],
+                    });
+                })
+                .unwrap();
 
-        component_builder.build_global(Atari2600Joystick);
+            Atari2600Joystick
+        });
 
         Ok(())
     }

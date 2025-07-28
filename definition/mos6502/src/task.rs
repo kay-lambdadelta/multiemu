@@ -17,7 +17,7 @@ use std::{
 };
 
 pub struct Mos6502Task {
-    pub memory_translation_table: Arc<MemoryAccessTable>,
+    pub memory_access_table: Arc<MemoryAccessTable>,
     pub instruction_decoder: Mos6502InstructionDecoder,
     pub component: ComponentRef<Mos6502>,
 }
@@ -47,7 +47,7 @@ impl Task for Mos6502Task {
                                 &mut state_guard,
                                 &self.instruction_decoder,
                                 &component.config,
-                                &self.memory_translation_table,
+                                &self.memory_access_table,
                             );
 
                             time_slice -= 1;
@@ -62,7 +62,7 @@ impl Task for Mos6502Task {
                             match queue.pop_front() {
                                 Some(LoadStep::Data) => {
                                     let byte = self
-                                        .memory_translation_table
+                                        .memory_access_table
                                         .read_le_value(
                                             state_guard.address_bus as usize,
                                             component.config.assigned_address_space,
@@ -124,13 +124,13 @@ impl Task for Mos6502Task {
                         }
                         ExecutionMode::Reset => {
                             let program = [
-                                self.memory_translation_table
+                                self.memory_access_table
                                     .read_le_value(
                                         RESET_VECTOR,
                                         component.config.assigned_address_space,
                                     )
                                     .unwrap_or_default(),
-                                self.memory_translation_table
+                                self.memory_access_table
                                     .read_le_value(
                                         RESET_VECTOR + 1,
                                         component.config.assigned_address_space,
@@ -149,7 +149,7 @@ impl Task for Mos6502Task {
                                     state_guard.program = state_guard.address_bus;
                                 }
                                 Some(PostInterpretStep::Data { value }) => {
-                                    let _ = self.memory_translation_table.write_le_value(
+                                    let _ = self.memory_access_table.write_le_value(
                                         state_guard.address_bus as usize,
                                         component.config.assigned_address_space,
                                         value,
@@ -159,7 +159,7 @@ impl Task for Mos6502Task {
                                 }
                                 Some(PostInterpretStep::PushStack { data }) => {
                                     state_guard.stack = state_guard.stack.wrapping_sub(1);
-                                    let _ = self.memory_translation_table.write_le_value(
+                                    let _ = self.memory_access_table.write_le_value(
                                         STACK_BASE_ADDRESS + state_guard.stack as usize,
                                         component.config.assigned_address_space,
                                         data,
@@ -208,13 +208,13 @@ fn fetch_and_decode(
     state_guard: &mut ProcessorState,
     instruction_decoder: &Mos6502InstructionDecoder,
     config: &Mos6502Config,
-    memory_translation_table: &MemoryAccessTable,
+    memory_access_table: &MemoryAccessTable,
 ) {
     let (instruction, identifiying_bytes_length) = instruction_decoder
         .decode(
             state_guard.program as usize,
             config.assigned_address_space,
-            memory_translation_table,
+            memory_access_table,
         )
         .unwrap();
 

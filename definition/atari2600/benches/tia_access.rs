@@ -1,14 +1,16 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_definition_atari2600::Atari2600;
-use multiemu_rom::{AtariSystem, RomId, RomManager, System};
+use multiemu_rom::{RomId, RomManager};
 use multiemu_runtime::{
-    Machine, MachineFactory, UserSpecifiedRoms, builder::MachineBuilder, platform::TestPlatform,
+    Machine, MachineFactory, UserSpecifiedRoms,
+    builder::MachineBuilder,
+    platform::TestPlatform,
+    save::{SaveManager, SnapshotManager},
     utils::DirectMainThreadExecutor,
 };
-use multiemu_save::{SaveManager, SnapshotManager};
 use num::rational::Ratio;
-use std::{borrow::Cow, fs::File, hint::black_box, ops::Deref, str::FromStr, sync::Arc};
+use std::{fs::File, hint::black_box, ops::Deref, str::FromStr, sync::Arc};
 
 fn criterion_benchmark(c: &mut Criterion) {
     multiemu_runtime::utils::set_main_thread();
@@ -26,12 +28,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     let snapshot_manager = Arc::new(SnapshotManager::new(None));
 
     let machine = MachineBuilder::new(
-        Some(UserSpecifiedRoms {
-            // Donkey Kong (USA).a26
-            main: RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap(),
-            sub: Cow::Borrowed(&[]),
-        }),
-        System::Atari(AtariSystem::Atari2600),
+        Some(
+            UserSpecifiedRoms::from_id(
+                &rom_manager,
+                RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap(),
+            )
+            .unwrap(),
+        ),
         rom_manager,
         save_manager,
         snapshot_manager,

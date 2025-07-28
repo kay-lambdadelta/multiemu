@@ -1,24 +1,23 @@
 use crate::{
     builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceHandle, MemoryAccessTable, MemoryOperationError, PreviewMemoryRecord,
-        ReadMemoryRecord, WriteMemoryRecord,
+        Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+        WriteMemoryRecord,
     },
     platform::Platform,
 };
-use multiemu_graphics::{GraphicsApi, GraphicsContextFeatures};
-use multiemu_rom::RomManager;
-use multiemu_save::{ComponentSave, ComponentVersion};
+use multiemu_graphics::GraphicsApi;
 use nohash::IsEnabled;
-use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::{any::Any, borrow::Cow, fmt::Debug, hash::Hash, num::NonZero, sync::Arc};
+use std::{any::Any, borrow::Cow, fmt::Debug, hash::Hash, num::NonZero};
 
 pub use component_ref::ComponentRef;
+pub use path::*;
 pub use registry::*;
 
 mod component_ref;
+mod path;
 mod registry;
 
 #[allow(unused)]
@@ -31,25 +30,6 @@ pub trait Component: Debug + Any {
 
     /// Reset state
     fn reset(&self) {}
-
-    /// Load Snapshot
-    fn load_snapshot(
-        &self,
-        snapshot_version: ComponentVersion,
-        data: &[u8],
-    ) -> Result<(), SnapshotError> {
-        Ok(())
-    }
-
-    /// Save Snapshot
-    fn save_snapshot(&self) -> Result<Vec<u8>, SnapshotError> {
-        Ok(Vec::new())
-    }
-
-    /// Save
-    fn save(&self) -> Result<Vec<u8>, SaveError> {
-        Ok(Vec::new())
-    }
 
     /// Reads memory at the specified address in the specified address space to fill the buffer
     fn read_memory(
@@ -123,42 +103,16 @@ pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized + 'static {
     /// Paramters to create this component
     type Component: Component;
 
-    fn current_version(&self) -> ComponentVersion {
-        ComponentVersion::default()
-    }
-
-    /// Components this one depends on for building
-    fn build_dependencies(&self) -> impl IntoIterator<Item = ComponentId> {
-        std::iter::empty()
-    }
-
-    /// Graphics components this depends on
-    fn graphics_requirements(&self) -> GraphicsContextFeatures<P::GraphicsApi> {
-        GraphicsContextFeatures::default()
-    }
-
     /// Make a new component from the config
     fn build_component(
         self,
-        component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<P, Self::Component>,
-        save: Option<&ComponentSave>,
     ) -> Result<(), BuildError>;
 }
 
-/// Stuff every component optionally needs
 #[derive(Debug)]
-pub struct RuntimeEssentials<P: Platform> {
-    /// The configured ROM manager
-    pub rom_manager: Arc<RomManager>,
-    /// The memory translation table
-    pub memory_access_table: Arc<MemoryAccessTable>,
-    /// This is not guarenteed to be initialized until [Component::runtime_ready] is called
-    ///
-    /// Therefore do not expect it to be filled out until then
+pub struct LateInitializedData<P: Platform> {
     pub component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
-    /// Sample rate for the audio hardware
-    pub sample_rate: Ratio<u32>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -197,3 +151,6 @@ pub enum BuildError {
     #[error("IO error: {0:#?}")]
     IoError(#[from] std::io::Error),
 }
+
+/// Version that components use
+pub type ComponentVersion = u64;

@@ -9,10 +9,10 @@ use crate::{
     graphics::{DisplayId, DisplayInfo},
     memory::MemoryAccessTable,
     platform::Platform,
+    save::{SaveManager, SnapshotManager},
 };
 use input::{VirtualGamepad, VirtualGamepadId};
-use multiemu_rom::{RomId, RomManager};
-use multiemu_save::{SaveManager, SnapshotManager};
+use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager, System};
 use rustc_hash::FxBuildHasher;
 use scheduler::Scheduler;
 use std::{
@@ -38,6 +38,8 @@ pub mod memory;
 pub mod platform;
 /// Barebones processor related types
 pub mod processor;
+/// Save related types
+pub mod save;
 /// The scheduler
 pub mod scheduler;
 /// Misc utilities
@@ -68,6 +70,15 @@ where
     pub rom_manager: Arc<RomManager>,
     pub save_manager: Arc<SaveManager>,
     pub snapshot_manager: Arc<SnapshotManager>,
+    pub user_specified_roms: Option<UserSpecifiedRoms>,
+}
+
+impl<P: Platform> Machine<P> {
+    pub fn system(&self) -> Option<System> {
+        self.user_specified_roms
+            .as_ref()
+            .map(|roms| roms.main.identity.system())
+    }
 }
 
 /// Helper trait representing a fully constructed machine
@@ -86,9 +97,32 @@ impl<P: Platform, F: Fn(MachineBuilder<P>) -> MachineBuilder<P> + Send + Sync + 
 }
 
 #[derive(Debug, Clone)]
+pub struct RomSpecification {
+    pub id: RomId,
+    pub identity: RomInfo,
+}
+
+#[derive(Debug, Clone)]
 pub struct UserSpecifiedRoms {
-    /// The ROM the machine will base identification on
-    pub main: RomId,
+    /// Identity of the main rom
+    pub main: RomSpecification,
     /// Associated subroms
-    pub sub: Cow<'static, [RomId]>,
+    pub sub: Cow<'static, [RomSpecification]>,
+}
+
+impl UserSpecifiedRoms {
+    /// TODO: make less naive
+    pub fn from_id(
+        rom_manager: &RomManager,
+        id: RomId,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let transaction = rom_manager.rom_information.begin_read()?;
+        let table = transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
+        let info = table.get(id)?.next().unwrap()?.value();
+
+        Ok(Self {
+            main: RomSpecification { id, identity: info },
+            sub: Cow::Borrowed(&[]),
+        })
+    }
 }

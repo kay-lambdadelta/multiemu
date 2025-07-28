@@ -14,6 +14,6 @@ pub trait InstructionDecoder: Debug + Send + Sync + 'static {
         &self,
         address: Address,
         address_space: AddressSpaceHandle,
-        memory_translation_table: &MemoryAccessTable,
+        memory_access_table: &MemoryAccessTable,
     ) -> Option<(Self::InstructionSet, u8)>;
 }

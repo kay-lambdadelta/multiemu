@@ -1,4 +1,4 @@
-use crate::{id::RomId, info::RomInfoV0, system::System};
+use crate::{id::RomId, info::RomInfo, system::System};
 use redb::{Database, MultimapTableDefinition, ReadableMultimapTable, backends::InMemoryBackend};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -10,7 +10,7 @@ use std::{
 };
 
 /// Definition of the rom information table
-pub const ROM_INFORMATION_TABLE: MultimapTableDefinition<RomId, RomInfoV0> =
+pub const ROM_INFORMATION_TABLE: MultimapTableDefinition<RomId, RomInfo> =
     MultimapTableDefinition::new("rom_information");
 
 const CACHE_SIZE: usize = 16 * 1024 * 1024; // 16MB
@@ -206,7 +206,7 @@ impl RomManager {
             .and_then(|info| {
                 info.into_iter()
                     .next()
-                    .and_then(|entry| entry.ok().map(|v| v.value().system))
+                    .and_then(|entry| entry.ok().map(|v| v.value().system()))
             })
             .or_else(|| System::guess(rom_path));
 
@@ -227,7 +227,7 @@ impl RomManager {
 
                 table.insert(
                     rom_id,
-                    RomInfoV0 {
+                    RomInfo::V0 {
                         name: rom_path
                             .with_extension("")
                             .file_name()

@@ -2,17 +2,17 @@ use ines::INes;
 use multiemu_rom::{RomId, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
     },
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use serde::{Deserialize, Serialize};
 use std::{io::Read, sync::Arc};
 
 pub mod ines;
+pub mod mapper;
 
 #[derive(Debug)]
 pub struct NesCartridge {
@@ -33,6 +33,12 @@ impl Component for NesCartridge {
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+        match self.rom.mapper {
+            _ => {
+                unreachable!("Unsupported mapper");
+            }
+        }
+
         Ok(())
     }
 
@@ -75,14 +81,11 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
 
     fn build_component(
         self,
-        _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
-        let essentials = component_builder.essentials();
+        let rom_manager = component_builder.rom_manager();
 
-        let mut rom_file = essentials
-            .rom_manager
+        let mut rom_file = rom_manager
             .open(self.rom, RomRequirement::Required)
             .unwrap();
 
@@ -91,12 +94,12 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
 
         // Try parsing as a INES rom
         let ines = Arc::new(INes::parse(&rom).unwrap());
-        tracing::debug!("Parsed ROM as {:#?}", ines);
 
+        // Map self to claimed range in the cpu
         let component_builder =
-            component_builder.map_memory([(self.cpu_address_space, 0x8000..=0xffff)]);
+            component_builder.map_memory([(self.cpu_address_space, 0x4020..=0xffff)]);
 
-        component_builder.build_global(NesCartridge {
+        component_builder.build_global(|_| NesCartridge {
             rom: ines,
             bus_conflict: false,
         });

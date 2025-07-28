@@ -1,14 +1,13 @@
 use multiemu_rom::{RomId, RomManager, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use rand::RngCore;
 use rangemap::RangeInclusiveMap;
 use std::{
@@ -162,9 +161,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
 
     fn build_component(
         self,
-        _component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         if self.assigned_range.is_empty() {
             return Err(BuildError::InvalidConfig(
@@ -172,7 +169,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
             ));
         }
 
-        let rom_manager = component_builder.essentials().rom_manager.clone();
+        let rom_manager = component_builder.rom_manager();
 
         let buffer_size = self.assigned_range.clone().count();
         let chunks_needed = buffer_size.div_ceil(PAGE_SIZE);
@@ -187,10 +184,9 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
             rom_manager: rom_manager.clone(),
         };
 
-        match save {
-            Some(ComponentSave { component_data, .. }) if self.sram => {
-                // We serialize and deserialize using the raw data
-                component.write_internal(0, &component_data);
+        match component_builder.save() {
+            Some(save) if self.sram => {
+                todo!()
             }
             _ => {
                 component.initialize_buffer();
@@ -210,7 +206,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
             (false, false) => component_builder,
         };
 
-        component_builder.build_global(component);
+        component_builder.build_global(|_| component);
 
         Ok(())
     }

@@ -9,9 +9,11 @@ use cli::{Cli, CliAction};
 use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_frontend::PlatformExt;
 use multiemu_graphics::software::Software;
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomManager};
-use multiemu_runtime::UserSpecifiedRoms;
-use multiemu_save::{SaveManager, SnapshotManager};
+use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager};
+use multiemu_runtime::{
+    RomSpecification, UserSpecifiedRoms,
+    save::{SaveManager, SnapshotManager},
+};
 use std::{
     borrow::Cow,
     fs::{File, create_dir_all},
@@ -83,68 +85,87 @@ fn main() {
 
     // TODO: Move this somewhere else
     if let Some(action) = cli.action {
-        let (system, user_specified_roms) = match action {
+        let user_specified_roms = match action {
             CliAction::Run {
-                mut roms,
+                roms,
                 forced_system,
             } => {
-                let system = forced_system.unwrap_or_else(|| {
-                    let database_transaction = rom_manager.rom_information.begin_read().unwrap();
-                    let database_table = database_transaction
-                        .open_multimap_table(ROM_INFORMATION_TABLE)
-                        .unwrap();
-                    let rom_info = database_table
-                        .get(&roms[0])
-                        .unwrap()
-                        .next()
-                        .unwrap()
-                        .unwrap()
-                        .value();
-                    rom_info.system
-                });
-                let main_rom = roms.remove(0);
+                let mut roms: Vec<_> = roms
+                    .into_iter()
+                    .map(|rom| {
+                        let database_transaction =
+                            rom_manager.rom_information.begin_read().unwrap();
+                        let database_table = database_transaction
+                            .open_multimap_table(ROM_INFORMATION_TABLE)
+                            .unwrap();
 
-                (
-                    system,
-                    UserSpecifiedRoms {
-                        main: main_rom,
-                        sub: Cow::Owned(roms),
-                    },
-                )
+                        RomSpecification {
+                            id: rom,
+                            identity: database_table
+                                .get(&rom)
+                                .unwrap()
+                                .next()
+                                .unwrap()
+                                .unwrap()
+                                .value(),
+                        }
+                    })
+                    .collect();
+                let mut main_rom = roms.remove(0);
+
+                if let Some(forced_system) = forced_system {
+                    match &mut main_rom.identity {
+                        RomInfo::V0 { system, .. } => *system = forced_system,
+                    }
+                }
+
+                UserSpecifiedRoms {
+                    main: main_rom,
+                    sub: Cow::Owned(roms),
+                }
             }
             CliAction::RunExternal {
                 roms,
                 forced_system,
             } => {
-                let mut roms: Vec<RomId> = roms
+                let roms: Vec<RomId> = roms
                     .into_iter()
                     .map(|rom| rom_manager.identify_rom(rom).unwrap().unwrap())
                     .collect();
 
-                let system = forced_system.unwrap_or_else(|| {
-                    let database_transaction = rom_manager.rom_information.begin_read().unwrap();
-                    let database_table = database_transaction
-                        .open_multimap_table(ROM_INFORMATION_TABLE)
-                        .unwrap();
-                    let rom_info = database_table
-                        .get(&roms[0])
-                        .unwrap()
-                        .next()
-                        .unwrap()
-                        .unwrap()
-                        .value();
-                    rom_info.system
-                });
+                let mut roms: Vec<_> = roms
+                    .into_iter()
+                    .map(|rom| {
+                        let database_transaction =
+                            rom_manager.rom_information.begin_read().unwrap();
+                        let database_table = database_transaction
+                            .open_multimap_table(ROM_INFORMATION_TABLE)
+                            .unwrap();
 
-                let main_rom = roms.remove(0);
+                        RomSpecification {
+                            id: rom,
+                            identity: database_table
+                                .get(&rom)
+                                .unwrap()
+                                .next()
+                                .unwrap()
+                                .unwrap()
+                                .value(),
+                        }
+                    })
+                    .collect();
+                let mut main_rom = roms.remove(0);
 
-                (
-                    system,
-                    UserSpecifiedRoms {
-                        main: main_rom,
-                        sub: Cow::Owned(roms),
-                    },
-                )
+                if let Some(forced_system) = forced_system {
+                    match &mut main_rom.identity {
+                        RomInfo::V0 { system, .. } => *system = forced_system,
+                    }
+                }
+
+                UserSpecifiedRoms {
+                    main: main_rom,
+                    sub: Cow::Owned(roms),
+                }
             }
         };
 
@@ -158,7 +179,6 @@ fn main() {
                     save_manager.clone(),
                     snapshot_manager.clone(),
                     build_machine::get_software_factories(),
-                    system,
                     user_specified_roms,
                 )
                 .unwrap();
@@ -174,7 +194,6 @@ fn main() {
                     save_manager.clone(),
                     snapshot_manager.clone(),
                     build_machine::get_vulkan_factories(),
-                    system,
                     user_specified_roms,
                 )
                 .unwrap();

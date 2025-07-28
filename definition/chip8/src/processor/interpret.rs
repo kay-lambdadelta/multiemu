@@ -237,7 +237,7 @@ impl<G: SupportedGraphicsApiChip8Display> Chip8ProcessorTask<G> {
                     let mut buffer = [0; 32];
 
                     for buffer_section in buffer.chunks_mut(2) {
-                        self.memory_translation_table
+                        self.memory_access_table
                             .read(
                                 state.registers.index as usize + cursor,
                                 self.config.cpu_address_space,
@@ -259,7 +259,7 @@ impl<G: SupportedGraphicsApiChip8Display> Chip8ProcessorTask<G> {
                         ArrayVec::<_, 16>::from_iter(std::iter::repeat_n(0, height as usize));
 
                     for buffer_section in buffer.chunks_mut(2) {
-                        self.memory_translation_table
+                        self.memory_access_table
                             .read(
                                 state.registers.index as usize + cursor,
                                 self.config.cpu_address_space,
@@ -344,21 +344,21 @@ impl<G: SupportedGraphicsApiChip8Display> Chip8ProcessorTask<G> {
                 let register_value = state.registers.work_registers[register as usize];
                 let [hundreds, tens, ones] = bcd_encode(register_value);
 
-                self.memory_translation_table
+                self.memory_access_table
                     .write_le_value(
                         state.registers.index as usize,
                         self.config.cpu_address_space,
                         hundreds,
                     )
                     .unwrap();
-                self.memory_translation_table
+                self.memory_access_table
                     .write_le_value(
                         state.registers.index as usize + 1,
                         self.config.cpu_address_space,
                         tens,
                     )
                     .unwrap();
-                self.memory_translation_table
+                self.memory_access_table
                     .write_le_value(
                         state.registers.index as usize + 2,
                         self.config.cpu_address_space,
@@ -368,7 +368,7 @@ impl<G: SupportedGraphicsApiChip8Display> Chip8ProcessorTask<G> {
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Save { count }) => {
                 for i in 0..=count {
-                    self.memory_translation_table
+                    self.memory_access_table
                         .write(
                             state.registers.index as usize + i as usize,
                             self.config.cpu_address_space,
@@ -384,7 +384,7 @@ impl<G: SupportedGraphicsApiChip8Display> Chip8ProcessorTask<G> {
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Restore { count }) => {
                 for i in 0..=count {
-                    self.memory_translation_table
+                    self.memory_access_table
                         .read(
                             state.registers.index as usize + i as usize,
                             self.config.cpu_address_space,

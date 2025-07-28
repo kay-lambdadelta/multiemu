@@ -3,29 +3,30 @@ use crate::{
     audio::{AudioCallback, AudioOutputId, AudioOutputInfo},
     builder::task::StoredTask,
     component::{
-        Component, ComponentConfig, ComponentId, ComponentRef, ComponentRegistry, RuntimeEssentials,
+        Component, ComponentConfig, ComponentId, ComponentPath, ComponentRef, ComponentRegistry,
+        ComponentVersion, LateInitializedData,
     },
     graphics::{DisplayCallback, DisplayId, DisplayInfo, GraphicsRequirements},
     input::{VirtualGamepad, VirtualGamepadId},
     memory::{Address, AddressSpaceHandle, MemoryAccessTable},
     platform::{Platform, TestPlatform},
+    save::{Save, SaveManager, SnapshotManager},
     scheduler::{Scheduler, Task},
     utils::{DirectMainThreadExecutor, MainThreadQueue},
 };
 use audio::AudioMetadata;
 use graphics::GraphicsMetadata;
+use indexmap::IndexMap;
 use input::InputMetadata;
 use multiemu_graphics::GraphicsApi;
 use multiemu_rom::{RomManager, System};
-use multiemu_save::{ComponentName, SaveManager, SnapshotManager};
 use num::rational::Ratio;
-use pathfinding::prelude::topological_sort;
 use rangemap::RangeInclusiveSet;
 use rustc_hash::FxBuildHasher;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    marker::PhantomData,
+    collections::HashMap,
     ops::RangeInclusive,
+    str::FromStr,
     sync::{Arc, Mutex},
     vec::Vec,
 };
@@ -43,28 +44,15 @@ pub struct ComponentMetadata<P: Platform> {
     pub graphics: Option<GraphicsMetadata<P::GraphicsApi>>,
     pub input: Option<InputMetadata>,
     pub audio: Option<AudioMetadata<P::SampleFormat>>,
-    pub dependencies: HashSet<ComponentId>,
+    pub path: ComponentPath,
+    pub component_initializer: Option<Box<dyn FnOnce(&ComponentRegistry, &LateInitializedData<P>)>>,
+    pub version: ComponentVersion,
 }
-
-impl<P: Platform> Default for ComponentMetadata<P> {
-    fn default() -> Self {
-        Self {
-            task: None,
-            graphics: None,
-            input: None,
-            audio: None,
-            dependencies: HashSet::new(),
-        }
-    }
-}
-
-pub type ComponentBuilderCallback<P> =
-    Box<dyn FnOnce(&mut MachineBuilder<P>, &RuntimeEssentials<P>)>;
 
 /// Builder to produce a machine, definition crates will want to use this
 pub struct MachineBuilder<P: Platform> {
     /// Memory translation table
-    memory_translation_table: Arc<MemoryAccessTable>,
+    memory_access_table: Arc<MemoryAccessTable>,
     /// Rom manager
     rom_manager: Arc<RomManager>,
     /// Save manager
@@ -74,17 +62,11 @@ pub struct MachineBuilder<P: Platform> {
     /// Selected sample rate
     sample_rate: Ratio<u32>,
     /// The store for components
-    component_store: Arc<ComponentRegistry>,
-    /// Stored component builder callbacks for late initialization
-    component_builders: BTreeMap<ComponentId, ComponentBuilderCallback<P>>,
-    /// Graphics requirements
-    graphics_requirements: GraphicsRequirements<P::GraphicsApi>,
+    registry: Arc<ComponentRegistry>,
     /// Component metadata
-    component_metadata: HashMap<ComponentId, ComponentMetadata<P>, FxBuildHasher>,
+    component_metadata: IndexMap<ComponentId, ComponentMetadata<P>, FxBuildHasher>,
     /// Roms we were opened with
     user_specified_roms: Option<UserSpecifiedRoms>,
-    /// System this is
-    system: System,
     /// Counter for assigning things
     current_audio_output_id: AudioOutputId,
     current_display_id: DisplayId,
@@ -93,7 +75,6 @@ pub struct MachineBuilder<P: Platform> {
 impl<P: Platform> MachineBuilder<P> {
     pub fn new(
         user_specified_roms: Option<UserSpecifiedRoms>,
-        system: System,
         rom_manager: Arc<RomManager>,
         save_manager: Arc<SaveManager>,
         snapshot_manager: Arc<SnapshotManager>,
@@ -106,22 +87,21 @@ impl<P: Platform> MachineBuilder<P> {
         MachineBuilder::<P> {
             current_audio_output_id: AudioOutputId(0),
             current_display_id: DisplayId(0),
-            component_builders: BTreeMap::new(),
-            memory_translation_table: Arc::new(MemoryAccessTable::new(component_store.clone())),
+            memory_access_table: Arc::new(MemoryAccessTable::new(component_store.clone())),
             save_manager,
             snapshot_manager,
-            component_store,
+            registry: component_store,
             rom_manager,
             sample_rate,
-            graphics_requirements: GraphicsRequirements::default(),
-            component_metadata: HashMap::default(),
+            component_metadata: IndexMap::default(),
             user_specified_roms,
-            system,
         }
     }
 
-    pub fn system(&self) -> System {
-        self.system
+    pub fn system(&self) -> Option<System> {
+        self.user_specified_roms
+            .as_ref()
+            .map(|roms| roms.main.identity.system())
     }
 
     pub fn user_specified_roms(&self) -> Option<&UserSpecifiedRoms> {
@@ -140,6 +120,40 @@ impl<P: Platform> MachineBuilder<P> {
         &self.snapshot_manager
     }
 
+    #[inline]
+    fn insert_component_with_path<B: ComponentConfig<P>>(
+        mut self,
+        path: ComponentPath,
+        config: B,
+    ) -> (Self, ComponentRef<B::Component>) {
+        let component_id = self.registry.generate_id();
+        let component_ref = ComponentRef::new(self.registry.clone(), component_id);
+
+        self.component_metadata.insert(
+            component_id,
+            ComponentMetadata {
+                task: Default::default(),
+                graphics: Default::default(),
+                input: Default::default(),
+                audio: Default::default(),
+                path,
+                component_initializer: None,
+                version: ComponentVersion::default(),
+            },
+        );
+
+        let component_builder = ComponentBuilder::<P, B::Component> {
+            machine_builder: &mut self,
+            component_ref: component_ref.clone(),
+        };
+
+        config
+            .build_component(component_builder)
+            .expect("Failed to build component");
+
+        (self, component_ref)
+    }
+
     /// Insert a component into the machine
     #[inline]
     pub fn insert_component<B: ComponentConfig<P>>(
@@ -147,65 +161,18 @@ impl<P: Platform> MachineBuilder<P> {
         name: &str,
         config: B,
     ) -> (Self, ComponentRef<B::Component>) {
-        self.insert_component_with_dependencies(name, config, [])
-    }
-
-    pub fn insert_component_with_dependencies<B: ComponentConfig<P>>(
-        mut self,
-        name: &str,
-        config: B,
-        dependencies: impl IntoIterator<Item = ComponentId>,
-    ) -> (Self, ComponentRef<B::Component>) {
-        let name: ComponentName = name.parse().unwrap();
-
-        let component_id = self.component_store.generate_id();
-        let component_ref = ComponentRef::new(self.component_store.clone(), component_id);
-
-        self.component_metadata.insert(
-            component_id,
-            ComponentMetadata {
-                dependencies: config
-                    .build_dependencies()
-                    .into_iter()
-                    .chain(dependencies)
-                    .collect(),
-                ..Default::default()
-            },
+        assert!(
+            !name.contains(ComponentPath::SEPERATOR),
+            "This function requires a name not a path"
         );
 
-        self.component_builders.insert(component_id, {
-            let component_ref = component_ref.clone();
+        let path = ComponentPath::from_str(name).unwrap();
 
-            Box::new(move |machine_builder, runtime_essentials| {
-                let save = if let Some(main) = machine_builder
-                    .user_specified_roms
-                    .as_ref()
-                    .map(|roms| roms.main)
-                {
-                    machine_builder.save_manager.get(main).unwrap()
-                } else {
-                    None
-                };
-                let component_save = save.as_ref().and_then(|save| save.components.get(&name));
-
-                let component_builder = ComponentBuilder::<P, B::Component> {
-                    runtime_essentials,
-                    machine_builder,
-                    component_id,
-                    name: name.clone(),
-                    _phantom: PhantomData,
-                };
-
-                config
-                    .build_component(component_ref.clone(), component_builder, component_save)
-                    .expect("Failed to build component");
-            })
-        });
-
-        (self, component_ref)
+        self.insert_component_with_path(path, config)
     }
 
     /// Insert a component with a default config
+    #[inline]
     pub fn insert_default_component<B: ComponentConfig<P> + Default>(
         self,
         name: &str,
@@ -216,13 +183,23 @@ impl<P: Platform> MachineBuilder<P> {
 
     /// Insert the required information to construct a address space
     pub fn insert_address_space(self, width: u8) -> (Self, AddressSpaceHandle) {
-        let id = self.memory_translation_table.insert_address_space(width);
+        let id = self.memory_access_table.insert_address_space(width);
 
         (self, id)
     }
 
     pub fn graphics_requirements(&self) -> GraphicsRequirements<P::GraphicsApi> {
-        self.graphics_requirements.clone()
+        self.component_metadata
+            .values()
+            .filter_map(|metadata| {
+                metadata
+                    .graphics
+                    .as_ref()
+                    .map(|gm| &gm.graphics_requirements)
+            })
+            .fold(GraphicsRequirements::default(), |acc, value| {
+                acc | value.clone()
+            })
     }
 
     /// Build the machine
@@ -230,43 +207,23 @@ impl<P: Platform> MachineBuilder<P> {
         mut self,
         component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
     ) -> Machine<P> {
-        let component_ids: Vec<_> = self.component_builders.keys().copied().collect();
-
-        let initialization_order = topological_sort(&component_ids, |component_id| {
-            self.component_metadata
-                .get(component_id)
-                .map(|metadata| &metadata.dependencies)
-                .unwrap()
-                .iter()
-                .copied()
-        })
-        .expect("Cyclic dependency detected");
-
-        let runtime_essentials = RuntimeEssentials {
-            memory_access_table: self.memory_translation_table.clone(),
-            rom_manager: self.rom_manager.clone(),
+        let runtime_essentials = LateInitializedData::<P> {
             component_graphics_initialization_data,
-            sample_rate: self.sample_rate,
         };
-
-        for component_id in initialization_order.into_iter().rev() {
-            let component_builder = self.component_builders.remove(&component_id).unwrap();
-            component_builder(&mut self, &runtime_essentials);
-
-            let component_name = self
-                .component_store
-                .get_name(component_id)
-                .expect("Component did not insert itself");
-
-            tracing::debug!("Set up component: {:?}", component_name);
-        }
 
         let mut tasks: HashMap<_, Vec<_>> = HashMap::new();
         let mut virtual_gamepads = Vec::default();
         let mut audio_outputs = HashMap::default();
         let mut displays = HashMap::default();
 
-        for (component_id, component_metadata) in self.component_metadata.drain() {
+        for (component_id, mut component_metadata) in self.component_metadata.drain(..) {
+            let component_initializer = component_metadata
+                .component_initializer
+                .take()
+                .expect("Component did not init itself");
+
+            component_initializer(&self.registry, &runtime_essentials);
+
             // Gather the framebuffers
             if let Some(graphics_metadata) = component_metadata.graphics {
                 displays.extend(graphics_metadata.displays);
@@ -293,16 +250,16 @@ impl<P: Platform> MachineBuilder<P> {
         let debt_clearer = scheduler.get_debt_clearer();
 
         // Give the component store a handle to the scheduler
-        self.component_store.set_debt_clearer(debt_clearer);
+        self.registry.set_debt_clearer(debt_clearer);
 
         // Make sure all the components do their proper post initialization
-        self.component_store.interact_all(|compoenent| {
-            compoenent.runtime_ready();
+        self.registry.interact_all(|_, component| {
+            component.runtime_ready();
         });
 
         Machine {
             scheduler: Mutex::new(scheduler),
-            memory_access_table: self.memory_translation_table.clone(),
+            memory_access_table: self.memory_access_table.clone(),
             virtual_gamepads: virtual_gamepads
                 .into_iter()
                 .enumerate()
@@ -317,12 +274,13 @@ impl<P: Platform> MachineBuilder<P> {
                     )
                 })
                 .collect(),
-            component_registry: self.component_store,
+            component_registry: self.registry,
             displays,
             audio_outputs,
             rom_manager: self.rom_manager,
             save_manager: self.save_manager,
             snapshot_manager: self.snapshot_manager,
+            user_specified_roms: self.user_specified_roms,
         }
     }
 }
@@ -336,11 +294,10 @@ impl MachineBuilder<TestPlatform> {
     ) -> Self {
         Self::new(
             user_specified_roms,
-            System::Unknown,
             rom_manager,
             save_manager,
             snapshot_manager,
-            Ratio::from_integer(441000),
+            Ratio::from_integer(44100),
             Arc::new(DirectMainThreadExecutor),
         )
     }
@@ -348,56 +305,159 @@ impl MachineBuilder<TestPlatform> {
     pub fn new_test_minimal() -> Self {
         Self::new(
             None,
-            System::Unknown,
             Arc::new(RomManager::new(None, None).unwrap()),
             Arc::new(SaveManager::new(None)),
             Arc::new(SnapshotManager::new(None)),
-            Ratio::from_integer(441000),
+            Ratio::from_integer(44100),
             Arc::new(DirectMainThreadExecutor),
         )
     }
 }
 
-/// Struct passed into components for their initialization purposes. Do not refer to this directly.
 pub struct ComponentBuilder<'a, P: Platform, C: Component> {
-    runtime_essentials: &'a RuntimeEssentials<P>,
     machine_builder: &'a mut MachineBuilder<P>,
-    component_id: ComponentId,
-    name: ComponentName,
-    _phantom: PhantomData<C>,
+    component_ref: ComponentRef<C>,
 }
 
 impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
-    fn metadata(&mut self) -> &mut ComponentMetadata<P> {
+    fn metadata(&self) -> &ComponentMetadata<P> {
         self.machine_builder
             .component_metadata
-            .get_mut(&self.component_id)
+            .get(&self.component_ref.id())
             .unwrap()
     }
 
-    pub fn essentials(&self) -> &RuntimeEssentials<P> {
-        &self.runtime_essentials
+    fn metadata_mut(&mut self) -> &mut ComponentMetadata<P> {
+        self.machine_builder
+            .component_metadata
+            .get_mut(&self.component_ref.id())
+            .unwrap()
+    }
+
+    pub fn path(&self) -> &ComponentPath {
+        &self.metadata().path
+    }
+
+    pub fn rom_manager(&self) -> &Arc<RomManager> {
+        self.machine_builder.rom_manager()
+    }
+
+    pub fn memory_access_table(&self) -> Arc<MemoryAccessTable> {
+        self.machine_builder.memory_access_table.clone()
+    }
+
+    pub fn sample_rate(&self) -> Ratio<u32> {
+        self.machine_builder.sample_rate
+    }
+
+    /// Accessing this ref the function gives out will panic if the machine isn't complete
+    pub fn component_ref(&self) -> ComponentRef<C> {
+        self.component_ref.clone()
+    }
+
+    pub fn save(&self) -> Option<Save> {
+        if let Some(main) = self
+            .machine_builder
+            .user_specified_roms
+            .as_ref()
+            .map(|roms| &roms.main)
+        {
+            let metadata = self.metadata();
+
+            // TODO: Placeholder
+            self.machine_builder
+                .save_manager
+                .read(main.id, main.identity.name(), metadata.path.clone())
+                .unwrap()
+        } else {
+            None
+        }
+    }
+
+    pub fn set_version(mut self, version: ComponentVersion) -> Self {
+        self.metadata_mut().version = version;
+
+        self
     }
 
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
-    pub fn build(self, component: C) {
-        self.machine_builder.component_store.insert_component(
-            self.name,
-            self.component_id,
-            component,
-        );
+    pub fn build(mut self, callback: impl FnOnce(&LateInitializedData<P>) -> C + 'static) {
+        let path = self.metadata().path.clone();
+        let component_id = self.component_ref.id();
+
+        self.metadata_mut().component_initializer =
+            Some(Box::new(move |registry, runtime_essentials| {
+                registry.insert_component(path, component_id, callback(runtime_essentials));
+            }));
     }
 
     /// Insert this component in the global store, ensuring quick access for all other components
     ///
     /// Use this if unsure
-    pub fn build_global(self, component: C)
+    pub fn build_global(mut self, callback: impl FnOnce(&LateInitializedData<P>) -> C + 'static)
     where
         C: Send + Sync,
     {
-        self.machine_builder
-            .component_store
-            .insert_component_global(self.name, self.component_id, component);
+        let path = self.metadata().path.clone();
+        let component_id = self.component_ref.id();
+
+        self.metadata_mut().component_initializer =
+            Some(Box::new(move |registry, runtime_essentials| {
+                registry.insert_component_global(path, component_id, callback(runtime_essentials));
+            }));
+    }
+
+    /// Insert a component into the machine
+    #[inline]
+    pub fn insert_child_component<B: ComponentConfig<P>>(
+        mut self,
+        name: &str,
+        config: B,
+    ) -> (Self, ComponentRef<B::Component>) {
+        assert!(
+            !name.contains(ComponentPath::SEPERATOR),
+            "This function requires a name not a path"
+        );
+
+        let mut path = self.metadata().path.clone();
+        path.push(name).unwrap();
+
+        let component_id = self.machine_builder.registry.generate_id();
+        let component_ref = ComponentRef::new(self.machine_builder.registry.clone(), component_id);
+
+        self.machine_builder.component_metadata.insert(
+            component_id,
+            ComponentMetadata {
+                task: Default::default(),
+                graphics: Default::default(),
+                input: Default::default(),
+                audio: Default::default(),
+                path,
+                component_initializer: None,
+                version: ComponentVersion::default(),
+            },
+        );
+
+        let component_builder = ComponentBuilder::<P, B::Component> {
+            machine_builder: &mut self.machine_builder,
+            component_ref: component_ref.clone(),
+        };
+
+        config
+            .build_component(component_builder)
+            .expect("Failed to build component");
+
+        (self, component_ref)
+    }
+
+    /// Insert a component with a default config
+    #[inline]
+    pub fn insert_default_child_component<B: ComponentConfig<P> + Default>(
+        self,
+        name: &str,
+    ) -> (Self, ComponentRef<B::Component>) {
+        let config = B::default();
+        self.insert_child_component(name, config)
     }
 
     pub fn insert_audio_output(
@@ -412,7 +472,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .checked_add(1)
             .expect("Too many audio outputs");
 
-        self.metadata()
+        self.metadata_mut()
             .audio
             .get_or_insert_default()
             .audio_outputs
@@ -438,7 +498,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .checked_add(1)
             .expect("Too many displays");
 
-        let metadata = self.metadata().graphics.get_or_insert_default();
+        let metadata = self.metadata_mut().graphics.get_or_insert_default();
 
         metadata.displays.insert(
             display_id,
@@ -453,7 +513,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     pub fn insert_gamepad(self, gamepad: Arc<VirtualGamepad>) -> Self {
         self.machine_builder
             .component_metadata
-            .get_mut(&self.component_id)
+            .get_mut(&self.component_ref.id())
             .unwrap()
             .input
             .get_or_insert_default()
@@ -480,9 +540,11 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         }
 
         for (address_space, address_range) in merged_addresses {
-            self.machine_builder
-                .memory_translation_table
-                .remap_read_memory(self.component_id, address_space, address_range);
+            self.machine_builder.memory_access_table.remap_read_memory(
+                self.component_ref.id(),
+                address_space,
+                address_range,
+            );
         }
 
         self
@@ -502,9 +564,11 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         }
 
         for (address_space, address_range) in merged_addresses {
-            self.machine_builder
-                .memory_translation_table
-                .remap_write_memory(self.component_id, address_space, address_range);
+            self.machine_builder.memory_access_table.remap_write_memory(
+                self.component_ref.id(),
+                address_space,
+                address_range,
+            );
         }
 
         self
@@ -524,8 +588,8 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         }
 
         for (address_space, address_range) in merged_addresses {
-            self.machine_builder.memory_translation_table.remap_memory(
-                self.component_id,
+            self.machine_builder.memory_access_table.remap_memory(
+                self.component_ref.id(),
                 address_space,
                 address_range,
             );
@@ -536,7 +600,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     /// Insert a task to be executed by the scheduler at the given frequency
     pub fn insert_task(mut self, frequency: Ratio<u32>, callback: impl Task) -> Self {
-        let task_metatada = self.metadata().task.get_or_insert_default();
+        let task_metatada = self.metadata_mut().task.get_or_insert_default();
 
         task_metatada.tasks.push(StoredTask {
             period: frequency.reduced().recip(),
@@ -553,7 +617,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     ///
     /// As such, any side effects of the task may be out of order (apart from interactions with the component that inserted it), so use it for tasks that have no side effects
     pub fn insert_lazy_task(mut self, frequency: Ratio<u32>, callback: impl Task) -> Self {
-        let task_metatada = self.metadata().task.get_or_insert_default();
+        let task_metatada = self.metadata_mut().task.get_or_insert_default();
 
         task_metatada.tasks.push(StoredTask {
             period: frequency.reduced().recip(),

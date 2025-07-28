@@ -51,7 +51,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> MachineFactory<
                 always_shr_in_place: false,
             },
         );
-        let rom = machine.user_specified_roms().unwrap().main;
+        let rom = machine.user_specified_roms().unwrap().main.clone();
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -67,7 +67,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> MachineFactory<
                             &CHIP8_FONT,
                         ))),
                     ),
-                    (0x200..=0xfff, StandardMemoryInitialContents::Rom(rom)),
+                    (0x200..=0xfff, StandardMemoryInitialContents::Rom(rom.id)),
                 ]),
                 sram: false,
             },

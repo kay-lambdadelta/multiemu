@@ -4,11 +4,10 @@ use decoder::Mos6502InstructionDecoder;
 use instruction::Mos6502InstructionSet;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig},
     memory::AddressSpaceHandle,
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -295,23 +294,22 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
 
     fn build_component(
         self,
-        component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
         let rdy = AtomicBool::new(true);
-        let memory_translation_table = component_builder.essentials().memory_access_table.clone();
+        let memory_access_table = component_builder.memory_access_table();
+        let component = component_builder.component_ref();
 
         component_builder
             .insert_task(
                 self.frequency,
                 Mos6502Task {
-                    memory_translation_table,
+                    memory_access_table,
                     instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
-                    component: component_ref,
+                    component,
                 },
             )
-            .build_global(Mos6502 {
+            .build_global(|_| Mos6502 {
                 state: Mutex::default(),
                 rdy,
                 config: self,

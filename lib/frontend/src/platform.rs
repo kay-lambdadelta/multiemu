@@ -5,9 +5,12 @@ use crate::{
 };
 use egui::RawInput;
 use multiemu_config::Environment;
-use multiemu_rom::{RomManager, System};
-use multiemu_runtime::{UserSpecifiedRoms, platform::Platform};
-use multiemu_save::{SaveManager, SnapshotManager};
+use multiemu_rom::RomManager;
+use multiemu_runtime::{
+    UserSpecifiedRoms,
+    platform::Platform,
+    save::{SaveManager, SnapshotManager},
+};
 use std::{
     fmt::Debug,
     sync::{Arc, RwLock},
@@ -34,7 +37,6 @@ pub trait PlatformExt: Platform + Sized + 'static {
         save_manager: Arc<SaveManager>,
         snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
-        game_system: System,
         user_specified_roms: UserSpecifiedRoms,
     ) -> Result<(), Box<dyn std::error::Error>>;
 }

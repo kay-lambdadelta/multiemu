@@ -16,7 +16,7 @@ impl<P: Platform> MachineFactories<P> {
     }
 
     pub fn construct_machine(&self, machine_builder: MachineBuilder<P>) -> MachineBuilder<P> {
-        let system = machine_builder.system();
+        let system = machine_builder.system().unwrap();
 
         self.0
             .get(&system)

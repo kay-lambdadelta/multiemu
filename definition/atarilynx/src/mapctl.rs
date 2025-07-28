@@ -4,14 +4,13 @@ use crate::{
 use deku::{DekuContainerRead, DekuContainerWrite, DekuRead, DekuWrite};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentId, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentId},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord, RemapCallback,
         WriteMemoryRecord,
     },
     platform::Platform,
 };
-use multiemu_save::ComponentSave;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -52,9 +51,9 @@ impl Component for Mapctl {
                 let config = self.config.clone();
                 let my_id = self.my_id;
 
-                Some(RemapCallback::new(move |memory_translation_table| {
+                Some(RemapCallback::new(move |memory_access_table| {
                     // remap ram
-                    memory_translation_table.remap_memory(
+                    memory_access_table.remap_memory(
                         config.ram,
                         config.cpu_address_space,
                         [0x0000..=0xffff],
@@ -62,7 +61,7 @@ impl Component for Mapctl {
 
                     // optionally remap the other stuff on top of it
                     if register.suzy {
-                        memory_translation_table.remap_memory(
+                        memory_access_table.remap_memory(
                             config.suzy,
                             config.cpu_address_space,
                             [SUZY_ADDRESSES],
@@ -70,7 +69,7 @@ impl Component for Mapctl {
                     }
 
                     if register.mikey {
-                        memory_translation_table.remap_memory(
+                        memory_access_table.remap_memory(
                             config.mikey,
                             config.cpu_address_space,
                             [MIKEY_ADDRESSES],
@@ -78,7 +77,7 @@ impl Component for Mapctl {
                     }
 
                     if register.vector {
-                        memory_translation_table.remap_memory(
+                        memory_access_table.remap_memory(
                             config.vector,
                             config.cpu_address_space,
                             [VECTOR_ADDRESSES],
@@ -87,13 +86,13 @@ impl Component for Mapctl {
 
                     // http://www.monlynx.de/lynx/hardware.html
 
-                    memory_translation_table.remap_memory(
+                    memory_access_table.remap_memory(
                         config.vector,
                         config.cpu_address_space,
                         [RESERVED_MEMORY_ADDRESS..=RESERVED_MEMORY_ADDRESS],
                     );
 
-                    memory_translation_table.remap_memory(
+                    memory_access_table.remap_memory(
                         my_id,
                         config.cpu_address_space,
                         [MAPCTL_ADDRESS..=MAPCTL_ADDRESS],
@@ -119,17 +118,17 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
 
     fn build_component(
         self,
-        component_ref: ComponentRef<Self::Component>,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-        _save: Option<&ComponentSave>,
     ) -> Result<(), BuildError> {
+        let component_id = component_builder.component_ref().id();
+
         let component_builder =
             component_builder.map_memory([(self.cpu_address_space, 0xfff9..=0xfff9)]);
 
-        component_builder.build_global(Mapctl {
+        component_builder.build_global(move |_| Mapctl {
             config: self,
             status: Default::default(),
-            my_id: component_ref.id(),
+            my_id: component_id,
         });
 
         Ok(())

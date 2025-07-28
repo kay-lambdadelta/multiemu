@@ -1,6 +1,6 @@
 use multiemu_graphics::GraphicsApi;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::BitOr};
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub enum DisplayOrientation {
@@ -35,6 +35,17 @@ impl<G: GraphicsApi> Clone for GraphicsRequirements<G> {
         Self {
             required_features: self.required_features.clone(),
             preferred_features: self.preferred_features.clone(),
+        }
+    }
+}
+
+impl<G: GraphicsApi> BitOr for GraphicsRequirements<G> {
+    type Output = GraphicsRequirements<G>;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self {
+            required_features: self.required_features | rhs.required_features,
+            preferred_features: self.preferred_features | rhs.preferred_features,
         }
     }
 }
