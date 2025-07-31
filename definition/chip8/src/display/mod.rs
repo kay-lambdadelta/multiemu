@@ -2,16 +2,17 @@ use bitvec::{order::Msb0, view::BitView};
 use multiemu_graphics::GraphicsApi;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion},
     graphics::DisplayCallback,
     platform::Platform,
 };
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
-use palette::{Srgb, Srgba};
+use palette::Srgba;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
+    io::{Read, Write},
     num::NonZero,
     sync::{
         Mutex,
@@ -28,7 +29,9 @@ const HIRES: Vector2<u8> = Vector2::new(128, 64);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Snapshot {
-    screen_buffer: DMatrix<Srgb<u8>>,
+    screen_buffer: DMatrix<Srgba<u8>>,
+    vsync_occurred: bool,
+    hires: bool,
 }
 
 #[derive(Debug)]
@@ -164,6 +167,53 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
     fn reset(&self) {
         self.clear_display();
     }
+
+    fn load_snapshot(
+        &self,
+        version: ComponentVersion,
+        mut reader: Box<dyn Read>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(version, 0);
+        let mut backend_guard = self.backend.lock().unwrap();
+        let snapshot: Snapshot =
+            bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+
+        backend_guard.modify_staging_buffer(|mut framebuffer| {
+            framebuffer.copy_from(&snapshot.screen_buffer)
+        });
+
+        self.hires.store(snapshot.hires, Ordering::Relaxed);
+        self.vsync_occurred
+            .store(snapshot.vsync_occurred, Ordering::Relaxed);
+
+        Ok(())
+    }
+
+    fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        let screen_size = if self.hires.load(Ordering::Relaxed) {
+            HIRES
+        } else {
+            LORES
+        }
+        .cast();
+
+        let mut screen_buffer =
+            DMatrix::from_element(screen_size.x, screen_size.y, Srgba::new(0, 0, 0, 255));
+
+        let mut backend_guard = self.backend.lock().unwrap();
+        backend_guard.modify_staging_buffer(|framebuffer| {
+            screen_buffer.copy_from(&framebuffer);
+        });
+
+        let snapshot = Snapshot {
+            screen_buffer,
+            hires: self.hires.load(Ordering::Relaxed),
+            vsync_occurred: self.vsync_occurred.load(Ordering::Relaxed),
+        };
+        bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
+
+        Ok(())
+    }
 }
 
 pub(crate) trait Chip8DisplayBackend: Debug + 'static {
@@ -196,7 +246,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         let component = component_builder.component_ref();
 
         let (component_builder, _) = component_builder
-            .insert_task(Ratio::from_integer(60), {
+            .insert_task(Ratio::from_integer(60), "driver", {
                 let component = component.clone();
 
                 // We ignore the time slice and only commit the buffer once

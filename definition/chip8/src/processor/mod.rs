@@ -10,15 +10,18 @@ use input::{CHIP8_KEYPAD_GAMEPAD_TYPE, Chip8KeyCode, default_bindings, present_i
 use instruction::Register;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion},
     input::{VirtualGamepad, VirtualGamepadMetadata},
     memory::AddressSpaceHandle,
     platform::Platform,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
-use task::Chip8ProcessorTask;
+use std::{
+    io::{Read, Write},
+    sync::{Arc, Mutex},
+};
+use task::CpuDriver;
 
 pub mod decoder;
 mod input;
@@ -97,6 +100,39 @@ impl Component for Chip8Processor {
 
         *state = ProcessorState::default();
     }
+
+    fn load_snapshot(
+        &self,
+        version: ComponentVersion,
+        mut reader: Box<dyn Read>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(version, 0);
+
+        let snapshot: Chip8ProcessorSnapshot =
+            bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+        let mut state_guard = self.state.lock().unwrap();
+
+        state_guard.registers = snapshot.registers;
+        state_guard.stack = snapshot.stack;
+        state_guard.execution_state = snapshot.execution_state;
+        Ok(())
+    }
+
+    fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        let state_guard = self.state.lock().unwrap();
+        let snapshot = Chip8ProcessorSnapshot {
+            registers: state_guard.registers.clone(),
+            stack: state_guard.stack.clone(),
+            execution_state: state_guard.execution_state.clone(),
+        };
+
+        bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
+        Ok(())
+    }
+
+    fn snapshot_version(&self) -> Option<ComponentVersion> {
+        Some(0)
+    }
 }
 
 #[derive(Debug)]
@@ -136,7 +172,8 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             .insert_gamepad(virtual_gamepad.clone())
             .insert_task(
                 self.frequency,
-                Chip8ProcessorTask {
+                "driver",
+                CpuDriver {
                     instruction_decoder: Chip8InstructionDecoder,
                     virtual_gamepad,
                     memory_access_table,

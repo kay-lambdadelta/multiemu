@@ -1,6 +1,6 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::{
     fmt::Debug,
+    io::{Read, Write},
     num::NonZero,
     sync::{
         OnceLock,
@@ -25,8 +26,8 @@ use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContent
 #[serde_as]
 #[derive(Serialize, Deserialize)]
 pub struct Snapshot {
-    swacnt: u8,
-    swbcnt: u8,
+    swacnt: bool,
+    swbcnt: bool,
     intim: u8,
     instat: u8,
     tim1t: u8,
@@ -94,6 +95,70 @@ impl Component for Mos6532Riot {
 
         // I dunno what to do with the handlers
         // The components that installed the handlers will be reset too so its probably fine
+    }
+
+    fn snapshot_version(&self) -> Option<ComponentVersion> {
+        Some(0)
+    }
+
+    fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        let snapshot = Snapshot {
+            swacnt: self.registers.swacnt.load(Ordering::Acquire),
+            swbcnt: self.registers.swbcnt.load(Ordering::Acquire),
+            intim: self.registers.intim.load(Ordering::Acquire),
+            instat: self.registers.instat.load(Ordering::Acquire),
+            tim1t: self.registers.tim1t.load(Ordering::Acquire),
+            tim8t: self.registers.tim8t.load(Ordering::Acquire),
+            tim64t: self.registers.tim64t.load(Ordering::Acquire),
+            t1024t: self.registers.t1024t.load(Ordering::Acquire),
+        };
+
+        bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
+
+        Ok(())
+    }
+
+    fn load_snapshot(
+        &self,
+        version: ComponentVersion,
+        mut reader: Box<dyn Read>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match version {
+            0 => {
+                // Decode the snapshot from the file
+                let snapshot: Snapshot =
+                    bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+
+                // Restore state into atomics
+                self.registers
+                    .swacnt
+                    .store(snapshot.swacnt, Ordering::Release);
+                self.registers
+                    .swbcnt
+                    .store(snapshot.swbcnt, Ordering::Release);
+                self.registers
+                    .intim
+                    .store(snapshot.intim, Ordering::Release);
+                self.registers
+                    .instat
+                    .store(snapshot.instat, Ordering::Release);
+                self.registers
+                    .tim1t
+                    .store(snapshot.tim1t, Ordering::Release);
+                self.registers
+                    .tim8t
+                    .store(snapshot.tim8t, Ordering::Release);
+                self.registers
+                    .tim64t
+                    .store(snapshot.tim64t, Ordering::Release);
+                self.registers
+                    .t1024t
+                    .store(snapshot.t1024t, Ordering::Release);
+
+                Ok(())
+            }
+            _ => Err(format!("Unsupported snapshot version: {}", version).into()),
+        }
     }
 
     fn read_memory(
@@ -361,7 +426,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
 ) -> ComponentBuilder<'a, P, Mos6532Riot> {
     // Make the timers operate
     component_builder
-        .insert_lazy_task(config.frequency, {
+        .insert_lazy_task(config.frequency, "tim1t", {
             let component_ref = component_ref.clone();
 
             move |slice: NonZero<u32>| {
@@ -375,7 +440,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                     .unwrap();
             }
         })
-        .insert_lazy_task(config.frequency / 8, {
+        .insert_lazy_task(config.frequency / 8, "tim8t", {
             let component_ref = component_ref.clone();
 
             move |slice: NonZero<u32>| {
@@ -389,7 +454,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                     .unwrap();
             }
         })
-        .insert_lazy_task(config.frequency / 64, {
+        .insert_lazy_task(config.frequency / 64, "tim64t", {
             let component_ref = component_ref.clone();
 
             move |slice: NonZero<u32>| {
@@ -403,7 +468,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                     .unwrap();
             }
         })
-        .insert_lazy_task(config.frequency / 1024, {
+        .insert_lazy_task(config.frequency / 1024, "t1024t", {
             let component_ref = component_ref.clone();
 
             move |slice: NonZero<u32>| {

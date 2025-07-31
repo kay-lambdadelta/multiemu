@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, Mutex, atomic::Ordering},
 };
 
-pub(crate) struct Chip8ProcessorTask<G: SupportedGraphicsApiChip8Display> {
+pub(crate) struct CpuDriver<G: SupportedGraphicsApiChip8Display> {
     /// Instruction cache
     pub instruction_decoder: Chip8InstructionDecoder,
     /// Reference to the component
@@ -23,7 +23,7 @@ pub(crate) struct Chip8ProcessorTask<G: SupportedGraphicsApiChip8Display> {
     pub config: Chip8ProcessorConfig<G>,
 }
 
-impl<G: SupportedGraphicsApiChip8Display> Task for Chip8ProcessorTask<G> {
+impl<G: SupportedGraphicsApiChip8Display> Task for CpuDriver<G> {
     fn run(&mut self, time_slice: NonZero<u32>) {
         let mut time_slice = time_slice.get();
 

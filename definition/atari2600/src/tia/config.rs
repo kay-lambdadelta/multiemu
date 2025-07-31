@@ -38,6 +38,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
 
         let component_builder = component_builder.insert_task(
             R::frequency(),
+            "tia",
             TiaTask {
                 component: component,
                 cpu: self.cpu.clone(),

@@ -12,7 +12,9 @@ pub enum Hotkey {
     ToggleMenu,
     FastForward,
     LoadSnapshot,
-    SaveSnapshot,
+    StoreSnapshot,
+    IncrementSnapshotCounter,
+    DecrementSnapshotCounter,
 }
 
 /// Default hotkeys for the application
@@ -45,19 +47,19 @@ pub static DEFAULT_HOTKEYS: LazyLock<BTreeMap<BTreeSet<Input>, Hotkey>> = LazyLo
         (
             [
                 Input::Gamepad(GamepadInput::Mode),
-                Input::Gamepad(GamepadInput::FPadUp),
+                Input::Gamepad(GamepadInput::DPadLeft),
             ]
             .into(),
-            Hotkey::SaveSnapshot,
+            Hotkey::StoreSnapshot,
         ),
         (
             [Input::Keyboard(KeyboardInput::F3)].into(),
-            Hotkey::SaveSnapshot,
+            Hotkey::StoreSnapshot,
         ),
         (
             [
                 Input::Gamepad(GamepadInput::Mode),
-                Input::Gamepad(GamepadInput::FPadLeft),
+                Input::Gamepad(GamepadInput::DPadRight),
             ]
             .into(),
             Hotkey::LoadSnapshot,
@@ -65,6 +67,30 @@ pub static DEFAULT_HOTKEYS: LazyLock<BTreeMap<BTreeSet<Input>, Hotkey>> = LazyLo
         (
             [Input::Keyboard(KeyboardInput::F4)].into(),
             Hotkey::LoadSnapshot,
+        ),
+        (
+            [
+                Input::Gamepad(GamepadInput::Mode),
+                Input::Gamepad(GamepadInput::DPadUp),
+            ]
+            .into(),
+            Hotkey::IncrementSnapshotCounter,
+        ),
+        (
+            [Input::Keyboard(KeyboardInput::F5)].into(),
+            Hotkey::IncrementSnapshotCounter,
+        ),
+        (
+            [
+                Input::Gamepad(GamepadInput::Mode),
+                Input::Gamepad(GamepadInput::DPadDown),
+            ]
+            .into(),
+            Hotkey::DecrementSnapshotCounter,
+        ),
+        (
+            [Input::Keyboard(KeyboardInput::F6)].into(),
+            Hotkey::DecrementSnapshotCounter,
         ),
     ]
     .into()

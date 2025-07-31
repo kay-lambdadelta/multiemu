@@ -5,7 +5,7 @@ use super::{
 use crate::{
     ExecutionMode, Mos6502Config, PostInterpretStep,
     instruction::{AddressingMode, Mos6502AddressingMode, Opcode, Wdc65C02Opcode},
-    task::Mos6502Task,
+    task::CpuDriver,
 };
 use bitvec::{prelude::Msb0, view::BitView};
 use multiemu_runtime::memory::Address;
@@ -17,7 +17,7 @@ const INTERRUPT_VECTOR: Address = 0xfffe;
 
 // NOTE: https://www.pagetable.com/c64ref/6502
 
-impl Mos6502Task {
+impl CpuDriver {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,

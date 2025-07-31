@@ -1,105 +1,27 @@
-use crate::{
-    component::{ComponentPath, ComponentVersion},
-    save::MAGIC,
-};
+use crate::component::{ComponentPath, ComponentRegistry, ComponentVersion};
+use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use multiemu_rom::RomId;
+use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    fs::{File, create_dir_all},
-    io::{BufReader, Read, Seek, SeekFrom},
-    ops::RangeInclusive,
+    fs::{File, create_dir_all, remove_dir_all},
+    io::Read,
     path::PathBuf,
-    sync::Mutex,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ComponentSaveInfo {
-    pub version: ComponentVersion,
-    pub data_location: RangeInclusive<u64>,
-}
+const METADATA_FILE_NAME: &str = "metadata.ron";
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SaveHeader {
-    pub magic: [u8; 8],
+struct SaveMetadata {
     pub components: HashMap<ComponentPath, ComponentSaveInfo>,
+    /// compression always implies zlib compression
+    pub compressed: bool,
 }
 
-#[derive(Debug)]
-pub struct Save {
-    save: Mutex<BufReader<File>>,
-    header: SaveHeader,
-    path: ComponentPath,
-    seek_position: u64,
-}
-
-impl Save {
-    pub fn version(&self) -> ComponentVersion {
-        self.header.components[&self.path].version
-    }
-}
-
-impl Read for Save {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let mut file = self.save.lock().unwrap();
-        let entry = self.header.components.get(&self.path).unwrap();
-        let start = *entry.data_location.start();
-        let end = *entry.data_location.end();
-
-        let max_len = end.saturating_sub(start + self.seek_position) + 1;
-        if max_len == 0 {
-            return Ok(0);
-        }
-
-        let len = buf.len().min(max_len as usize);
-        file.seek(SeekFrom::Start(start + self.seek_position))?;
-        let read = file.read(&mut buf[..len])?;
-        self.seek_position += read as u64;
-        Ok(read)
-    }
-}
-
-impl Seek for Save {
-    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        let entry = self.header.components.get(&self.path).unwrap();
-        let start = *entry.data_location.start();
-        let end = *entry.data_location.end();
-        let range_len = end.saturating_sub(start) + 1;
-
-        let new_pos = match pos {
-            SeekFrom::Start(offset) => offset,
-            SeekFrom::End(offset) => {
-                let base = range_len as i64 + offset;
-                if base < 0 {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "Negative seek",
-                    ));
-                }
-                base as u64
-            }
-            SeekFrom::Current(offset) => {
-                let base = self.seek_position as i64 + offset;
-                if base < 0 {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "Negative seek",
-                    ));
-                }
-                base as u64
-            }
-        };
-
-        if new_pos > range_len {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "Seek out of range",
-            ));
-        }
-
-        self.seek_position = new_pos;
-        Ok(new_pos)
-    }
+#[derive(Debug, Serialize, Deserialize)]
+struct ComponentSaveInfo {
+    pub version: ComponentVersion,
 }
 
 #[derive(Debug)]
@@ -112,47 +34,106 @@ impl SaveManager {
         Self { save_directory }
     }
 
-    pub fn read(
+    pub fn get(
         &self,
         rom_id: RomId,
         rom_name: &str,
         component_path: ComponentPath,
-    ) -> Result<Option<Save>, Box<dyn std::error::Error>> {
-        if self.save_directory.is_none() {
+    ) -> Result<Option<(Box<dyn Read>, ComponentVersion)>, Box<dyn std::error::Error>> {
+        let save_directory = match &self.save_directory {
+            Some(save_directory) => save_directory,
+            None => return Ok(None),
+        };
+
+        let save_directory = save_directory.join(rom_id.to_string()).join(&rom_name);
+
+        let metadata_path = save_directory.join(METADATA_FILE_NAME);
+        if !metadata_path.exists() {
             return Ok(None);
         }
 
-        let rom_directory = self
-            .save_directory
-            .as_ref()
-            .unwrap()
-            .join(rom_id.to_string());
-        create_dir_all(&rom_directory).unwrap();
-        let save_file = rom_directory.join(rom_name);
+        let metadata_file = File::open(&metadata_path)?;
+        let metadata: SaveMetadata = ron::de::from_reader(metadata_file)?;
 
-        if !save_file.exists() {
+        let component_info = match metadata.components.get(&component_path) {
+            Some(info) => info,
+            None => return Ok(None),
+        };
+
+        let mut save_file_path = save_directory.clone();
+        save_file_path.extend(component_path.iter());
+        save_file_path.set_extension("bin");
+
+        if !save_file_path.exists() {
             return Ok(None);
         }
 
-        let mut component_file = File::open(save_file)?;
+        let file = File::open(save_file_path)?;
 
-        let save_file_header: SaveHeader =
-            bincode::serde::decode_from_std_read(&mut component_file, bincode::config::standard())?;
+        if metadata.compressed {
+            Ok(Some((
+                Box::new(ZlibDecoder::new(file)),
+                component_info.version,
+            )))
+        } else {
+            Ok(Some((Box::new(file), component_info.version)))
+        }
+    }
 
-        // TODO: make custom error type
-        if save_file_header.magic != MAGIC {
-            return Ok(None);
+    pub fn write(
+        &self,
+        rom_id: RomId,
+        rom_name: &str,
+        registry: &ComponentRegistry,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let save_directory = match &self.save_directory {
+            Some(save_directory) => save_directory,
+            None => return Ok(()),
+        };
+
+        let save_directory = save_directory.join(rom_id.to_string()).join(rom_name);
+        let _ = remove_dir_all(&save_directory);
+
+        let mut component_metadata = HashMap::default();
+
+        registry.interact_all(|path, component| {
+            let version = component.save_version();
+
+            if let Some(version) = version {
+                component_metadata.insert(path.clone(), ComponentSaveInfo { version });
+            }
+        });
+
+        if component_metadata.is_empty() {
+            // Don't write anything if its empty
+            return Ok(());
         }
 
-        if !save_file_header.components.contains_key(&component_path) {
-            return Ok(None);
-        }
+        registry.interact_all(|path, component| {
+            // Only write the ones that declared versions
+            if component_metadata.contains_key(&path) {
+                let mut save_file_path = save_directory.clone();
+                save_file_path.extend(path.iter());
+                save_file_path.set_extension("bin");
+                let _ = create_dir_all(save_file_path.parent().unwrap());
 
-        Ok(Some(Save {
-            save: Mutex::new(BufReader::new(component_file)),
-            header: save_file_header,
-            path: component_path,
-            seek_position: 0,
-        }))
+                let save_file =
+                    ZlibEncoder::new(File::create(save_file_path).unwrap(), Compression::best());
+
+                component.store_save(Box::new(save_file)).unwrap();
+            }
+        });
+        let save_metadata_file = File::create(save_directory.join(METADATA_FILE_NAME))?;
+
+        ron::Options::default().to_io_writer_pretty(
+            save_metadata_file,
+            &SaveMetadata {
+                components: component_metadata,
+                compressed: true,
+            },
+            PrettyConfig::default(),
+        )?;
+
+        Ok(())
     }
 }

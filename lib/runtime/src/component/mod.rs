@@ -10,7 +10,14 @@ use multiemu_graphics::GraphicsApi;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::{any::Any, borrow::Cow, fmt::Debug, hash::Hash, num::NonZero};
+use std::{
+    any::Any,
+    borrow::Cow,
+    fmt::Debug,
+    hash::Hash,
+    io::{Read, Write},
+    num::NonZero,
+};
 
 pub use component_ref::ComponentRef;
 pub use path::*;
@@ -23,13 +30,32 @@ mod registry;
 #[allow(unused)]
 /// Basic supertrait for all components
 pub trait Component: Debug + Any {
-    /// Called when machine initialization is finished
-    ///
-    /// This is where you should do graphics initialization or anything that reads or writes from the memory translation table
-    fn runtime_ready(&self) {}
-
     /// Reset state
     fn reset(&self) {}
+
+    fn save_version(&self) -> Option<ComponentVersion> {
+        None
+    }
+
+    fn snapshot_version(&self) -> Option<ComponentVersion> {
+        None
+    }
+
+    fn store_save(&self, writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    fn load_snapshot(
+        &self,
+        version: ComponentVersion,
+        reader: Box<dyn Read>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    fn store_snapshot(&self, writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
 
     /// Reads memory at the specified address in the specified address space to fill the buffer
     fn read_memory(

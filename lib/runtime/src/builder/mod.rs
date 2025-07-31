@@ -10,7 +10,7 @@ use crate::{
     input::{VirtualGamepad, VirtualGamepadId},
     memory::{Address, AddressSpaceHandle, MemoryAccessTable},
     platform::{Platform, TestPlatform},
-    save::{Save, SaveManager, SnapshotManager},
+    save::{SaveManager, SnapshotManager},
     scheduler::{Scheduler, Task},
     utils::{DirectMainThreadExecutor, MainThreadQueue},
 };
@@ -25,6 +25,7 @@ use rangemap::RangeInclusiveSet;
 use rustc_hash::FxBuildHasher;
 use std::{
     collections::HashMap,
+    io::Read,
     ops::RangeInclusive,
     str::FromStr,
     sync::{Arc, Mutex},
@@ -46,7 +47,6 @@ pub struct ComponentMetadata<P: Platform> {
     pub audio: Option<AudioMetadata<P::SampleFormat>>,
     pub path: ComponentPath,
     pub component_initializer: Option<Box<dyn FnOnce(&ComponentRegistry, &LateInitializedData<P>)>>,
-    pub version: ComponentVersion,
 }
 
 /// Builder to produce a machine, definition crates will want to use this
@@ -138,7 +138,6 @@ impl<P: Platform> MachineBuilder<P> {
                 audio: Default::default(),
                 path,
                 component_initializer: None,
-                version: ComponentVersion::default(),
             },
         );
 
@@ -211,7 +210,7 @@ impl<P: Platform> MachineBuilder<P> {
             component_graphics_initialization_data,
         };
 
-        let mut tasks: HashMap<_, Vec<_>> = HashMap::new();
+        let mut tasks: HashMap<_, HashMap<_, _>> = HashMap::default();
         let mut virtual_gamepads = Vec::default();
         let mut audio_outputs = HashMap::default();
         let mut displays = HashMap::default();
@@ -231,8 +230,11 @@ impl<P: Platform> MachineBuilder<P> {
 
             // Gather the tasks
             if let Some(task_metadata) = component_metadata.task {
-                for task in task_metadata.tasks {
-                    tasks.entry(component_id).or_default().push(task);
+                for (task_name, task) in task_metadata.tasks {
+                    tasks
+                        .entry(component_id)
+                        .or_default()
+                        .insert(task_name, task);
                 }
             }
 
@@ -251,11 +253,6 @@ impl<P: Platform> MachineBuilder<P> {
 
         // Give the component store a handle to the scheduler
         self.registry.set_debt_clearer(debt_clearer);
-
-        // Make sure all the components do their proper post initialization
-        self.registry.interact_all(|_, component| {
-            component.runtime_ready();
-        });
 
         Machine {
             scheduler: Mutex::new(scheduler),
@@ -277,7 +274,6 @@ impl<P: Platform> MachineBuilder<P> {
             component_registry: self.registry,
             displays,
             audio_outputs,
-            rom_manager: self.rom_manager,
             save_manager: self.save_manager,
             snapshot_manager: self.snapshot_manager,
             user_specified_roms: self.user_specified_roms,
@@ -355,7 +351,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self.component_ref.clone()
     }
 
-    pub fn save(&self) -> Option<Save> {
+    pub fn save(&self) -> Option<(Box<dyn Read>, ComponentVersion)> {
         if let Some(main) = self
             .machine_builder
             .user_specified_roms
@@ -364,20 +360,13 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         {
             let metadata = self.metadata();
 
-            // TODO: Placeholder
             self.machine_builder
                 .save_manager
-                .read(main.id, main.identity.name(), metadata.path.clone())
+                .get(main.id, main.identity.name(), metadata.path.clone())
                 .unwrap()
         } else {
             None
         }
-    }
-
-    pub fn set_version(mut self, version: ComponentVersion) -> Self {
-        self.metadata_mut().version = version;
-
-        self
     }
 
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
@@ -434,7 +423,6 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
                 audio: Default::default(),
                 path,
                 component_initializer: None,
-                version: ComponentVersion::default(),
             },
         );
 
@@ -599,14 +587,21 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     }
 
     /// Insert a task to be executed by the scheduler at the given frequency
-    pub fn insert_task(mut self, frequency: Ratio<u32>, callback: impl Task) -> Self {
+    pub fn insert_task(mut self, frequency: Ratio<u32>, name: &str, callback: impl Task) -> Self {
         let task_metatada = self.metadata_mut().task.get_or_insert_default();
 
-        task_metatada.tasks.push(StoredTask {
-            period: frequency.reduced().recip(),
-            lazy: false,
-            task: Box::new(callback),
-        });
+        if task_metatada.tasks.contains_key(name) {
+            panic!("Task with name {} already exists", name);
+        }
+
+        task_metatada.tasks.insert(
+            name.to_string(),
+            StoredTask {
+                period: frequency.reduced().recip(),
+                lazy: false,
+                task: Box::new(callback),
+            },
+        );
 
         self
     }
@@ -616,14 +611,26 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     /// This task will be lazily executed, i.e. only when the component that inserted it actually interacts with it
     ///
     /// As such, any side effects of the task may be out of order (apart from interactions with the component that inserted it), so use it for tasks that have no side effects
-    pub fn insert_lazy_task(mut self, frequency: Ratio<u32>, callback: impl Task) -> Self {
+    pub fn insert_lazy_task(
+        mut self,
+        frequency: Ratio<u32>,
+        name: &str,
+        callback: impl Task,
+    ) -> Self {
         let task_metatada = self.metadata_mut().task.get_or_insert_default();
 
-        task_metatada.tasks.push(StoredTask {
-            period: frequency.reduced().recip(),
-            lazy: true,
-            task: Box::new(callback),
-        });
+        if task_metatada.tasks.contains_key(name) {
+            panic!("Task with name {} already exists", name);
+        }
+
+        task_metatada.tasks.insert(
+            name.to_string(),
+            StoredTask {
+                period: frequency.reduced().recip(),
+                lazy: true,
+                task: Box::new(callback),
+            },
+        );
 
         self
     }

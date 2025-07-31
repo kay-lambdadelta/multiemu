@@ -105,19 +105,21 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    pub(crate) fn new(component_tasks: HashMap<ComponentId, Vec<StoredTask>>) -> Self {
+    pub(crate) fn new(
+        component_tasks: HashMap<ComponentId, HashMap<TaskName, StoredTask>>,
+    ) -> Self {
         // Only the active tasks are put on the schedule
         let mut tasks: BTreeMap<u16, _> = BTreeMap::new();
         let mut component_owned_tasks: HashMap<_, Vec<_>, _> = HashMap::default();
 
-        for (component_id, task_id, task) in component_tasks
+        for (component_id, task_id, _task_name, task) in component_tasks
             .into_iter()
             .flat_map(|(component_id, tasks)| {
                 tasks.into_iter().map(move |task| (component_id, task))
             })
             .enumerate()
-            .map(|(task_id, (component_id, task))| {
-                (component_id, task_id.try_into().unwrap(), task)
+            .map(|(task_id, (component_id, (task_name, task)))| {
+                (component_id, task_id.try_into().unwrap(), task_name, task)
             })
         {
             tasks.insert(task_id, task);

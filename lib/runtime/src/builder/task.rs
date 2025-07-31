@@ -1,6 +1,6 @@
-use crate::scheduler::Task;
+use crate::scheduler::{Task, TaskName};
 use num::rational::Ratio;
-use std::{boxed::Box, fmt::Debug, vec::Vec};
+use std::{boxed::Box, collections::HashMap, fmt::Debug};
 
 pub struct StoredTask {
     pub period: Ratio<u32>,
@@ -17,7 +17,7 @@ impl Debug for StoredTask {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TaskMetadata {
-    pub tasks: Vec<StoredTask>,
+    pub tasks: HashMap<TaskName, StoredTask>,
 }

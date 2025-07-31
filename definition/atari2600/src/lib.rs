@@ -43,7 +43,6 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
 
         // Atari 2600 CPU only has 13 address lines
         let (machine, cpu_address_space) = machine.insert_address_space(13);
-        let mut mirror_component_ids = Vec::default();
 
         let region = if rom.identity.regions().contains(&CountryCode::US)
             || rom.identity.regions().contains(&CountryCode::JP)
@@ -67,7 +66,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
         );
 
         for (index, source_addresses) in tia_register_mirror_ranges().enumerate() {
-            let (machine_builder, component) = machine.insert_component(
+            let (machine_builder, _) = machine.insert_component(
                 &format!("tia_mirror_{}", index),
                 MirrorMemoryConfig {
                     readable: true,
@@ -80,11 +79,10 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
             );
 
             machine = machine_builder;
-            mirror_component_ids.push(component.id());
         }
 
         for (index, source_addresses) in riot_register_mirror_ranges().enumerate() {
-            let (machine_builder, component) = machine.insert_component(
+            let (machine_builder, _) = machine.insert_component(
                 &format!("mos6532_riot_register_mirror_{}", index),
                 MirrorMemoryConfig {
                     readable: true,
@@ -97,11 +95,10 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
             );
 
             machine = machine_builder;
-            mirror_component_ids.push(component.id());
         }
 
         for (index, source_addresses) in riot_ram_mirror_ranges().enumerate() {
-            let (machine_builder, component) = machine.insert_component(
+            let (machine_builder, _) = machine.insert_component(
                 &format!("mos6532_riot_ram_mirror_{}", index),
                 MirrorMemoryConfig {
                     readable: true,
@@ -114,7 +111,6 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
             );
 
             machine = machine_builder;
-            mirror_component_ids.push(component.id());
         }
 
         let (machine, mos6532_riot) = match region {

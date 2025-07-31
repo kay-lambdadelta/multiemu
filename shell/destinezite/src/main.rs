@@ -38,14 +38,10 @@ fn main() {
 
     create_dir_all(multiemu_config::STORAGE_DIRECTORY.deref()).unwrap();
 
-    let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
-    let environment = match Environment::load(environment_file) {
-        Ok(config) => config,
-        Err(err) => {
-            tracing::error!("Failed to load environment: {}", err);
-            Environment::default()
-        }
-    };
+    let environment = File::open(ENVIRONMENT_LOCATION.deref())
+        .ok()
+        .and_then(|f| Environment::load(f).ok())
+        .unwrap_or_default();
 
     let file = File::create(&environment.log_location.0).expect("Failed to create log file");
     let stderr_layer = tracing_subscriber::fmt::layer()

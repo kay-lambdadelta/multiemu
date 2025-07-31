@@ -16,13 +16,13 @@ use std::{
     sync::{Arc, atomic::Ordering},
 };
 
-pub struct Mos6502Task {
+pub struct CpuDriver {
     pub memory_access_table: Arc<MemoryAccessTable>,
     pub instruction_decoder: Mos6502InstructionDecoder,
     pub component: ComponentRef<Mos6502>,
 }
 
-impl Task for Mos6502Task {
+impl Task for CpuDriver {
     fn run(&mut self, time_slice: NonZero<u32>) {
         self.component
             .interact(|component| {

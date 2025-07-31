@@ -4,7 +4,7 @@ use decoder::Mos6502InstructionDecoder;
 use instruction::Mos6502InstructionSet;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig},
+    component::{BuildError, Component, ComponentConfig, ComponentVersion},
     memory::AddressSpaceHandle,
     platform::Platform,
 };
@@ -12,12 +12,13 @@ use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
+    io::{Read, Write},
     sync::{
         Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
-use task::Mos6502Task;
+use task::CpuDriver;
 
 mod decoder;
 mod instruction;
@@ -287,6 +288,42 @@ impl Component for Mos6502 {
         self.set_rdy(true);
         *self.state.lock().unwrap() = ProcessorState::default();
     }
+
+    fn snapshot_version(&self) -> Option<ComponentVersion> {
+        Some(0)
+    }
+
+    fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        bincode::serde::encode_into_std_write(
+            &Snapshot {
+                rdy: self.rdy.load(Ordering::Acquire),
+                state: self.state.lock().unwrap().clone(),
+            },
+            &mut writer,
+            bincode::config::standard(),
+        )?;
+
+        Ok(())
+    }
+
+    fn load_snapshot(
+        &self,
+        version: ComponentVersion,
+        mut reader: Box<dyn Read>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match version {
+            0 => {
+                let snapshot: Snapshot =
+                    bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+
+                self.rdy.store(snapshot.rdy, Ordering::Release);
+                *self.state.lock().unwrap() = snapshot.state;
+
+                Ok(())
+            }
+            other => Err(format!("Unsupported snapshot version: {}", other).into()),
+        }
+    }
 }
 
 impl<P: Platform> ComponentConfig<P> for Mos6502Config {
@@ -303,7 +340,8 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
         component_builder
             .insert_task(
                 self.frequency,
-                Mos6502Task {
+                "driver",
+                CpuDriver {
                     memory_access_table,
                     instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
                     component,

@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt::Display, str::FromStr};
 
@@ -8,9 +9,11 @@ pub enum ComponentPathError {
     #[error("Component path component contains whitespace")]
     /// Component names cannot contain whitespaces
     Whitespace,
-    #[error("Component name is too short")]
+    #[error("Component path is too short")]
     /// Component names cannot be empty
     TooShort,
+    #[error("Component path cannot hold this character")]
+    InvalidCharacter(char),
 }
 
 /// Component paths are names seperated by `/`
@@ -28,6 +31,39 @@ pub enum ComponentPathError {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentPath(Cow<'static, str>);
 
+impl Value for ComponentPath {
+    type SelfType<'a> = Self;
+    type AsBytes<'a> = String;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        String::from_utf8_lossy(&data).parse().unwrap()
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'b,
+    {
+        value.to_string()
+    }
+
+    fn type_name() -> TypeName {
+        TypeName::new("component_path")
+    }
+}
+
+impl Key for ComponentPath {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        String::from_utf8_lossy(&data1).cmp(&String::from_utf8_lossy(&data2))
+    }
+}
+
 impl ComponentPath {
     pub const SEPERATOR: char = '/';
 
@@ -39,6 +75,10 @@ impl ComponentPath {
 
         if string.is_empty() {
             return Some(ComponentPathError::TooShort);
+        }
+
+        if string.contains('.') {
+            return Some(ComponentPathError::InvalidCharacter('.'));
         }
 
         None

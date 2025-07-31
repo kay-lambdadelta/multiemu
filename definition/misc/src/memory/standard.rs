@@ -1,7 +1,7 @@
 use multiemu_rom::{RomId, RomManager, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig},
+    component::{BuildError, Component, ComponentConfig, ComponentVersion, SaveError},
     memory::{
         Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
@@ -12,7 +12,7 @@ use rand::RngCore;
 use rangemap::RangeInclusiveMap;
 use std::{
     borrow::Cow,
-    io::Read,
+    io::{BufReader, BufWriter, Read, Write},
     ops::RangeInclusive,
     sync::{Arc, Mutex},
 };
@@ -47,6 +47,72 @@ pub struct StandardMemory {
 impl Component for StandardMemory {
     fn reset(&self) {
         self.initialize_buffer();
+    }
+
+    // The save/snapshot format is just raw bytes so i doubt it will ever change
+
+    fn save_version(&self) -> Option<ComponentVersion> {
+        if self.config.sram { Some(0) } else { None }
+    }
+
+    fn snapshot_version(&self) -> Option<ComponentVersion> {
+        Some(0)
+    }
+
+    fn load_snapshot(
+        &self,
+        version: ComponentVersion,
+        reader: Box<dyn Read>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(version, 0);
+
+        let mut file = BufReader::new(reader);
+
+        let assigned_start = *self.config.assigned_range.start();
+        let assigned_end = *self.config.assigned_range.end();
+
+        for (i, chunk) in self.buffer.iter().enumerate() {
+            let start_addr = assigned_start + i * PAGE_SIZE;
+            if start_addr > assigned_end {
+                break;
+            }
+
+            let max_len = (assigned_end - start_addr + 1) as usize;
+            let len = max_len.min(PAGE_SIZE);
+
+            let mut locked_chunk = chunk.lock().unwrap();
+            file.read_exact(&mut locked_chunk[..len])?;
+        }
+
+        Ok(())
+    }
+
+    fn store_save(&self, writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        assert!(self.config.sram, "Misbehaving save manager");
+
+        // It's the exact same
+        self.store_snapshot(writer)
+    }
+
+    fn store_snapshot(&self, writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = BufWriter::new(writer);
+        let assigned_start = *self.config.assigned_range.start();
+        let assigned_end = *self.config.assigned_range.end();
+
+        for (i, chunk) in self.buffer.iter().enumerate() {
+            let start_addr = assigned_start + i * PAGE_SIZE;
+            if start_addr > assigned_end {
+                break;
+            }
+
+            let max_len = (assigned_end - start_addr + 1) as usize;
+            let len = max_len.min(PAGE_SIZE);
+
+            let locked_chunk = chunk.lock().unwrap();
+            file.write_all(&locked_chunk[..len])?;
+        }
+
+        Ok(())
     }
 
     fn read_memory(
@@ -185,10 +251,12 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         };
 
         match component_builder.save() {
-            Some(save) if self.sram => {
-                todo!()
+            Some((save, 0)) if self.sram => {
+                // snapshot and save format are the exact same
+                component.load_snapshot(0, save).unwrap();
             }
-            _ => {
+            Some(_) => return Err(BuildError::LoadingSave(SaveError::InvalidVersion)),
+            None => {
                 component.initialize_buffer();
             }
         }

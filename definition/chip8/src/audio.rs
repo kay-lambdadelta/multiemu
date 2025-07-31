@@ -2,13 +2,15 @@ use multiemu_audio::{SampleFormat, SquareWave};
 use multiemu_runtime::{
     audio::AudioCallback,
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig},
+    component::{BuildError, Component, ComponentConfig, ComponentVersion},
     platform::Platform,
 };
 use nalgebra::SVector;
 use num::{FromPrimitive, Zero, rational::Ratio};
 use std::{
+    io::{Read, Write},
     num::NonZero,
+    ops::{Deref, DerefMut},
     sync::{Arc, Mutex, RwLock},
 };
 
@@ -24,7 +26,34 @@ impl Chip8Audio {
     }
 }
 
-impl Component for Chip8Audio {}
+impl Component for Chip8Audio {
+    fn snapshot_version(&self) -> Option<ComponentVersion> {
+        Some(0)
+    }
+
+    fn load_snapshot(
+        &self,
+        version: ComponentVersion,
+        mut reader: Box<dyn Read>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(version, 0);
+        let mut timer_guard = self.sound_timer.write().unwrap();
+        let timer = std::array::from_mut(timer_guard.deref_mut());
+
+        reader.read_exact(timer)?;
+
+        Ok(())
+    }
+
+    fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        let timer_guard = self.sound_timer.read().unwrap();
+        let timer = std::array::from_ref(timer_guard.deref());
+
+        writer.write_all(timer)?;
+
+        Ok(())
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct Chip8AudioConfig;
@@ -40,7 +69,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         let sample_rate = component_builder.sample_rate();
 
         component_builder
-            .insert_task(Ratio::from_integer(60), {
+            .insert_task(Ratio::from_integer(60), "driver", {
                 let sound_timer = sound_timer.clone();
 
                 move |time_slice: NonZero<u32>| {

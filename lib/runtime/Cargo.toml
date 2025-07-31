@@ -27,5 +27,7 @@ crossbeam = { workspace = true }
 scc = { workspace = true }
 redb = { workspace = true }
 itertools = { workspace = true }
+ron = { workspace = true }
 indexmap = "2.10"
 nohash = "0.2"
+flate2 = "1.1"

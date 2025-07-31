@@ -1,5 +1,7 @@
 use std::num::NonZero;
 
+pub type TaskName = String;
+
 /// A task to run
 pub trait Task: Send + Sync + 'static {
     /// Runs in a loop until the runtime says to stop

@@ -67,10 +67,9 @@ where
     pub displays: HashMap<DisplayId, DisplayInfo<P::GraphicsApi>, FxBuildHasher>,
     /// All audio outputs this machine has
     pub audio_outputs: HashMap<AudioOutputId, AudioOutputInfo<P::SampleFormat>, FxBuildHasher>,
-    pub rom_manager: Arc<RomManager>,
-    pub save_manager: Arc<SaveManager>,
-    pub snapshot_manager: Arc<SnapshotManager>,
     pub user_specified_roms: Option<UserSpecifiedRoms>,
+    save_manager: Arc<SaveManager>,
+    snapshot_manager: Arc<SnapshotManager>,
 }
 
 impl<P: Platform> Machine<P> {
@@ -78,6 +77,51 @@ impl<P: Platform> Machine<P> {
         self.user_specified_roms
             .as_ref()
             .map(|roms| roms.main.identity.system())
+    }
+
+    pub fn store_save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        match self.user_specified_roms.as_ref() {
+            Some(user_specified_roms) => {
+                let rom_id = user_specified_roms.main.id;
+                let rom_name = user_specified_roms.main.identity.name();
+
+                self.save_manager
+                    .write(rom_id, rom_name, &self.component_registry)?;
+            }
+            None => todo!(),
+        }
+
+        Ok(())
+    }
+
+    pub fn store_snapshot(&self, slot: u16) -> Result<(), Box<dyn std::error::Error>> {
+        match self.user_specified_roms.as_ref() {
+            Some(user_specified_roms) => {
+                let rom_id = user_specified_roms.main.id;
+                let rom_name = user_specified_roms.main.identity.name();
+
+                self.snapshot_manager
+                    .write(rom_id, rom_name, slot, &self.component_registry)?;
+            }
+            None => todo!(),
+        }
+
+        Ok(())
+    }
+
+    pub fn load_snapshot(&self, slot: u16) -> Result<(), Box<dyn std::error::Error>> {
+        match self.user_specified_roms.as_ref() {
+            Some(user_specified_roms) => {
+                let rom_id = user_specified_roms.main.id;
+                let rom_name = user_specified_roms.main.identity.name();
+
+                self.snapshot_manager
+                    .read(rom_id, rom_name, slot, &self.component_registry)?;
+            }
+            None => todo!(),
+        }
+
+        Ok(())
     }
 }
 

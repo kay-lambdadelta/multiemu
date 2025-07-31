@@ -18,13 +18,14 @@ use multiemu_runtime::{
     builder::MachineBuilder,
     graphics::GraphicsRequirements,
     input::VirtualGamepadId,
-    save::{SaveManager, SnapshotManager},
+    save::{SaveManager, Slot, SnapshotManager},
 };
 use nalgebra::Vector2;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 use std::{
     borrow::Cow,
     collections::HashMap,
+    num::Wrapping,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -107,6 +108,8 @@ pub struct FrontendRuntime<P: PlatformExt> {
     previous_frame_timestamp: Instant,
     /// If we are in focus rn
     in_focus: bool,
+    /// The current snapshot slot
+    current_snapshot_slot: Wrapping<Slot>,
 }
 
 impl<P: PlatformExt> FrontendRuntime<P> {
@@ -210,8 +213,28 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                         }
                     },
                     Hotkey::FastForward => todo!(),
-                    Hotkey::LoadSnapshot => todo!(),
-                    Hotkey::SaveSnapshot => todo!(),
+                    Hotkey::LoadSnapshot => match self.mode {
+                        Mode::Machine => {
+                            let machine = maybe_machine_guard.as_ref().unwrap();
+                            machine.load_snapshot(self.current_snapshot_slot.0).unwrap();
+                        }
+                        Mode::Gui => {}
+                    },
+                    Hotkey::StoreSnapshot => match self.mode {
+                        Mode::Machine => {
+                            let machine = maybe_machine_guard.as_ref().unwrap();
+                            machine
+                                .store_snapshot(self.current_snapshot_slot.0)
+                                .unwrap();
+                        }
+                        Mode::Gui => {}
+                    },
+                    Hotkey::IncrementSnapshotCounter => {
+                        self.current_snapshot_slot += 1;
+                    }
+                    Hotkey::DecrementSnapshotCounter => {
+                        self.current_snapshot_slot -= 1;
+                    }
                 }
             }
         }
@@ -401,6 +424,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             collected_frame_rates: ConstGenericRingBuffer::default(),
             previous_frame_timestamp: Instant::now(),
             in_focus: true,
+            current_snapshot_slot: Wrapping(0),
         }
     }
 

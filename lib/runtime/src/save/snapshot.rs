@@ -1,84 +1,153 @@
-use crate::{
-    component::{ComponentPath, ComponentVersion},
-    save::MAGIC,
-};
+use crate::component::{ComponentPath, ComponentRegistry, ComponentVersion};
+use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use multiemu_rom::RomId;
+use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    fs::File,
+    fs::{File, create_dir_all, remove_dir_all},
+    io::Read,
     path::PathBuf,
-    sync::{Arc, Mutex},
 };
 
-pub type SlotIndex = u16;
+const METADATA_FILE_NAME: &str = "metadata.ron";
+
+pub type Slot = u16;
+
+pub struct RuntimeState {}
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ComponentSnapshotInfo {
-    pub version: ComponentVersion,
-    pub data_location: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SnapshotHeader {
-    pub component_version: ComponentVersion,
-    pub magic: [u8; 8],
+struct SnapshotMetadata {
     pub components: HashMap<ComponentPath, ComponentSnapshotInfo>,
+    /// compression always implies zlib compression
+    pub compressed: bool,
 }
 
-#[derive(Debug)]
-pub struct Snapshot {
-    pub save: Mutex<File>,
+#[derive(Debug, Serialize, Deserialize)]
+struct ComponentSnapshotInfo {
     pub version: ComponentVersion,
-    pub header: SnapshotHeader,
-    pub my_path: ComponentPath,
 }
 
 #[derive(Debug)]
 pub struct SnapshotManager {
-    snapshots: scc::HashMap<(RomId, String, SlotIndex), Arc<Snapshot>>,
-    save_directory: Option<PathBuf>,
+    snapshot_directory: Option<PathBuf>,
 }
 
 impl SnapshotManager {
-    pub fn new(save_directory: Option<PathBuf>) -> Self {
-        Self {
-            snapshots: Default::default(),
-            save_directory,
-        }
+    pub fn new(snapshot_directory: Option<PathBuf>) -> Self {
+        Self { snapshot_directory }
     }
 
     pub fn read(
         &self,
         rom_id: RomId,
-        component_path: &ComponentPath,
-    ) -> Result<Option<Arc<Snapshot>>, Box<dyn std::error::Error>> {
-        if self.save_directory.is_none() {
-            return Ok(None);
+        rom_name: &str,
+        slot: Slot,
+        registry: &ComponentRegistry,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let snapshot_directory = match &self.snapshot_directory {
+            Some(snapshot_directory) => snapshot_directory,
+            None => return Ok(()),
+        };
+
+        let snapshot_directory = snapshot_directory
+            .join(rom_id.to_string())
+            .join(rom_name)
+            .join(slot.to_string());
+
+        if !snapshot_directory.exists() {
+            return Ok(());
         }
 
-        let mut rom_directory = self
-            .save_directory
-            .as_ref()
-            .unwrap()
-            .join(rom_id.to_string());
-        rom_directory.extend(component_path.iter());
-        let component_file = rom_directory.join("save");
+        let metadata_path = snapshot_directory.join(METADATA_FILE_NAME);
+        let metadata: SnapshotMetadata = ron::de::from_reader(File::open(metadata_path)?)?;
 
-        if !component_file.exists() {
-            return Ok(None);
+        registry.interact_all(|path, component| {
+            let component_info = match metadata.components.get(&path) {
+                Some(info) => info,
+                None => return,
+            };
+
+            let mut snapshot_file_path = snapshot_directory.clone();
+            snapshot_file_path.extend(path.iter());
+            snapshot_file_path.set_extension("bin");
+
+            let file = File::open(snapshot_file_path).expect("Missing snapshot file");
+
+            let snapshot = if metadata.compressed {
+                Box::new(ZlibDecoder::new(file)) as Box<dyn Read>
+            } else {
+                Box::new(file) as Box<dyn Read>
+            };
+
+            component
+                .load_snapshot(component_info.version, snapshot)
+                .unwrap();
+        });
+
+        Ok(())
+    }
+
+    pub fn write(
+        &self,
+        rom_id: RomId,
+        rom_name: &str,
+        slot: Slot,
+        registry: &ComponentRegistry,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let snapshot_directory = match &self.snapshot_directory {
+            Some(snapshot_directory) => snapshot_directory,
+            None => return Ok(()),
+        };
+
+        let snapshot_directory = snapshot_directory
+            .join(rom_id.to_string())
+            .join(rom_name)
+            .join(slot.to_string());
+        let _ = remove_dir_all(&snapshot_directory);
+
+        let mut component_metadata = HashMap::default();
+
+        registry.interact_all(|path, component| {
+            let version = component.snapshot_version();
+
+            if let Some(version) = version {
+                component_metadata.insert(path.clone(), ComponentSnapshotInfo { version });
+            }
+        });
+
+        if component_metadata.is_empty() {
+            // Don't write anything if its empty
+            return Ok(());
         }
 
-        let mut component_file = File::open(component_file)?;
+        registry.interact_all(|path, component| {
+            // Only write the ones that declared versions
+            if component_metadata.contains_key(&path) {
+                let mut snapshot_file_path = snapshot_directory.clone();
+                snapshot_file_path.extend(path.iter());
+                snapshot_file_path.set_extension("bin");
+                let _ = create_dir_all(snapshot_file_path.parent().unwrap());
 
-        let save_file_header: SnapshotHeader =
-            bincode::serde::decode_from_std_read(&mut component_file, bincode::config::standard())?;
+                let snapshot_file = ZlibEncoder::new(
+                    File::create(snapshot_file_path).unwrap(),
+                    Compression::best(),
+                );
 
-        // TODO: make custom error type
-        if save_file_header.magic != MAGIC {
-            return Ok(None);
-        }
+                component.store_snapshot(Box::new(snapshot_file)).unwrap();
+            }
+        });
+        let snapshot_metadata_file = File::create(snapshot_directory.join(METADATA_FILE_NAME))?;
 
-        todo!()
+        ron::Options::default().to_io_writer_pretty(
+            snapshot_metadata_file,
+            &SnapshotMetadata {
+                components: component_metadata,
+                compressed: true,
+            },
+            PrettyConfig::default(),
+        )?;
+
+        Ok(())
     }
 }
