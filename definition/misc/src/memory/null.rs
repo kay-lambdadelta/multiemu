@@ -39,7 +39,7 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
             (false, false) => component_builder,
         };
 
-        component_builder.build_global(|_| NullMemory);
+        component_builder.build(NullMemory);
 
         Ok(())
     }

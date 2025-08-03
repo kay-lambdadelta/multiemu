@@ -122,7 +122,7 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
             (false, false) => {}
         }
 
-        component_builder.build_global(|_| MirrorMemory { config: self });
+        component_builder.build(MirrorMemory { config: self });
 
         Ok(())
     }

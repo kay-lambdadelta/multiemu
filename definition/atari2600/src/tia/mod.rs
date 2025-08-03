@@ -5,6 +5,7 @@ use crate::tia::{
 pub(crate) use backend::SupportedGraphicsApiTia;
 use bitvec::{array::BitArray, order::Lsb0, view::BitView};
 use color::TiaColor;
+use multiemu_definition_mos6502::RdyFlag;
 use multiemu_runtime::{
     component::Component,
     memory::{
@@ -19,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 mod backend;
@@ -129,7 +130,7 @@ struct Player {
 pub(crate) struct Tia<R: Region, G: SupportedGraphicsApiTia> {
     state: Mutex<State>,
     backend: Mutex<G::Backend<R>>,
-    config: TiaConfig<R>,
+    cpu_rdy: Arc<RdyFlag>,
 }
 
 impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {

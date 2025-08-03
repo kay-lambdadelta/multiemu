@@ -48,7 +48,7 @@ impl<P: Platform> ComponentConfig<P> for NesPpuConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
-        component_builder.build(|_| NesPpu);
+        component_builder.build_local(NesPpu);
 
         Ok(())
     }

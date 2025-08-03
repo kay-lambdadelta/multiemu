@@ -21,12 +21,22 @@ pub struct RomMemoryConfig {
     pub assigned_range: RangeInclusive<Address>,
     /// Address space this exists on
     pub assigned_address_space: AddressSpaceHandle,
+    /// Initial bank
+    pub initial_bank: usize,
 }
 
 #[derive(Debug)]
 pub struct RomMemory {
     config: RomMemoryConfig,
     rom: Mutex<File>,
+    bank: usize,
+}
+
+impl RomMemory {
+    /// Swap the current bank, bank size is the assigned range size
+    pub fn swap_banks(&mut self, bank: usize) {
+        self.bank = bank;
+    }
 }
 
 impl Component for RomMemory {
@@ -36,7 +46,10 @@ impl Component for RomMemory {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        let adjusted_offset = address - self.config.assigned_range.start();
+        let bank_size = self.config.assigned_range.clone().count();
+
+        let adjusted_offset =
+            (address - self.config.assigned_range.start()) + (self.bank * bank_size);
 
         let mut rom_guard = self.rom.lock().unwrap();
         rom_guard
@@ -53,7 +66,10 @@ impl Component for RomMemory {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
-        let adjusted_offset = address - self.config.assigned_range.start();
+        let bank_size = self.config.assigned_range.clone().count();
+
+        let adjusted_offset =
+            (address - self.config.assigned_range.start()) + (self.bank * bank_size);
 
         let mut rom_guard = self.rom.lock().unwrap();
         rom_guard
@@ -92,7 +108,11 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
         let component_builder =
             component_builder.map_memory_read([(assigned_address_space, assigned_range)]);
 
-        component_builder.build_global(|_| RomMemory { config: self, rom });
+        component_builder.build(RomMemory {
+            bank: self.initial_bank,
+            config: self,
+            rom,
+        });
 
         Ok(())
     }

@@ -32,7 +32,7 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Clr) => {
                 self.config
                     .display
-                    .interact(|component| {
+                    .interact_mut(|component| {
                         component.clear_display();
                     })
                     .unwrap();
@@ -249,7 +249,7 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
 
                     self.config
                         .display
-                        .interact(|display_component| {
+                        .interact_mut(|display_component| {
                             state.registers.work_registers[0xf] =
                                 display_component.draw_supersized_sprite(position, buffer) as u8;
                         })
@@ -271,7 +271,7 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
 
                     self.config
                         .display
-                        .interact(|display_component| {
+                        .interact_mut(|display_component| {
                             state.registers.work_registers[0xf] =
                                 display_component.draw_sprite(position, &buffer) as u8;
                         })
@@ -302,7 +302,7 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
                 let delay_timer_value = self
                     .config
                     .timer
-                    .interact(|timer_component| timer_component.get())
+                    .interact(|component| component.get())
                     .unwrap();
 
                 state.registers.work_registers[register as usize] = delay_timer_value;
@@ -315,8 +315,8 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
 
                 self.config
                     .timer
-                    .interact(|timer_component| {
-                        timer_component.set(register_value);
+                    .interact_mut(|component| {
+                        component.set(register_value);
                     })
                     .unwrap();
             }
@@ -325,8 +325,8 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
 
                 self.config
                     .audio
-                    .interact(|audio_component| {
-                        audio_component.set(register_value);
+                    .interact_mut(|component| {
+                        component.set(register_value);
                     })
                     .unwrap();
             }
@@ -405,7 +405,7 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
                     InstructionSetSuperChip8::Lores => {
                         self.config
                             .display
-                            .interact(|display_component| {
+                            .interact_mut(|display_component| {
                                 display_component.set_hires(false);
                             })
                             .unwrap();
@@ -413,7 +413,7 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
                     InstructionSetSuperChip8::Hires => {
                         self.config
                             .display
-                            .interact(|display_component| {
+                            .interact_mut(|display_component| {
                                 display_component.set_hires(true);
                             })
                             .unwrap();

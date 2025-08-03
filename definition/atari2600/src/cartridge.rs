@@ -79,7 +79,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
 
         component_builder
             .map_memory_read([(self.cpu_address_space, 0x1000..=0x1fff)])
-            .build_global(|_| Atari2600Cartridge {
+            .build(Atari2600Cartridge {
                 cart_type,
                 rom: rom_bytes,
             });

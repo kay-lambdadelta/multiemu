@@ -6,7 +6,7 @@ use multiemu_runtime::{
     graphics::DisplayCallback,
     platform::Platform,
 };
-use nalgebra::{DMatrix, DMatrixViewMut, Point2, Vector2};
+use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
 use palette::Srgba;
 use serde::{Deserialize, Serialize};
@@ -14,10 +14,6 @@ use std::{
     fmt::Debug,
     io::{Read, Write},
     num::NonZero,
-    sync::{
-        Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
 };
 
 mod software;
@@ -36,43 +32,37 @@ struct Snapshot {
 
 #[derive(Debug)]
 pub struct Chip8Display<R: SupportedGraphicsApiChip8Display> {
-    backend: Mutex<R::Backend>,
+    backend: R::Backend,
     /// The cpu reads this to see if it can continue execution post draw call
-    pub vsync_occurred: AtomicBool,
-    hires: AtomicBool,
+    pub vsync_occurred: bool,
+    hires: bool,
     config: Chip8DisplayConfig,
 }
 
 impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
-    pub fn set_hires(&self, is_hires: bool) {
-        let mut backend_guard = self.backend.lock().unwrap();
-
+    pub fn set_hires(&mut self, is_hires: bool) {
         if self.config.clear_on_resolution_change {
             self.clear_display();
         }
 
-        backend_guard.resize(if is_hires { HIRES } else { LORES }.cast());
-        self.hires.store(is_hires, Ordering::Relaxed);
+        self.backend
+            .resize(if is_hires { HIRES } else { LORES }.cast());
+        self.hires = is_hires;
     }
 
-    pub fn draw_supersized_sprite(&self, position: Point2<u8>, sprite: [u8; 32]) -> bool {
+    pub fn draw_supersized_sprite(&mut self, position: Point2<u8>, sprite: [u8; 32]) -> bool {
         tracing::debug!(
             "Drawing sprite at position {} of dimensions 16x16",
             position,
         );
-        let mut backend_guard = self.backend.lock().unwrap();
 
-        let screen_size = if self.hires.load(Ordering::Relaxed) {
-            HIRES
-        } else {
-            LORES
-        };
+        let screen_size = if self.hires { HIRES } else { LORES };
         let position = Point2::new(position.x % screen_size.x, position.y % screen_size.y).cast();
-        self.vsync_occurred.store(false, Ordering::Relaxed);
+        self.vsync_occurred = false;
 
         let mut hit_detection = false;
 
-        backend_guard.modify_staging_buffer(|mut framebuffer| {
+        self.backend.interact_staging_buffer_mut(|mut framebuffer| {
             for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(16).enumerate() {
                 for (x, sprite_pixel) in sprite_row.iter().enumerate() {
                     let position = position + Vector2::new(x, y);
@@ -101,20 +91,15 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
         hit_detection
     }
 
-    pub fn draw_sprite(&self, position: Point2<u8>, sprite: &[u8]) -> bool {
+    pub fn draw_sprite(&mut self, position: Point2<u8>, sprite: &[u8]) -> bool {
         tracing::debug!(
             "Drawing sprite at position {} of dimensions 8x{}",
             position,
             sprite.len()
         );
-        let mut backend_guard = self.backend.lock().unwrap();
 
-        let screen_size = if self.hires.load(Ordering::Relaxed) {
-            HIRES
-        } else {
-            LORES
-        };
-        self.vsync_occurred.store(false, Ordering::Relaxed);
+        let screen_size = if self.hires { HIRES } else { LORES };
+        self.vsync_occurred = false;
 
         let position = Point2::new(position.x % screen_size.x, position.y % screen_size.y).cast();
         let dimensions = Vector2::new(8, sprite.len());
@@ -124,7 +109,7 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
         }
         let mut hit_detection = false;
 
-        backend_guard.modify_staging_buffer(|mut framebuffer| {
+        self.backend.interact_staging_buffer_mut(|mut framebuffer| {
             for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(8).enumerate() {
                 for (x, sprite_pixel) in sprite_row.iter().enumerate() {
                     let position = position + Vector2::new(x, y);
@@ -153,62 +138,56 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
         hit_detection
     }
 
-    pub fn clear_display(&self) {
+    pub fn clear_display(&mut self) {
         tracing::trace!("Clearing display");
-        let mut backend_guard = self.backend.lock().unwrap();
 
-        backend_guard.modify_staging_buffer(|mut framebuffer| {
+        self.backend.interact_staging_buffer_mut(|mut framebuffer| {
             framebuffer.fill(Srgba::new(0, 0, 0, 255));
         });
     }
 }
 
 impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
-    fn reset(&self) {
+    fn reset(&mut self) {
+        self.set_hires(false);
         self.clear_display();
+        self.vsync_occurred = false;
     }
 
     fn load_snapshot(
-        &self,
+        &mut self,
         version: ComponentVersion,
         mut reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(version, 0);
-        let mut backend_guard = self.backend.lock().unwrap();
         let snapshot: Snapshot =
             bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
 
-        backend_guard.modify_staging_buffer(|mut framebuffer| {
+        self.set_hires(snapshot.hires);
+
+        self.backend.interact_staging_buffer_mut(|mut framebuffer| {
             framebuffer.copy_from(&snapshot.screen_buffer)
         });
 
-        self.hires.store(snapshot.hires, Ordering::Relaxed);
-        self.vsync_occurred
-            .store(snapshot.vsync_occurred, Ordering::Relaxed);
+        self.vsync_occurred = snapshot.vsync_occurred;
 
         Ok(())
     }
 
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
-        let screen_size = if self.hires.load(Ordering::Relaxed) {
-            HIRES
-        } else {
-            LORES
-        }
-        .cast();
+        let screen_size = if self.hires { HIRES } else { LORES }.cast();
 
         let mut screen_buffer =
             DMatrix::from_element(screen_size.x, screen_size.y, Srgba::new(0, 0, 0, 255));
 
-        let mut backend_guard = self.backend.lock().unwrap();
-        backend_guard.modify_staging_buffer(|framebuffer| {
+        self.backend.interact_staging_buffer(|framebuffer| {
             screen_buffer.copy_from(&framebuffer);
         });
 
         let snapshot = Snapshot {
             screen_buffer,
-            hires: self.hires.load(Ordering::Relaxed),
-            vsync_occurred: self.vsync_occurred.load(Ordering::Relaxed),
+            hires: self.hires,
+            vsync_occurred: self.vsync_occurred,
         };
         bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
 
@@ -221,7 +200,8 @@ pub(crate) trait Chip8DisplayBackend: Debug + 'static {
 
     fn new(initialization_data: <Self::GraphicsApi as GraphicsApi>::InitializationData) -> Self;
     fn resize(&mut self, resolution: Vector2<usize>);
-    fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>));
+    fn interact_staging_buffer(&self, callback: impl FnOnce(DMatrixView<'_, Srgba<u8>>));
+    fn interact_staging_buffer_mut(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>));
     fn commit_staging_buffer(&mut self);
     fn get_framebuffer(
         &mut self,
@@ -252,21 +232,19 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
                 // We ignore the time slice and only commit the buffer once
                 move |_: NonZero<u32>| {
                     component
-                        .interact(|display| {
-                            display.vsync_occurred.store(true, Ordering::Relaxed);
-                            display.backend.lock().unwrap().commit_staging_buffer();
+                        .interact_mut(|display| {
+                            display.vsync_occurred = true;
+                            display.backend.commit_staging_buffer();
                         })
                         .unwrap();
                 }
             })
             .insert_display(Chip8DisplayCallback { component });
 
-        component_builder.build(|late| Chip8Display {
-            backend: Mutex::new(Chip8DisplayBackend::new(
-                late.component_graphics_initialization_data.clone(),
-            )),
-            hires: AtomicBool::new(false),
-            vsync_occurred: AtomicBool::new(false),
+        component_builder.build_local_lazy(|late| Chip8Display {
+            backend: Chip8DisplayBackend::new(late.component_graphics_initialization_data.clone()),
+            hires: false,
+            vsync_occurred: false,
             config: self,
         });
 
@@ -289,8 +267,8 @@ impl<R: SupportedGraphicsApiChip8Display> DisplayCallback<R> for Chip8DisplayCal
         callback: Box<dyn FnOnce(&<R as GraphicsApi>::FramebufferTexture) + '_>,
     ) {
         self.component
-            .interact_local(|display| {
-                display.backend.lock().unwrap().get_framebuffer(callback);
+            .interact_local_mut(|display| {
+                display.backend.get_framebuffer(callback);
             })
             .unwrap();
     }

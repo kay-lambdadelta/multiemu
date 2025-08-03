@@ -6,11 +6,13 @@ use crate::{
 };
 use nohash::BuildNoHashHasher;
 use rustc_hash::FxBuildHasher;
+use scc::ebr::Guard;
 use std::{
     any::Any,
     boxed::Box,
-    collections::HashMap,
+    collections::HashSet,
     fmt::Debug,
+    ops::{Deref, DerefMut},
     sync::{
         Arc, OnceLock, RwLock,
         atomic::{AtomicU16, Ordering},
@@ -26,7 +28,7 @@ pub enum ComponentStoreError {
 }
 
 #[derive(Debug)]
-enum ComponentLocation {
+enum ComponentStorage {
     Global(Box<dyn Component + Send + Sync>),
     // Use fragile to guard thread safety
     Local(Fragile<Box<dyn Component>>),
@@ -34,7 +36,7 @@ enum ComponentLocation {
 
 #[derive(Debug)]
 struct ComponentInfo {
-    location: ComponentLocation,
+    storage: RwLock<ComponentStorage>,
     path: ComponentPath,
 }
 
@@ -45,21 +47,21 @@ pub struct ComponentRegistry
 where
     Self: Send + Sync,
 {
-    components: RwLock<HashMap<ComponentId, ComponentInfo, BuildNoHashHasher<u16>>>,
+    components: scc::HashIndex<ComponentId, Arc<ComponentInfo>, BuildNoHashHasher<u16>>,
+    component_ids: scc::HashMap<ComponentPath, ComponentId, FxBuildHasher>,
     main_thread_queue: Arc<MainThreadQueue>,
     current_component_id: AtomicU16,
     debt_clearer: OnceLock<DebtClearer>,
-    component_ids: RwLock<HashMap<ComponentPath, ComponentId, FxBuildHasher>>,
 }
 
 impl ComponentRegistry {
     pub fn new(main_thread_queue: Arc<MainThreadQueue>) -> Arc<Self> {
         Self {
-            components: RwLock::default(),
+            components: scc::HashIndex::default(),
+            component_ids: scc::HashMap::default(),
             main_thread_queue,
             current_component_id: AtomicU16::new(1),
             debt_clearer: OnceLock::new(),
-            component_ids: RwLock::default(),
         }
         .into()
     }
@@ -70,30 +72,62 @@ impl ComponentRegistry {
 
     pub fn get_path(&self, component_id: ComponentId) -> Option<ComponentPath> {
         self.components
-            .read()
-            .unwrap()
             .get(&component_id)
             .map(|component_info| component_info.path.clone())
     }
 
     pub fn get_id(&self, path: &ComponentPath) -> Option<ComponentId> {
-        self.component_ids.read().unwrap().get(&path).copied()
+        self.component_ids.get(path).as_deref().copied()
     }
 
     pub(crate) fn interact_all(
         &self,
         mut callback: impl FnMut(&ComponentPath, &dyn Component) + Send,
     ) {
-        let component_location_guard = self.components.read().unwrap();
+        let mut visited = HashSet::new();
+        let guard = Guard::new();
 
-        for component_info in component_location_guard.values() {
-            match &component_info.location {
-                ComponentLocation::Global(component) => {
+        for (_, component_info) in self.components.iter(&guard) {
+            // Scan can visit twice
+            if visited.contains(&component_info.path) {
+                return;
+            }
+            visited.insert(component_info.path.clone());
+
+            match component_info.storage.read().unwrap().deref() {
+                ComponentStorage::Global(component) => {
                     callback(&component_info.path, component.as_ref())
                 }
-                ComponentLocation::Local(component) => {
+                ComponentStorage::Local(component) => {
                     self.main_thread_queue.maybe_wait_on_main(|| {
                         callback(&component_info.path, component.get().unwrap().as_ref())
+                    })
+                }
+            }
+        }
+    }
+
+    pub(crate) fn interact_all_mut(
+        &self,
+        mut callback: impl FnMut(&ComponentPath, &mut dyn Component) + Send,
+    ) {
+        let mut visited = HashSet::new();
+        let guard = Guard::new();
+
+        for (_, component_info) in self.components.iter(&guard) {
+            // Scan can visit twice
+            if visited.contains(&component_info.path) {
+                return;
+            }
+            visited.insert(component_info.path.clone());
+
+            match component_info.storage.write().unwrap().deref_mut() {
+                ComponentStorage::Global(component) => {
+                    callback(&component_info.path, component.as_mut())
+                }
+                ComponentStorage::Local(component) => {
+                    self.main_thread_queue.maybe_wait_on_main(|| {
+                        callback(&component_info.path, component.get_mut().unwrap().as_mut())
                     })
                 }
             }
@@ -109,36 +143,32 @@ impl ComponentRegistry {
         )
     }
 
-    pub fn insert_component(
+    pub fn insert_component_local(
         &self,
         path: ComponentPath,
         component_id: ComponentId,
         component: impl Component,
     ) {
-        let mut components_guard = self.components.write().unwrap();
-
-        components_guard
+        self.components
             .entry(component_id)
-            .or_insert(ComponentInfo {
-                location: ComponentLocation::Local(Fragile::new(Box::new(component))),
+            .or_insert(Arc::new(ComponentInfo {
+                storage: RwLock::new(ComponentStorage::Local(Fragile::new(Box::new(component)))),
                 path,
-            });
+            }));
     }
 
-    pub(crate) fn insert_component_global(
+    pub(crate) fn insert_component(
         &self,
         path: ComponentPath,
         component_id: ComponentId,
         component: impl Component + Send + Sync,
     ) {
-        let mut components_guard = self.components.write().unwrap();
-
-        components_guard
+        self.components
             .entry(component_id)
-            .or_insert(ComponentInfo {
-                location: ComponentLocation::Global(Box::new(component)),
+            .or_insert(Arc::new(ComponentInfo {
+                storage: RwLock::new(ComponentStorage::Global(Box::new(component))),
                 path,
-            });
+            }));
     }
 
     // Interacts with a component wherever it may be
@@ -148,22 +178,52 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
-        let component_location_guard = self.components.read().unwrap();
-
         // Make sure all cycle debts are cleared
         if let Some(debt_clearer) = self.debt_clearer.get() {
             debt_clearer.clear_debts(component_id);
         }
+        let guard = Guard::new();
 
-        match &component_location_guard
-            .get(&component_id)
+        match self
+            .components
+            .peek(&component_id, &guard)
             .ok_or(ComponentStoreError::ComponentNotFound)?
-            .location
+            .storage
+            .read()
+            .unwrap()
+            .deref()
         {
-            ComponentLocation::Local(component) => Ok(self
+            ComponentStorage::Local(component) => self
                 .main_thread_queue
-                .maybe_wait_on_main(|| callback(component.get().unwrap().as_ref()))),
-            ComponentLocation::Global(component) => Ok(callback(component.as_ref())),
+                .maybe_wait_on_main(|| Ok(callback(component.get().unwrap().as_ref()))),
+            ComponentStorage::Global(component) => Ok(callback(component.as_ref())),
+        }
+    }
+
+    #[inline]
+    pub fn interact_dyn_mut<T: Send + 'static>(
+        &self,
+        component_id: ComponentId,
+        callback: impl FnOnce(&mut dyn Component) -> T + Send,
+    ) -> Result<T, ComponentStoreError> {
+        if let Some(debt_clearer) = self.debt_clearer.get() {
+            debt_clearer.clear_debts(component_id);
+        }
+        let guard = Guard::new();
+
+        match self
+            .components
+            .peek(&component_id, &guard)
+            .ok_or(ComponentStoreError::ComponentNotFound)?
+            .storage
+            .write()
+            .unwrap()
+            .deref_mut()
+        {
+            ComponentStorage::Local(component) => self
+                .main_thread_queue
+                .maybe_wait_on_main(|| Ok(callback(component.get_mut().unwrap().as_mut()))),
+            ComponentStorage::Global(component) => Ok(callback(component.as_mut())),
         }
     }
 
@@ -174,20 +234,47 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Result<T, ComponentStoreError> {
-        let component_location_guard = self.components.read().unwrap();
-
         // Make sure all cycle debts are cleared
         if let Some(debt_clearer) = self.debt_clearer.get() {
             debt_clearer.clear_debts(component_id);
         }
 
-        match &component_location_guard
+        match self
+            .components
             .get(&component_id)
             .ok_or(ComponentStoreError::ComponentNotFound)?
-            .location
+            .storage
+            .read()
+            .unwrap()
+            .deref()
         {
-            ComponentLocation::Local(component) => Ok(callback(component.get().unwrap().as_ref())),
-            ComponentLocation::Global(component) => Ok(callback(component.as_ref())),
+            ComponentStorage::Local(component) => Ok(callback(component.get().unwrap().as_ref())),
+            ComponentStorage::Global(component) => Ok(callback(component.as_ref())),
+        }
+    }
+
+    pub fn interact_dyn_local_mut<T: 'static>(
+        &self,
+        component_id: ComponentId,
+        callback: impl FnOnce(&mut dyn Component) -> T,
+    ) -> Result<T, ComponentStoreError> {
+        if let Some(debt_clearer) = self.debt_clearer.get() {
+            debt_clearer.clear_debts(component_id);
+        }
+
+        match self
+            .components
+            .get(&component_id)
+            .ok_or(ComponentStoreError::ComponentNotFound)?
+            .storage
+            .write()
+            .unwrap()
+            .deref_mut()
+        {
+            ComponentStorage::Local(component) => {
+                Ok(callback(component.get_mut().unwrap().as_mut()))
+            }
+            ComponentStorage::Global(component) => Ok(callback(component.as_mut())),
         }
     }
 
@@ -204,6 +291,18 @@ impl ComponentRegistry {
     }
 
     #[inline]
+    pub fn interact_mut<C: Component, T: Send + 'static>(
+        &self,
+        component_id: ComponentId,
+        callback: impl FnOnce(&mut C) -> T + Send,
+    ) -> Result<T, ComponentStoreError> {
+        self.interact_dyn_mut(component_id, |component| {
+            let component = (component as &mut dyn Any).downcast_mut::<C>().unwrap();
+            callback(component)
+        })
+    }
+
+    #[inline]
     pub fn interact_local<C: Component, T: 'static>(
         &self,
         component_id: ComponentId,
@@ -215,11 +314,27 @@ impl ComponentRegistry {
         })
     }
 
+    #[inline]
+    pub fn interact_local_mut<C: Component, T: 'static>(
+        &self,
+        component_id: ComponentId,
+        callback: impl FnOnce(&mut C) -> T,
+    ) -> Result<T, ComponentStoreError> {
+        self.interact_dyn_local_mut(component_id, |component| {
+            let component = (component as &mut dyn Any).downcast_mut::<C>().unwrap();
+            callback(component)
+        })
+    }
+
     pub fn get<C: Component>(self: &Arc<Self>, id: ComponentId) -> Option<ComponentRef<C>> {
-        if self.components.read().unwrap().contains_key(&id) {
+        if self.components.contains(&id) {
             Some(ComponentRef::new(self.clone(), id))
         } else {
             None
         }
+    }
+
+    pub fn contains(&self, id: ComponentId) -> bool {
+        self.components.contains(&id)
     }
 }

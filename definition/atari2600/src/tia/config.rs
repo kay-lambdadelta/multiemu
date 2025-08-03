@@ -36,21 +36,23 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
         let component_builder =
             component_builder.map_memory([(self.cpu_address_space, 0x000..=0x03f)]);
 
+        let cpu_rdy = self.cpu.interact_local(|cpu| cpu.rdy()).unwrap();
+
         let component_builder = component_builder.insert_task(
             R::frequency(),
             "tia",
             TiaTask {
                 component: component,
-                cpu: self.cpu.clone(),
+                cpu_rdy: cpu_rdy.clone(),
             },
         );
 
-        component_builder.build(|lazy| Tia {
+        component_builder.build_local_lazy(|lazy| Tia {
             state: Default::default(),
             backend: Mutex::new(TiaDisplayBackend::new(
                 lazy.component_graphics_initialization_data.clone(),
             )),
-            config: self,
+            cpu_rdy,
         });
 
         Ok(())

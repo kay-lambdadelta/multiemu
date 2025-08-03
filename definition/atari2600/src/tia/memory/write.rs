@@ -75,10 +75,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
                 };
             }
             WriteRegisters::Wsync => {
-                self.config
-                    .cpu
-                    .interact(|processor| processor.set_rdy(false))
-                    .unwrap();
+                self.cpu_rdy.store(false);
 
                 state_guard.reset_rdy_on_scanline_end = true;
             }

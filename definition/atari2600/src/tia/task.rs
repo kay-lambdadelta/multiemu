@@ -1,21 +1,19 @@
-use std::num::NonZero;
-
+use super::{SCANLINE_LENGTH, State, Tia, color::TiaColor, region::Region};
 use crate::tia::{
     VISIBLE_SCANLINE_LENGTH,
     backend::{SupportedGraphicsApiTia, TiaDisplayBackend},
 };
-
-use super::{SCANLINE_LENGTH, State, Tia, color::TiaColor, region::Region};
 use bitvec::{
     order::{Lsb0, Msb0},
     view::BitView,
 };
-use multiemu_definition_mos6502::Mos6502;
+use multiemu_definition_mos6502::RdyFlag;
 use multiemu_runtime::{component::ComponentRef, scheduler::Task};
+use std::{num::NonZero, sync::Arc};
 
 pub struct TiaTask<R: Region, G: SupportedGraphicsApiTia> {
     pub component: ComponentRef<Tia<R, G>>,
-    pub cpu: ComponentRef<Mos6502>,
+    pub cpu_rdy: Arc<RdyFlag>,
 }
 
 impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
@@ -45,11 +43,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
                         state_guard.electron_beam.y += 1;
 
                         if std::mem::replace(&mut state_guard.reset_rdy_on_scanline_end, false) {
-                            self.cpu
-                                .interact(|processor| {
-                                    processor.set_rdy(true);
-                                })
-                                .unwrap();
+                            self.cpu_rdy.store(true);
                         }
 
                         if state_guard.electron_beam.y >= R::TOTAL_SCANLINES {

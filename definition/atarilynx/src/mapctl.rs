@@ -125,7 +125,7 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         let component_builder =
             component_builder.map_memory([(self.cpu_address_space, 0xfff9..=0xfff9)]);
 
-        component_builder.build_global(move |_| Mapctl {
+        component_builder.build(Mapctl {
             config: self,
             status: Default::default(),
             my_id: component_id,

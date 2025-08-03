@@ -14,7 +14,7 @@ use std::{
     collections::VecDeque,
     io::{Read, Write},
     sync::{
-        Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -266,27 +266,21 @@ impl Default for ProcessorState {
 
 #[derive(Debug)]
 pub struct Mos6502 {
-    state: Mutex<ProcessorState>,
-    rdy: AtomicBool,
+    state: ProcessorState,
+    rdy: Arc<RdyFlag>,
     config: Mos6502Config,
 }
 
 impl Mos6502 {
-    pub fn set_rdy(&self, rdy: bool) {
-        if rdy {
-            tracing::debug!("RDY went high, resuming execution");
-        } else {
-            tracing::debug!("RDY went low, pausing execution");
-        }
-
-        self.rdy.store(rdy, Ordering::Relaxed);
+    pub fn rdy(&self) -> Arc<RdyFlag> {
+        self.rdy.clone()
     }
 }
 
 impl Component for Mos6502 {
-    fn reset(&self) {
-        self.set_rdy(true);
-        *self.state.lock().unwrap() = ProcessorState::default();
+    fn reset(&mut self) {
+        self.rdy.store(true);
+        self.state = ProcessorState::default();
     }
 
     fn snapshot_version(&self) -> Option<ComponentVersion> {
@@ -296,8 +290,8 @@ impl Component for Mos6502 {
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
         bincode::serde::encode_into_std_write(
             &Snapshot {
-                rdy: self.rdy.load(Ordering::Acquire),
-                state: self.state.lock().unwrap().clone(),
+                rdy: self.rdy.load(),
+                state: self.state.clone(),
             },
             &mut writer,
             bincode::config::standard(),
@@ -307,7 +301,7 @@ impl Component for Mos6502 {
     }
 
     fn load_snapshot(
-        &self,
+        &mut self,
         version: ComponentVersion,
         mut reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -316,8 +310,8 @@ impl Component for Mos6502 {
                 let snapshot: Snapshot =
                     bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
 
-                self.rdy.store(snapshot.rdy, Ordering::Release);
-                *self.state.lock().unwrap() = snapshot.state;
+                self.rdy.store(snapshot.rdy);
+                self.state = snapshot.state;
 
                 Ok(())
             }
@@ -333,7 +327,6 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
-        let rdy = AtomicBool::new(true);
         let memory_access_table = component_builder.memory_access_table();
         let component = component_builder.component_ref();
 
@@ -347,9 +340,9 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
                     component,
                 },
             )
-            .build_global(|_| Mos6502 {
-                state: Mutex::default(),
-                rdy,
+            .build(Mos6502 {
+                rdy: Arc::new(RdyFlag::new()),
+                state: ProcessorState::default(),
                 config: self,
             });
 
@@ -361,4 +354,27 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
 pub struct Snapshot {
     rdy: bool,
     state: ProcessorState,
+}
+
+#[derive(Debug)]
+pub struct RdyFlag(AtomicBool);
+
+impl RdyFlag {
+    pub fn new() -> Self {
+        Self(AtomicBool::new(true))
+    }
+
+    pub fn store(&self, rdy: bool) {
+        if rdy {
+            tracing::debug!("RDY went high, resuming execution");
+        } else {
+            tracing::debug!("RDY went low, pausing execution");
+        }
+
+        self.0.store(rdy, Ordering::Release);
+    }
+
+    pub fn load(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
 }

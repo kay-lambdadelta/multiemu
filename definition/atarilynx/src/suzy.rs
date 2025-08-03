@@ -202,7 +202,7 @@ impl<P: Platform> ComponentConfig<P> for SuzyConfig {
     ) -> Result<(), BuildError> {
         component_builder
             .map_memory([(self.cpu_address_space, SUZY_ADDRESSES)])
-            .build_global(|_| Suzy {});
+            .build(Suzy {});
 
         Ok(())
     }

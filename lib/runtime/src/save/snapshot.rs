@@ -62,7 +62,7 @@ impl SnapshotManager {
         let metadata_path = snapshot_directory.join(METADATA_FILE_NAME);
         let metadata: SnapshotMetadata = ron::de::from_reader(File::open(metadata_path)?)?;
 
-        registry.interact_all(|path, component| {
+        registry.interact_all_mut(|path, component| {
             let component_info = match metadata.components.get(&path) {
                 Some(info) => info,
                 None => return,

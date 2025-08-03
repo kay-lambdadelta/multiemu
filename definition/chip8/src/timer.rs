@@ -7,23 +7,21 @@ use num::rational::Ratio;
 use std::{
     io::{Read, Write},
     num::NonZero,
-    ops::{Deref, DerefMut},
-    sync::{Arc, Mutex},
 };
 
 #[derive(Debug)]
 pub struct Chip8Timer {
     // The CPU will set this according to what the program wants
-    delay_timer: Arc<Mutex<u8>>,
+    timer: u8,
 }
 
 impl Chip8Timer {
-    pub fn set(&self, value: u8) {
-        *self.delay_timer.lock().unwrap() = value;
+    pub fn set(&mut self, value: u8) {
+        self.timer = value;
     }
 
     pub fn get(&self) -> u8 {
-        *self.delay_timer.lock().unwrap()
+        self.timer
     }
 }
 
@@ -33,13 +31,12 @@ impl Component for Chip8Timer {
     }
 
     fn load_snapshot(
-        &self,
+        &mut self,
         version: ComponentVersion,
         mut reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(version, 0);
-        let mut timer_guard = self.delay_timer.lock().unwrap();
-        let timer = std::array::from_mut(timer_guard.deref_mut());
+        let timer = std::array::from_mut(&mut self.timer);
 
         reader.read_exact(timer)?;
 
@@ -47,8 +44,7 @@ impl Component for Chip8Timer {
     }
 
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
-        let timer_guard = self.delay_timer.lock().unwrap();
-        let timer = std::array::from_ref(timer_guard.deref());
+        let timer = std::array::from_ref(&self.timer);
 
         writer.write_all(timer)?;
 
@@ -66,19 +62,23 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
-        let delay_timer = Arc::new(Mutex::new(0u8));
+        let component = component_builder.component_ref();
 
         component_builder
-            .insert_lazy_task(Ratio::from_integer(60), "driver", {
-                let delay_timer = delay_timer.clone();
-
-                move |time_slice: NonZero<u32>| {
-                    let mut delay_timer_guard = delay_timer.lock().unwrap();
-                    *delay_timer_guard = delay_timer_guard
-                        .saturating_sub(time_slice.get().try_into().unwrap_or(u8::MAX));
-                }
-            })
-            .build_global(move |_| Chip8Timer { delay_timer });
+            .insert_lazy_task(
+                Ratio::from_integer(60),
+                "driver",
+                move |slice: NonZero<u32>| {
+                    component
+                        .interact_mut(|component| {
+                            component.timer = component
+                                .timer
+                                .saturating_sub(slice.get().try_into().unwrap_or(u8::MAX));
+                        })
+                        .unwrap();
+                },
+            )
+            .build(Chip8Timer { timer: 0 });
 
         Ok(())
     }

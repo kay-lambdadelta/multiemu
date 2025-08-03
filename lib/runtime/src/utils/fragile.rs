@@ -37,6 +37,16 @@ impl<T> Fragile<T> {
             None
         }
     }
+
+    #[inline]
+    /// Get the value, only works on the main thread
+    pub fn get_mut(&mut self) -> Option<&mut T> {
+        if is_main_thread() {
+            Some(&mut self.0)
+        } else {
+            None
+        }
+    }
 }
 
 impl<T> Drop for Fragile<T> {

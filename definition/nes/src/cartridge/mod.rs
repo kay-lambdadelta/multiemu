@@ -99,7 +99,7 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
         let component_builder =
             component_builder.map_memory([(self.cpu_address_space, 0x4020..=0xffff)]);
 
-        component_builder.build_global(|_| NesCartridge {
+        component_builder.build(NesCartridge {
             rom: ines,
             bus_conflict: false,
         });

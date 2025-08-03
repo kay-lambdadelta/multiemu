@@ -39,7 +39,7 @@ serde = { version = "1.0", default-features = false, features = [
 serde_with = "3.14"
 serde-inline-default = "0.2"
 rayon = "1.10"
-nalgebra = { version = "0.33", features = [
+nalgebra = { version = "0.34", features = [
     "serde-serialize",
     "convert-bytemuck",
 ] }

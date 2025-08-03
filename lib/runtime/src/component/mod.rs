@@ -31,7 +31,7 @@ mod registry;
 /// Basic supertrait for all components
 pub trait Component: Debug + Any {
     /// Reset state
-    fn reset(&self) {}
+    fn reset(&mut self) {}
 
     fn save_version(&self) -> Option<ComponentVersion> {
         None
@@ -46,7 +46,7 @@ pub trait Component: Debug + Any {
     }
 
     fn load_snapshot(
-        &self,
+        &mut self,
         version: ComponentVersion,
         reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {

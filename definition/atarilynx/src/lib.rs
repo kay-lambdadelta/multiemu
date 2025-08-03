@@ -66,6 +66,7 @@ impl<P: Platform> MachineFactory<P> for AtariLynx {
                 rom: RomId::from_str("e4ed47fae31693e016b081c6bda48da5b70d7ccb").unwrap(),
                 assigned_range: 0xfe00..=0xffff,
                 assigned_address_space: cpu_address_space,
+                initial_bank: 0,
             },
         );
 

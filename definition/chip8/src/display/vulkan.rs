@@ -18,7 +18,7 @@ use multiemu_graphics::{
         },
     },
 };
-use nalgebra::{DMatrixViewMut, Vector2};
+use nalgebra::{DMatrixView, DMatrixViewMut, Vector2};
 use palette::Srgba;
 use std::sync::Arc;
 
@@ -119,7 +119,17 @@ impl Chip8DisplayBackend for VulkanState {
         self.commit_staging_buffer();
     }
 
-    fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<Srgba<u8>>)) {
+    fn interact_staging_buffer(&self, callback: impl FnOnce(DMatrixView<'_, Srgba<u8>>)) {
+        let staging_buffer_guard = self.staging_buffer.read().unwrap();
+
+        callback(DMatrixView::from_slice(
+            &staging_buffer_guard,
+            self.current_resolution.x,
+            self.current_resolution.y,
+        ));
+    }
+
+    fn interact_staging_buffer_mut(&mut self, callback: impl FnOnce(DMatrixViewMut<Srgba<u8>>)) {
         let mut staging_buffer_guard = self.staging_buffer.write().unwrap();
 
         callback(DMatrixViewMut::from_slice(

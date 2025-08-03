@@ -12,11 +12,9 @@ pub fn adc_immediate() {
         let (machine, cpu, cpu_address_space) = instruction_test_boilerplate();
 
         // Enable carry
-        cpu.interact(|component| {
-            let mut state_guard = component.state.lock().unwrap();
-
-            state_guard.flags.carry = true;
-            state_guard.execution_mode = Some(ExecutionMode::FetchAndDecode);
+        cpu.interact_mut(|component| {
+            component.state.flags.carry = true;
+            component.state.execution_mode = Some(ExecutionMode::FetchAndDecode);
         })
         .unwrap();
 
@@ -29,12 +27,11 @@ pub fn adc_immediate() {
         machine.scheduler.lock().unwrap().run_for_cycles(2);
 
         cpu.interact(|component| {
-            let state_guard = component.state.lock().unwrap();
             let modified_value = value.wrapping_add(1);
 
-            assert_eq!(state_guard.a, modified_value);
+            assert_eq!(component.state.a, modified_value);
             assert_eq!(
-                state_guard.flags,
+                component.state.flags,
                 FlagRegister {
                     negative: modified_value.view_bits::<Lsb0>()[7],
                     overflow: bytemuck::cast::<_, i8>(value).checked_add(1).is_none(),
@@ -46,7 +43,7 @@ pub fn adc_immediate() {
                     carry: value.checked_add(1).is_none()
                 }
             );
-            assert_eq!(state_guard.program, 0x2);
+            assert_eq!(component.state.program, 0x2);
         })
         .unwrap();
     }
@@ -65,11 +62,9 @@ pub fn adc_absolute() {
             .unwrap();
 
         // Enable carry
-        cpu.interact(|component| {
-            let mut state_guard = component.state.lock().unwrap();
-
-            state_guard.flags.carry = true;
-            state_guard.execution_mode = Some(ExecutionMode::FetchAndDecode);
+        cpu.interact_mut(|component| {
+            component.state.flags.carry = true;
+            component.state.execution_mode = Some(ExecutionMode::FetchAndDecode);
         })
         .unwrap();
 
@@ -87,12 +82,11 @@ pub fn adc_absolute() {
         machine.scheduler.lock().unwrap().run_for_cycles(4);
 
         cpu.interact(|component| {
-            let state_guard = component.state.lock().unwrap();
             let modified_value = value.wrapping_add(1);
 
-            assert_eq!(state_guard.a, modified_value);
+            assert_eq!(component.state.a, modified_value);
             assert_eq!(
-                state_guard.flags,
+                component.state.flags,
                 FlagRegister {
                     negative: modified_value.view_bits::<Lsb0>()[7],
                     overflow: bytemuck::cast::<_, i8>(value).checked_add(1).is_none(),
@@ -104,7 +98,7 @@ pub fn adc_absolute() {
                     carry: value.checked_add(1).is_none()
                 }
             );
-            assert_eq!(state_guard.program, 0x3);
+            assert_eq!(component.state.program, 0x3);
         })
         .unwrap();
     }

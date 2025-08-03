@@ -6,7 +6,7 @@ use multiemu_runtime::{
 };
 use std::{
     num::NonZero,
-    sync::{Arc, Mutex, atomic::Ordering},
+    sync::{Arc, Mutex},
 };
 
 pub(crate) struct CpuDriver<G: SupportedGraphicsApiChip8Display> {
@@ -28,24 +28,24 @@ impl<G: SupportedGraphicsApiChip8Display> Task for CpuDriver<G> {
         let mut time_slice = time_slice.get();
 
         self.component
-            .interact(|component| {
+            .interact_mut(|component| {
                 let mut mode_guard = self.mode.lock().unwrap();
-                let mut state_guard = component.state.lock().unwrap();
 
                 while time_slice != 0 {
                     'main: {
-                        match &state_guard.execution_state {
+                        match &component.state.execution_state {
                             ExecutionState::Normal => {
                                 let (decompiled_instruction, decompiled_instruction_length) = self
                                     .instruction_decoder
                                     .decode(
-                                        state_guard.registers.program as usize,
+                                        component.state.registers.program as usize,
                                         self.config.cpu_address_space,
                                         &self.memory_access_table,
                                     )
                                     .expect("Failed to decode instruction");
 
-                                state_guard.registers.program = state_guard
+                                component.state.registers.program = component
+                                    .state
                                     .registers
                                     .program
                                     .wrapping_add(decompiled_instruction_length as u16);
@@ -53,7 +53,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task for CpuDriver<G> {
                                 tracing::trace!("Decoded instruction {:?}", decompiled_instruction);
 
                                 self.interpret_instruction(
-                                    &mut state_guard,
+                                    &mut component.state,
                                     &mut mode_guard,
                                     decompiled_instruction,
                                 );
@@ -76,7 +76,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task for CpuDriver<G> {
                                 }
 
                                 if !pressed.is_empty() {
-                                    state_guard.execution_state =
+                                    component.state.execution_state =
                                         ExecutionState::AwaitingKeyRelease {
                                             register: *register,
                                             keys: pressed,
@@ -93,9 +93,9 @@ impl<G: SupportedGraphicsApiChip8Display> Task for CpuDriver<G> {
                                         .as_digital(None)
                                     {
                                         let register = *register;
-                                        state_guard.registers.work_registers[register as usize] =
-                                            key_code.0;
-                                        state_guard.execution_state = ExecutionState::Normal;
+                                        component.state.registers.work_registers
+                                            [register as usize] = key_code.0;
+                                        component.state.execution_state = ExecutionState::Normal;
                                         break 'main;
                                     }
                                 }
@@ -104,13 +104,11 @@ impl<G: SupportedGraphicsApiChip8Display> Task for CpuDriver<G> {
                                 let vsync_occured = self
                                     .config
                                     .display
-                                    .interact(|display| {
-                                        display.vsync_occurred.load(Ordering::Relaxed)
-                                    })
+                                    .interact(|display| display.vsync_occurred)
                                     .unwrap();
 
                                 if vsync_occured {
-                                    state_guard.execution_state = ExecutionState::Normal;
+                                    component.state.execution_state = ExecutionState::Normal;
                                     break 'main;
                                 }
                             }

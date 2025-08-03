@@ -216,12 +216,14 @@ impl<P: Platform> MachineBuilder<P> {
         let mut displays = HashMap::default();
 
         for (component_id, mut component_metadata) in self.component_metadata.drain(..) {
-            let component_initializer = component_metadata
-                .component_initializer
-                .take()
-                .expect("Component did not init itself");
-
-            component_initializer(&self.registry, &runtime_essentials);
+            if let Some(component_initializer) = component_metadata.component_initializer.take() {
+                component_initializer(&self.registry, &runtime_essentials);
+            } else {
+                assert!(
+                    self.registry.contains(component_id),
+                    "Component did not insert or lazily insert itself",
+                );
+            }
 
             // Gather the framebuffers
             if let Some(graphics_metadata) = component_metadata.graphics {
@@ -370,20 +372,45 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     }
 
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
-    pub fn build(mut self, callback: impl FnOnce(&LateInitializedData<P>) -> C + 'static) {
+    pub fn build_local(self, component: C) {
+        let path = self.metadata().path.clone();
+        let component_id = self.component_ref.id();
+
+        self.machine_builder
+            .registry
+            .insert_component_local(path, component_id, component);
+    }
+
+    /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
+    pub fn build_local_lazy(
+        mut self,
+        callback: impl FnOnce(&LateInitializedData<P>) -> C + 'static,
+    ) {
         let path = self.metadata().path.clone();
         let component_id = self.component_ref.id();
 
         self.metadata_mut().component_initializer =
             Some(Box::new(move |registry, runtime_essentials| {
-                registry.insert_component(path, component_id, callback(runtime_essentials));
+                registry.insert_component_local(path, component_id, callback(runtime_essentials));
             }));
     }
 
     /// Insert this component in the global store, ensuring quick access for all other components
     ///
     /// Use this if unsure
-    pub fn build_global(mut self, callback: impl FnOnce(&LateInitializedData<P>) -> C + 'static)
+    pub fn build(self, component: C)
+    where
+        C: Send + Sync,
+    {
+        let path = self.metadata().path.clone();
+        let component_id = self.component_ref.id();
+
+        self.machine_builder
+            .registry
+            .insert_component(path, component_id, component);
+    }
+
+    pub fn build_lazy(mut self, callback: impl FnOnce(&LateInitializedData<P>) -> C + 'static)
     where
         C: Send + Sync,
     {
@@ -392,7 +419,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
         self.metadata_mut().component_initializer =
             Some(Box::new(move |registry, runtime_essentials| {
-                registry.insert_component_global(path, component_id, callback(runtime_essentials));
+                registry.insert_component(path, component_id, callback(runtime_essentials));
             }));
     }
 

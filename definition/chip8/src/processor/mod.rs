@@ -84,7 +84,7 @@ impl Default for ProcessorState {
 
 #[derive(Debug)]
 pub struct Chip8Processor {
-    state: Mutex<ProcessorState>,
+    state: ProcessorState,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -95,14 +95,12 @@ pub struct Chip8ProcessorSnapshot {
 }
 
 impl Component for Chip8Processor {
-    fn reset(&self) {
-        let mut state = self.state.lock().unwrap();
-
-        *state = ProcessorState::default();
+    fn reset(&mut self) {
+        self.state = ProcessorState::default();
     }
 
     fn load_snapshot(
-        &self,
+        &mut self,
         version: ComponentVersion,
         mut reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -110,20 +108,19 @@ impl Component for Chip8Processor {
 
         let snapshot: Chip8ProcessorSnapshot =
             bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
-        let mut state_guard = self.state.lock().unwrap();
 
-        state_guard.registers = snapshot.registers;
-        state_guard.stack = snapshot.stack;
-        state_guard.execution_state = snapshot.execution_state;
+        self.state.registers = snapshot.registers;
+        self.state.stack = snapshot.stack;
+        self.state.execution_state = snapshot.execution_state;
+
         Ok(())
     }
 
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
-        let state_guard = self.state.lock().unwrap();
         let snapshot = Chip8ProcessorSnapshot {
-            registers: state_guard.registers.clone(),
-            stack: state_guard.stack.clone(),
-            execution_state: state_guard.execution_state.clone(),
+            registers: self.state.registers.clone(),
+            stack: self.state.stack.clone(),
+            execution_state: self.state.execution_state.clone(),
         };
 
         bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
@@ -157,7 +154,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
     ) -> Result<(), BuildError> {
         let memory_access_table = component_builder.memory_access_table();
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Mode::Chip8)));
-        let state = Mutex::new(ProcessorState::default());
+        let state = ProcessorState::default();
         let component = component_builder.component_ref();
 
         let virtual_gamepad = VirtualGamepad::new(
@@ -182,7 +179,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
                     component,
                 },
             )
-            .build_global(|_| Chip8Processor { state });
+            .build(Chip8Processor { state });
 
         Ok(())
     }

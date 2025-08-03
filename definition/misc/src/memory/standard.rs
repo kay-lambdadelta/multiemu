@@ -45,7 +45,7 @@ pub struct StandardMemory {
 }
 
 impl Component for StandardMemory {
-    fn reset(&self) {
+    fn reset(&mut self) {
         self.initialize_buffer();
     }
 
@@ -60,7 +60,7 @@ impl Component for StandardMemory {
     }
 
     fn load_snapshot(
-        &self,
+        &mut self,
         version: ComponentVersion,
         reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -244,7 +244,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         let assigned_range = self.assigned_range.clone();
         let assigned_address_space = self.assigned_address_space;
 
-        let component = StandardMemory {
+        let mut component = StandardMemory {
             config: self.clone(),
             buffer,
             rom_manager: rom_manager.clone(),
@@ -274,7 +274,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
             (false, false) => component_builder,
         };
 
-        component_builder.build_global(|_| component);
+        component_builder.build(component);
 
         Ok(())
     }

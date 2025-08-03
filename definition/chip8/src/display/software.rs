@@ -5,7 +5,7 @@ use multiemu_graphics::{
     GraphicsApi,
     software::{InitializationData, Software},
 };
-use nalgebra::{DMatrix, DMatrixViewMut, Vector2};
+use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Vector2};
 use palette::Srgba;
 
 #[derive(Debug)]
@@ -37,7 +37,11 @@ impl Chip8DisplayBackend for SoftwareState {
         self.framebuffer = self.staging_buffer.clone();
     }
 
-    fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<Srgba<u8>>)) {
+    fn interact_staging_buffer(&self, callback: impl FnOnce(DMatrixView<Srgba<u8>>)) {
+        callback(self.staging_buffer.as_view());
+    }
+
+    fn interact_staging_buffer_mut(&mut self, callback: impl FnOnce(DMatrixViewMut<Srgba<u8>>)) {
         callback(self.staging_buffer.as_view_mut());
     }
 

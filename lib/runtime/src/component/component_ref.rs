@@ -60,6 +60,18 @@ impl<C: Component> ComponentRef<C> {
         self.registry.upgrade().unwrap().interact(self.id, callback)
     }
 
+    /// Interacts with this component
+    #[inline]
+    pub fn interact_mut<T: Send + 'static>(
+        &self,
+        callback: impl FnOnce(&mut C) -> T + Send,
+    ) -> Result<T, ComponentStoreError> {
+        self.registry
+            .upgrade()
+            .unwrap()
+            .interact_mut(self.id, callback)
+    }
+
     /// Interacts with this component if its on the same (main) thread
     #[inline]
 
@@ -71,6 +83,18 @@ impl<C: Component> ComponentRef<C> {
             .upgrade()
             .unwrap()
             .interact_local(self.id, callback)
+    }
+
+    /// Interacts with this component if its on the same (main) thread
+    #[inline]
+    pub fn interact_local_mut<T: 'static>(
+        &self,
+        callback: impl FnOnce(&mut C) -> T,
+    ) -> Result<T, ComponentStoreError> {
+        self.registry
+            .upgrade()
+            .unwrap()
+            .interact_local_mut(self.id, callback)
     }
 
     #[inline]

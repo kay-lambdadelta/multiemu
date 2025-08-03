@@ -83,7 +83,7 @@ impl Mos6532Riot {
 }
 
 impl Component for Mos6532Riot {
-    fn reset(&self) {
+    fn reset(&mut self) {
         self.registers.swacnt.store(false, Ordering::Release);
         self.registers.swbcnt.store(false, Ordering::Release);
         self.registers.intim.store(0, Ordering::Release);
@@ -119,7 +119,7 @@ impl Component for Mos6532Riot {
     }
 
     fn load_snapshot(
-        &self,
+        &mut self,
         version: ComponentVersion,
         mut reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -410,7 +410,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
         let component_builder =
             set_up_timer_tasks(component_builder.component_ref(), &self, component_builder);
 
-        component_builder.build_global(|_| Self::Component {
+        component_builder.build(Self::Component {
             registers,
             config: self,
         });

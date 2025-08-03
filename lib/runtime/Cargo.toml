@@ -23,7 +23,6 @@ data-encoding = { workspace = true }
 bincode = { workspace = true }
 ringbuffer = { workspace = true }
 sealed = { workspace = true }
-crossbeam = { workspace = true }
 scc = { workspace = true }
 redb = { workspace = true }
 itertools = { workspace = true }
