@@ -1,3 +1,4 @@
+use crate::{builder::task::StoredTask, component::ComponentId};
 use nohash::BuildNoHashHasher;
 use num::{
     ToPrimitive,
@@ -15,7 +16,11 @@ use std::{
 };
 pub use task::*;
 
-use crate::{builder::task::StoredTask, component::ComponentId};
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExecutionMode {
+    Single,
+    Multi,
+}
 
 mod run;
 mod task;
@@ -24,60 +29,25 @@ mod task;
 
 pub type TaskId = u16;
 
-#[derive(Debug)]
-enum TaskMode {
-    Active,
-    Lazy { debt: u32 },
-}
-
 struct TaskInfo {
     pub task: Box<dyn Task>,
     pub relative_period: u32,
-    pub mode: TaskMode,
 }
 
 impl Debug for TaskInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TaskInfo")
             .field("tick_rate", &self.relative_period)
-            .field("mode", &self.mode)
             .finish()
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct DebtClearer(Arc<TaskStorage>);
-
-impl DebtClearer {
-    #[inline]
-    /// Make sure this component is up to date
-    pub fn clear_debts(&self, component_id: ComponentId) {
-        for task_id in self
-            .0
-            .component_tasks
-            .get(&component_id)
-            .into_iter()
-            .flatten()
-        {
-            let Ok(mut task_info) = self.0.tasks.get(task_id).unwrap().try_lock() else {
-                continue;
-            };
-
-            if let TaskMode::Lazy { debt } = &mut task_info.mode {
-                let old_debt = *debt;
-                *debt = 0;
-
-                if let Some(debt) = NonZero::new(old_debt) {
-                    task_info.task.run(debt);
-                }
-            }
-        }
-    }
-}
+/// TODO: Current design of the debt clearer will not operate under multithreading
 
 #[derive(Debug)]
 struct TaskStorage {
     tasks: HashMap<TaskId, Mutex<TaskInfo>, BuildNoHashHasher<u16>>,
+    /// Indexed by component id, slight speed boost over nohash
     component_tasks: HashMap<ComponentId, Vec<TaskId>, BuildNoHashHasher<u16>>,
 }
 
@@ -189,11 +159,6 @@ impl Scheduler {
                 (
                     task_id,
                     TaskInfo {
-                        mode: if task.lazy {
-                            TaskMode::Lazy { debt: 0 }
-                        } else {
-                            TaskMode::Active
-                        },
                         task: task.task,
                         relative_period: relative_period.to_integer(),
                     },
@@ -201,67 +166,22 @@ impl Scheduler {
             })
             .collect();
 
-        let mut active_schedule = BTreeMap::from_iter([(
-            0,
-            tasks
-                .iter()
-                .filter_map(|(task_id, task)| {
-                    if matches!(task.mode, TaskMode::Active) {
-                        Some(*task_id)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>(),
-        )]);
-        let mut lazy_schedule = BTreeMap::from_iter([(
-            0,
-            tasks
-                .iter()
-                .filter_map(|(task_id, task)| {
-                    if matches!(task.mode, TaskMode::Lazy { .. }) {
-                        Some(*task_id)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>(),
-        )]);
+        let mut schedule = BTreeMap::from_iter([(0, tasks.keys().copied().collect::<Vec<_>>())]);
 
-        for (current_tick, schedule) in timeline.iter_mut().enumerate() {
+        for (current_tick, timeline_tick_entries) in timeline.iter_mut().enumerate() {
             let current_tick = current_tick as u32;
 
             // It's OK to use [Option::unwrap_or_default] here; an empty Vec does not allocate in Rust
-            let active_events = active_schedule.remove(&current_tick).unwrap_or_default();
-            let lazy_events = lazy_schedule.remove(&current_tick).unwrap_or_default();
+            let active_events = schedule.remove(&current_tick).unwrap_or_default();
 
             let active_max_allotted_ticks =
                 timeline_length.min(timeline_length - current_tick).min(
-                    active_schedule
+                    schedule
                         .range(current_tick..)
                         .next()
                         .map(|(tick, _)| *tick - current_tick)
                         .unwrap_or(timeline_length),
                 );
-
-            for event in lazy_events {
-                let task_info = &tasks[&event];
-
-                match &task_info.mode {
-                    TaskMode::Lazy { .. } => {
-                        lazy_schedule
-                            .entry((current_tick + task_info.relative_period) % timeline_length)
-                            .or_default()
-                            .push(event);
-
-                        schedule.push(ScheduleEntry {
-                            task_id: event,
-                            time_slice: NonZero::new(1).unwrap(),
-                        });
-                    }
-                    _ => unreachable!(),
-                }
-            }
 
             match active_events.len() {
                 0 => {}
@@ -274,12 +194,12 @@ impl Scheduler {
                     .unwrap();
                     let representing_time = time_slice.get() * task_info.relative_period;
 
-                    active_schedule
+                    schedule
                         .entry((current_tick + representing_time) % timeline_length)
                         .or_default()
                         .push(task_id);
 
-                    schedule.push(ScheduleEntry {
+                    timeline_tick_entries.push(ScheduleEntry {
                         task_id,
                         time_slice,
                     });
@@ -290,12 +210,12 @@ impl Scheduler {
                         let time_slice = NonZero::new(1).unwrap();
                         let representing_time = time_slice.get() * task_info.relative_period;
 
-                        active_schedule
+                        schedule
                             .entry((current_tick + representing_time) % timeline_length)
                             .or_default()
                             .push(task_id);
 
-                        schedule.push(ScheduleEntry {
+                        timeline_tick_entries.push(ScheduleEntry {
                             task_id,
                             time_slice,
                         });
@@ -324,9 +244,5 @@ impl Scheduler {
     fn update_current_tick(&mut self, amount: u32) {
         self.current_tick =
             self.current_tick.checked_add(amount).unwrap() % self.timeline.len() as u32;
-    }
-
-    pub(crate) fn get_debt_clearer(&self) -> DebtClearer {
-        DebtClearer(self.storage.clone())
     }
 }

@@ -201,7 +201,7 @@ impl<P: Platform> ComponentConfig<P> for SuzyConfig {
         component_builder: ComponentBuilder<P, Self::Component>,
     ) -> Result<(), BuildError> {
         component_builder
-            .map_memory([(self.cpu_address_space, SUZY_ADDRESSES)])
+            .memory_map(self.cpu_address_space, SUZY_ADDRESSES)
             .build(Suzy {});
 
         Ok(())

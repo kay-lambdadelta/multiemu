@@ -32,7 +32,7 @@ struct Snapshot {
 
 #[derive(Debug)]
 pub struct Chip8Display<R: SupportedGraphicsApiChip8Display> {
-    backend: R::Backend,
+    backend: Option<R::Backend>,
     /// The cpu reads this to see if it can continue execution post draw call
     pub vsync_occurred: bool,
     hires: bool,
@@ -46,6 +46,8 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
         }
 
         self.backend
+            .as_mut()
+            .unwrap()
             .resize(if is_hires { HIRES } else { LORES }.cast());
         self.hires = is_hires;
     }
@@ -62,31 +64,36 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
 
         let mut hit_detection = false;
 
-        self.backend.interact_staging_buffer_mut(|mut framebuffer| {
-            for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(16).enumerate() {
-                for (x, sprite_pixel) in sprite_row.iter().enumerate() {
-                    let position = position + Vector2::new(x, y);
+        self.backend
+            .as_mut()
+            .unwrap()
+            .interact_staging_buffer_mut(|mut framebuffer| {
+                for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(16).enumerate() {
+                    for (x, sprite_pixel) in sprite_row.iter().enumerate() {
+                        let position = position + Vector2::new(x, y);
 
-                    if position.x >= screen_size.x as usize || position.y >= screen_size.y as usize
-                    {
-                        continue;
+                        if position.x >= screen_size.x as usize
+                            || position.y >= screen_size.y as usize
+                        {
+                            continue;
+                        }
+
+                        let old_sprite_pixel =
+                            framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
+
+                        if *sprite_pixel && old_sprite_pixel {
+                            hit_detection = true;
+                        }
+
+                        framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel
+                        {
+                            Srgba::new(255, 255, 255, 255)
+                        } else {
+                            Srgba::new(0, 0, 0, 255)
+                        };
                     }
-
-                    let old_sprite_pixel =
-                        framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
-
-                    if *sprite_pixel && old_sprite_pixel {
-                        hit_detection = true;
-                    }
-
-                    framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel {
-                        Srgba::new(255, 255, 255, 255)
-                    } else {
-                        Srgba::new(0, 0, 0, 255)
-                    };
                 }
-            }
-        });
+            });
 
         hit_detection
     }
@@ -109,31 +116,36 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
         }
         let mut hit_detection = false;
 
-        self.backend.interact_staging_buffer_mut(|mut framebuffer| {
-            for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(8).enumerate() {
-                for (x, sprite_pixel) in sprite_row.iter().enumerate() {
-                    let position = position + Vector2::new(x, y);
+        self.backend
+            .as_mut()
+            .unwrap()
+            .interact_staging_buffer_mut(|mut framebuffer| {
+                for (y, sprite_row) in sprite.view_bits::<Msb0>().chunks(8).enumerate() {
+                    for (x, sprite_pixel) in sprite_row.iter().enumerate() {
+                        let position = position + Vector2::new(x, y);
 
-                    if position.x >= screen_size.x as usize || position.y >= screen_size.y as usize
-                    {
-                        continue;
+                        if position.x >= screen_size.x as usize
+                            || position.y >= screen_size.y as usize
+                        {
+                            continue;
+                        }
+
+                        let old_sprite_pixel =
+                            framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
+
+                        if *sprite_pixel && old_sprite_pixel {
+                            hit_detection = true;
+                        }
+
+                        framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel
+                        {
+                            Srgba::new(255, 255, 255, 255)
+                        } else {
+                            Srgba::new(0, 0, 0, 255)
+                        };
                     }
-
-                    let old_sprite_pixel =
-                        framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
-
-                    if *sprite_pixel && old_sprite_pixel {
-                        hit_detection = true;
-                    }
-
-                    framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel {
-                        Srgba::new(255, 255, 255, 255)
-                    } else {
-                        Srgba::new(0, 0, 0, 255)
-                    };
                 }
-            }
-        });
+            });
 
         hit_detection
     }
@@ -141,9 +153,12 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
     pub fn clear_display(&mut self) {
         tracing::trace!("Clearing display");
 
-        self.backend.interact_staging_buffer_mut(|mut framebuffer| {
-            framebuffer.fill(Srgba::new(0, 0, 0, 255));
-        });
+        self.backend
+            .as_mut()
+            .unwrap()
+            .interact_staging_buffer_mut(|mut framebuffer| {
+                framebuffer.fill(Srgba::new(0, 0, 0, 255));
+            });
     }
 }
 
@@ -165,9 +180,12 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
 
         self.set_hires(snapshot.hires);
 
-        self.backend.interact_staging_buffer_mut(|mut framebuffer| {
-            framebuffer.copy_from(&snapshot.screen_buffer)
-        });
+        self.backend
+            .as_mut()
+            .unwrap()
+            .interact_staging_buffer_mut(|mut framebuffer| {
+                framebuffer.copy_from(&snapshot.screen_buffer)
+            });
 
         self.vsync_occurred = snapshot.vsync_occurred;
 
@@ -180,9 +198,12 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
         let mut screen_buffer =
             DMatrix::from_element(screen_size.x, screen_size.y, Srgba::new(0, 0, 0, 255));
 
-        self.backend.interact_staging_buffer(|framebuffer| {
-            screen_buffer.copy_from(&framebuffer);
-        });
+        self.backend
+            .as_ref()
+            .unwrap()
+            .interact_staging_buffer(|framebuffer| {
+                screen_buffer.copy_from(&framebuffer);
+            });
 
         let snapshot = Snapshot {
             screen_buffer,
@@ -234,15 +255,28 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
                     component
                         .interact_mut(|display| {
                             display.vsync_occurred = true;
-                            display.backend.commit_staging_buffer();
+                            display.backend.as_mut().unwrap().commit_staging_buffer();
+                        })
+                        .unwrap();
+                }
+            })
+            .set_lazy_component_initializer({
+                let component = component.clone();
+
+                move |data| {
+                    component
+                        .interact_local_mut(|display| {
+                            display.backend = Some(Chip8DisplayBackend::new(
+                                data.component_graphics_initialization_data.clone(),
+                            ));
                         })
                         .unwrap();
                 }
             })
             .insert_display(Chip8DisplayCallback { component });
 
-        component_builder.build_local_lazy(|late| Chip8Display {
-            backend: Chip8DisplayBackend::new(late.component_graphics_initialization_data.clone()),
+        component_builder.build_local(Chip8Display {
+            backend: None,
             hires: false,
             vsync_occurred: false,
             config: self,
@@ -268,7 +302,7 @@ impl<R: SupportedGraphicsApiChip8Display> DisplayCallback<R> for Chip8DisplayCal
     ) {
         self.component
             .interact_local_mut(|display| {
-                display.backend.get_framebuffer(callback);
+                display.backend.as_mut().unwrap().get_framebuffer(callback);
             })
             .unwrap();
     }

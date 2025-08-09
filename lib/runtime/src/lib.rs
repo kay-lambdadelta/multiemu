@@ -8,17 +8,20 @@ use crate::{
     component::ComponentRegistry,
     graphics::{DisplayId, DisplayInfo},
     memory::MemoryAccessTable,
-    platform::Platform,
+    platform::{Platform, TestPlatform},
     save::{SaveManager, SnapshotManager},
+    utils::DirectMainThreadExecutor,
 };
 use input::{VirtualGamepad, VirtualGamepadId};
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager, System};
+use num::rational::Ratio;
 use rustc_hash::FxBuildHasher;
 use scheduler::Scheduler;
 use std::{
     borrow::Cow,
     collections::HashMap,
     fmt::Debug,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -39,11 +42,13 @@ pub mod platform;
 /// Barebones processor related types
 pub mod processor;
 /// Save related types
-pub mod save;
+mod save;
 /// The scheduler
 pub mod scheduler;
 /// Misc utilities
 pub mod utils;
+
+pub use save::Slot as SnapshotSlot;
 
 /// A assembled machine, usable for a further runtime to assist emulation
 ///
@@ -68,11 +73,59 @@ where
     /// All audio outputs this machine has
     pub audio_outputs: HashMap<AudioOutputId, AudioOutputInfo<P::SampleFormat>, FxBuildHasher>,
     pub user_specified_roms: Option<UserSpecifiedRoms>,
-    save_manager: Arc<SaveManager>,
-    snapshot_manager: Arc<SnapshotManager>,
+
+    save_manager: SaveManager,
+    snapshot_manager: SnapshotManager,
+}
+
+impl Machine<TestPlatform> {
+    pub fn build_test(
+        user_specified_roms: Option<UserSpecifiedRoms>,
+        rom_manager: Arc<RomManager>,
+        save_path: Option<PathBuf>,
+        snapshot_path: Option<PathBuf>,
+    ) -> MachineBuilder<TestPlatform> {
+        Self::build(
+            user_specified_roms,
+            rom_manager,
+            save_path,
+            snapshot_path,
+            Ratio::from_integer(44100),
+            Arc::new(DirectMainThreadExecutor),
+        )
+    }
+
+    pub fn build_test_minimal() -> MachineBuilder<TestPlatform> {
+        Self::build(
+            None,
+            Arc::new(RomManager::new(None, None).unwrap()),
+            None,
+            None,
+            Ratio::from_integer(44100),
+            Arc::new(DirectMainThreadExecutor),
+        )
+    }
 }
 
 impl<P: Platform> Machine<P> {
+    pub fn build(
+        user_specified_roms: Option<UserSpecifiedRoms>,
+        rom_manager: Arc<RomManager>,
+        save_path: Option<PathBuf>,
+        snapshot_path: Option<PathBuf>,
+        sample_rate: Ratio<u32>,
+        main_thread_executor: Arc<P::MainThreadExecutor>,
+    ) -> MachineBuilder<P> {
+        MachineBuilder::new(
+            user_specified_roms,
+            rom_manager,
+            save_path,
+            snapshot_path,
+            sample_rate,
+            main_thread_executor,
+        )
+    }
+
     pub fn system(&self) -> Option<System> {
         self.user_specified_roms
             .as_ref()
@@ -157,8 +210,8 @@ pub struct UserSpecifiedRoms {
 impl UserSpecifiedRoms {
     /// TODO: make less naive
     pub fn from_id(
-        rom_manager: &RomManager,
         id: RomId,
+        rom_manager: &RomManager,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let transaction = rom_manager.rom_information.begin_read()?;
         let table = transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;

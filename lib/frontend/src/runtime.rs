@@ -14,11 +14,8 @@ use multiemu_input::{
 };
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomManager};
 use multiemu_runtime::{
-    Machine, RomSpecification, UserSpecifiedRoms,
-    builder::MachineBuilder,
-    graphics::GraphicsRequirements,
+    Machine, RomSpecification, SnapshotSlot, UserSpecifiedRoms, graphics::GraphicsRequirements,
     input::VirtualGamepadId,
-    save::{SaveManager, Slot, SnapshotManager},
 };
 use nalgebra::Vector2;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
@@ -80,8 +77,6 @@ pub struct FrontendRuntime<P: PlatformExt> {
     gamepad_mapping: HashMap<GamepadId, VirtualGamepadId>,
     /// The rom manager in use
     rom_manager: Arc<RomManager>,
-    save_manager: Arc<SaveManager>,
-    snapshot_manager: Arc<SnapshotManager>,
     /// Environment to read/modify
     environment: Arc<RwLock<Environment>>,
     /// Egui context
@@ -109,7 +104,7 @@ pub struct FrontendRuntime<P: PlatformExt> {
     /// If we are in focus rn
     in_focus: bool,
     /// The current snapshot slot
-    current_snapshot_slot: Wrapping<Slot>,
+    current_snapshot_slot: Wrapping<SnapshotSlot>,
 }
 
 impl<P: PlatformExt> FrontendRuntime<P> {
@@ -383,8 +378,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     pub fn new(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
-        save_manager: Arc<SaveManager>,
-        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<P>,
         main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
@@ -410,8 +403,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             gamepad_mapping,
             environment,
             rom_manager,
-            save_manager,
-            snapshot_manager,
             egui_context,
             menu_state,
             windowing_context: None,
@@ -431,8 +422,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     pub fn new_with_machine(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
-        save_manager: Arc<SaveManager>,
-        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<P>,
         main_thread_executor: Arc<P::MainThreadExecutor>,
         user_specified_roms: UserSpecifiedRoms,
@@ -440,8 +429,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         let mut me = Self::new(
             environment.clone(),
             rom_manager.clone(),
-            save_manager.clone(),
-            snapshot_manager.clone(),
             machine_factories,
             main_thread_executor,
         );
@@ -464,12 +451,13 @@ impl<P: PlatformExt> FrontendRuntime<P> {
 
         maybe_machine_guard.take();
         let system = user_specified_roms.main.identity.system();
+        let environment_guard = self.environment.read().unwrap();
 
-        let machine_builder = MachineBuilder::new(
+        let machine_builder = Machine::build(
             Some(user_specified_roms),
             self.rom_manager.clone(),
-            self.save_manager.clone(),
-            self.snapshot_manager.clone(),
+            Some(environment_guard.save_directory.0.clone()),
+            Some(environment_guard.snapshot_directory.0.clone()),
             self.audio_runtime.sample_rate(),
             self.main_thread_executor.clone(),
         );
@@ -503,6 +491,9 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         };
         self.windowing_context = Some(windowing);
 
+        drop(environment_guard);
+        let mut environment_guard = self.environment.write().unwrap();
+
         // HACK: Just map the keyboard since we have nothing else set up
         if let Some((virtual_gamepad, _)) = machine.virtual_gamepads.iter().next() {
             self.gamepad_mapping
@@ -510,8 +501,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         }
 
         // Try to give the environment default bindings
-
-        let mut environment_guard = self.environment.write().unwrap();
 
         // Make sure default mappings exist
         for virtual_gamepad in machine.virtual_gamepads.values() {

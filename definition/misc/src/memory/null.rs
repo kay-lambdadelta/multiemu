@@ -31,11 +31,11 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
 
         let component_builder = match (self.readable, self.writable) {
             (true, true) => component_builder
-                .map_memory([(self.assigned_address_space, self.assigned_range.clone())]),
+                .memory_map(self.assigned_address_space, self.assigned_range.clone()),
             (true, false) => component_builder
-                .map_memory_read([(self.assigned_address_space, self.assigned_range.clone())]),
+                .memory_map_read(self.assigned_address_space, self.assigned_range.clone()),
             (false, true) => component_builder
-                .map_memory_write([(self.assigned_address_space, self.assigned_range.clone())]),
+                .memory_map_write(self.assigned_address_space, self.assigned_range.clone()),
             (false, false) => component_builder,
         };
 

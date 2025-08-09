@@ -10,7 +10,6 @@ multiemu-runtime = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-audio = { workspace = true }
 multiemu-graphics = { workspace = true }
-
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }
@@ -24,6 +23,7 @@ palette = { workspace = true }
 codes-iso-3166 = { workspace = true }
 bytemuck = { workspace = true }
 bincode = { workspace = true }
+smallvec = { workspace = true }
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 multiemu-config = { workspace = true }

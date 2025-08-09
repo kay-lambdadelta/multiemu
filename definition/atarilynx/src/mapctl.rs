@@ -6,14 +6,14 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig, ComponentId},
     memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord, RemapCallback,
-        WriteMemoryRecord,
+        Address, AddressSpaceHandle, MemoryOperationError, MemoryRemappingCommands, MemoryType,
+        ReadMemoryRecord, WriteMemoryRecord,
     },
     platform::Platform,
 };
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::{collections::HashMap, sync::Mutex};
 
 #[derive(Debug)]
 pub struct Mapctl {
@@ -45,60 +45,53 @@ impl Component for Mapctl {
         let register = MapctlStatus::from_bytes((buffer, 0)).unwrap().1;
         *register_guard = register;
 
+        let mut remapping_commands = Vec::default();
+
+        remapping_commands.push(MemoryRemappingCommands::Add {
+            range: 0x0000..=0xffff,
+            component_id: self.config.ram,
+            types: vec![MemoryType::Read, MemoryType::Write],
+        });
+
+        if register.suzy {
+            remapping_commands.push(MemoryRemappingCommands::Add {
+                range: SUZY_ADDRESSES,
+                component_id: self.config.suzy,
+                types: vec![MemoryType::Read, MemoryType::Write],
+            });
+        }
+
+        if register.mikey {
+            remapping_commands.push(MemoryRemappingCommands::Add {
+                range: MIKEY_ADDRESSES,
+                component_id: self.config.mikey,
+                types: vec![MemoryType::Read, MemoryType::Write],
+            });
+        }
+
+        remapping_commands.push(MemoryRemappingCommands::Add {
+            range: RESERVED_MEMORY_ADDRESS..=RESERVED_MEMORY_ADDRESS,
+            component_id: self.config.reserved,
+            types: vec![MemoryType::Read, MemoryType::Write],
+        });
+
+        if register.vector {
+            remapping_commands.push(MemoryRemappingCommands::Add {
+                range: VECTOR_ADDRESSES,
+                component_id: self.config.vector,
+                types: vec![MemoryType::Read, MemoryType::Write],
+            });
+        }
+
+        remapping_commands.push(MemoryRemappingCommands::Add {
+            range: MAPCTL_ADDRESS..=MAPCTL_ADDRESS,
+            component_id: self.my_id,
+            types: vec![MemoryType::Read, MemoryType::Write],
+        });
+
         Err(MemoryOperationError {
             records: RangeInclusiveMap::default(),
-            remap_callback: {
-                let config = self.config.clone();
-                let my_id = self.my_id;
-
-                Some(RemapCallback::new(move |memory_access_table| {
-                    // remap ram
-                    memory_access_table.remap_memory(
-                        config.ram,
-                        config.cpu_address_space,
-                        [0x0000..=0xffff],
-                    );
-
-                    // optionally remap the other stuff on top of it
-                    if register.suzy {
-                        memory_access_table.remap_memory(
-                            config.suzy,
-                            config.cpu_address_space,
-                            [SUZY_ADDRESSES],
-                        );
-                    }
-
-                    if register.mikey {
-                        memory_access_table.remap_memory(
-                            config.mikey,
-                            config.cpu_address_space,
-                            [MIKEY_ADDRESSES],
-                        );
-                    }
-
-                    if register.vector {
-                        memory_access_table.remap_memory(
-                            config.vector,
-                            config.cpu_address_space,
-                            [VECTOR_ADDRESSES],
-                        );
-                    }
-
-                    // http://www.monlynx.de/lynx/hardware.html
-
-                    memory_access_table.remap_memory(
-                        config.vector,
-                        config.cpu_address_space,
-                        [RESERVED_MEMORY_ADDRESS..=RESERVED_MEMORY_ADDRESS],
-                    );
-
-                    memory_access_table.remap_memory(
-                        my_id,
-                        config.cpu_address_space,
-                        [MAPCTL_ADDRESS..=MAPCTL_ADDRESS],
-                    );
-                }))
-            },
+            remapping_commands: vec![(self.config.cpu_address_space, remapping_commands)],
         })
     }
 }
@@ -123,7 +116,7 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         let component_id = component_builder.component_ref().id();
 
         let component_builder =
-            component_builder.map_memory([(self.cpu_address_space, 0xfff9..=0xfff9)]);
+            component_builder.memory_map(self.cpu_address_space, 0xfff9..=0xfff9);
 
         component_builder.build(Mapctl {
             config: self,

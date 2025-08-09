@@ -1,8 +1,13 @@
-use super::{MemoryAccessTable, RemapCallback, address_space::AddressSpaceHandle};
-use crate::{component::ComponentId, memory::Address};
+use super::{MemoryAccessTable, address_space::AddressSpaceHandle};
+use crate::memory::{
+    Address,
+    table::QueueEntry,
+};
 use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
-use std::{ops::RangeInclusive, vec::Vec};
+use rangetools::Rangetools;
+use smallvec::SmallVec;
+use std::{hash::Hash, ops::RangeInclusive, vec::Vec};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -70,18 +75,6 @@ pub enum PreviewMemoryRecord {
 }
 
 impl MemoryAccessTable {
-    pub fn remap_read_memory(
-        &self,
-        component_id: ComponentId,
-        address_space: AddressSpaceHandle,
-        mapping: impl IntoIterator<Item = RangeInclusive<Address>>,
-    ) {
-        let mut address_spaces_guard = self.address_spaces.write().unwrap();
-        let address_space = address_spaces_guard.get_mut(&address_space).unwrap();
-
-        address_space.remap_read_memory(component_id, mapping);
-    }
-
     /// Step through the memory translation table to fill a buffer
     ///
     /// Contents of the buffer upon failure are usually component specific
@@ -93,18 +86,100 @@ impl MemoryAccessTable {
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryOperationError> {
         let buffer_subrange = 0..=(buffer.len() - 1);
-        let mut remap_callbacks = Vec::default();
+        let mut remapping_commands: Vec<_> = Vec::default();
+        let mut queue = SmallVec::<[QueueEntry; 1]>::from([QueueEntry {
+            address,
+            address_space,
+            buffer_subrange: buffer_subrange.clone(),
+        }]);
 
         let mut did_handle = false;
 
-        self.read_helper(
+        while let Some(QueueEntry {
             address,
             address_space,
-            buffer,
-            &mut did_handle,
-            buffer_subrange.clone(),
-            &mut remap_callbacks,
-        )?;
+            buffer_subrange,
+        }) = queue.pop()
+        {
+            let address_space_info = self.address_spaces.get(&address_space).ok_or_else(|| {
+                ReadMemoryOperationError(RangeInclusiveMap::from_iter([(
+                    (buffer_subrange.start() + address)..=(buffer_subrange.end() + address),
+                    ReadMemoryOperationErrorFailureType::OutOfBus,
+                )]))
+            })?;
+
+            // TODO: Handle width mask wraparound properly
+            let accessing_range = (buffer_subrange.start() + address)
+                & address_space_info.width_mask
+                ..=(buffer_subrange.end() + address) & address_space_info.width_mask;
+            let address = address & address_space_info.width_mask;
+
+            address_space_info.visit_read_components(
+                accessing_range.clone(),
+                |component_id, component_assigned_range| {
+                    self.component_store
+                        .interact_dyn(component_id, |component| {
+                        let adjusted_accessing_range: RangeInclusive<Address> = accessing_range
+                            .clone()
+                            .intersection(component_assigned_range.clone())
+                            .into();
+
+                        let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
+                            ..=(adjusted_accessing_range.end() - address);
+
+                        did_handle = true;
+
+                        if let Err(errors) = component.read_memory(
+                            *adjusted_accessing_range.start(),
+                            address_space,
+                            &mut buffer[adjusted_buffer_subrange.clone()],
+                        ) {
+                            let mut detected_errors = RangeInclusiveMap::default();
+
+                            for (range, error) in errors.records {
+                                match error {
+                                    ReadMemoryRecord::Denied => {
+                                        detected_errors.insert(
+                                            range,
+                                            ReadMemoryOperationErrorFailureType::Denied,
+                                        );
+                                    }
+                                    ReadMemoryRecord::Redirect {
+                                        address: redirect_address,
+                                        address_space: redirect_address_space,
+                                    } => {
+                                        assert!(
+                                            !component_assigned_range.contains(&redirect_address)
+                                                && address_space == redirect_address_space,
+                                            "Memory attempted to redirect to itself {:x?} -> {:x}",
+                                            component_assigned_range,
+                                            redirect_address,
+                                        );
+
+                                        queue.push(QueueEntry {
+                                            address: redirect_address,
+                                            address_space: redirect_address_space,
+                                            buffer_subrange: (range.start() - address)
+                                                ..=(range.end() - address),
+                                        });
+                                    }
+                                }
+                            }
+
+                            remapping_commands.extend(errors.remapping_commands);
+
+                            if !detected_errors.is_empty() {
+                                return Err(ReadMemoryOperationError(detected_errors));
+                            }
+                        }
+                        Ok(())
+                    })
+                    .unwrap()?;
+
+                    Ok(())
+                },
+            )?;
+        }
 
         if !did_handle {
             return Err(ReadMemoryOperationError(RangeInclusiveMap::from_iter([(
@@ -113,97 +188,8 @@ impl MemoryAccessTable {
             )])));
         }
 
-        self.process_remap_callbacks(remap_callbacks);
-
-        Ok(())
-    }
-
-    #[inline]
-    #[allow(clippy::too_many_arguments)]
-    fn read_helper(
-        &self,
-        address: Address,
-        address_space: AddressSpaceHandle,
-        buffer: &mut [u8],
-        did_handle: &mut bool,
-        buffer_subrange: RangeInclusive<Address>,
-        remap_callbacks: &mut Vec<RemapCallback>,
-    ) -> Result<(), ReadMemoryOperationError> {
-        let address_spaces_guard = self.address_spaces.read().unwrap();
-        let address_space_info = address_spaces_guard.get(&address_space).ok_or_else(|| {
-            ReadMemoryOperationError(RangeInclusiveMap::from_iter([(
-                (buffer_subrange.start() + address)..=(buffer_subrange.end() + address),
-                ReadMemoryOperationErrorFailureType::OutOfBus,
-            )]))
-        })?;
-
-        // TODO: Handle width mask wraparound properly
-        let accessing_range = (buffer_subrange.start() + address) & address_space_info.width_mask
-            ..=(buffer_subrange.end() + address) & address_space_info.width_mask;
-        let address = address & address_space_info.width_mask;
-
-        for (component_assigned_range, component_id) in address_space_info
-            .read_members
-            .overlapping(accessing_range.clone())
-        {
-            self.component_store
-                .interact_dyn(*component_id, |component| {
-                    let adjusted_accessing_range = (*accessing_range
-                        .start()
-                        .max(component_assigned_range.start()))
-                        ..=(*accessing_range.end().min(component_assigned_range.end()));
-
-                    let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
-                        ..=(adjusted_accessing_range.end() - address);
-
-                    *did_handle = true;
-
-                    if let Err(errors) = component.read_memory(
-                        *adjusted_accessing_range.start(),
-                        address_space,
-                        &mut buffer[adjusted_buffer_subrange.clone()],
-                    ) {
-                        let mut detected_errors = RangeInclusiveMap::default();
-
-                        for (range, error) in errors.records {
-                            match error {
-                                ReadMemoryRecord::Denied => {
-                                    detected_errors
-                                        .insert(range, ReadMemoryOperationErrorFailureType::Denied);
-                                }
-                                ReadMemoryRecord::Redirect {
-                                    address: redirect_address,
-                                    address_space: redirect_address_space,
-                                } => {
-                                    assert!(
-                                        !component_assigned_range.contains(&redirect_address)
-                                            && address_space == redirect_address_space,
-                                        "Memory attempted to redirect to itself {:x?} -> {:x}",
-                                        component_assigned_range,
-                                        redirect_address,
-                                    );
-
-                                    self.read_helper(
-                                        redirect_address,
-                                        redirect_address_space,
-                                        buffer,
-                                        did_handle,
-                                        (range.start() - address)..=(range.end() - address),
-                                        remap_callbacks,
-                                    )?;
-                                }
-                            }
-                        }
-
-                        remap_callbacks.extend(errors.remap_callback);
-
-                        if !detected_errors.is_empty() {
-                            return Err(ReadMemoryOperationError(detected_errors));
-                        }
-                    }
-                    Ok(())
-                })
-                .unwrap()?;
+        for (address_space, commands) in remapping_commands {
+            self.remap(address_space, commands);
         }
 
         Ok(())
@@ -245,16 +231,105 @@ impl MemoryAccessTable {
         buffer: &mut [u8],
     ) -> Result<(), PreviewMemoryOperationError> {
         let buffer_subrange = 0..=(buffer.len() - 1);
+        let mut queue = SmallVec::<[QueueEntry; 1]>::from_iter([QueueEntry {
+            address,
+            address_space,
+            buffer_subrange: buffer_subrange.clone(),
+        }]);
 
         let mut did_handle = false;
 
-        self.preview_helper(
+        while let Some(QueueEntry {
             address,
             address_space,
-            buffer,
-            &mut did_handle,
-            buffer_subrange.clone(),
-        )?;
+            buffer_subrange,
+        }) = queue.pop()
+        {
+            let address_space_info = self.address_spaces.get(&address_space).ok_or_else(|| {
+                PreviewMemoryOperationError(RangeInclusiveMap::from_iter([(
+                    (buffer_subrange.start() + address)..=(buffer_subrange.end() + address),
+                    PreviewMemoryOperationErrorFailureType::OutOfBus,
+                )]))
+            })?;
+
+            // TODO: Handle width mask wraparound properly
+            let accessing_range = (buffer_subrange.start() + address)
+                & address_space_info.width_mask
+                ..=(buffer_subrange.end() + address) & address_space_info.width_mask;
+            let address = address & address_space_info.width_mask;
+
+            address_space_info.visit_read_components(
+                accessing_range.clone(),
+                |
+                     component_id,
+                     component_assigned_range,
+                 | {
+                    self.component_store
+                        .interact_dyn(component_id, |component| {
+                            let adjusted_accessing_range: RangeInclusive<Address> = accessing_range
+                                .clone()
+                                .intersection(component_assigned_range.clone())
+                                .into();
+
+                            let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
+                                ..=(adjusted_accessing_range.end() - address);
+
+                            did_handle = true;
+
+                            if let Err(errors) = component.preview_memory(
+                            *adjusted_accessing_range.start(),
+                                address_space,
+                                &mut buffer[adjusted_buffer_subrange.clone()],
+                            ) {
+                            let mut detected_errors = RangeInclusiveMap::default();
+
+                            for (range, error) in errors.records {
+                                match error {
+                                    PreviewMemoryRecord::Denied
+                                    | PreviewMemoryRecord::Impossible => {
+                                        detected_errors.insert(
+                                            range,
+                                            PreviewMemoryOperationErrorFailureType::Denied,
+                                        );
+                                    }
+                                    PreviewMemoryRecord::Redirect {
+                                        address: redirect_address,
+                                        address_space: redirect_address_space,
+                                    } => {
+                                        assert!(
+                                            !component_assigned_range.contains(&redirect_address)
+                                                && address_space == redirect_address_space,
+                                            "Memory attempted to redirect to itself {:x?} -> {:x}",
+                                            component_assigned_range,
+                                            redirect_address,
+                                        );
+
+                                        queue.push(QueueEntry {
+                                            address: redirect_address,
+                                            address_space: redirect_address_space,
+                                            buffer_subrange: (range.start() - address)
+                                                ..=(range.end() - address),
+                                        });
+                                    }
+                                }
+                            }
+
+                            if !errors.remapping_commands.is_empty() {
+                                panic!("Remapping commands not supported under previews");
+                            }
+
+                            if !detected_errors.is_empty() {
+                                return Err(PreviewMemoryOperationError(detected_errors));
+                            }
+                        }
+                        Ok(())
+                    })
+                    .unwrap()?;
+
+                    Ok(())
+                },
+            )?;
+        }
 
         if !did_handle {
             return Err(PreviewMemoryOperationError(RangeInclusiveMap::from_iter([
@@ -263,102 +338,6 @@ impl MemoryAccessTable {
                     PreviewMemoryOperationErrorFailureType::OutOfBus,
                 ),
             ])));
-        }
-
-        Ok(())
-    }
-
-    #[inline]
-    #[allow(clippy::too_many_arguments)]
-    fn preview_helper(
-        &self,
-        address: Address,
-        address_space: AddressSpaceHandle,
-        buffer: &mut [u8],
-        did_handle: &mut bool,
-        buffer_subrange: RangeInclusive<Address>,
-    ) -> Result<(), PreviewMemoryOperationError> {
-        let address_spaces_guard = self.address_spaces.read().unwrap();
-        let address_space_info = address_spaces_guard.get(&address_space).ok_or_else(|| {
-            PreviewMemoryOperationError(RangeInclusiveMap::from_iter([(
-                (buffer_subrange.start() + address)..=(buffer_subrange.end() + address),
-                PreviewMemoryOperationErrorFailureType::OutOfBus,
-            )]))
-        })?;
-
-        // TODO: Handle width mask wraparound properly
-        let accessing_range = (buffer_subrange.start() + address) & address_space_info.width_mask
-            ..=(buffer_subrange.end() + address) & address_space_info.width_mask;
-        let address = address & address_space_info.width_mask;
-
-        for (component_assigned_range, component_id) in address_space_info
-            .read_members
-            .overlapping(accessing_range.clone())
-        {
-            self.component_store
-                .interact_dyn(*component_id, |component| {
-                    let adjusted_accessing_range = (*accessing_range
-                        .start()
-                        .max(component_assigned_range.start()))
-                        ..=(*accessing_range.end().min(component_assigned_range.end()));
-
-                    let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
-                        ..=(adjusted_accessing_range.end() - address);
-
-                    *did_handle = true;
-
-                    if let Err(errors) = component.preview_memory(
-                        *adjusted_accessing_range.start(),
-                        address_space,
-                        &mut buffer[adjusted_buffer_subrange.clone()],
-                    ) {
-                        let mut detected_errors = RangeInclusiveMap::default();
-
-                        for (range, error) in errors.records {
-                            match error {
-                                PreviewMemoryRecord::Denied => {
-                                    detected_errors.insert(
-                                        range,
-                                        PreviewMemoryOperationErrorFailureType::Denied,
-                                    );
-                                }
-                                PreviewMemoryRecord::Redirect {
-                                    address: redirect_address,
-                                    address_space: redirect_address_space,
-                                } => {
-                                    assert!(
-                                        !component_assigned_range.contains(&redirect_address)
-                                            && address_space == redirect_address_space,
-                                        "Memory attempted to redirect to itself {:x?} -> {:x}",
-                                        component_assigned_range,
-                                        redirect_address,
-                                    );
-
-                                    self.preview_helper(
-                                        redirect_address,
-                                        redirect_address_space,
-                                        buffer,
-                                        did_handle,
-                                        (range.start() - address)..=(range.end() - address),
-                                    )?;
-                                }
-                                PreviewMemoryRecord::Impossible => {
-                                    detected_errors.insert(
-                                        range,
-                                        PreviewMemoryOperationErrorFailureType::Impossible,
-                                    );
-                                }
-                            }
-                        }
-
-                        if !detected_errors.is_empty() {
-                            return Err(PreviewMemoryOperationError(detected_errors));
-                        }
-                    }
-
-                    Ok(())
-                })
-                .unwrap()?;
         }
 
         Ok(())

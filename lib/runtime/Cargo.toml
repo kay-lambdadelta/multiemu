@@ -7,7 +7,6 @@ license = "GPL-3.0-or-later"
 [dependencies]
 multiemu-rom = { workspace = true }
 multiemu-input = { workspace = true }
-
 multiemu-graphics = { workspace = true }
 multiemu-audio = { workspace = true }
 rangemap = { workspace = true }
@@ -27,6 +26,9 @@ scc = { workspace = true }
 redb = { workspace = true }
 itertools = { workspace = true }
 ron = { workspace = true }
+rangetools = { workspace = true }
+smallvec = { workspace = true }
 indexmap = "2.10"
 nohash = "0.2"
 flate2 = "1.1"
+boxcar = "0.2"

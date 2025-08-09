@@ -65,7 +65,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
         let component = component_builder.component_ref();
 
         component_builder
-            .insert_lazy_task(
+            .insert_task(
                 Ratio::from_integer(60),
                 "driver",
                 move |slice: NonZero<u32>| {

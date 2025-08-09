@@ -4,11 +4,11 @@ use super::{
 };
 use std::{
     fmt::Debug,
-    sync::{Arc, Weak},
+    sync::{Arc, OnceLock, Weak},
 };
 
 pub struct ComponentRef<C: Component> {
-    id: ComponentId,
+    id: Arc<OnceLock<ComponentId>>,
     // Stop potential cycles
     registry: Weak<ComponentRegistry>,
     _phantom: std::marker::PhantomData<C>,
@@ -17,7 +17,7 @@ pub struct ComponentRef<C: Component> {
 impl<C: Component> Clone for ComponentRef<C> {
     fn clone(&self) -> Self {
         Self {
-            id: self.id,
+            id: self.id.clone(),
             registry: self.registry.clone(),
             _phantom: std::marker::PhantomData,
         }
@@ -43,12 +43,16 @@ unsafe impl<C: Component> Send for ComponentRef<C> {}
 unsafe impl<C: Component> Sync for ComponentRef<C> {}
 
 impl<C: Component> ComponentRef<C> {
-    pub(crate) fn new(component_store: Arc<ComponentRegistry>, component_id: ComponentId) -> Self {
+    pub fn new(component_store: Arc<ComponentRegistry>) -> Self {
         Self {
-            id: component_id,
+            id: Arc::new(OnceLock::new()),
             registry: Arc::downgrade(&component_store),
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    pub(crate) fn set_id(&self, id: ComponentId) {
+        self.id.set(id).unwrap();
     }
 
     /// Interacts with this component
@@ -57,7 +61,10 @@ impl<C: Component> ComponentRef<C> {
         &self,
         callback: impl FnOnce(&C) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
-        self.registry.upgrade().unwrap().interact(self.id, callback)
+        self.registry
+            .upgrade()
+            .unwrap()
+            .interact(*self.id.get().expect("Component not initialized"), callback)
     }
 
     /// Interacts with this component
@@ -69,7 +76,7 @@ impl<C: Component> ComponentRef<C> {
         self.registry
             .upgrade()
             .unwrap()
-            .interact_mut(self.id, callback)
+            .interact_mut(*self.id.get().expect("Component not initialized"), callback)
     }
 
     /// Interacts with this component if its on the same (main) thread
@@ -82,7 +89,7 @@ impl<C: Component> ComponentRef<C> {
         self.registry
             .upgrade()
             .unwrap()
-            .interact_local(self.id, callback)
+            .interact_local(*self.id.get().expect("Component not initialized"), callback)
     }
 
     /// Interacts with this component if its on the same (main) thread
@@ -94,11 +101,11 @@ impl<C: Component> ComponentRef<C> {
         self.registry
             .upgrade()
             .unwrap()
-            .interact_local_mut(self.id, callback)
+            .interact_local_mut(*self.id.get().expect("Component not initialized"), callback)
     }
 
     #[inline]
     pub fn id(&self) -> ComponentId {
-        self.id
+        *self.id.get().expect("Component not initialized")
     }
 }

@@ -9,7 +9,7 @@ use multiemu_runtime::{
     memory::AddressSpaceHandle,
     platform::Platform,
 };
-use std::{marker::PhantomData, sync::Mutex};
+use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
 pub(crate) struct TiaConfig<R: Region> {
@@ -33,8 +33,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
             component: component.clone(),
         });
 
-        let component_builder =
-            component_builder.map_memory([(self.cpu_address_space, 0x000..=0x03f)]);
+        let component_builder = component_builder.memory_map(self.cpu_address_space, 0x000..=0x03f);
 
         let cpu_rdy = self.cpu.interact_local(|cpu| cpu.rdy()).unwrap();
 
@@ -42,18 +41,26 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
             R::frequency(),
             "tia",
             TiaTask {
-                component: component,
+                component: component.clone(),
                 cpu_rdy: cpu_rdy.clone(),
             },
         );
 
-        component_builder.build_local_lazy(|lazy| Tia {
-            state: Default::default(),
-            backend: Mutex::new(TiaDisplayBackend::new(
-                lazy.component_graphics_initialization_data.clone(),
-            )),
-            cpu_rdy,
-        });
+        component_builder
+            .set_lazy_component_initializer(move |lazy| {
+                component
+                    .interact_local_mut(|tia| {
+                        tia.backend = Some(TiaDisplayBackend::new(
+                            lazy.component_graphics_initialization_data.clone(),
+                        ));
+                    })
+                    .unwrap();
+            })
+            .build_local(Tia {
+                state: Default::default(),
+                backend: None,
+                cpu_rdy,
+            });
 
         Ok(())
     }
@@ -70,10 +77,10 @@ impl<R: Region, G: SupportedGraphicsApiTia> DisplayCallback<G> for TiaDisplayCal
         callback: Box<dyn FnOnce(&<G as GraphicsApi>::FramebufferTexture) + '_>,
     ) {
         self.component
-            .interact_local(|component| {
+            .interact_local_mut(|component| {
                 component
                     .backend
-                    .lock()
+                    .as_mut()
                     .unwrap()
                     .access_framebuffer(callback);
             })

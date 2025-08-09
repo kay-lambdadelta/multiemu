@@ -1,6 +1,6 @@
 use super::Scheduler;
-use crate::scheduler::{ScheduleEntry, TaskMode};
-use std::{num::NonZero, time::Duration};
+use crate::scheduler::ScheduleEntry;
+use std::time::Duration;
 
 impl Scheduler {
     /// Runs the scheduler for X number of passes
@@ -14,19 +14,7 @@ impl Scheduler {
                 let mut task_info = self.storage.tasks.get(task_id).unwrap().lock().unwrap();
                 let task_info = &mut *task_info;
 
-                match &mut task_info.mode {
-                    TaskMode::Active => {
-                        task_info.task.run(*time_slice);
-                    }
-                    TaskMode::Lazy { debt } => {
-                        if let Some(new_debt) = debt.checked_add(time_slice.get()) {
-                            *debt = new_debt;
-                        } else {
-                            task_info.task.run(NonZero::new(u32::MAX).unwrap());
-                            *debt %= time_slice.get();
-                        }
-                    }
-                }
+                task_info.task.run(*time_slice);
             }
 
             self.update_current_tick(1);

@@ -1,18 +1,18 @@
 use crate::{
     Machine, UserSpecifiedRoms,
     audio::{AudioCallback, AudioOutputId, AudioOutputInfo},
-    builder::task::StoredTask,
+    builder::{memory::MemoryMetadata, task::StoredTask},
     component::{
         Component, ComponentConfig, ComponentId, ComponentPath, ComponentRef, ComponentRegistry,
         ComponentVersion, LateInitializedData,
     },
     graphics::{DisplayCallback, DisplayId, DisplayInfo, GraphicsRequirements},
     input::{VirtualGamepad, VirtualGamepadId},
-    memory::{Address, AddressSpaceHandle, MemoryAccessTable},
-    platform::{Platform, TestPlatform},
+    memory::{AddressSpaceHandle, MemoryAccessTable, MemoryRemappingCommands, MemoryType},
+    platform::Platform,
     save::{SaveManager, SnapshotManager},
     scheduler::{Scheduler, Task},
-    utils::{DirectMainThreadExecutor, MainThreadQueue},
+    utils::MainThreadQueue,
 };
 use audio::AudioMetadata;
 use graphics::GraphicsMetadata;
@@ -21,12 +21,12 @@ use input::InputMetadata;
 use multiemu_graphics::GraphicsApi;
 use multiemu_rom::{RomManager, System};
 use num::rational::Ratio;
-use rangemap::RangeInclusiveSet;
 use rustc_hash::FxBuildHasher;
 use std::{
     collections::HashMap,
     io::Read,
     ops::RangeInclusive,
+    path::PathBuf,
     str::FromStr,
     sync::{Arc, Mutex},
     vec::Vec,
@@ -45,8 +45,9 @@ pub struct ComponentMetadata<P: Platform> {
     pub graphics: Option<GraphicsMetadata<P::GraphicsApi>>,
     pub input: Option<InputMetadata>,
     pub audio: Option<AudioMetadata<P::SampleFormat>>,
+    pub memory: Option<MemoryMetadata>,
     pub path: ComponentPath,
-    pub component_initializer: Option<Box<dyn FnOnce(&ComponentRegistry, &LateInitializedData<P>)>>,
+    pub component_initializer: Option<Box<dyn FnOnce(&LateInitializedData<P>)>>,
 }
 
 /// Builder to produce a machine, definition crates will want to use this
@@ -56,9 +57,9 @@ pub struct MachineBuilder<P: Platform> {
     /// Rom manager
     rom_manager: Arc<RomManager>,
     /// Save manager
-    save_manager: Arc<SaveManager>,
+    save_manager: SaveManager,
     /// Snapshot manager
-    snapshot_manager: Arc<SnapshotManager>,
+    snapshot_manager: SnapshotManager,
     /// Selected sample rate
     sample_rate: Ratio<u32>,
     /// The store for components
@@ -73,16 +74,18 @@ pub struct MachineBuilder<P: Platform> {
 }
 
 impl<P: Platform> MachineBuilder<P> {
-    pub fn new(
+    pub(crate) fn new(
         user_specified_roms: Option<UserSpecifiedRoms>,
         rom_manager: Arc<RomManager>,
-        save_manager: Arc<SaveManager>,
-        snapshot_manager: Arc<SnapshotManager>,
+        save_path: Option<PathBuf>,
+        snapshot_path: Option<PathBuf>,
         sample_rate: Ratio<u32>,
         main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
         let main_thread_queue = MainThreadQueue::new(main_thread_executor);
         let component_store = ComponentRegistry::new(main_thread_queue.clone());
+        let save_manager = SaveManager::new(save_path);
+        let snapshot_manager = SnapshotManager::new(snapshot_path);
 
         MachineBuilder::<P> {
             current_audio_output_id: AudioOutputId(0),
@@ -112,43 +115,35 @@ impl<P: Platform> MachineBuilder<P> {
         &self.rom_manager
     }
 
-    pub fn save_manager(&self) -> &Arc<SaveManager> {
-        &self.save_manager
-    }
-
-    pub fn snapshot_manager(&self) -> &Arc<SnapshotManager> {
-        &self.snapshot_manager
-    }
-
     #[inline]
     fn insert_component_with_path<B: ComponentConfig<P>>(
         mut self,
         path: ComponentPath,
         config: B,
     ) -> (Self, ComponentRef<B::Component>) {
-        let component_id = self.registry.generate_id();
-        let component_ref = ComponentRef::new(self.registry.clone(), component_id);
-
-        self.component_metadata.insert(
-            component_id,
-            ComponentMetadata {
-                task: Default::default(),
-                graphics: Default::default(),
-                input: Default::default(),
-                audio: Default::default(),
-                path,
-                component_initializer: None,
-            },
-        );
+        let component_ref = ComponentRef::new(self.registry.clone());
+        let mut component_metadata = ComponentMetadata {
+            task: Default::default(),
+            graphics: Default::default(),
+            input: Default::default(),
+            audio: Default::default(),
+            memory: Default::default(),
+            path: path.clone(),
+            component_initializer: None,
+        };
 
         let component_builder = ComponentBuilder::<P, B::Component> {
             machine_builder: &mut self,
             component_ref: component_ref.clone(),
+            component_metadata: &mut component_metadata,
         };
 
         config
             .build_component(component_builder)
             .expect("Failed to build component");
+
+        self.component_metadata
+            .insert(component_ref.id(), component_metadata);
 
         (self, component_ref)
     }
@@ -181,8 +176,18 @@ impl<P: Platform> MachineBuilder<P> {
     }
 
     /// Insert the required information to construct a address space
-    pub fn insert_address_space(self, width: u8) -> (Self, AddressSpaceHandle) {
-        let id = self.memory_access_table.insert_address_space(width);
+    pub fn insert_address_space(mut self, width: u8) -> (Self, AddressSpaceHandle) {
+        if width > usize::BITS as u8 {
+            panic!(
+                "This host machine cannot handle an address space of {} bits",
+                width
+            );
+        }
+
+        let mutable_access_table = Arc::get_mut(&mut self.memory_access_table)
+            .expect("Address spaces must be added before memory access table is spread");
+
+        let id = mutable_access_table.insert_address_space(width);
 
         (self, id)
     }
@@ -217,12 +222,51 @@ impl<P: Platform> MachineBuilder<P> {
 
         for (component_id, mut component_metadata) in self.component_metadata.drain(..) {
             if let Some(component_initializer) = component_metadata.component_initializer.take() {
-                component_initializer(&self.registry, &runtime_essentials);
-            } else {
-                assert!(
-                    self.registry.contains(component_id),
-                    "Component did not insert or lazily insert itself",
-                );
+                component_initializer(&runtime_essentials);
+            }
+
+            if let Some(memory_metadata) = component_metadata.memory {
+                let mut collected_remappings_commands: HashMap<_, Vec<_>> = HashMap::default();
+
+                for (address_space, commands) in memory_metadata
+                    .read
+                    .into_iter()
+                    .flat_map(|(address_space, addresses)| {
+                        addresses.into_iter().map(move |addresses| {
+                            (
+                                address_space,
+                                MemoryRemappingCommands::Add {
+                                    range: addresses,
+                                    component_id,
+                                    types: vec![MemoryType::Read],
+                                },
+                            )
+                        })
+                    })
+                    .chain(memory_metadata.write.into_iter().flat_map(
+                        |(address_space, addresses)| {
+                            addresses.into_iter().map(move |addresses| {
+                                (
+                                    address_space,
+                                    MemoryRemappingCommands::Add {
+                                        range: addresses,
+                                        component_id,
+                                        types: vec![MemoryType::Write],
+                                    },
+                                )
+                            })
+                        },
+                    ))
+                {
+                    collected_remappings_commands
+                        .entry(address_space)
+                        .or_default()
+                        .push(commands);
+                }
+
+                for (address_space, commands) in collected_remappings_commands {
+                    self.memory_access_table.remap(address_space, commands);
+                }
             }
 
             // Gather the framebuffers
@@ -251,10 +295,6 @@ impl<P: Platform> MachineBuilder<P> {
 
         // Create the scheduler
         let scheduler = Scheduler::new(tasks);
-        let debt_clearer = scheduler.get_debt_clearer();
-
-        // Give the component store a handle to the scheduler
-        self.registry.set_debt_clearer(debt_clearer);
 
         Machine {
             scheduler: Mutex::new(scheduler),
@@ -283,57 +323,15 @@ impl<P: Platform> MachineBuilder<P> {
     }
 }
 
-impl MachineBuilder<TestPlatform> {
-    pub fn new_test(
-        user_specified_roms: Option<UserSpecifiedRoms>,
-        rom_manager: Arc<RomManager>,
-        save_manager: Arc<SaveManager>,
-        snapshot_manager: Arc<SnapshotManager>,
-    ) -> Self {
-        Self::new(
-            user_specified_roms,
-            rom_manager,
-            save_manager,
-            snapshot_manager,
-            Ratio::from_integer(44100),
-            Arc::new(DirectMainThreadExecutor),
-        )
-    }
-
-    pub fn new_test_minimal() -> Self {
-        Self::new(
-            None,
-            Arc::new(RomManager::new(None, None).unwrap()),
-            Arc::new(SaveManager::new(None)),
-            Arc::new(SnapshotManager::new(None)),
-            Ratio::from_integer(44100),
-            Arc::new(DirectMainThreadExecutor),
-        )
-    }
-}
-
 pub struct ComponentBuilder<'a, P: Platform, C: Component> {
     machine_builder: &'a mut MachineBuilder<P>,
     component_ref: ComponentRef<C>,
+    component_metadata: &'a mut ComponentMetadata<P>,
 }
 
 impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
-    fn metadata(&self) -> &ComponentMetadata<P> {
-        self.machine_builder
-            .component_metadata
-            .get(&self.component_ref.id())
-            .unwrap()
-    }
-
-    fn metadata_mut(&mut self) -> &mut ComponentMetadata<P> {
-        self.machine_builder
-            .component_metadata
-            .get_mut(&self.component_ref.id())
-            .unwrap()
-    }
-
     pub fn path(&self) -> &ComponentPath {
-        &self.metadata().path
+        &self.component_metadata.path
     }
 
     pub fn rom_manager(&self) -> &Arc<RomManager> {
@@ -353,6 +351,17 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self.component_ref.clone()
     }
 
+    pub fn set_lazy_component_initializer(
+        self,
+        initializer: impl FnOnce(&LateInitializedData<P>) + 'static,
+    ) -> Self {
+        self.component_metadata
+            .component_initializer
+            .get_or_insert(Box::new(initializer));
+
+        self
+    }
+
     pub fn save(&self) -> Option<(Box<dyn Read>, ComponentVersion)> {
         if let Some(main) = self
             .machine_builder
@@ -360,7 +369,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .as_ref()
             .map(|roms| &roms.main)
         {
-            let metadata = self.metadata();
+            let metadata = &*self.component_metadata;
 
             self.machine_builder
                 .save_manager
@@ -373,26 +382,14 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
     pub fn build_local(self, component: C) {
-        let path = self.metadata().path.clone();
-        let component_id = self.component_ref.id();
+        let path = self.component_metadata.path.clone();
 
-        self.machine_builder
+        let id = self
+            .machine_builder
             .registry
-            .insert_component_local(path, component_id, component);
-    }
+            .insert_component_local(path, component);
 
-    /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
-    pub fn build_local_lazy(
-        mut self,
-        callback: impl FnOnce(&LateInitializedData<P>) -> C + 'static,
-    ) {
-        let path = self.metadata().path.clone();
-        let component_id = self.component_ref.id();
-
-        self.metadata_mut().component_initializer =
-            Some(Box::new(move |registry, runtime_essentials| {
-                registry.insert_component_local(path, component_id, callback(runtime_essentials));
-            }));
+        self.component_ref.set_id(id);
     }
 
     /// Insert this component in the global store, ensuring quick access for all other components
@@ -402,25 +399,14 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     where
         C: Send + Sync,
     {
-        let path = self.metadata().path.clone();
-        let component_id = self.component_ref.id();
+        let path = self.component_metadata.path.clone();
 
-        self.machine_builder
+        let id = self
+            .machine_builder
             .registry
-            .insert_component(path, component_id, component);
-    }
+            .insert_component(path, component);
 
-    pub fn build_lazy(mut self, callback: impl FnOnce(&LateInitializedData<P>) -> C + 'static)
-    where
-        C: Send + Sync,
-    {
-        let path = self.metadata().path.clone();
-        let component_id = self.component_ref.id();
-
-        self.metadata_mut().component_initializer =
-            Some(Box::new(move |registry, runtime_essentials| {
-                registry.insert_component(path, component_id, callback(runtime_essentials));
-            }));
+        self.component_ref.set_id(id);
     }
 
     /// Insert a component into the machine
@@ -435,32 +421,34 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             "This function requires a name not a path"
         );
 
-        let mut path = self.metadata().path.clone();
+        let mut path = self.component_metadata.path.clone();
         path.push(name).unwrap();
 
-        let component_id = self.machine_builder.registry.generate_id();
-        let component_ref = ComponentRef::new(self.machine_builder.registry.clone(), component_id);
+        let mut component_metadata = ComponentMetadata {
+            task: Default::default(),
+            graphics: Default::default(),
+            input: Default::default(),
+            audio: Default::default(),
+            memory: Default::default(),
+            path: path.clone(),
+            component_initializer: None,
+        };
 
-        self.machine_builder.component_metadata.insert(
-            component_id,
-            ComponentMetadata {
-                task: Default::default(),
-                graphics: Default::default(),
-                input: Default::default(),
-                audio: Default::default(),
-                path,
-                component_initializer: None,
-            },
-        );
+        let component_ref = ComponentRef::new(self.machine_builder.registry.clone());
 
         let component_builder = ComponentBuilder::<P, B::Component> {
             machine_builder: &mut self.machine_builder,
             component_ref: component_ref.clone(),
+            component_metadata: &mut component_metadata,
         };
 
         config
             .build_component(component_builder)
             .expect("Failed to build component");
+
+        self.machine_builder
+            .component_metadata
+            .insert(component_ref.id(), component_metadata);
 
         (self, component_ref)
     }
@@ -476,7 +464,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     }
 
     pub fn insert_audio_output(
-        mut self,
+        self,
         callback: impl AudioCallback<P::SampleFormat>,
     ) -> (Self, AudioOutputId) {
         let audio_output_id = AudioOutputId(self.machine_builder.current_audio_output_id.0);
@@ -487,7 +475,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .checked_add(1)
             .expect("Too many audio outputs");
 
-        self.metadata_mut()
+        self.component_metadata
             .audio
             .get_or_insert_default()
             .audio_outputs
@@ -502,7 +490,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     }
 
     pub fn insert_display(
-        mut self,
+        self,
         callback: impl DisplayCallback<P::GraphicsApi>,
     ) -> (Self, DisplayId) {
         let display_id = DisplayId(self.machine_builder.current_display_id.0);
@@ -513,7 +501,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .checked_add(1)
             .expect("Too many displays");
 
-        let metadata = self.metadata_mut().graphics.get_or_insert_default();
+        let metadata = self.component_metadata.graphics.get_or_insert_default();
 
         metadata.displays.insert(
             display_id,
@@ -526,10 +514,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     }
 
     pub fn insert_gamepad(self, gamepad: Arc<VirtualGamepad>) -> Self {
-        self.machine_builder
-            .component_metadata
-            .get_mut(&self.component_ref.id())
-            .unwrap()
+        self.component_metadata
             .input
             .get_or_insert_default()
             .gamepads
@@ -539,83 +524,63 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     }
 
     /// Insert a callback into the memory translation table for reading
-    pub fn map_memory_read(
+    pub fn memory_map_read(
         self,
-        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<Address>)>,
+        address_space: AddressSpaceHandle,
+        addresses: RangeInclusive<usize>,
     ) -> Self {
-        // Merge all the addresses together so we can remap them without erasing previous ones
-        // TODO: Explore remapping without erasing old entires? Hard?
-        let mut merged_addresses: HashMap<_, RangeInclusiveSet<_>> = HashMap::new();
-
-        for (address_space, assigned_addresses) in assigned_addresses {
-            merged_addresses
-                .entry(address_space)
-                .or_default()
-                .insert(assigned_addresses);
-        }
-
-        for (address_space, address_range) in merged_addresses {
-            self.machine_builder.memory_access_table.remap_read_memory(
-                self.component_ref.id(),
-                address_space,
-                address_range,
-            );
-        }
+        self.component_metadata
+            .memory
+            .get_or_insert_default()
+            .read
+            .entry(address_space)
+            .or_default()
+            .insert(addresses);
 
         self
     }
 
-    pub fn map_memory_write(
+    pub fn memory_map_write(
         self,
-        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<Address>)>,
+        address_space: AddressSpaceHandle,
+        addresses: RangeInclusive<usize>,
     ) -> Self {
-        let mut merged_addresses: HashMap<_, RangeInclusiveSet<_>> = HashMap::new();
-
-        for (address_space, assigned_addresses) in assigned_addresses {
-            merged_addresses
-                .entry(address_space)
-                .or_default()
-                .insert(assigned_addresses);
-        }
-
-        for (address_space, address_range) in merged_addresses {
-            self.machine_builder.memory_access_table.remap_write_memory(
-                self.component_ref.id(),
-                address_space,
-                address_range,
-            );
-        }
+        self.component_metadata
+            .memory
+            .get_or_insert_default()
+            .write
+            .entry(address_space)
+            .or_default()
+            .insert(addresses);
 
         self
     }
 
-    pub fn map_memory(
+    pub fn memory_map(
         self,
-        assigned_addresses: impl IntoIterator<Item = (AddressSpaceHandle, RangeInclusive<Address>)>,
+        address_space: AddressSpaceHandle,
+        addresses: RangeInclusive<usize>,
     ) -> Self {
-        let mut merged_addresses: HashMap<_, RangeInclusiveSet<_>> = HashMap::new();
+        let component_metadata = self.component_metadata.memory.get_or_insert_default();
 
-        for (address_space, assigned_addresses) in assigned_addresses {
-            merged_addresses
-                .entry(address_space)
-                .or_default()
-                .insert(assigned_addresses);
-        }
+        component_metadata
+            .read
+            .entry(address_space)
+            .or_default()
+            .insert(addresses.clone());
 
-        for (address_space, address_range) in merged_addresses {
-            self.machine_builder.memory_access_table.remap_memory(
-                self.component_ref.id(),
-                address_space,
-                address_range,
-            );
-        }
+        component_metadata
+            .write
+            .entry(address_space)
+            .or_default()
+            .insert(addresses);
 
         self
     }
 
     /// Insert a task to be executed by the scheduler at the given frequency
-    pub fn insert_task(mut self, frequency: Ratio<u32>, name: &str, callback: impl Task) -> Self {
-        let task_metatada = self.metadata_mut().task.get_or_insert_default();
+    pub fn insert_task(self, frequency: Ratio<u32>, name: &str, callback: impl Task) -> Self {
+        let task_metatada = self.component_metadata.task.get_or_insert_default();
 
         if task_metatada.tasks.contains_key(name) {
             panic!("Task with name {} already exists", name);
@@ -625,36 +590,6 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             name.to_string(),
             StoredTask {
                 period: frequency.reduced().recip(),
-                lazy: false,
-                task: Box::new(callback),
-            },
-        );
-
-        self
-    }
-
-    /// Insert a task to be executed by the scheduler at the given frequency
-    ///
-    /// This task will be lazily executed, i.e. only when the component that inserted it actually interacts with it
-    ///
-    /// As such, any side effects of the task may be out of order (apart from interactions with the component that inserted it), so use it for tasks that have no side effects
-    pub fn insert_lazy_task(
-        mut self,
-        frequency: Ratio<u32>,
-        name: &str,
-        callback: impl Task,
-    ) -> Self {
-        let task_metatada = self.metadata_mut().task.get_or_insert_default();
-
-        if task_metatada.tasks.contains_key(name) {
-            panic!("Task with name {} already exists", name);
-        }
-
-        task_metatada.tasks.insert(
-            name.to_string(),
-            StoredTask {
-                period: frequency.reduced().recip(),
-                lazy: true,
                 task: Box::new(callback),
             },
         );

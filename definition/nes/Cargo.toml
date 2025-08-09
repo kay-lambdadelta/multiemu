@@ -10,7 +10,6 @@ multiemu-runtime = { workspace = true }
 multiemu-input = { workspace = true }
 multiemu-audio = { workspace = true }
 multiemu-graphics = { workspace = true }
-
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }
@@ -21,7 +20,10 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 num = { workspace = true }
+nalgebra = { workspace = true }
 rustc-hash = { workspace = true }
+bytemuck = { workspace = true }
+palette = { workspace = true }
 
 [features]
 vulkan = ["multiemu-graphics/vulkan"]

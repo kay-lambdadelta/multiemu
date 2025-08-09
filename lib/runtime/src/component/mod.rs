@@ -16,7 +16,6 @@ use std::{
     fmt::Debug,
     hash::Hash,
     io::{Read, Write},
-    num::NonZero,
 };
 
 pub use component_ref::ComponentRef;
@@ -69,7 +68,7 @@ pub trait Component: Debug + Any {
                 address..=(address + (buffer.len() - 1)),
                 ReadMemoryRecord::Denied,
             )]),
-            remap_callback: None,
+            remapping_commands: Default::default(),
         })
     }
 
@@ -103,7 +102,8 @@ pub trait Component: Debug + Any {
                         )
                     })
                     .collect(),
-                remap_callback: e.remap_callback,
+                // Discard the remapping commands, this is preview mode
+                remapping_commands: Default::default(),
             })
     }
 
@@ -118,14 +118,16 @@ pub trait Component: Debug + Any {
                 address..=(address + (buffer.len() - 1)),
                 WriteMemoryRecord::Denied,
             )]),
-            remap_callback: None,
+            remapping_commands: Default::default(),
         })
     }
+
+    // TODO: Add a callback to alert when the component has been remapped as soon as the memory translation table has the infastructure
 }
 
 #[allow(unused)]
 /// Factory config to construct a component
-pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized + 'static {
+pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized {
     /// Paramters to create this component
     type Component: Component;
 
@@ -142,11 +144,17 @@ pub struct LateInitializedData<P: Platform> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
-pub struct ComponentId(NonZero<u16>);
+pub struct ComponentId(u16);
+
+impl ComponentId {
+    pub(crate) fn get(&self) -> usize {
+        self.0 as usize
+    }
+}
 
 impl Hash for ComponentId {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_u16(self.0.get());
+        state.write_u16(self.0);
     }
 }
 

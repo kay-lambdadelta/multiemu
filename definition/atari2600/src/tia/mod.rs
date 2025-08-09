@@ -1,7 +1,4 @@
-use crate::tia::{
-    config::TiaConfig,
-    memory::{ReadRegisters, WriteRegisters},
-};
+use crate::tia::memory::{ReadRegisters, WriteRegisters};
 pub(crate) use backend::SupportedGraphicsApiTia;
 use bitvec::{array::BitArray, order::Lsb0, view::BitView};
 use color::TiaColor;
@@ -129,7 +126,7 @@ struct Player {
 #[derive(Debug)]
 pub(crate) struct Tia<R: Region, G: SupportedGraphicsApiTia> {
     state: Mutex<State>,
-    backend: Mutex<G::Backend<R>>,
+    backend: Option<G::Backend<R>>,
     cpu_rdy: Arc<RdyFlag>,
 }
 

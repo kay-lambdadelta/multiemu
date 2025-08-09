@@ -10,10 +10,7 @@ use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_frontend::PlatformExt;
 use multiemu_graphics::software::Software;
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager};
-use multiemu_runtime::{
-    RomSpecification, UserSpecifiedRoms,
-    save::{SaveManager, SnapshotManager},
-};
+use multiemu_runtime::{RomSpecification, UserSpecifiedRoms};
 use std::{
     borrow::Cow,
     fs::{File, create_dir_all},
@@ -70,11 +67,6 @@ fn main() {
         )
         .unwrap(),
     );
-    let save_manager = Arc::new(SaveManager::new(Some(environment.save_directory.0.clone())));
-    let snapshot_manager = Arc::new(SnapshotManager::new(Some(
-        environment.snapshot_directory.0.clone(),
-    )));
-
     let environment = Arc::new(RwLock::new(environment));
 
     let cli = Cli::parse();
@@ -172,8 +164,6 @@ fn main() {
                 DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
-                    save_manager.clone(),
-                    snapshot_manager.clone(),
                     build_machine::get_software_factories(),
                     user_specified_roms,
                 )
@@ -187,8 +177,6 @@ fn main() {
                 DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
-                    save_manager.clone(),
-                    snapshot_manager.clone(),
                     build_machine::get_vulkan_factories(),
                     user_specified_roms,
                 )
@@ -207,8 +195,6 @@ fn main() {
             DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run(
                 environment.clone(),
                 rom_manager.clone(),
-                save_manager.clone(),
-                snapshot_manager.clone(),
                 build_machine::get_software_factories(),
             )
             .unwrap();
@@ -221,8 +207,6 @@ fn main() {
             DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run(
                 environment.clone(),
                 rom_manager.clone(),
-                save_manager.clone(),
-                snapshot_manager.clone(),
                 build_machine::get_vulkan_factories(),
             )
             .unwrap();

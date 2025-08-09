@@ -14,6 +14,10 @@ serde_with = { workspace = true }
 num = { workspace = true }
 tracing = { workspace = true }
 bincode = { workspace = true }
+scc = { workspace = true }
+
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dependencies]
+memmap2 = "0.9"
 
 [target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
 criterion = { workspace = true }

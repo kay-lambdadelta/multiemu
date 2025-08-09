@@ -9,6 +9,7 @@ use bitvec::{
 };
 use multiemu_definition_mos6502::RdyFlag;
 use multiemu_runtime::{component::ComponentRef, scheduler::Task};
+use smallvec::SmallVec;
 use std::{num::NonZero, sync::Arc};
 
 pub struct TiaTask<R: Region, G: SupportedGraphicsApiTia> {
@@ -19,13 +20,13 @@ pub struct TiaTask<R: Region, G: SupportedGraphicsApiTia> {
 impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
     fn run(&mut self, time_slice: NonZero<u32>) {
         // This task will usually get called with a time slice of 3 since its 3 times faster than the cpu and the fastest timer in the atari 2600
-        let mut pixels = Vec::with_capacity(time_slice.get() as usize);
+        let mut pixels = SmallVec::<[_; 3]>::new();
 
         self.component
-            .interact(|component| {
+            .interact_mut(|component| {
                 let mut state_guard = component.state.lock().unwrap();
                 let mut commit_staging_buffer = false;
-                let mut backend_guard = component.backend.lock().unwrap();
+                let backend_guard = component.backend.as_mut().unwrap();
 
                 for _ in 0..time_slice.get() {
                     if let Some(cycles) = state_guard.cycles_waiting_for_vsync {

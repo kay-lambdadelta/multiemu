@@ -74,6 +74,8 @@ egui = { version = "0.32", features = ["default_fonts", "rayon", "log"] }
 naga = { version = "26.0", features = ["wgsl-in", "serialize", "deserialize"] }
 raw-window-handle = "0.6"
 itertools = "0.14"
+rangetools = "0.1"
+smallvec = "1.15"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }

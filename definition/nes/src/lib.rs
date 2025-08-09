@@ -5,10 +5,14 @@ use multiemu_definition_misc::memory::{
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_runtime::{MachineFactory, builder::MachineBuilder, platform::Platform};
+use multiemu_runtime::{
+    MachineFactory, builder::MachineBuilder, memory::AddressSpaceHandle, platform::Platform,
+};
 use num::rational::Ratio;
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
+
+use crate::{cartridge::ines::Mirroring, ppu::NAME_TABLE_ADDRESSES};
 
 mod apu;
 mod cartridge;
@@ -20,7 +24,7 @@ pub struct Nes;
 impl<P: Platform> MachineFactory<P> for Nes {
     fn construct(&self, machine: MachineBuilder<P>) -> MachineBuilder<P> {
         let (machine, cpu_address_space) = machine.insert_address_space(16);
-        let (machine, ppu_address_space) = machine.insert_address_space(16);
+        let (machine, ppu_address_space) = machine.insert_address_space(14);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -30,7 +34,7 @@ impl<P: Platform> MachineFactory<P> for Nes {
                 assigned_range: 0x0000..=0x07ff,
                 assigned_address_space: cpu_address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
-                    0x0000..=0xffff,
+                    0x0000..=0x07ff,
                     StandardMemoryInitialContents::Random,
                 )]),
                 sram: false,
@@ -54,23 +58,21 @@ impl<P: Platform> MachineFactory<P> for Nes {
                 writable: true,
                 source_addresses: 0x1000..=0x17ff,
                 source_address_space: cpu_address_space,
-                destination_addresses: 0x0800..=0x0fff,
+                destination_addresses: 0x0000..=0x07ff,
                 destination_address_space: cpu_address_space,
             },
         );
-        let (machine, _) = machine.insert_component(
+        let (mut machine, _) = machine.insert_component(
             "workram-mirror-2",
             MirrorMemoryConfig {
                 readable: true,
                 writable: true,
                 source_addresses: 0x1800..=0x1fff,
                 source_address_space: cpu_address_space,
-                destination_addresses: 0x1000..=0x17ff,
+                destination_addresses: 0x0000..=0x07ff,
                 destination_address_space: cpu_address_space,
             },
         );
-
-        let (mut machine, _) = machine.insert_default_component::<NesPpuConfig>("ppu");
 
         for (index, address) in (0x2000..=0x3fff).step_by(8).skip(1).enumerate() {
             machine = machine
@@ -81,7 +83,7 @@ impl<P: Platform> MachineFactory<P> for Nes {
                         writable: true,
                         source_addresses: address..=address + 7,
                         source_address_space: cpu_address_space,
-                        destination_addresses: address - 8..=address - 1,
+                        destination_addresses: 0x2000..=0x2007,
                         destination_address_space: cpu_address_space,
                     },
                 )
@@ -99,9 +101,20 @@ impl<P: Platform> MachineFactory<P> for Nes {
         );
 
         // Grab the timing mode
-        let timing_mode = cartridge.interact(|cart| cart.rom().timing_mode).unwrap();
+        let ines = cartridge.interact(|cart| cart.rom()).unwrap();
 
-        let processor_frequency = Ratio::from_integer(match timing_mode {
+        let machine = setup_ppu_nametables(machine, ppu_address_space, &ines);
+
+        let (machine, _) = machine.insert_component(
+            "ppu",
+            NesPpuConfig {
+                ppu_address_space,
+                cpu_address_space,
+                ines: &ines,
+            },
+        );
+
+        let processor_frequency = Ratio::from_integer(match ines.timing_mode {
             TimingMode::Ntsc => 1789773,
             TimingMode::Pal => 2097152,
             TimingMode::Multi => 1789773,
@@ -118,5 +131,128 @@ impl<P: Platform> MachineFactory<P> for Nes {
         );
 
         machine
+    }
+}
+
+fn setup_ppu_nametables<P: Platform>(
+    machine: MachineBuilder<P>,
+    ppu_address_space: AddressSpaceHandle,
+    ines: &INes,
+) -> MachineBuilder<P> {
+    match ines.mirroring {
+        Mirroring::Vertical => {
+            let (machine, _) = machine.insert_component(
+                "name_table_0",
+                StandardMemoryConfig {
+                    assigned_address_space: ppu_address_space,
+                    assigned_range: NAME_TABLE_ADDRESSES[0].clone(),
+                    readable: true,
+                    writable: true,
+                    initial_contents: RangeInclusiveMap::from_iter([(
+                        NAME_TABLE_ADDRESSES[0].clone(),
+                        StandardMemoryInitialContents::Random,
+                    )]),
+                    sram: false,
+                },
+            );
+
+            let (machine, _) = machine.insert_component(
+                "name_table_1",
+                StandardMemoryConfig {
+                    assigned_address_space: ppu_address_space,
+                    assigned_range: NAME_TABLE_ADDRESSES[1].clone(),
+                    readable: true,
+                    writable: true,
+                    initial_contents: RangeInclusiveMap::from_iter([(
+                        NAME_TABLE_ADDRESSES[1].clone(),
+                        StandardMemoryInitialContents::Random,
+                    )]),
+                    sram: false,
+                },
+            );
+
+            let (machine, _) = machine.insert_component(
+                "name_table_2",
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    source_addresses: NAME_TABLE_ADDRESSES[2].clone(),
+                    source_address_space: ppu_address_space,
+                    destination_addresses: NAME_TABLE_ADDRESSES[0].clone(),
+                    destination_address_space: ppu_address_space,
+                },
+            );
+
+            let (machine, _) = machine.insert_component(
+                "name_table_3",
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    source_addresses: NAME_TABLE_ADDRESSES[3].clone(),
+                    source_address_space: ppu_address_space,
+                    destination_addresses: NAME_TABLE_ADDRESSES[1].clone(),
+                    destination_address_space: ppu_address_space,
+                },
+            );
+
+            machine
+        }
+        Mirroring::Horizontal => {
+            let (machine, _) = machine.insert_component(
+                "name_table_0",
+                StandardMemoryConfig {
+                    assigned_address_space: ppu_address_space,
+                    assigned_range: NAME_TABLE_ADDRESSES[0].clone(),
+                    readable: true,
+                    writable: true,
+                    initial_contents: RangeInclusiveMap::from_iter([(
+                        NAME_TABLE_ADDRESSES[0].clone(),
+                        StandardMemoryInitialContents::Random,
+                    )]),
+                    sram: false,
+                },
+            );
+
+            let (machine, _) = machine.insert_component(
+                "name_table_1",
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    source_addresses: NAME_TABLE_ADDRESSES[1].clone(),
+                    source_address_space: ppu_address_space,
+                    destination_addresses: NAME_TABLE_ADDRESSES[0].clone(),
+                    destination_address_space: ppu_address_space,
+                },
+            );
+
+            let (machine, _) = machine.insert_component(
+                "name_table_2",
+                StandardMemoryConfig {
+                    assigned_address_space: ppu_address_space,
+                    assigned_range: NAME_TABLE_ADDRESSES[2].clone(),
+                    readable: true,
+                    writable: true,
+                    initial_contents: RangeInclusiveMap::from_iter([(
+                        NAME_TABLE_ADDRESSES[2].clone(),
+                        StandardMemoryInitialContents::Random,
+                    )]),
+                    sram: false,
+                },
+            );
+
+            let (machine, _) = machine.insert_component(
+                "name_table_3",
+                MirrorMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    source_addresses: NAME_TABLE_ADDRESSES[3].clone(),
+                    source_address_space: ppu_address_space,
+                    destination_addresses: NAME_TABLE_ADDRESSES[2].clone(),
+                    destination_address_space: ppu_address_space,
+                },
+            );
+
+            machine
+        }
     }
 }

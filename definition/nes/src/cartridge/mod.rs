@@ -1,68 +1,30 @@
+use crate::cartridge::mapper::mapper_000::Mapper000Config;
 use ines::INes;
 use multiemu_rom::{RomId, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig},
-    memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
-    },
+    memory::AddressSpaceHandle,
     platform::Platform,
 };
 use serde::{Deserialize, Serialize};
-use std::{io::Read, sync::Arc};
+use std::io::{BufReader, Read};
 
 pub mod ines;
 pub mod mapper;
 
 #[derive(Debug)]
 pub struct NesCartridge {
-    rom: Arc<INes>,
-    bus_conflict: bool,
+    rom: INes,
 }
 
 impl NesCartridge {
-    pub fn rom(&self) -> Arc<INes> {
+    pub fn rom(&self) -> INes {
         self.rom.clone()
     }
 }
 
-impl Component for NesCartridge {
-    fn read_memory(
-        &self,
-        address: Address,
-        address_space: AddressSpaceHandle,
-        buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        match self.rom.mapper {
-            _ => {
-                unreachable!("Unsupported mapper");
-            }
-        }
-
-        Ok(())
-    }
-
-    fn write_memory(
-        &self,
-        address: Address,
-        address_space: AddressSpaceHandle,
-        buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        let original_data = buffer[0];
-        let mut data = buffer[0];
-
-        // https://www.nesdev.org/wiki/Bus_conflict
-        if self.bus_conflict {
-            data &= 1;
-
-            if original_data != data {
-                tracing::warn!("Bus conflict affected write to register {}", address);
-            }
-        }
-
-        Ok(())
-    }
-}
+impl Component for NesCartridge {}
 
 #[derive(Debug)]
 pub struct NesCartridgeConfig {
@@ -85,24 +47,40 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
     ) -> Result<(), BuildError> {
         let rom_manager = component_builder.rom_manager();
 
-        let mut rom_file = rom_manager
-            .open(self.rom, RomRequirement::Required)
-            .unwrap();
+        let mut rom_file = BufReader::new(
+            rom_manager
+                .open(self.rom, RomRequirement::Required)
+                .unwrap(),
+        );
 
-        let mut rom = Vec::default();
-        rom_file.read_to_end(&mut rom).unwrap();
+        let mut header = [0; 16];
+        rom_file.read_exact(&mut header).unwrap();
 
         // Try parsing as a INES rom
-        let ines = Arc::new(INes::parse(&rom).unwrap());
+        let ines = INes::parse(header).unwrap();
 
-        // Map self to claimed range in the cpu
-        let component_builder =
-            component_builder.map_memory([(self.cpu_address_space, 0x4020..=0xffff)]);
+        tracing::info!("Loaded INES ROM: {:?}", ines);
 
-        component_builder.build(NesCartridge {
-            rom: ines,
-            bus_conflict: false,
-        });
+        let component_builder = match ines.mapper {
+            000 => {
+                component_builder
+                    .insert_child_component(
+                        "mapper_000",
+                        Mapper000Config {
+                            ines: &ines,
+                            rom_id: self.rom,
+                            cpu_address_space: self.cpu_address_space,
+                            ppu_address_space: self.ppu_address_space,
+                        },
+                    )
+                    .0
+            }
+            _ => {
+                unreachable!("Unsupported mapper");
+            }
+        };
+
+        component_builder.build(NesCartridge { rom: ines });
 
         Ok(())
     }

@@ -109,15 +109,15 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
         match (self.readable, self.writable) {
             (true, true) => {
                 component_builder = component_builder
-                    .map_memory([(self.source_address_space, self.source_addresses.clone())]);
+                    .memory_map(self.source_address_space, self.source_addresses.clone());
             }
             (true, false) => {
                 component_builder = component_builder
-                    .map_memory_read([(self.source_address_space, self.source_addresses.clone())]);
+                    .memory_map_read(self.source_address_space, self.source_addresses.clone());
             }
             (false, true) => {
                 component_builder = component_builder
-                    .map_memory_write([(self.source_address_space, self.source_addresses.clone())]);
+                    .memory_map_write(self.source_address_space, self.source_addresses.clone());
             }
             (false, false) => {}
         }
@@ -134,7 +134,7 @@ mod test {
         mirror::MirrorMemoryConfig,
         standard::{StandardMemoryConfig, StandardMemoryInitialContents},
     };
-    use multiemu_runtime::{builder::MachineBuilder, utils::set_main_thread};
+    use multiemu_runtime::{Machine, utils::set_main_thread};
     use rangemap::RangeInclusiveMap;
     use std::borrow::Cow;
 
@@ -142,8 +142,7 @@ mod test {
     fn basic_read() {
         set_main_thread();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -188,8 +187,7 @@ mod test {
     fn basic_write() {
         set_main_thread();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -231,8 +229,7 @@ mod test {
     fn extensive_read_test() {
         set_main_thread();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",

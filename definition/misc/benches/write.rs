@@ -2,29 +2,34 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_runtime::builder::MachineBuilder;
+use multiemu_runtime::Machine;
 use rangemap::RangeInclusiveMap;
 use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
     multiemu_runtime::utils::set_main_thread();
 
-    let (machine, cpu_address_space) = MachineBuilder::new_test_minimal().insert_address_space(64);
+    let (mut machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
-    let (machine, _) = machine.insert_component(
-        "workram",
-        StandardMemoryConfig {
-            readable: true,
-            writable: true,
-            assigned_range: 0..=0xffff,
-            assigned_address_space: cpu_address_space,
-            initial_contents: RangeInclusiveMap::from_iter([(
-                0..=0xffff,
-                StandardMemoryInitialContents::Value(0x00),
-            )]),
-            sram: false,
-        },
-    );
+    for i in (0x0000..=0xffff).step_by(0x1f) {
+        machine = machine
+            .insert_component(
+                &format!("memory_{}", i),
+                StandardMemoryConfig {
+                    readable: true,
+                    writable: true,
+                    assigned_range: i..=i + 0x1f,
+                    assigned_address_space: cpu_address_space,
+                    initial_contents: RangeInclusiveMap::from_iter([(
+                        i..=i + 0x1f,
+                        StandardMemoryInitialContents::Value(0x00),
+                    )]),
+                    sram: false,
+                },
+            )
+            .0;
+    }
+
     let machine = machine.build(Default::default());
 
     let buffer = [0; 1];

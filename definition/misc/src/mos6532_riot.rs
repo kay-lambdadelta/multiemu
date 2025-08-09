@@ -387,10 +387,10 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
         let ram_assigned_addresses =
             self.ram_assigned_address..=self.ram_assigned_address.checked_add(0x7f).unwrap();
 
-        let component_builder = component_builder.map_memory([(
+        let component_builder = component_builder.memory_map(
             self.assigned_address_space,
             self.registers_assigned_address..=self.registers_assigned_address + 0x1f,
-        )]);
+        );
 
         let (component_builder, _) = component_builder.insert_child_component(
             "ram",
@@ -426,7 +426,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
 ) -> ComponentBuilder<'a, P, Mos6532Riot> {
     // Make the timers operate
     component_builder
-        .insert_lazy_task(config.frequency, "tim1t", {
+        .insert_task(config.frequency, "tim1t", {
             let component_ref = component_ref.clone();
 
             move |slice: NonZero<u32>| {
@@ -440,7 +440,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                     .unwrap();
             }
         })
-        .insert_lazy_task(config.frequency / 8, "tim8t", {
+        .insert_task(config.frequency / 8, "tim8t", {
             let component_ref = component_ref.clone();
 
             move |slice: NonZero<u32>| {
@@ -454,7 +454,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                     .unwrap();
             }
         })
-        .insert_lazy_task(config.frequency / 64, "tim64t", {
+        .insert_task(config.frequency / 64, "tim64t", {
             let component_ref = component_ref.clone();
 
             move |slice: NonZero<u32>| {
@@ -468,7 +468,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                     .unwrap();
             }
         })
-        .insert_lazy_task(config.frequency / 1024, "t1024t", {
+        .insert_task(config.frequency / 1024, "t1024t", {
             let component_ref = component_ref.clone();
 
             move |slice: NonZero<u32>| {

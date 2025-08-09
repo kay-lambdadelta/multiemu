@@ -218,10 +218,8 @@ mod tests {
     use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
     use multiemu_rom::{RomId, RomManager};
     use multiemu_runtime::{
-        MachineFactory, UserSpecifiedRoms,
-        builder::MachineBuilder,
+        Machine, MachineFactory, UserSpecifiedRoms,
         platform::TestPlatform,
-        save::{SaveManager, SnapshotManager},
         utils::{DirectMainThreadExecutor, set_main_thread},
     };
     use num::rational::Ratio;
@@ -241,20 +239,18 @@ mod tests {
             )
             .unwrap(),
         );
-        let save_manager = Arc::new(SaveManager::new(None));
-        let snapshot_manager = Arc::new(SnapshotManager::new(None));
 
-        let machine = MachineBuilder::new(
+        let machine = Machine::build(
             Some(
                 UserSpecifiedRoms::from_id(
-                    &rom_manager,
                     RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap(),
+                    &rom_manager,
                 )
                 .unwrap(),
             ),
             rom_manager,
-            save_manager,
-            snapshot_manager,
+            None,
+            None,
             Ratio::from_integer(44100),
             Arc::new(DirectMainThreadExecutor),
         );

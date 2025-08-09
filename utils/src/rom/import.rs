@@ -27,7 +27,7 @@ impl ZipCache {
     pub fn get(
         &self,
         path: impl AsRef<Path>,
-    ) -> Result<OccupiedEntry<PathBuf, ZipArchive<File>>, Box<dyn Error + Send + Sync>> {
+    ) -> Result<OccupiedEntry<'_, PathBuf, ZipArchive<File>>, Box<dyn Error + Send + Sync>> {
         let path = path.as_ref();
 
         match self.0.entry(path.to_path_buf()) {

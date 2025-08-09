@@ -77,7 +77,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
                 component: component.clone(),
             })
             .0
-            .insert_lazy_task(
+            .insert_task(
                 Ratio::from_integer(60),
                 "driver",
                 move |slice: NonZero<u32>| {

@@ -262,14 +262,12 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         }
 
         let component_builder = match (self.readable, self.writable) {
-            (true, true) => {
-                component_builder.map_memory([(assigned_address_space, assigned_range)])
-            }
+            (true, true) => component_builder.memory_map(assigned_address_space, assigned_range),
             (true, false) => {
-                component_builder.map_memory_read([(assigned_address_space, assigned_range)])
+                component_builder.memory_map_read(assigned_address_space, assigned_range)
             }
             (false, true) => {
-                component_builder.map_memory_write([(assigned_address_space, assigned_range)])
+                component_builder.memory_map_write(assigned_address_space, assigned_range)
             }
             (false, false) => component_builder,
         };
@@ -415,14 +413,13 @@ impl StandardMemory {
 #[cfg(test)]
 mod test {
     use super::*;
-    use multiemu_runtime::{builder::MachineBuilder, utils::set_main_thread};
+    use multiemu_runtime::{Machine, utils::set_main_thread};
 
     #[test]
     fn initialization() {
         set_main_thread();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -448,8 +445,7 @@ mod test {
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -480,8 +476,7 @@ mod test {
     fn basic_read() {
         set_main_thread();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -512,8 +507,7 @@ mod test {
     fn basic_write() {
         set_main_thread();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -543,8 +537,7 @@ mod test {
     fn basic_read_write() {
         set_main_thread();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -580,8 +573,7 @@ mod test {
     fn extensive() {
         set_main_thread();
 
-        let (machine, cpu_address_space) =
-            MachineBuilder::new_test_minimal().insert_address_space(64);
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",

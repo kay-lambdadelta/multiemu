@@ -14,8 +14,6 @@ const METADATA_FILE_NAME: &str = "metadata.ron";
 
 pub type Slot = u16;
 
-pub struct RuntimeState {}
-
 #[derive(Debug, Serialize, Deserialize)]
 struct SnapshotMetadata {
     pub components: HashMap<ComponentPath, ComponentSnapshotInfo>,

@@ -18,7 +18,6 @@ use multiemu_rom::RomManager;
 use multiemu_runtime::{
     UserSpecifiedRoms,
     platform::Platform,
-    save::{SaveManager, SnapshotManager},
     utils::{MainThreadCallback, MainThreadExecutor},
 };
 use nalgebra::Vector2;
@@ -70,13 +69,13 @@ impl WinitWindow {
 }
 
 impl HasDisplayHandle for WinitWindow {
-    fn display_handle(&self) -> Result<DisplayHandle, HandleError> {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
         self.0.display_handle()
     }
 }
 
 impl HasWindowHandle for WinitWindow {
-    fn window_handle(&self) -> Result<WindowHandle, HandleError> {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
         self.0.window_handle()
     }
 }
@@ -148,18 +147,9 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
     fn run(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
-        save_manager: Arc<SaveManager>,
-        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        Self::run_common(
-            environment,
-            rom_manager,
-            save_manager,
-            snapshot_manager,
-            machine_factories,
-            None,
-        )?;
+        Self::run_common(environment, rom_manager, machine_factories, None)?;
 
         Ok(())
     }
@@ -167,16 +157,12 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
     fn run_with_machine(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
-        save_manager: Arc<SaveManager>,
-        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
         user_specified_roms: UserSpecifiedRoms,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Self::run_common(
             environment,
             rom_manager,
-            save_manager,
-            snapshot_manager,
             machine_factories,
             Some(user_specified_roms),
         )?;
@@ -290,8 +276,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
     fn run_common(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomManager>,
-        save_manager: Arc<SaveManager>,
-        snapshot_manager: Arc<SnapshotManager>,
         machine_factories: MachineFactories<Self>,
         machine_setup_stuff: Option<UserSpecifiedRoms>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -319,8 +303,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             FrontendRuntime::new_with_machine(
                 environment.clone(),
                 rom_manager,
-                save_manager,
-                snapshot_manager,
                 machine_factories,
                 main_thread_executor,
                 user_specified_roms,
@@ -329,8 +311,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             FrontendRuntime::new(
                 environment.clone(),
                 rom_manager,
-                save_manager,
-                snapshot_manager,
                 machine_factories,
                 main_thread_executor,
             )
