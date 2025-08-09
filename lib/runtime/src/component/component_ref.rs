@@ -4,13 +4,13 @@ use super::{
 };
 use std::{
     fmt::Debug,
-    sync::{Arc, OnceLock, Weak},
+    sync::{Arc, OnceLock},
 };
 
 pub struct ComponentRef<C: Component> {
     id: Arc<OnceLock<ComponentId>>,
-    // Stop potential cycles
-    registry: Weak<ComponentRegistry>,
+    // I tested and this doesn't cause cycles
+    registry: Arc<ComponentRegistry>,
     _phantom: std::marker::PhantomData<C>,
 }
 
@@ -43,10 +43,10 @@ unsafe impl<C: Component> Send for ComponentRef<C> {}
 unsafe impl<C: Component> Sync for ComponentRef<C> {}
 
 impl<C: Component> ComponentRef<C> {
-    pub fn new(component_store: Arc<ComponentRegistry>) -> Self {
+    pub fn new(registry: Arc<ComponentRegistry>) -> Self {
         Self {
             id: Arc::new(OnceLock::new()),
-            registry: Arc::downgrade(&component_store),
+            registry,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -62,8 +62,6 @@ impl<C: Component> ComponentRef<C> {
         callback: impl FnOnce(&C) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
         self.registry
-            .upgrade()
-            .unwrap()
             .interact(*self.id.get().expect("Component not initialized"), callback)
     }
 
@@ -74,8 +72,6 @@ impl<C: Component> ComponentRef<C> {
         callback: impl FnOnce(&mut C) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
         self.registry
-            .upgrade()
-            .unwrap()
             .interact_mut(*self.id.get().expect("Component not initialized"), callback)
     }
 
@@ -87,8 +83,6 @@ impl<C: Component> ComponentRef<C> {
         callback: impl FnOnce(&C) -> T,
     ) -> Result<T, ComponentStoreError> {
         self.registry
-            .upgrade()
-            .unwrap()
             .interact_local(*self.id.get().expect("Component not initialized"), callback)
     }
 
@@ -99,8 +93,6 @@ impl<C: Component> ComponentRef<C> {
         callback: impl FnOnce(&mut C) -> T,
     ) -> Result<T, ComponentStoreError> {
         self.registry
-            .upgrade()
-            .unwrap()
             .interact_local_mut(*self.id.get().expect("Component not initialized"), callback)
     }
 

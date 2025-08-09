@@ -15,6 +15,7 @@ use crate::{
 use input::{VirtualGamepad, VirtualGamepadId};
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager, System};
 use num::rational::Ratio;
+use redb::ReadableDatabase;
 use rustc_hash::FxBuildHasher;
 use scheduler::Scheduler;
 use std::{

@@ -6,20 +6,20 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig, ComponentId},
     memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, MemoryRemappingCommands, MemoryType,
-        ReadMemoryRecord, WriteMemoryRecord,
+        Address, AddressSpaceHandle, MemoryAccessTable, MemoryOperationError,
+        MemoryRemappingCommands, MemoryType, ReadMemoryRecord, WriteMemoryRecord,
     },
     platform::Platform,
 };
-use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Mutex};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct Mapctl {
     config: MapctlConfig,
     status: Mutex<MapctlStatus>,
     my_id: ComponentId,
+    mat: Arc<MemoryAccessTable>,
 }
 
 impl Component for Mapctl {
@@ -89,10 +89,10 @@ impl Component for Mapctl {
             types: vec![MemoryType::Read, MemoryType::Write],
         });
 
-        Err(MemoryOperationError {
-            records: RangeInclusiveMap::default(),
-            remapping_commands: vec![(self.config.cpu_address_space, remapping_commands)],
-        })
+        self.mat
+            .remap(self.config.cpu_address_space, remapping_commands);
+
+        Ok(())
     }
 }
 
@@ -118,10 +118,13 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         let component_builder =
             component_builder.memory_map(self.cpu_address_space, 0xfff9..=0xfff9);
 
+        let mat = component_builder.memory_access_table();
+
         component_builder.build(Mapctl {
             config: self,
             status: Default::default(),
             my_id: component_id,
+            mat,
         });
 
         Ok(())

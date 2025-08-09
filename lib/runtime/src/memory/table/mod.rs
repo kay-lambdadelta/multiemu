@@ -3,7 +3,6 @@ use crate::component::ComponentRegistry;
 use address_space::AddressSpace;
 use bitvec::{field::BitField, order::Lsb0};
 use nohash::BuildNoHashHasher;
-use rangemap::RangeInclusiveMap;
 use std::{
     collections::HashMap,
     ops::RangeInclusive,
@@ -23,21 +22,20 @@ pub use write::*;
 
 #[allow(clippy::type_complexity)]
 /// Error type from componenents
+#[derive(Debug)]
 pub struct MemoryOperationError<R> {
     /// Records the memory translation table should handle
-    pub records: RangeInclusiveMap<Address, R>,
-    /// Allows remapping when its safe. The semantics of when this occurs is unspecified except that the caller that triggered this will not return until the remap(s) occurs.
-    pub remapping_commands: Vec<(AddressSpaceHandle, Vec<MemoryRemappingCommands>)>,
+    pub records: Vec<(RangeInclusive<Address>, R)>,
 }
 
-impl<R> From<RangeInclusiveMap<Address, R>> for MemoryOperationError<R> {
-    fn from(records: RangeInclusiveMap<Address, R>) -> Self {
+impl<R> FromIterator<(RangeInclusive<Address>, R)> for MemoryOperationError<R> {
+    fn from_iter<T: IntoIterator<Item = (RangeInclusive<Address>, R)>>(iter: T) -> Self {
         Self {
-            records,
-            remapping_commands: Default::default(),
+            records: iter.into_iter().collect(),
         }
     }
 }
+
 #[derive(Debug)]
 /// The main structure representing the devices memory address spaces
 pub struct MemoryAccessTable {

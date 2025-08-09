@@ -5,7 +5,10 @@ use std::{
     hash::{Hash, Hasher},
     num::NonZero,
     ops::RangeInclusive,
-    sync::RwLock,
+    sync::{
+        Mutex, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
     vec::Vec,
 };
 
@@ -26,17 +29,14 @@ impl Hash for AddressSpaceHandle {
 
 impl IsEnabled for AddressSpaceHandle {}
 
-#[derive(Debug, Hash, Clone, Eq, PartialEq)]
-pub struct TableEntry {
-    pub component_id: ComponentId,
-    pub component_assigned_range: RangeInclusive<Address>,
-}
-
 #[derive(Debug)]
 pub(super) struct AddressSpace {
     pub width_mask: Address,
     read_members: RwLock<RangeInclusiveMap<Address, ComponentId>>,
     write_members: RwLock<RangeInclusiveMap<Address, ComponentId>>,
+    /// Queue for if the address space is locked at the moment
+    queue: Mutex<Vec<MemoryRemappingCommands>>,
+    queue_modified: AtomicBool,
 }
 
 impl AddressSpace {
@@ -45,31 +45,45 @@ impl AddressSpace {
             width_mask,
             read_members: Default::default(),
             write_members: Default::default(),
+            queue: Default::default(),
+            queue_modified: AtomicBool::new(false),
         }
     }
 
     /// Removes all memory maps for a component_id and remaps it like so
     pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommands>) {
-        let mut read_members = self.read_members.write().unwrap();
-        let mut write_members = self.write_members.write().unwrap();
+        let mut read_members = self.read_members.try_write();
+        let mut write_members = self.write_members.try_write();
+        let mut queue_guard = self.queue.lock().unwrap();
 
         for command in commands {
             match command {
-                MemoryRemappingCommands::Remove { range, types } => {
+                MemoryRemappingCommands::Remove { range, mut types } => {
                     tracing::debug!("Removing memory range {:#04x?} from address space", range);
 
-                    if types.contains(&MemoryType::Read) {
-                        read_members.remove(range.clone());
+                    if let Some(index) = types.iter().position(|t| *t == MemoryType::Read) {
+                        if let Ok(read_members) = read_members.as_mut() {
+                            read_members.remove(range.clone());
+                            types.remove(index);
+                        }
                     }
 
-                    if types.contains(&MemoryType::Write) {
-                        write_members.remove(range.clone());
+                    if let Some(index) = types.iter().position(|t| *t == MemoryType::Write) {
+                        if let Ok(write_members) = write_members.as_mut() {
+                            write_members.remove(range.clone());
+                            types.remove(index);
+                        }
+                    }
+
+                    if !types.is_empty() {
+                        queue_guard.push(MemoryRemappingCommands::Remove { range, types });
+                        self.queue_modified.store(true, Ordering::Release);
                     }
                 }
                 MemoryRemappingCommands::Add {
                     range,
                     component_id,
-                    types,
+                    mut types,
                 } => {
                     tracing::debug!(
                         "Mapping memory component_id {:?} to address range {:#04x?}",
@@ -77,12 +91,27 @@ impl AddressSpace {
                         range
                     );
 
-                    if types.contains(&MemoryType::Read) {
-                        read_members.insert(range.clone(), component_id);
+                    if let Some(index) = types.iter().position(|t| *t == MemoryType::Read) {
+                        if let Ok(read_members) = read_members.as_mut() {
+                            read_members.insert(range.clone(), component_id);
+                            types.remove(index);
+                        }
                     }
 
-                    if types.contains(&MemoryType::Write) {
-                        write_members.insert(range.clone(), component_id);
+                    if let Some(index) = types.iter().position(|t| *t == MemoryType::Write) {
+                        if let Ok(write_members) = write_members.as_mut() {
+                            write_members.insert(range.clone(), component_id);
+                            types.remove(index);
+                        }
+                    }
+
+                    if !types.is_empty() {
+                        queue_guard.push(MemoryRemappingCommands::Add {
+                            range,
+                            component_id,
+                            types,
+                        });
+                        self.queue_modified.store(true, Ordering::Release);
                     }
                 }
             }
@@ -95,6 +124,12 @@ impl AddressSpace {
         accessing_range: RangeInclusive<Address>,
         mut callback: impl FnMut(ComponentId, &RangeInclusive<Address>) -> Result<(), E>,
     ) -> Result<(), E> {
+        if self.queue_modified.load(Ordering::Acquire) {
+            let mut queue_guard = self.queue.lock().unwrap();
+            self.remap(queue_guard.drain(..));
+            self.queue_modified.store(false, Ordering::Release);
+        }
+
         for (component_assigned_range, component_id) in self
             .read_members
             .read()
@@ -113,6 +148,12 @@ impl AddressSpace {
         accessing_range: RangeInclusive<Address>,
         mut callback: impl FnMut(ComponentId, &RangeInclusive<Address>) -> Result<(), E>,
     ) -> Result<(), E> {
+        if self.queue_modified.load(Ordering::Acquire) {
+            let mut queue_guard = self.queue.lock().unwrap();
+            self.remap(queue_guard.drain(..));
+            self.queue_modified.store(false, Ordering::Release);
+        }
+
         for (component_assigned_range, component_id) in self
             .write_members
             .read()

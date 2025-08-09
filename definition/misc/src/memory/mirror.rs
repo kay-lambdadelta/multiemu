@@ -7,7 +7,6 @@ use multiemu_runtime::{
     },
     platform::Platform,
 };
-use rangemap::RangeInclusiveMap;
 use std::ops::RangeInclusive;
 
 #[derive(Debug)]
@@ -36,14 +35,13 @@ impl Component for MirrorMemory {
         let adjusted_destination_address = self.config.destination_addresses.start()
             + (address - self.config.source_addresses.start());
 
-        Err(RangeInclusiveMap::from_iter([(
+        Err(MemoryOperationError::from_iter([(
             affected_range,
             ReadMemoryRecord::Redirect {
                 address: adjusted_destination_address,
                 address_space: self.config.destination_address_space,
             },
-        )])
-        .into())
+        )]))
     }
 
     fn preview_memory(
@@ -56,14 +54,13 @@ impl Component for MirrorMemory {
         let adjusted_destination_address = self.config.destination_addresses.start()
             + (address - self.config.source_addresses.start());
 
-        Err(RangeInclusiveMap::from_iter(std::iter::once((
+        Err(MemoryOperationError::from_iter(std::iter::once((
             affected_range,
             PreviewMemoryRecord::Redirect {
                 address: adjusted_destination_address,
                 address_space: self.config.destination_address_space,
             },
-        )))
-        .into())
+        ))))
     }
 
     fn write_memory(
@@ -76,14 +73,13 @@ impl Component for MirrorMemory {
         let adjusted_destination_address = self.config.destination_addresses.start()
             + (address - self.config.source_addresses.start());
 
-        Err(RangeInclusiveMap::from_iter(std::iter::once((
+        Err(MemoryOperationError::from_iter(std::iter::once((
             affected_range,
             WriteMemoryRecord::Redirect {
                 address: adjusted_destination_address,
                 address_space: self.config.destination_address_space,
             },
-        )))
-        .into())
+        ))))
     }
 }
 

@@ -1,13 +1,10 @@
 use super::{MemoryAccessTable, address_space::AddressSpaceHandle};
-use crate::memory::{
-    Address,
-    table::QueueEntry,
-};
+use crate::memory::{Address, table::QueueEntry};
 use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
 use rangetools::Rangetools;
 use smallvec::SmallVec;
-use std::{hash::Hash, ops::RangeInclusive, vec::Vec};
+use std::{hash::Hash, ops::RangeInclusive};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -86,7 +83,6 @@ impl MemoryAccessTable {
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryOperationError> {
         let buffer_subrange = 0..=(buffer.len() - 1);
-        let mut remapping_commands: Vec<_> = Vec::default();
         let mut queue = SmallVec::<[QueueEntry; 1]>::from([QueueEntry {
             address,
             address_space,
@@ -166,8 +162,6 @@ impl MemoryAccessTable {
                                 }
                             }
 
-                            remapping_commands.extend(errors.remapping_commands);
-
                             if !detected_errors.is_empty() {
                                 return Err(ReadMemoryOperationError(detected_errors));
                             }
@@ -186,10 +180,6 @@ impl MemoryAccessTable {
                 (buffer_subrange.start() + address)..=(buffer_subrange.end() + address),
                 ReadMemoryOperationErrorFailureType::OutOfBus,
             )])));
-        }
-
-        for (address_space, commands) in remapping_commands {
-            self.remap(address_space, commands);
         }
 
         Ok(())
@@ -312,10 +302,6 @@ impl MemoryAccessTable {
                                         });
                                     }
                                 }
-                            }
-
-                            if !errors.remapping_commands.is_empty() {
-                                panic!("Remapping commands not supported under previews");
                             }
 
                             if !detected_errors.is_empty() {

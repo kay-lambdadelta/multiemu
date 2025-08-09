@@ -11,6 +11,7 @@ use multiemu_frontend::PlatformExt;
 use multiemu_graphics::software::Software;
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager};
 use multiemu_runtime::{RomSpecification, UserSpecifiedRoms};
+use redb::ReadableDatabase;
 use std::{
     borrow::Cow,
     fs::{File, create_dir_all},

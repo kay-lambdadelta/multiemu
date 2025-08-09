@@ -125,11 +125,10 @@ impl Component for StandardMemory {
             let invalid_before_range = address..=end_address;
 
             if !invalid_before_range.is_empty() {
-                return Err(RangeInclusiveMap::from_iter([(
+                return Err(MemoryOperationError::from_iter([(
                     invalid_before_range,
                     ReadMemoryRecord::Denied,
-                )])
-                .into());
+                )]));
             }
         }
 
@@ -137,11 +136,10 @@ impl Component for StandardMemory {
             let invalid_after_range = start_address..=address;
 
             if !invalid_after_range.is_empty() {
-                return Err(RangeInclusiveMap::from_iter([(
+                return Err(MemoryOperationError::from_iter([(
                     invalid_after_range,
                     ReadMemoryRecord::Denied,
-                )])
-                .into());
+                )]));
             }
         }
 
@@ -160,11 +158,10 @@ impl Component for StandardMemory {
             let invalid_before_range = address..=end_address;
 
             if !invalid_before_range.is_empty() {
-                return Err(RangeInclusiveMap::from_iter([(
+                return Err(MemoryOperationError::from_iter([(
                     invalid_before_range,
                     PreviewMemoryRecord::Denied,
-                )])
-                .into());
+                )]));
             }
         }
 
@@ -172,11 +169,10 @@ impl Component for StandardMemory {
             let invalid_after_range = start_address..=address;
 
             if !invalid_after_range.is_empty() {
-                return Err(RangeInclusiveMap::from_iter([(
+                return Err(MemoryOperationError::from_iter([(
                     invalid_after_range,
                     PreviewMemoryRecord::Denied,
-                )])
-                .into());
+                )]));
             }
         }
 
@@ -195,11 +191,10 @@ impl Component for StandardMemory {
             let invalid_before_range = address..=end_address;
 
             if !invalid_before_range.is_empty() {
-                return Err(RangeInclusiveMap::from_iter([(
+                return Err(MemoryOperationError::from_iter([(
                     invalid_before_range,
                     WriteMemoryRecord::Denied,
-                )])
-                .into());
+                )]));
             }
         }
 
@@ -207,11 +202,10 @@ impl Component for StandardMemory {
             let invalid_after_range = start_address..=address;
 
             if !invalid_after_range.is_empty() {
-                return Err(RangeInclusiveMap::from_iter([(
+                return Err(MemoryOperationError::from_iter([(
                     invalid_after_range,
                     WriteMemoryRecord::Denied,
-                )])
-                .into());
+                )]));
             }
         }
 

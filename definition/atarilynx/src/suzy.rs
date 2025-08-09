@@ -9,7 +9,6 @@ use multiemu_runtime::{
     },
     platform::Platform,
 };
-use rangemap::RangeInclusiveMap;
 
 use crate::SUZY_ADDRESSES;
 
@@ -107,11 +106,10 @@ impl Component for Suzy {
         } else if PPTDATA.contains(&address) {
         } else if HOWIE.contains(&address) {
         } else {
-            return Err(RangeInclusiveMap::from_iter([(
+            return Err(MemoryOperationError::from_iter([(
                 address..=(address + (buffer.len() - 1)),
                 ReadMemoryRecord::Denied,
-            )])
-            .into());
+            )]));
         }
 
         Ok(())
@@ -164,11 +162,10 @@ impl Component for Suzy {
         } else if PPTDATA.contains(&address) {
         } else if HOWIE.contains(&address) {
         } else {
-            return Err(RangeInclusiveMap::from_iter([(
+            return Err(MemoryOperationError::from_iter([(
                 address..=(address + (buffer.len() - 1)),
                 WriteMemoryRecord::Denied,
-            )])
-            .into());
+            )]));
         }
 
         Ok(())
@@ -180,11 +177,10 @@ impl Component for Suzy {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
-        return Err(RangeInclusiveMap::from_iter([(
+        return Err(MemoryOperationError::from_iter([(
             address..=(address + (buffer.len() - 1)),
             PreviewMemoryRecord::Impossible,
-        )])
-        .into());
+        )]));
     }
 }
 

@@ -11,7 +11,6 @@ use multiemu_runtime::{
 };
 use nalgebra::{DMatrix, Point2};
 use palette::Srgba;
-use rangemap::RangeInclusiveMap;
 use region::Region;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -147,11 +146,10 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
 
             Ok(())
         } else {
-            Err(RangeInclusiveMap::from_iter([(
+            Err(MemoryOperationError::from_iter([(
                 address..=(address + (buffer.len() - 1)),
                 ReadMemoryRecord::Denied,
-            )])
-            .into())
+            )]))
         }
     }
 
@@ -172,11 +170,10 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
 
             Ok(())
         } else {
-            Err(RangeInclusiveMap::from_iter([(
+            Err(MemoryOperationError::from_iter([(
                 address..=(address + (buffer.len() - 1)),
                 WriteMemoryRecord::Denied,
-            )])
-            .into())
+            )]))
         }
     }
 }

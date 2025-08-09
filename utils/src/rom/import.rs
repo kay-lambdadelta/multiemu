@@ -1,5 +1,6 @@
 use multiemu_config::Environment;
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomManager};
+use redb::ReadableDatabase;
 use scc::{HashCache, hash_cache::OccupiedEntry};
 use std::{
     collections::VecDeque,

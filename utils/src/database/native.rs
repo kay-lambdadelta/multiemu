@@ -2,7 +2,7 @@ use clap::Subcommand;
 use multiemu_config::Environment;
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomManager};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use redb::ReadableMultimapTable;
+use redb::{ReadableDatabase, ReadableMultimapTable};
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 #[derive(Clone, Debug, Subcommand)]

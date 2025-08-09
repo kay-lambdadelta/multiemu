@@ -18,6 +18,7 @@ use multiemu_runtime::{
     input::VirtualGamepadId,
 };
 use nalgebra::Vector2;
+use redb::ReadableDatabase;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 use std::{
     borrow::Cow,

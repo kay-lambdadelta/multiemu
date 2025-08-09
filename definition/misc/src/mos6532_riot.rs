@@ -212,12 +212,10 @@ impl Component for Mos6532Riot {
                     *buffer_section = self.registers.t1024t.load(Ordering::Acquire);
                 }
                 _ => {
-                    return Err(MemoryOperationError::from(RangeInclusiveMap::from_iter([
-                        (
-                            address..=(address + (buffer.len() - 1)),
-                            ReadMemoryRecord::Denied,
-                        ),
-                    ])));
+                    return Err(MemoryOperationError::from_iter([(
+                        address..=(address + (buffer.len() - 1)),
+                        ReadMemoryRecord::Denied,
+                    )]));
                 }
             }
         }
@@ -238,12 +236,10 @@ impl Component for Mos6532Riot {
 
             match adjusted_address {
                 0x0 | 0x2 => {
-                    return Err(MemoryOperationError::from(RangeInclusiveMap::from_iter([
-                        (
-                            address..=(address + (buffer.len() - 1)),
-                            PreviewMemoryRecord::Impossible,
-                        ),
-                    ])));
+                    return Err(MemoryOperationError::from_iter([(
+                        address..=(address + (buffer.len() - 1)),
+                        PreviewMemoryRecord::Impossible,
+                    )]));
                 }
                 0x1 => {
                     *buffer_section = if self.registers.swacnt.load(Ordering::Acquire) {
@@ -278,12 +274,10 @@ impl Component for Mos6532Riot {
                     *buffer_section = self.registers.t1024t.load(Ordering::Acquire);
                 }
                 _ => {
-                    return Err(MemoryOperationError::from(RangeInclusiveMap::from_iter([
-                        (
-                            address..=(address + (buffer.len() - 1)),
-                            PreviewMemoryRecord::Denied,
-                        ),
-                    ])));
+                    return Err(MemoryOperationError::from_iter([(
+                        address..=(address + (buffer.len() - 1)),
+                        PreviewMemoryRecord::Denied,
+                    )]));
                 }
             }
         }
@@ -350,12 +344,10 @@ impl Component for Mos6532Riot {
                         .store(*buffer_section, Ordering::Release);
                 }
                 _ => {
-                    return Err(MemoryOperationError::from(RangeInclusiveMap::from_iter([
-                        (
-                            address..=(address + (buffer.len() - 1)),
-                            WriteMemoryRecord::Denied,
-                        ),
-                    ])));
+                    return Err(MemoryOperationError::from_iter([(
+                        address..=(address + (buffer.len() - 1)),
+                        WriteMemoryRecord::Denied,
+                    )]));
                 }
             }
         }

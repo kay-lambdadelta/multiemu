@@ -1045,7 +1045,7 @@ checksum = "1f791803201ab277ace03903de1594460708d2d54df6053f2d9e82f592b19e3b"
 [[package]]
 name = "ctru-rs"
 version = "0.7.1"
-source = "git+https://github.com/rust3ds/ctru-rs#76ded20c85d238b3f12479090ec90b2e2bedcd70"
+source = "git+https://github.com/rust3ds/ctru-rs#49a0ae1117f2228a1f94b98c8b4bcbfbe0375003"
 dependencies = [
  "bitflags 2.9.1",
  "cfg-if",
@@ -1061,7 +1061,7 @@ dependencies = [
 [[package]]
 name = "ctru-sys"
 version = "0.5.0"
-source = "git+https://github.com/rust3ds/ctru-rs#76ded20c85d238b3f12479090ec90b2e2bedcd70"
+source = "git+https://github.com/rust3ds/ctru-rs#49a0ae1117f2228a1f94b98c8b4bcbfbe0375003"
 dependencies = [
  "bindgen",
  "cc",
@@ -2562,6 +2562,7 @@ dependencies = [
  "num",
  "palette",
  "raw-window-handle",
+ "redb",
  "ringbuffer",
  "strum",
  "tracing",
@@ -2691,6 +2692,7 @@ dependencies = [
  "num",
  "palette",
  "raw-window-handle",
+ "redb",
  "ringbuffer",
  "softbuffer",
  "strum",
@@ -3892,9 +3894,9 @@ dependencies = [
 
 [[package]]
 name = "redb"
-version = "2.6.2"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59b38b05028f398f08bea4691640503ec25fcb60b82fb61ce1f8fd1f4fccd3f7"
+checksum = "225e8bf881033e020ed87e9f10fc6254cf3ebab8d440e6fbb4c7b34bec2a0543"
 dependencies = [
  "libc",
  "log",

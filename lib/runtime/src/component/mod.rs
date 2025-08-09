@@ -8,7 +8,6 @@ use crate::{
 };
 use multiemu_graphics::GraphicsApi;
 use nohash::IsEnabled;
-use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
 use std::{
     any::Any,
@@ -63,13 +62,10 @@ pub trait Component: Debug + Any {
         address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        Err(MemoryOperationError {
-            records: RangeInclusiveMap::from_iter([(
-                address..=(address + (buffer.len() - 1)),
-                ReadMemoryRecord::Denied,
-            )]),
-            remapping_commands: Default::default(),
-        })
+        Err(MemoryOperationError::from_iter([(
+            address..=(address + (buffer.len() - 1)),
+            ReadMemoryRecord::Denied,
+        )]))
     }
 
     /// Previews memory at the specified address in the specified address space to fill the buffer
@@ -102,8 +98,6 @@ pub trait Component: Debug + Any {
                         )
                     })
                     .collect(),
-                // Discard the remapping commands, this is preview mode
-                remapping_commands: Default::default(),
             })
     }
 
@@ -113,13 +107,10 @@ pub trait Component: Debug + Any {
         address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        Err(MemoryOperationError {
-            records: RangeInclusiveMap::from_iter([(
-                address..=(address + (buffer.len() - 1)),
-                WriteMemoryRecord::Denied,
-            )]),
-            remapping_commands: Default::default(),
-        })
+        Err(MemoryOperationError::from_iter([(
+            address..=(address + (buffer.len() - 1)),
+            WriteMemoryRecord::Denied,
+        )]))
     }
 
     // TODO: Add a callback to alert when the component has been remapped as soon as the memory translation table has the infastructure

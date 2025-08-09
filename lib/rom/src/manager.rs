@@ -1,5 +1,8 @@
 use crate::{id::RomId, info::RomInfo, system::System};
-use redb::{Database, MultimapTableDefinition, ReadableMultimapTable, backends::InMemoryBackend};
+use redb::{
+    Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable,
+    backends::InMemoryBackend,
+};
 use std::{
     collections::{BTreeMap, HashSet},
     fmt::Debug,
@@ -12,8 +15,6 @@ use std::{
 /// Definition of the rom information table
 pub const ROM_INFORMATION_TABLE: MultimapTableDefinition<RomId, RomInfo> =
     MultimapTableDefinition::new("rom_information");
-
-const CACHE_SIZE: usize = 16 * 1024 * 1024; // 16MB
 
 #[derive(Debug, Clone)]
 /// The location of a loaded ROM
@@ -43,33 +44,23 @@ impl RomManager {
         tracing::info!("Loading ROM database at {:?}", database);
 
         #[cfg(not(miri))]
-        let mut rom_information = if let Some(path) = database {
+        let rom_information = if let Some(path) = database {
             let _ = create_dir_all(path.parent().unwrap());
 
-            Database::builder()
-                .set_cache_size(CACHE_SIZE)
-                .create_with_file_format_v3(true)
-                .create(path)?
+            Database::builder().create(path)?
         } else {
-            Database::builder()
-                .set_cache_size(CACHE_SIZE)
-                .create_with_file_format_v3(true)
-                .create_with_backend(InMemoryBackend::default())?
+            Database::builder().create_with_backend(InMemoryBackend::default())?
         };
 
         #[cfg(miri)]
-        let mut rom_information = Database::builder()
-            .set_cache_size(CACHE_SIZE)
-            .create_with_backend(InMemoryBackend::default())?;
+        let mut rom_information =
+            Database::builder().create_with_backend(InMemoryBackend::default())?;
 
         #[cfg(not(miri))]
         {
             use std::sync::RwLock;
 
             let mut loaded_roms = BTreeMap::new();
-
-            rom_information.upgrade()?;
-
             let mut database_transaction = rom_information.begin_write()?;
             database_transaction.set_quick_repair(true);
             database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;

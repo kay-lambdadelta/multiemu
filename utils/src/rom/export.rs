@@ -1,7 +1,7 @@
 use super::ExportStyle;
 use multiemu_config::Environment;
 use multiemu_rom::{ROM_INFORMATION_TABLE, RomManager};
-use redb::ReadableMultimapTable;
+use redb::{ReadableDatabase, ReadableMultimapTable};
 use std::{fs, path::PathBuf, sync::Arc};
 
 pub fn rom_export(

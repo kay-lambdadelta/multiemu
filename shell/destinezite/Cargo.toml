@@ -14,7 +14,6 @@ multiemu-config = { workspace = true }
 multiemu-audio = { workspace = true }
 multiemu-frontend = { workspace = true }
 multiemu-graphics = { workspace = true }
-
 multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
 multiemu-definition-atari2600 = { workspace = true }
@@ -31,6 +30,7 @@ ringbuffer = { workspace = true }
 clap = { workspace = true }
 egui = { workspace = true }
 raw-window-handle = { workspace = true }
+redb = { workspace = true }
 winit = { version = "0.30", default-features = false, features = [
     "wayland",
     "wayland-dlopen",
