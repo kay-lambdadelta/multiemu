@@ -138,7 +138,7 @@ pub struct LateInitializedData<P: Platform> {
 pub struct ComponentId(u16);
 
 impl ComponentId {
-    pub(crate) fn get(&self) -> usize {
+    pub(crate) fn index(&self) -> usize {
         self.0 as usize
     }
 }

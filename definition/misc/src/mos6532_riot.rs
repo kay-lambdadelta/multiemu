@@ -427,7 +427,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                         component
                             .registers
                             .tim1t
-                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::Acquire)
+                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::AcqRel)
                     })
                     .unwrap();
             }
@@ -441,7 +441,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                         component
                             .registers
                             .tim8t
-                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::Acquire)
+                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::AcqRel)
                     })
                     .unwrap();
             }
@@ -455,7 +455,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                         component
                             .registers
                             .tim64t
-                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::Acquire)
+                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::AcqRel)
                     })
                     .unwrap();
             }
@@ -469,7 +469,7 @@ fn set_up_timer_tasks<'a, P: Platform>(
                         component
                             .registers
                             .t1024t
-                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::Acquire)
+                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::AcqRel)
                     })
                     .unwrap();
             }

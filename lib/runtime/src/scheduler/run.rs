@@ -11,9 +11,7 @@ impl Scheduler {
                 time_slice,
             } in &self.timeline[self.current_tick as usize]
             {
-                let mut task_info = self.storage.tasks.get(task_id).unwrap().lock().unwrap();
-                let task_info = &mut *task_info;
-
+                let task_info = &mut self.tasks[*task_id as usize];
                 task_info.task.run(*time_slice);
             }
 

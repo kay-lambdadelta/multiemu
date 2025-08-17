@@ -4,7 +4,6 @@ use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use std::{
     hash::{Hash, Hasher},
-    num::NonZero,
     ops::RangeInclusive,
     sync::{
         Mutex,
@@ -14,17 +13,17 @@ use std::{
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
-pub struct AddressSpaceHandle(NonZero<u16>);
+pub struct AddressSpaceHandle(u16);
 
 impl AddressSpaceHandle {
-    pub fn new(id: u16) -> Option<Self> {
-        NonZero::new(id).map(AddressSpaceHandle)
+    pub fn new(id: u16) -> Self {
+        Self(id)
     }
 }
 
 impl Hash for AddressSpaceHandle {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u16(self.0.get());
+        state.write_u16(self.0);
     }
 }
 
@@ -55,7 +54,6 @@ impl AddressSpace {
         }
     }
 
-    /// Removes all memory maps for a component_id and remaps it like so
     pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommands>) {
         let mut queue_guard = self.queue.lock().unwrap();
         queue_guard.extend(commands);

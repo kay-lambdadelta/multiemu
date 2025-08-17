@@ -57,7 +57,7 @@ impl ComponentRegistry {
     }
 
     pub fn get_path(&self, component_id: ComponentId) -> ComponentPath {
-        self.components[component_id.get()].path.clone()
+        self.components[component_id.index()].path.clone()
     }
 
     pub fn get_id(&self, path: &ComponentPath) -> Option<ComponentId> {
@@ -143,7 +143,7 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
-        match self.components[component_id.get()]
+        match self.components[component_id.index()]
             .storage
             .read()
             .unwrap()
@@ -162,7 +162,7 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&mut dyn Component) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
-        match self.components[component_id.get()]
+        match self.components[component_id.index()]
             .storage
             .write()
             .unwrap()
@@ -182,7 +182,7 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Result<T, ComponentStoreError> {
-        match self.components[component_id.get()]
+        match self.components[component_id.index()]
             .storage
             .read()
             .unwrap()
@@ -199,7 +199,7 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&mut dyn Component) -> T,
     ) -> Result<T, ComponentStoreError> {
-        match self.components[component_id.get()]
+        match self.components[component_id.index()]
             .storage
             .write()
             .unwrap()

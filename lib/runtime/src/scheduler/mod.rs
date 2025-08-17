@@ -10,7 +10,6 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
     num::NonZero,
-    sync::{Arc, Mutex},
     time::Duration,
     vec::Vec,
 };
@@ -42,15 +41,6 @@ impl Debug for TaskInfo {
     }
 }
 
-/// TODO: Current design of the debt clearer will not operate under multithreading
-
-#[derive(Debug)]
-struct TaskStorage {
-    tasks: HashMap<TaskId, Mutex<TaskInfo>, BuildNoHashHasher<u16>>,
-    /// Indexed by component id, slight speed boost over nohash
-    component_tasks: HashMap<ComponentId, Vec<TaskId>, BuildNoHashHasher<u16>>,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct ScheduleEntry {
     pub task_id: TaskId,
@@ -70,8 +60,9 @@ pub struct Scheduler {
     tick_real_time: Duration,
     /// Active tasks
     timeline: Vec<Vec<ScheduleEntry>>,
-    /// Tasks
-    storage: Arc<TaskStorage>,
+    tasks: Vec<TaskInfo>,
+    /// Indexed by component id, slight speed boost over nohash
+    component_tasks: HashMap<ComponentId, Vec<TaskId>, BuildNoHashHasher<u16>>,
 }
 
 impl Scheduler {
@@ -141,7 +132,7 @@ impl Scheduler {
 
         let mut timeline = vec![Vec::new(); timeline_length as usize];
 
-        let tasks: HashMap<_, _, BuildNoHashHasher<u16>> = tasks
+        let tasks: Vec<_> = tasks
             .into_iter()
             .map(|(task_id, task)| {
                 let relative_period = task.period / system_gcd;
@@ -157,17 +148,14 @@ impl Scheduler {
                 assert!(relative_period.is_integer());
                 assert!(timeline_length % relative_period.to_integer() == 0);
 
-                (
-                    task_id,
-                    TaskInfo {
-                        task: task.task,
-                        relative_period: relative_period.to_integer(),
-                    },
-                )
+                TaskInfo {
+                    task: task.task,
+                    relative_period: relative_period.to_integer(),
+                }
             })
             .collect();
 
-        let mut schedule = BTreeMap::from_iter([(0, tasks.keys().copied().collect::<Vec<_>>())]);
+        let mut schedule = BTreeMap::from_iter([(0, (0..tasks.len() as u16).collect::<Vec<_>>())]);
 
         for (current_tick, timeline_tick_entries) in timeline.iter_mut().enumerate() {
             let current_tick = current_tick as u32;
@@ -188,7 +176,7 @@ impl Scheduler {
                 0 => {}
                 1 => {
                     let task_id = active_events[0];
-                    let task_info = &tasks[&task_id];
+                    let task_info = &tasks[task_id as usize];
                     let time_slice: NonZero<u32> = NonZero::new(
                         (active_max_allotted_ticks / task_info.relative_period).max(1),
                     )
@@ -207,7 +195,7 @@ impl Scheduler {
                 }
                 _ => {
                     for task_id in active_events {
-                        let task_info = &tasks[&task_id];
+                        let task_info = &tasks[task_id as usize];
                         let time_slice = NonZero::new(1).unwrap();
                         let representing_time = time_slice.get() * task_info.relative_period;
 
@@ -225,18 +213,11 @@ impl Scheduler {
             }
         }
 
-        let tasks = tasks
-            .into_iter()
-            .map(|(task_id, task)| (task_id, Mutex::new(task)))
-            .collect();
-
         Self {
             current_tick: 0,
             tick_real_time,
-            storage: Arc::new(TaskStorage {
-                tasks,
-                component_tasks: component_owned_tasks,
-            }),
+            tasks,
+            component_tasks: component_owned_tasks,
             timeline,
         }
     }

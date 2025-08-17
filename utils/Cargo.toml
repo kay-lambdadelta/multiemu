@@ -32,7 +32,7 @@ zip = { version = "3.0", default-features = false, features = [
 strsim = "0.11"
 nod = "1.4"
 tempfile = "3.20"
-ureq = { version = "3.0", features = ["socks-proxy", "charset"] }
+ureq = { version = "3.1", features = ["socks-proxy", "charset"] }
 
 [package.metadata.deb]
 maintainer = "Kay <lambdadeltacommunism@gmail.com>"
