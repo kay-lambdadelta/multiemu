@@ -1,4 +1,5 @@
 use crate::{component::ComponentId, memory::Address};
+use arc_swap::ArcSwap;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use std::{
@@ -6,7 +7,7 @@ use std::{
     num::NonZero,
     ops::RangeInclusive,
     sync::{
-        Mutex, RwLock,
+        Mutex,
         atomic::{AtomicBool, Ordering},
     },
     vec::Vec,
@@ -29,11 +30,16 @@ impl Hash for AddressSpaceHandle {
 
 impl IsEnabled for AddressSpaceHandle {}
 
+#[derive(Default, Debug, Clone)]
+pub struct Members {
+    read: RangeInclusiveMap<Address, ComponentId>,
+    write: RangeInclusiveMap<Address, ComponentId>,
+}
+
 #[derive(Debug)]
 pub(super) struct AddressSpace {
     pub width_mask: Address,
-    read_members: RwLock<RangeInclusiveMap<Address, ComponentId>>,
-    write_members: RwLock<RangeInclusiveMap<Address, ComponentId>>,
+    members: ArcSwap<Members>,
     /// Queue for if the address space is locked at the moment
     queue: Mutex<Vec<MemoryRemappingCommands>>,
     queue_modified: AtomicBool,
@@ -43,8 +49,7 @@ impl AddressSpace {
     pub fn new(width_mask: Address) -> Self {
         Self {
             width_mask,
-            read_members: Default::default(),
-            write_members: Default::default(),
+            members: Default::default(),
             queue: Default::default(),
             queue_modified: AtomicBool::new(false),
         }
@@ -52,70 +57,9 @@ impl AddressSpace {
 
     /// Removes all memory maps for a component_id and remaps it like so
     pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommands>) {
-        let mut read_members = self.read_members.try_write();
-        let mut write_members = self.write_members.try_write();
         let mut queue_guard = self.queue.lock().unwrap();
-
-        for command in commands {
-            match command {
-                MemoryRemappingCommands::Remove { range, mut types } => {
-                    tracing::debug!("Removing memory range {:#04x?} from address space", range);
-
-                    if let Some(index) = types.iter().position(|t| *t == MemoryType::Read) {
-                        if let Ok(read_members) = read_members.as_mut() {
-                            read_members.remove(range.clone());
-                            types.remove(index);
-                        }
-                    }
-
-                    if let Some(index) = types.iter().position(|t| *t == MemoryType::Write) {
-                        if let Ok(write_members) = write_members.as_mut() {
-                            write_members.remove(range.clone());
-                            types.remove(index);
-                        }
-                    }
-
-                    if !types.is_empty() {
-                        queue_guard.push(MemoryRemappingCommands::Remove { range, types });
-                        self.queue_modified.store(true, Ordering::Release);
-                    }
-                }
-                MemoryRemappingCommands::Add {
-                    range,
-                    component_id,
-                    mut types,
-                } => {
-                    tracing::debug!(
-                        "Mapping memory component_id {:?} to address range {:#04x?}",
-                        component_id,
-                        range
-                    );
-
-                    if let Some(index) = types.iter().position(|t| *t == MemoryType::Read) {
-                        if let Ok(read_members) = read_members.as_mut() {
-                            read_members.insert(range.clone(), component_id);
-                            types.remove(index);
-                        }
-                    }
-
-                    if let Some(index) = types.iter().position(|t| *t == MemoryType::Write) {
-                        if let Ok(write_members) = write_members.as_mut() {
-                            write_members.insert(range.clone(), component_id);
-                            types.remove(index);
-                        }
-                    }
-
-                    if !types.is_empty() {
-                        queue_guard.push(MemoryRemappingCommands::Add {
-                            range,
-                            component_id,
-                            types,
-                        });
-                        self.queue_modified.store(true, Ordering::Release);
-                    }
-                }
-            }
-        }
+        queue_guard.extend(commands);
+        self.queue_modified.store(true, Ordering::Release);
     }
 
     #[inline]
@@ -125,15 +69,13 @@ impl AddressSpace {
         mut callback: impl FnMut(ComponentId, &RangeInclusive<Address>) -> Result<(), E>,
     ) -> Result<(), E> {
         if self.queue_modified.load(Ordering::Acquire) {
-            let mut queue_guard = self.queue.lock().unwrap();
-            self.remap(queue_guard.drain(..));
-            self.queue_modified.store(false, Ordering::Release);
+            self.members_rcu_from_queue();
         }
 
         for (component_assigned_range, component_id) in self
-            .read_members
-            .read()
-            .unwrap()
+            .members
+            .load()
+            .read
             .overlapping(accessing_range.clone())
         {
             callback(*component_id, component_assigned_range)?
@@ -149,21 +91,67 @@ impl AddressSpace {
         mut callback: impl FnMut(ComponentId, &RangeInclusive<Address>) -> Result<(), E>,
     ) -> Result<(), E> {
         if self.queue_modified.load(Ordering::Acquire) {
-            let mut queue_guard = self.queue.lock().unwrap();
-            self.remap(queue_guard.drain(..));
-            self.queue_modified.store(false, Ordering::Release);
+            self.members_rcu_from_queue();
         }
 
         for (component_assigned_range, component_id) in self
-            .write_members
-            .read()
-            .unwrap()
+            .members
+            .load()
+            .write
             .overlapping(accessing_range.clone())
         {
             callback(*component_id, component_assigned_range)?
         }
 
         Ok(())
+    }
+
+    fn members_rcu_from_queue(&self) {
+        let mut queue_guard = self.queue.lock().unwrap();
+        let queue_contents = std::mem::replace(&mut *queue_guard, Vec::new());
+
+        self.members.rcu(|members| {
+            let mut members = (**members).clone();
+
+            for command in queue_contents.iter() {
+                match command {
+                    MemoryRemappingCommands::Remove { range, types } => {
+                        tracing::debug!("Removing memory range {:#04x?} from address space", range);
+
+                        if types.contains(&MemoryType::Read) {
+                            members.read.remove(range.clone());
+                        }
+
+                        if types.contains(&MemoryType::Write) {
+                            members.write.remove(range.clone());
+                        }
+                    }
+                    MemoryRemappingCommands::Add {
+                        range,
+                        component_id,
+                        types,
+                    } => {
+                        tracing::debug!(
+                            "Mapping memory component_id {:?} to address range {:#04x?}",
+                            component_id,
+                            range
+                        );
+
+                        if types.contains(&MemoryType::Read) {
+                            members.read.insert(range.clone(), *component_id);
+                        }
+
+                        if types.contains(&MemoryType::Write) {
+                            members.write.insert(range.clone(), *component_id);
+                        }
+                    }
+                }
+            }
+
+            self.queue_modified.store(false, Ordering::Release);
+
+            members
+        });
     }
 }
 
@@ -175,13 +163,13 @@ pub enum MemoryType {
 
 #[derive(Debug)]
 pub enum MemoryRemappingCommands {
-    Remove {
-        range: RangeInclusive<Address>,
-        types: Vec<MemoryType>,
-    },
     Add {
         range: RangeInclusive<Address>,
         component_id: ComponentId,
+        types: Vec<MemoryType>,
+    },
+    Remove {
+        range: RangeInclusive<Address>,
         types: Vec<MemoryType>,
     },
 }

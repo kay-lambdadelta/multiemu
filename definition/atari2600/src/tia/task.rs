@@ -9,7 +9,6 @@ use bitvec::{
 };
 use multiemu_definition_mos6502::RdyFlag;
 use multiemu_runtime::{component::ComponentRef, scheduler::Task};
-use smallvec::SmallVec;
 use std::{num::NonZero, sync::Arc};
 
 pub struct TiaTask<R: Region, G: SupportedGraphicsApiTia> {
@@ -19,9 +18,6 @@ pub struct TiaTask<R: Region, G: SupportedGraphicsApiTia> {
 
 impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
     fn run(&mut self, time_slice: NonZero<u32>) {
-        // This task will usually get called with a time slice of 3 since its 3 times faster than the cpu and the fastest timer in the atari 2600
-        let mut pixels = SmallVec::<[_; 3]>::new();
-
         self.component
             .interact_mut(|component| {
                 let mut state_guard = component.state.lock().unwrap();
@@ -58,16 +54,14 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
                     {
                         let color = R::color_to_srgb(state_guard.get_rendered_color());
 
-                        pixels.push((color, state_guard.electron_beam));
+                        backend_guard.modify_staging_buffer(|mut staging_buffer_guard| {
+                            staging_buffer_guard[(
+                                state_guard.electron_beam.x as usize,
+                                state_guard.electron_beam.y as usize,
+                            )] = color.into();
+                        });
                     }
                 }
-
-                backend_guard.modify_staging_buffer(|mut staging_buffer_guard| {
-                    for (color, position) in pixels {
-                        staging_buffer_guard[(position.x as usize, position.y as usize)] =
-                            color.into();
-                    }
-                });
 
                 if commit_staging_buffer {
                     backend_guard.commit_staging_buffer();
@@ -198,6 +192,7 @@ impl State {
         (self.electron_beam.x..=(self.electron_beam.x)).contains(&ball.position)
     }
 
+    #[inline]
     fn get_playfield_color(&self) -> Option<TiaColor> {
         let playfield_position = (self.electron_beam.x / 4) as usize;
 

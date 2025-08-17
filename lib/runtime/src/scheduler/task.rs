@@ -9,6 +9,7 @@ pub trait Task: Send + Sync + 'static {
 }
 
 impl<T: FnMut(NonZero<u32>) + Send + Sync + 'static> Task for T {
+    #[inline]
     fn run(&mut self, time_slice: NonZero<u32>) {
         self(time_slice)
     }

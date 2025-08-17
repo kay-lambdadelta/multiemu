@@ -12,14 +12,13 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-#[cfg(not(any(target_family = "unix", target_os = "windows")))]
 mod file;
-#[cfg(any(target_family = "unix", target_os = "windows"))]
+#[cfg(feature = "mmap")]
 mod mmap;
 
-#[cfg(any(target_family = "unix", target_os = "windows"))]
+#[cfg(feature = "mmap")]
 pub type DefaultRomMemoryBackend = mmap::MmapBackend;
-#[cfg(not(any(target_family = "unix", target_os = "windows")))]
+#[cfg(not(feature = "mmap"))]
 pub type DefaultRomMemoryBackend = file::FileBackend;
 
 /// Use a global cache to share among rom instances and reduce loaded memory/fds

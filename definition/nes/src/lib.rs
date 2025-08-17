@@ -1,3 +1,10 @@
+use crate::{
+    cartridge::ines::Mirroring,
+    ppu::{
+        NAME_TABLE_ADDRESSES,
+        region::{Region, ntsc::Ntsc},
+    },
+};
 pub use cartridge::ines::INes;
 use cartridge::{NesCartridgeConfig, ines::TimingMode};
 use multiemu_definition_misc::memory::{
@@ -8,11 +15,9 @@ use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use multiemu_runtime::{
     MachineFactory, builder::MachineBuilder, memory::AddressSpaceHandle, platform::Platform,
 };
-use num::rational::Ratio;
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
-
-use crate::{cartridge::ines::Mirroring, ppu::NAME_TABLE_ADDRESSES};
+use std::marker::PhantomData;
 
 mod apu;
 mod cartridge;
@@ -100,26 +105,30 @@ impl<P: Platform> MachineFactory<P> for Nes {
             },
         );
 
-        // Grab the timing mode
         let ines = cartridge.interact(|cart| cart.rom()).unwrap();
-
         let machine = setup_ppu_nametables(machine, ppu_address_space, &ines);
 
-        let (machine, _) = machine.insert_component(
-            "ppu",
-            NesPpuConfig {
-                ppu_address_space,
-                cpu_address_space,
-                ines: &ines,
-            },
-        );
+        let (machine, processor_frequency) = match ines.timing_mode {
+            TimingMode::Ntsc => {
+                let (machine, _) = machine.insert_component(
+                    "ppu",
+                    NesPpuConfig::<'_, Ntsc> {
+                        ppu_address_space,
+                        cpu_address_space,
+                        ines: &ines,
+                        _phantom: PhantomData,
+                    },
+                );
 
-        let processor_frequency = Ratio::from_integer(match ines.timing_mode {
-            TimingMode::Ntsc => 1789773,
-            TimingMode::Pal => 2097152,
-            TimingMode::Multi => 1789773,
-            TimingMode::Dendy => 1773448,
-        });
+                let processor_frequency = Ntsc::master_clock() / 12;
+
+                (machine, processor_frequency)
+            }
+            TimingMode::Pal => todo!(),
+            TimingMode::Multi => todo!(),
+            TimingMode::Dendy => todo!(),
+        };
+
         let (machine, _) = machine.insert_component(
             "processor",
             Mos6502Config {

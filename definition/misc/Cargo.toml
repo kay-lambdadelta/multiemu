@@ -15,13 +15,10 @@ num = { workspace = true }
 tracing = { workspace = true }
 bincode = { workspace = true }
 scc = { workspace = true }
+memmap2 = { version = "0.9", optional = true }
 
-[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dependencies]
-memmap2 = "0.9"
-
-[target.'cfg(all(any(target_family = "unix", target_os = "windows"), not(target_os = "horizon")))'.dev-dependencies]
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
 criterion = { workspace = true }
-ron = { workspace = true }
 
 [[bench]]
 name = "read"
@@ -30,3 +27,6 @@ harness = false
 [[bench]]
 name = "write"
 harness = false
+
+[features]
+mmap = ["dep:memmap2"]

@@ -20,23 +20,21 @@ use strum::{Display, EnumIter};
 pub mod audio;
 pub mod graphics;
 
-#[cfg(all(
-    any(target_family = "unix", target_os = "windows"),
-    not(miri),
-    not(target_os = "horizon")
-))]
-/// Base directory for the emulators files
-pub static STORAGE_DIRECTORY: LazyLock<PathBuf> =
-    LazyLock::new(|| dirs::data_dir().unwrap().join("multiemu"));
-#[cfg(target_os = "horizon")]
-/// Base directory for the emulators files
-pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("sdmc:/multiemu"));
-#[cfg(target_os = "psp")]
-/// Base directory for the emulators files
-pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("ms0:/multiemu"));
-#[cfg(miri)]
-/// Base directory for the emulators files
-pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(PathBuf::default);
+cfg_if::cfg_if! {
+    if #[cfg(miri)] {
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(PathBuf::default);
+    } else if #[cfg(target_os = "espidf")] {
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("/multiemu"));
+    } else if #[cfg(target_os = "horizon")] {
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("sdmc:/multiemu"));
+    } else if #[cfg(target_os = "psp")] {
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("ms0:/multiemu"));
+    } else if #[cfg(any(target_family = "unix", target_os = "windows"))] {
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| dirs::data_dir().unwrap().join("multiemu"));
+    } else {
+        compile_error!("Unsupported target");
+    }
+}
 
 /// Config location
 pub static ENVIRONMENT_LOCATION: LazyLock<PathBuf> =

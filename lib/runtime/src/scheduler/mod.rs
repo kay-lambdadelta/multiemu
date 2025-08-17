@@ -147,9 +147,10 @@ impl Scheduler {
                 let relative_period = task.period / system_gcd;
 
                 tracing::info!(
-                    "Task {} has a period of {}, tick rate of {}",
+                    "Task {} has a period of {} ({:?}), tick rate of {}",
                     task_id,
                     task.period,
+                    Duration::from_secs_f64(task.period.to_f64().unwrap()),
                     relative_period
                 );
 
@@ -244,5 +245,9 @@ impl Scheduler {
     fn update_current_tick(&mut self, amount: u32) {
         self.current_tick =
             self.current_tick.checked_add(amount).unwrap() % self.timeline.len() as u32;
+    }
+
+    pub fn full_cycle(&self) -> u32 {
+        self.timeline.len() as u32
     }
 }

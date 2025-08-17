@@ -48,7 +48,7 @@ num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
 # crates.io bitvec has very bad atomic detection code basically making it unusuable on any unusual platform
-bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "68ab1dce6ad46442fe8681df75674737120ab115", features = [
+bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "d45d8fddb27dd9900c72adbbdb7108b355028a8f", features = [
     "std",
     "serde",
 ] }
@@ -60,7 +60,7 @@ palette = { version = "0.7", default-features = false, features = [
 ] }
 clap = { version = "4.5", features = ["derive"] }
 criterion = "0.7"
-uuid = { version = "1.17", features = ["serde", "v4"] }
+uuid = { version = "1.18", features = ["serde", "v4"] }
 ringbuffer = "0.16"
 bincode = { version = "2.0", features = ["serde"] }
 rustc-hash = "2.1"
@@ -76,6 +76,7 @@ raw-window-handle = "0.6"
 itertools = "0.14"
 rangetools = "0.1"
 smallvec = "1.15"
+cfg-if = "1.0"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }
@@ -88,5 +89,5 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 debug = true
 
 [patch.crates-io]
-bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "68ab1dce6ad46442fe8681df75674737120ab115" }
-radium = { git = "https://github.com/ferrilab/ferrilab", rev = "4a301c3a223e096626a2773d1a1eed1fc4e21140" }
+bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "d45d8fddb27dd9900c72adbbdb7108b355028a8f" }
+radium = { git = "https://github.com/ferrilab/ferrilab", rev = "d45d8fddb27dd9900c72adbbdb7108b355028a8f" }

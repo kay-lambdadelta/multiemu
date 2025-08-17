@@ -7,7 +7,7 @@ use multiemu_runtime::{
     utils::DirectMainThreadExecutor,
 };
 use num::rational::Ratio;
-use std::{fs::File, hint::black_box, ops::Deref, str::FromStr, sync::Arc};
+use std::{fs::File, ops::Deref, str::FromStr, sync::Arc};
 
 fn criterion_benchmark(c: &mut Criterion) {
     multiemu_runtime::utils::set_main_thread();
@@ -37,16 +37,12 @@ fn criterion_benchmark(c: &mut Criterion) {
     );
     let machine: Machine<TestPlatform> = Atari2600.construct(machine).build(Default::default());
 
-    let cpu_address_space = machine.memory_access_table.address_spaces().next().unwrap();
+    let mut scheduler_guard = machine.scheduler.lock().unwrap();
+    let full_cycle = scheduler_guard.full_cycle();
 
-    c.bench_function("riot_ram_access", |b| {
+    c.bench_function("full_machine_cycle", |b| {
         b.iter(|| {
-            let _: u8 = black_box(
-                machine
-                    .memory_access_table
-                    .read_le_value(black_box(0x180), cpu_address_space)
-                    .unwrap(),
-            );
+            scheduler_guard.run_for_cycles(full_cycle);
         })
     });
 }
