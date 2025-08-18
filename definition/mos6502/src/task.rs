@@ -341,9 +341,8 @@ impl ProcessorState {
             ExecutionStep::PushStack(program_pointer[1]),
             ExecutionStep::PushStack(program_pointer[0]),
             ExecutionStep::PushStack(flags.to_byte()),
-            // A real mos 6502 would go from 0, 1, but we don't do that because its more simple and unobservable
-            ExecutionStep::LoadDataFromConstant(vector[1]),
             ExecutionStep::LoadDataFromConstant(vector[0]),
+            ExecutionStep::LoadDataFromConstant(vector[1]),
             ExecutionStep::LatchToProgramPointer,
             ExecutionStep::FetchAndDecode,
         ]);
