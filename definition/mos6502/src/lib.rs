@@ -27,9 +27,13 @@ mod task;
 #[cfg(test)]
 mod tests;
 
-const RESET_VECTOR: usize = 0xfffc;
+const RESET_VECTOR: u16 = 0xfffc;
+const IRQ_VECTOR: u16 = 0xfffe;
+const NMI_VECTOR: u16 = 0xfffa;
 const PAGE_SIZE: usize = 256;
 
+// NOTE: This is based upon an old design of this cpu emulator but I'm keeping it until its fully implemented
+// 
 // Addressing modes vs load steps
 //
 // We will start with the program pointer on the address bus
@@ -99,37 +103,16 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Data (fetch low byte of pointer as immediate)
 //      LoadStep::Data (fetch high byte of pointer as immediate)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add Y)  <- this might be done in parallel depending on the instruction
+//      LoadStep::Offset (add Y)  <- this might be done in parallel depending on the instructions
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LoadStep {
-    /// The CPU is fetching a byte of data so it can continue to the next operation
-    Data,
-    /// The CPU is moving the contents of the temporary latch to the bus. This is a pseudo step so it doesnt consume a cycle
-    LatchToBus,
-    /// The CPU is computing an offset to the data its loading
-    Offset { offset: u8 },
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AddressBusModification {
+    X,
+    Y,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PostInterpretStep {
-    // The CPU is putting the contents of this latch into memory
-    Data {
-        /// The CPU is storing a byte of data
-        value: u8,
-    },
-    PushStack {
-        /// The CPU is pushing a byte to the stack
-        data: u8,
-    },
-    /// The CPU is putting the contents of the address bus onto the program counter ("jump")
-    BusToProgram,
-    /// The CPU is relatively modifying the program counter
-    AddToProgram { value: i8 },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ExecutionMode {
+pub enum ExecutionStep {
     /// Resets the processor
     Reset,
     /// Processor is jammed forever and cannot do anything until a reset
@@ -138,16 +121,26 @@ pub enum ExecutionMode {
     Wait,
     /// Fetch and decode instruction
     FetchAndDecode,
-    /// Loads data required for the instruction
-    PreInterpret {
-        instruction: Mos6502InstructionSet,
-        latch: ArrayVec<u8, 2>,
-        queue: VecDeque<LoadStep>,
-    },
+    /// Loading data, pushing it to the latch, from the address bus pointer
+    LoadData,
+    /// Same as before but it isn't referencing memory
+    LoadDataFromConstant(u8),
+    /// Putting data into memory, from the address bus pointer
+    StoreData(u8),
+    /// Processor is storing an item on the stack
+    PushStack(u8),
+    /// Moving item from the latch to the address bus
+    LatchToAddressBus,
+    /// Moving item from the latch to the program pointer
+    LatchToProgramPointer,
+    /// Copying address bus to program pointer
+    AddressBusToProgramPointer,
+    /// Adding this value to the program pointer
+    ModifyProgramPointer(i8),
+    /// Adding this value to the address bus
+    ModifyAddressBus(AddressBusModification),
     /// Execute this instruction
     Interpret { instruction: Mos6502InstructionSet },
-    /// Stores data for the instruction
-    PostInterpret { queue: VecDeque<PostInterpretStep> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -166,11 +159,13 @@ impl Mos6502Kind {
     pub fn original_instruction_set(&self) -> bool {
         matches!(self, Self::Mos6502 | Self::Mos6507 | Self::Ricoh2A0x)
     }
-}
 
-impl Mos6502Kind {
     pub fn supports_decimal(&self) -> bool {
         !matches!(self, Mos6502Kind::Ricoh2A0x)
+    }
+
+    pub fn supports_interrupts(&self) -> bool {
+        !matches!(self, Mos6502Kind::Mos6507)
     }
 }
 
@@ -243,9 +238,12 @@ struct ProcessorState {
     pub stack: u8,
     /// Program pointer
     pub program: u16,
-    pub execution_mode: Option<ExecutionMode>,
+    /// What the processor is currently doing right now
+    pub execution_queue: VecDeque<ExecutionStep>,
     /// Address bus
     pub address_bus: u16,
+    /// Imaginary processor latch
+    pub latch: ArrayVec<u8, 2>,
 }
 
 impl Default for ProcessorState {
@@ -258,8 +256,9 @@ impl Default for ProcessorState {
             stack: 0xff,
             // Will be set later
             program: 0x0000,
-            execution_mode: Some(ExecutionMode::Reset),
+            execution_queue: VecDeque::from_iter([ExecutionStep::Reset]),
             address_bus: 0x0000,
+            latch: ArrayVec::default(),
         }
     }
 }
@@ -268,12 +267,22 @@ impl Default for ProcessorState {
 pub struct Mos6502 {
     state: ProcessorState,
     rdy: Arc<RdyFlag>,
+    irq: Arc<IrqFlag>,
+    nmi: Arc<NmiFlag>,
     config: Mos6502Config,
 }
 
 impl Mos6502 {
     pub fn rdy(&self) -> Arc<RdyFlag> {
         self.rdy.clone()
+    }
+
+    pub fn irq(&self) -> Arc<IrqFlag> {
+        self.irq.clone()
+    }
+
+    pub fn nmi(&self) -> Arc<NmiFlag> {
+        self.nmi.clone()
     }
 }
 
@@ -342,6 +351,8 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
             )
             .build(Mos6502 {
                 rdy: Arc::new(RdyFlag::new()),
+                irq: Arc::new(IrqFlag::new()),
+                nmi: Arc::new(NmiFlag::new()),
                 state: ProcessorState::default(),
                 config: self,
             });
@@ -376,5 +387,42 @@ impl RdyFlag {
 
     pub fn load(&self) -> bool {
         self.0.load(Ordering::Acquire)
+    }
+}
+
+#[derive(Debug)]
+pub struct IrqFlag(AtomicBool);
+
+impl IrqFlag {
+    pub fn new() -> Self {
+        Self(AtomicBool::new(true))
+    }
+
+    pub fn store(&self, irq: bool) {
+        self.0.store(irq, Ordering::Release);
+    }
+
+    pub fn interrupt_required(&self) -> bool {
+        !self.0.load(Ordering::Acquire)
+    }
+}
+
+/// NMI is falling edge
+#[derive(Debug)]
+pub struct NmiFlag(AtomicBool);
+
+impl NmiFlag {
+    pub fn new() -> Self {
+        Self(AtomicBool::new(false))
+    }
+
+    pub fn store(&self, nmi: bool) {
+        if !nmi {
+            self.0.store(true, Ordering::Release);
+        }
+    }
+
+    pub fn interrupt_required(&self) -> bool {
+        self.0.swap(false, Ordering::AcqRel)
     }
 }

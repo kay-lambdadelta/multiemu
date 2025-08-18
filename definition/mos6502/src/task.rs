@@ -1,15 +1,15 @@
 use crate::{
-    ExecutionMode, LoadStep, Mos6502, PostInterpretStep, RESET_VECTOR,
+    AddressBusModification, ExecutionStep, IRQ_VECTOR, Mos6502, NMI_VECTOR, ProcessorState,
+    RESET_VECTOR,
     decoder::Mos6502InstructionDecoder,
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,
 };
-use arrayvec::ArrayVec;
 use multiemu_runtime::{
     component::ComponentRef, memory::MemoryAccessTable, processor::InstructionDecoder,
     scheduler::Task,
 };
-use std::{collections::VecDeque, num::NonZero, sync::Arc};
+use std::{num::NonZero, sync::Arc};
 
 pub struct CpuDriver {
     pub memory_access_table: Arc<MemoryAccessTable>,
@@ -30,163 +30,157 @@ impl Task for CpuDriver {
                         continue;
                     }
 
-                    match component.state.execution_mode.take().unwrap() {
-                        ExecutionMode::FetchAndDecode => {
-                            tracing::debug!(
-                                "Fetching and decoding instruction from {:#04x}",
-                                component.state.program
-                            );
-
-                            component.fetch_and_decode(
-                                &self.instruction_decoder,
-                                &self.memory_access_table,
-                            );
+                    match component.state.execution_queue.pop_front().unwrap() {
+                        ExecutionStep::Reset => {
+                            component.state.interrupt(RESET_VECTOR, false);
 
                             time_slice -= 1;
                         }
-                        ExecutionMode::PreInterpret {
-                            instruction,
-                            mut latch,
-                            mut queue,
-                        } => {
-                            let mut tick = false;
+                        ExecutionStep::Jammed => {
+                            time_slice -= 1;
 
-                            match queue.pop_front() {
-                                Some(LoadStep::Data) => {
-                                    let byte = self
-                                        .memory_access_table
-                                        .read_le_value(
-                                            component.state.address_bus as usize,
-                                            component.config.assigned_address_space,
-                                        )
-                                        .unwrap_or_default();
+                            component
+                                .state
+                                .execution_queue
+                                .push_back(ExecutionStep::Jammed);
+                        }
+                        ExecutionStep::Wait => {
+                            time_slice -= 1;
 
-                                    latch.push(byte);
-                                    component.state.address_bus =
-                                        component.state.address_bus.wrapping_add(1);
+                            component
+                                .state
+                                .execution_queue
+                                .push_back(ExecutionStep::Wait);
+                        }
+                        ExecutionStep::FetchAndDecode => {
+                            if component.config.kind.supports_interrupts() {
+                                if component.nmi.interrupt_required() {
+                                    component.state.interrupt(NMI_VECTOR, false);
+                                } else if component.irq.interrupt_required()
+                                    && !component.state.flags.interrupt_disable
+                                {
+                                    component.state.interrupt(IRQ_VECTOR, true);
+                                } else {
+                                    tracing::debug!(
+                                        "Fetching and decoding instruction from {:#04x}",
+                                        component.state.program
+                                    );
 
-                                    tick = true;
+                                    component.fetch_and_decode(
+                                        &self.instruction_decoder,
+                                        &self.memory_access_table,
+                                    );
                                 }
-                                Some(LoadStep::LatchToBus) => {
-                                    match latch.len() {
-                                        0 => {
-                                            unreachable!()
-                                        }
-                                        1 => {
-                                            component.state.address_bus = latch[0] as u16;
-                                        }
-                                        2 => {
-                                            let latch = [latch[0], latch[1]];
-                                            component.state.address_bus = u16::from_le_bytes(latch);
-                                        }
-                                        _ => {
-                                            unreachable!()
-                                        }
-                                    }
-
-                                    latch.clear();
-                                }
-                                Some(LoadStep::Offset { offset }) => {
-                                    component.state.address_bus =
-                                        component.state.address_bus.wrapping_add(offset as u16);
-                                }
-                                _ => unreachable!(),
-                            }
-
-                            if queue.is_empty() {
-                                component.state.execution_mode =
-                                    Some(ExecutionMode::Interpret { instruction });
                             } else {
-                                component.state.execution_mode =
-                                    Some(ExecutionMode::PreInterpret {
-                                        instruction,
-                                        latch,
-                                        queue,
-                                    });
+                                tracing::debug!(
+                                    "Fetching and decoding instruction from {:#04x}",
+                                    component.state.program
+                                );
+
+                                component.fetch_and_decode(
+                                    &self.instruction_decoder,
+                                    &self.memory_access_table,
+                                );
                             }
 
-                            if tick {
-                                time_slice -= 1;
-                            }
-                        }
-                        ExecutionMode::Jammed => {
                             time_slice -= 1;
                         }
-                        ExecutionMode::Wait => {
-                            time_slice -= 1;
-                        }
-                        ExecutionMode::Reset => {
-                            let program = [
-                                self.memory_access_table
-                                    .read_le_value(
-                                        RESET_VECTOR,
-                                        component.config.assigned_address_space,
-                                    )
-                                    .unwrap_or_default(),
-                                self.memory_access_table
-                                    .read_le_value(
-                                        RESET_VECTOR + 1,
-                                        component.config.assigned_address_space,
-                                    )
-                                    .unwrap_or_default(),
-                            ];
+                        ExecutionStep::LoadData => {
+                            let byte = self
+                                .memory_access_table
+                                .read_le_value(
+                                    component.state.address_bus as usize,
+                                    component.config.assigned_address_space,
+                                )
+                                .unwrap_or_default();
 
-                            component.state.program = u16::from_le_bytes(program);
-                            component.state.execution_mode = Some(ExecutionMode::FetchAndDecode);
+                            component.state.latch.push(byte);
+                            component.state.address_bus =
+                                component.state.address_bus.wrapping_add(1);
 
                             time_slice -= 1;
                         }
-                        ExecutionMode::PostInterpret { mut queue } => {
-                            match queue.pop_front() {
-                                Some(PostInterpretStep::BusToProgram) => {
-                                    component.state.program = component.state.address_bus;
+                        ExecutionStep::LoadDataFromConstant(data) => {
+                            component.state.latch.push(data);
+                            time_slice -= 1;
+                        }
+                        ExecutionStep::StoreData(data) => {
+                            let _ = self.memory_access_table.write_le_value(
+                                component.state.address_bus as usize,
+                                component.config.assigned_address_space,
+                                data,
+                            );
+                            component.state.address_bus =
+                                component.state.address_bus.wrapping_add(1);
+
+                            time_slice -= 1;
+                        }
+                        ExecutionStep::PushStack(data) => {
+                            component.state.stack = component.state.stack.wrapping_sub(1);
+                            let _ = self.memory_access_table.write_le_value(
+                                STACK_BASE_ADDRESS + component.state.stack as usize,
+                                component.config.assigned_address_space,
+                                data,
+                            );
+
+                            time_slice -= 1;
+                        }
+                        ExecutionStep::LatchToAddressBus => {
+                            match component.state.latch.len() {
+                                1 => {
+                                    component.state.address_bus = component.state.latch[0] as u16;
                                 }
-                                Some(PostInterpretStep::Data { value }) => {
-                                    let _ = self.memory_access_table.write_le_value(
-                                        component.state.address_bus as usize,
-                                        component.config.assigned_address_space,
-                                        value,
-                                    );
-                                    component.state.address_bus =
-                                        component.state.address_bus.wrapping_add(1);
-                                }
-                                Some(PostInterpretStep::PushStack { data }) => {
-                                    component.state.stack = component.state.stack.wrapping_sub(1);
-                                    let _ = self.memory_access_table.write_le_value(
-                                        STACK_BASE_ADDRESS + component.state.stack as usize,
-                                        component.config.assigned_address_space,
-                                        data,
-                                    );
-                                }
-                                Some(PostInterpretStep::AddToProgram { value }) => {
-                                    component.state.program =
-                                        component.state.program.wrapping_add_signed(value as i16);
+                                2 => {
+                                    let latch =
+                                        [component.state.latch[0], component.state.latch[1]];
+                                    component.state.address_bus = u16::from_le_bytes(latch);
                                 }
                                 _ => {
                                     unreachable!()
                                 }
                             }
 
-                            if queue.is_empty() {
-                                component.state.execution_mode =
-                                    Some(ExecutionMode::FetchAndDecode);
-                            } else {
-                                component.state.execution_mode =
-                                    Some(ExecutionMode::PostInterpret { queue });
-                            }
+                            component.state.latch.clear();
+                        }
+                        // Literally only used for interrupts
+                        ExecutionStep::LatchToProgramPointer => {
+                            assert!(component.state.latch.len() == 2);
 
+                            component.state.program = u16::from_le_bytes([
+                                component.state.latch[0],
+                                component.state.latch[1],
+                            ]);
+                            component.state.latch.clear();
+                        }
+                        ExecutionStep::AddressBusToProgramPointer => {
+                            component.state.program = component.state.address_bus;
                             time_slice -= 1;
                         }
-                        ExecutionMode::Interpret { instruction } => {
-                            component.state.execution_mode = Some(ExecutionMode::FetchAndDecode);
+                        ExecutionStep::ModifyProgramPointer(value) => {
+                            component.state.program =
+                                component.state.program.wrapping_add_signed(value as i16);
+                            time_slice -= 1;
+                        }
+                        ExecutionStep::ModifyAddressBus(offset) => {
+                            let offset = match offset {
+                                AddressBusModification::X => component.state.x,
+                                AddressBusModification::Y => component.state.y,
+                            };
 
-                            tracing::debug!("Interpreting instruction {:?}", instruction.opcode);
-
+                            component.state.address_bus =
+                                component.state.address_bus.wrapping_add(offset as u16);
+                        }
+                        ExecutionStep::Interpret { instruction } => {
                             self.interpret_instruction(
                                 &mut component.state,
                                 &component.config,
                                 instruction.clone(),
                             );
+
+                            component
+                                .state
+                                .execution_queue
+                                .push_back(ExecutionStep::FetchAndDecode);
 
                             time_slice -= 1;
                         }
@@ -204,7 +198,7 @@ impl Mos6502 {
         instruction_decoder: &Mos6502InstructionDecoder,
         memory_access_table: &MemoryAccessTable,
     ) {
-        let (instruction, identifiying_bytes_length) = instruction_decoder
+        let (instruction, identifying_bytes_length) = instruction_decoder
             .decode(
                 self.state.program as usize,
                 self.config.assigned_address_space,
@@ -227,143 +221,131 @@ impl Mos6502 {
         self.state.address_bus = self
             .state
             .program
-            .wrapping_add(identifiying_bytes_length as u16);
+            .wrapping_add(identifying_bytes_length as u16);
         self.state.program = self.state.program.wrapping_add(
-            identifiying_bytes_length as u16
+            identifying_bytes_length as u16
                 + instruction
                     .addressing_mode
                     .map(|mode| mode.added_instruction_length())
                     .unwrap_or(0),
         );
+        self.state.latch.clear();
 
-        let latch = ArrayVec::new();
+        if let Some(addressing_mode) = instruction.addressing_mode {
+            match addressing_mode {
+                AddressingMode::Mos6502(Mos6502AddressingMode::Absolute) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::Immediate) => {}
+                AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedAbsolute) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::AbsoluteIndirect) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPageIndirectYIndexed) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                    ]);
+                }
 
-        self.state.execution_mode = Some(match instruction.addressing_mode {
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::Absolute)) => {
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([
-                        LoadStep::Data,
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                    ]),
+                AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage) => {
+                    self.state
+                        .execution_queue
+                        .extend([ExecutionStep::LoadData, ExecutionStep::LatchToAddressBus]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::Relative) => {}
+                AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator) => {}
+                AddressingMode::Wdc65C02(Wdc65C02AddressingMode::ZeroPageIndirect) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                    ]);
                 }
             }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedAbsolute)) => {
-                let offset = self.state.x;
+        }
 
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([
-                        LoadStep::Data,
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                        LoadStep::Offset { offset },
-                    ]),
-                }
-            }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute)) => {
-                let offset = self.state.y;
+        self.state
+            .execution_queue
+            .push_back(ExecutionStep::Interpret { instruction });
+    }
+}
 
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([
-                        LoadStep::Data,
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                        LoadStep::Offset { offset },
-                    ]),
-                }
-            }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::AbsoluteIndirect)) => {
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([
-                        LoadStep::Data,
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                        LoadStep::Data,
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                    ]),
-                }
-            }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect)) => {
-                let offset = self.state.x;
+impl ProcessorState {
+    pub fn interrupt(&mut self, vector: u16, break_status: bool) {
+        let program_pointer = self.program.to_le_bytes();
+        let vector = vector.to_le_bytes();
+        let mut flags = self.flags;
 
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                        LoadStep::Offset { offset },
-                        LoadStep::Data,
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                    ]),
-                }
-            }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPageIndirectYIndexed)) => {
-                let offset = self.state.y;
+        flags.break_ = break_status;
+        flags.undocumented = true;
+        flags.interrupt_disable = true;
 
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                        LoadStep::Data,
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                        LoadStep::Offset { offset },
-                    ]),
-                }
-            }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage)) => {
-                let offset = self.state.x;
-
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                        LoadStep::Offset { offset },
-                    ]),
-                }
-            }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage)) => {
-                let offset = self.state.y;
-
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([
-                        LoadStep::Data,
-                        LoadStep::LatchToBus,
-                        LoadStep::Offset { offset },
-                    ]),
-                }
-            }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage)) => {
-                ExecutionMode::PreInterpret {
-                    instruction,
-                    latch,
-                    queue: VecDeque::from_iter([LoadStep::Data, LoadStep::LatchToBus]),
-                }
-            }
-            Some(AddressingMode::Wdc65C02(Wdc65C02AddressingMode::ZeroPageIndirect)) => {
-                todo!()
-            }
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::Relative))
-            | Some(AddressingMode::Mos6502(Mos6502AddressingMode::Immediate))
-            | Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator))
-            | None => ExecutionMode::Interpret { instruction },
-        });
+        self.execution_queue.extend([
+            ExecutionStep::PushStack(program_pointer[1]),
+            ExecutionStep::PushStack(program_pointer[0]),
+            ExecutionStep::PushStack(flags.to_byte()),
+            // A real mos 6502 would go from 0, 1, but we don't do that because its more simple and unobservable
+            ExecutionStep::LoadDataFromConstant(vector[1]),
+            ExecutionStep::LoadDataFromConstant(vector[0]),
+            ExecutionStep::LatchToProgramPointer,
+            ExecutionStep::FetchAndDecode,
+        ]);
     }
 }

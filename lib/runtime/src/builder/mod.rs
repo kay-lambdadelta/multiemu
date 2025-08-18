@@ -235,7 +235,7 @@ impl<P: Platform> MachineBuilder<P> {
                         addresses.into_iter().map(move |addresses| {
                             (
                                 address_space,
-                                MemoryRemappingCommands::Add {
+                                MemoryRemappingCommands::AddComponent {
                                     range: addresses,
                                     component_id,
                                     types: vec![MemoryType::Read],
@@ -248,7 +248,7 @@ impl<P: Platform> MachineBuilder<P> {
                             addresses.into_iter().map(move |addresses| {
                                 (
                                     address_space,
-                                    MemoryRemappingCommands::Add {
+                                    MemoryRemappingCommands::AddComponent {
                                         range: addresses,
                                         component_id,
                                         types: vec![MemoryType::Write],

@@ -38,7 +38,7 @@ impl Component for Atari2600Cartridge {
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         match self.cart_type {
             CartType::Raw => {
-                let adjusted_offset = address - 0x1000;
+                let adjusted_offset = (address - 0x1000) % self.rom.len();
                 buffer.copy_from_slice(
                     &self.rom[adjusted_offset..=(adjusted_offset + (buffer.len() - 1))],
                 );
@@ -70,7 +70,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
         assert!(rom_bytes.len().is_power_of_two(), "Obviously invalid rom");
 
         let cart_type = self.force_cart_type.unwrap_or_else(|| {
-            if rom_bytes.len() <= 0x4000 {
+            if rom_bytes.len() <= 0x1000 {
                 CartType::Raw
             } else {
                 todo!()

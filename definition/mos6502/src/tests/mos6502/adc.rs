@@ -1,6 +1,4 @@
-use std::i8;
-
-use crate::{ExecutionMode, FlagRegister, tests::mos6502::instruction_test_boilerplate};
+use crate::{ExecutionStep, FlagRegister, tests::mos6502::instruction_test_boilerplate};
 use bitvec::{order::Lsb0, view::BitView};
 use multiemu_runtime::utils::set_main_thread;
 
@@ -14,7 +12,11 @@ pub fn adc_immediate() {
         // Enable carry
         cpu.interact_mut(|component| {
             component.state.flags.carry = true;
-            component.state.execution_mode = Some(ExecutionMode::FetchAndDecode);
+            component.state.execution_queue.clear();
+            component
+                .state
+                .execution_queue
+                .push_back(ExecutionStep::FetchAndDecode);
         })
         .unwrap();
 
@@ -64,7 +66,11 @@ pub fn adc_absolute() {
         // Enable carry
         cpu.interact_mut(|component| {
             component.state.flags.carry = true;
-            component.state.execution_mode = Some(ExecutionMode::FetchAndDecode);
+            component.state.execution_queue.clear();
+            component
+                .state
+                .execution_queue
+                .push_back(ExecutionStep::FetchAndDecode);
         })
         .unwrap();
 

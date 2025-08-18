@@ -3,14 +3,13 @@ use super::{
     instruction::{Mos6502InstructionSet, Mos6502Opcode},
 };
 use crate::{
-    ExecutionMode, Mos6502Config, PostInterpretStep,
+    ExecutionStep, Mos6502Config,
     instruction::{AddressingMode, Mos6502AddressingMode, Opcode, Wdc65C02Opcode},
     task::CpuDriver,
 };
 use bitvec::{prelude::Msb0, view::BitView};
 use multiemu_runtime::memory::Address;
 use num::traits::{FromBytes, ToBytes};
-use std::collections::VecDeque;
 
 pub const STACK_BASE_ADDRESS: Address = 0x0100;
 const INTERRUPT_VECTOR: Address = 0xfffe;
@@ -88,9 +87,9 @@ impl CpuDriver {
                         {
                             state.a = value;
                         } else {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Asr => {
@@ -110,42 +109,36 @@ impl CpuDriver {
                         {
                             state.a = value;
                         } else {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Bcc => {
                         let value: i8 = self.load(state, &instruction, config);
 
                         if !state.flags.carry {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
-                                    value,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bcs => {
                         let value: i8 = self.load(state, &instruction, config);
 
                         if state.flags.carry {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
-                                    value,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Beq => {
                         let value: i8 = self.load(state, &instruction, config);
 
                         if state.flags.zero {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
-                                    value,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bit => {
@@ -162,33 +155,27 @@ impl CpuDriver {
                         let value: i8 = self.load(state, &instruction, config);
 
                         if state.flags.negative {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
-                                    value,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bne => {
                         let value: i8 = self.load(state, &instruction, config);
 
                         if !state.flags.zero {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
-                                    value,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bpl => {
                         let value: i8 = self.load(state, &instruction, config);
 
                         if !state.flags.negative {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
-                                    value,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Brk => {
@@ -236,22 +223,18 @@ impl CpuDriver {
                         let value: i8 = self.load(state, &instruction, config);
 
                         if !state.flags.overflow {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
-                                    value,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bvs => {
                         let value: i8 = self.load(state, &instruction, config);
 
                         if state.flags.overflow {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::AddToProgram {
-                                    value,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Clc => {
@@ -307,11 +290,9 @@ impl CpuDriver {
                         {
                             state.a = result;
                         } else {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::Data {
-                                    value: result,
-                                }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::StoreData(result));
                         }
                     }
                     Mos6502Opcode::Dex => {
@@ -348,9 +329,9 @@ impl CpuDriver {
                         state.flags.negative = result.view_bits::<Msb0>()[0];
                         state.flags.zero = result == 0;
 
-                        state.execution_mode = Some(ExecutionMode::PostInterpret {
-                            queue: VecDeque::from_iter([PostInterpretStep::Data { value: result }]),
-                        });
+                        state
+                            .execution_queue
+                            .push_back(ExecutionStep::StoreData(result));
                     }
                     Mos6502Opcode::Inx => {
                         let result = state.x.wrapping_add(1);
@@ -374,7 +355,7 @@ impl CpuDriver {
                             "The MOS 6502 processor inside this machine just jammed itself"
                         );
 
-                        state.execution_mode = Some(ExecutionMode::Jammed);
+                        state.execution_queue.push_back(ExecutionStep::Jammed);
                     }
                     Mos6502Opcode::Jmp => {
                         let value = match instruction.addressing_mode {
@@ -391,17 +372,11 @@ impl CpuDriver {
                         // We load the byte BEFORE the program counter
                         let program_bytes = (state.program.wrapping_sub(1)).to_le_bytes();
 
-                        state.execution_mode = Some(ExecutionMode::PostInterpret {
-                            queue: VecDeque::from_iter([
-                                PostInterpretStep::PushStack {
-                                    data: program_bytes[1],
-                                },
-                                PostInterpretStep::PushStack {
-                                    data: program_bytes[0],
-                                },
-                                PostInterpretStep::BusToProgram,
-                            ]),
-                        })
+                        state.execution_queue.extend([
+                            ExecutionStep::PushStack(program_bytes[1]),
+                            ExecutionStep::PushStack(program_bytes[0]),
+                            ExecutionStep::AddressBusToProgramPointer,
+                        ]);
                     }
                     Mos6502Opcode::Las => todo!(),
                     Mos6502Opcode::Lax => {
@@ -450,9 +425,9 @@ impl CpuDriver {
                         {
                             state.a = value;
                         } else {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Nop => {
@@ -471,11 +446,9 @@ impl CpuDriver {
                         state.a = result;
                     }
                     Mos6502Opcode::Pha => {
-                        state.execution_mode = Some(ExecutionMode::PostInterpret {
-                            queue: VecDeque::from_iter([PostInterpretStep::PushStack {
-                                data: state.a,
-                            }]),
-                        });
+                        state
+                            .execution_queue
+                            .push_back(ExecutionStep::PushStack(state.a));
                     }
                     Mos6502Opcode::Php => {
                         let mut flags = state.flags;
@@ -483,11 +456,9 @@ impl CpuDriver {
                         flags.undocumented = true;
                         flags.break_ = true;
 
-                        state.execution_mode = Some(ExecutionMode::PostInterpret {
-                            queue: VecDeque::from_iter([PostInterpretStep::PushStack {
-                                data: flags.to_byte(),
-                            }]),
-                        });
+                        state
+                            .execution_queue
+                            .push_back(ExecutionStep::PushStack(flags.to_byte()));
                     }
                     Mos6502Opcode::Pla => {
                         state.a = self
@@ -531,9 +502,9 @@ impl CpuDriver {
                         {
                             state.a = value;
                         } else {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Ror => {
@@ -550,9 +521,9 @@ impl CpuDriver {
                         {
                             state.a = value;
                         } else {
-                            state.execution_mode = Some(ExecutionMode::PostInterpret {
-                                queue: VecDeque::from_iter([PostInterpretStep::Data { value }]),
-                            });
+                            state
+                                .execution_queue
+                                .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Rra => todo!(),
@@ -664,9 +635,9 @@ impl CpuDriver {
                 Wdc65C02Opcode::Bra => {
                     let value: i8 = self.load(state, &instruction, config);
 
-                    state.execution_mode = Some(ExecutionMode::PostInterpret {
-                        queue: VecDeque::from_iter([PostInterpretStep::AddToProgram { value }]),
-                    });
+                    state
+                        .execution_queue
+                        .push_back(ExecutionStep::ModifyProgramPointer(value));
                 }
                 Wdc65C02Opcode::Phx => todo!(),
                 Wdc65C02Opcode::Phy => todo!(),
@@ -726,6 +697,7 @@ impl CpuDriver {
     }
 }
 
+#[inline]
 fn adc(state: &mut ProcessorState, config: &Mos6502Config, value: u8) {
     if state.flags.decimal && config.kind.supports_decimal() {
     } else {

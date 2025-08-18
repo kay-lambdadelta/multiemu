@@ -47,14 +47,14 @@ impl Component for Mapctl {
 
         let mut remapping_commands = Vec::default();
 
-        remapping_commands.push(MemoryRemappingCommands::Add {
+        remapping_commands.push(MemoryRemappingCommands::AddComponent {
             range: 0x0000..=0xffff,
             component_id: self.config.ram,
             types: vec![MemoryType::Read, MemoryType::Write],
         });
 
         if register.suzy {
-            remapping_commands.push(MemoryRemappingCommands::Add {
+            remapping_commands.push(MemoryRemappingCommands::AddComponent {
                 range: SUZY_ADDRESSES,
                 component_id: self.config.suzy,
                 types: vec![MemoryType::Read, MemoryType::Write],
@@ -62,28 +62,28 @@ impl Component for Mapctl {
         }
 
         if register.mikey {
-            remapping_commands.push(MemoryRemappingCommands::Add {
+            remapping_commands.push(MemoryRemappingCommands::AddComponent {
                 range: MIKEY_ADDRESSES,
                 component_id: self.config.mikey,
                 types: vec![MemoryType::Read, MemoryType::Write],
             });
         }
 
-        remapping_commands.push(MemoryRemappingCommands::Add {
+        remapping_commands.push(MemoryRemappingCommands::AddComponent {
             range: RESERVED_MEMORY_ADDRESS..=RESERVED_MEMORY_ADDRESS,
             component_id: self.config.reserved,
             types: vec![MemoryType::Read, MemoryType::Write],
         });
 
         if register.vector {
-            remapping_commands.push(MemoryRemappingCommands::Add {
+            remapping_commands.push(MemoryRemappingCommands::AddComponent {
                 range: VECTOR_ADDRESSES,
                 component_id: self.config.vector,
                 types: vec![MemoryType::Read, MemoryType::Write],
             });
         }
 
-        remapping_commands.push(MemoryRemappingCommands::Add {
+        remapping_commands.push(MemoryRemappingCommands::AddComponent {
             range: MAPCTL_ADDRESS..=MAPCTL_ADDRESS,
             component_id: self.my_id,
             types: vec![MemoryType::Read, MemoryType::Write],

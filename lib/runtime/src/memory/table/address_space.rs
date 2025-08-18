@@ -124,7 +124,7 @@ impl AddressSpace {
                             members.write.remove(range.clone());
                         }
                     }
-                    MemoryRemappingCommands::Add {
+                    MemoryRemappingCommands::AddComponent {
                         range,
                         component_id,
                         types,
@@ -161,7 +161,7 @@ pub enum MemoryType {
 
 #[derive(Debug)]
 pub enum MemoryRemappingCommands {
-    Add {
+    AddComponent {
         range: RangeInclusive<Address>,
         component_id: ComponentId,
         types: Vec<MemoryType>,

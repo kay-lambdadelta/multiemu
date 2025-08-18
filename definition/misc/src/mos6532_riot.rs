@@ -174,7 +174,12 @@ impl Component for Mos6532Riot {
 
             match adjusted_address {
                 0x0 if self.registers.swacnt.load(Ordering::Acquire) => {
-                    *buffer_section = self.registers.swcha.get().unwrap().read_register();
+                    *buffer_section = self
+                        .registers
+                        .swcha
+                        .get()
+                        .map(|handler| handler.read_register())
+                        .unwrap_or(0);
                 }
                 0x1 => {
                     *buffer_section = if self.registers.swacnt.load(Ordering::Acquire) {
@@ -184,7 +189,12 @@ impl Component for Mos6532Riot {
                     };
                 }
                 0x2 if self.registers.swbcnt.load(Ordering::Acquire) => {
-                    *buffer_section = self.registers.swchb.get().unwrap().read_register();
+                    *buffer_section = self
+                        .registers
+                        .swchb
+                        .get()
+                        .map(|handler| handler.read_register())
+                        .unwrap_or(0);
                 }
                 0x3 => {
                     *buffer_section = if self.registers.swbcnt.load(Ordering::Acquire) {
