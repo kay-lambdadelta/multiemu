@@ -67,7 +67,7 @@ rustc-hash = "2.1"
 ron = "0.10"
 data-encoding = "2.9"
 deku = "0.19"
-scc = "2.3"
+scc = "2.4"
 sealed = "0.6"
 crossbeam = "0.8"
 egui = { version = "0.32", features = ["default_fonts", "rayon", "log"] }

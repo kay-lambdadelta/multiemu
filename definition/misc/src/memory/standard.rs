@@ -154,28 +154,6 @@ impl Component for StandardMemory {
         _address_space: AddressSpaceHandle,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
-        if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
-            let invalid_before_range = address..=end_address;
-
-            if !invalid_before_range.is_empty() {
-                return Err(MemoryOperationError::from_iter([(
-                    invalid_before_range,
-                    PreviewMemoryRecord::Denied,
-                )]));
-            }
-        }
-
-        if let Some(start_address) = self.config.assigned_range.end().checked_add(1) {
-            let invalid_after_range = start_address..=address;
-
-            if !invalid_after_range.is_empty() {
-                return Err(MemoryOperationError::from_iter([(
-                    invalid_after_range,
-                    PreviewMemoryRecord::Denied,
-                )]));
-            }
-        }
-
         self.read_internal(address, buffer);
 
         Ok(())
@@ -187,28 +165,6 @@ impl Component for StandardMemory {
         _address_space: AddressSpaceHandle,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
-            let invalid_before_range = address..=end_address;
-
-            if !invalid_before_range.is_empty() {
-                return Err(MemoryOperationError::from_iter([(
-                    invalid_before_range,
-                    WriteMemoryRecord::Denied,
-                )]));
-            }
-        }
-
-        if let Some(start_address) = self.config.assigned_range.end().checked_add(1) {
-            let invalid_after_range = start_address..=address;
-
-            if !invalid_after_range.is_empty() {
-                return Err(MemoryOperationError::from_iter([(
-                    invalid_after_range,
-                    WriteMemoryRecord::Denied,
-                )]));
-            }
-        }
-
         // Shoved off in a helper function to prevent duplicated logic
         self.write_internal(address, buffer);
 
@@ -274,6 +230,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
 
 impl StandardMemory {
     /// Writes unchecked internally
+    #[inline]
     fn write_internal(&self, address: Address, buffer: &[u8]) {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
@@ -313,6 +270,7 @@ impl StandardMemory {
         }
     }
 
+    #[inline]
     fn read_internal(&self, address: Address, buffer: &mut [u8]) {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);

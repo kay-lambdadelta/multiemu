@@ -12,6 +12,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
+#[allow(unused)]
 mod file;
 #[cfg(feature = "mmap")]
 mod mmap;

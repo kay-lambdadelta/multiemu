@@ -57,7 +57,7 @@ impl ComponentRegistry {
     }
 
     pub fn get_path(&self, component_id: ComponentId) -> ComponentPath {
-        self.components[component_id.index()].path.clone()
+        self.components[component_id.get() as usize].path.clone()
     }
 
     pub fn get_id(&self, path: &ComponentPath) -> Option<ComponentId> {
@@ -112,7 +112,7 @@ impl ComponentRegistry {
             path: path.clone(),
         });
 
-        let component_id = ComponentId(index.try_into().unwrap());
+        let component_id = ComponentId::new(index.try_into().unwrap());
         let _ = self.component_ids.insert(path, component_id);
 
         component_id
@@ -130,7 +130,7 @@ impl ComponentRegistry {
             path: path.clone(),
         });
 
-        let component_id = ComponentId(index.try_into().unwrap());
+        let component_id = ComponentId::new(index.try_into().unwrap());
         let _ = self.component_ids.insert(path, component_id);
 
         component_id
@@ -143,7 +143,7 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
-        match self.components[component_id.index()]
+        match self.components[component_id.get() as usize]
             .storage
             .read()
             .unwrap()
@@ -162,7 +162,7 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&mut dyn Component) -> T + Send,
     ) -> Result<T, ComponentStoreError> {
-        match self.components[component_id.index()]
+        match self.components[component_id.get() as usize]
             .storage
             .write()
             .unwrap()
@@ -182,7 +182,7 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Result<T, ComponentStoreError> {
-        match self.components[component_id.index()]
+        match self.components[component_id.get() as usize]
             .storage
             .read()
             .unwrap()
@@ -199,7 +199,7 @@ impl ComponentRegistry {
         component_id: ComponentId,
         callback: impl FnOnce(&mut dyn Component) -> T,
     ) -> Result<T, ComponentStoreError> {
-        match self.components[component_id.index()]
+        match self.components[component_id.get() as usize]
             .storage
             .write()
             .unwrap()

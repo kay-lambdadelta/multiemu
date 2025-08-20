@@ -1,7 +1,6 @@
 use super::Address;
 use crate::component::ComponentRegistry;
 use address_space::AddressSpace;
-use bitvec::{field::BitField, order::Lsb0};
 use nohash::BuildNoHashHasher;
 use std::{collections::HashMap, ops::RangeInclusive, sync::Arc};
 
@@ -53,12 +52,8 @@ impl MemoryAccessTable {
                 .expect("Too many address spaces"),
         );
 
-        let mut mask = bitvec::bitvec![usize, Lsb0; 0; usize::BITS as usize];
-        mask[..address_space_width as usize].fill(true);
-        let width_mask = mask.load();
-
         self.address_spaces
-            .insert(id, AddressSpace::new(width_mask));
+            .insert(id, AddressSpace::new(address_space_width));
 
         id
     }

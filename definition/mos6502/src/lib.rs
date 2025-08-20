@@ -33,7 +33,7 @@ const NMI_VECTOR: u16 = 0xfffa;
 const PAGE_SIZE: usize = 256;
 
 // NOTE: This is based upon an old design of this cpu emulator but I'm keeping it until its fully implemented
-// 
+//
 // Addressing modes vs load steps
 //
 // We will start with the program pointer on the address bus

@@ -30,6 +30,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
 
                         if state_guard.cycles_waiting_for_vsync == Some(0) {
                             commit_staging_buffer = true;
+                            state_guard.cycles_waiting_for_vsync = None;
                         }
                     }
 
@@ -155,7 +156,7 @@ impl State {
                     return if *sprite_pixel {
                         Some(player.color)
                     } else {
-                        Some(self.background_color)
+                        None
                     };
                 }
             } else {
@@ -165,7 +166,7 @@ impl State {
                     return if *sprite_pixel {
                         Some(player.color)
                     } else {
-                        Some(self.background_color)
+                        None
                     };
                 }
             }
@@ -182,14 +183,14 @@ impl State {
             return false;
         }
 
-        (self.electron_beam.x..=(self.electron_beam.x)).contains(&missile.position)
+        self.electron_beam.x == missile.position
     }
 
     #[inline]
     fn get_ball_color(&self) -> bool {
         let ball = &self.ball;
 
-        (self.electron_beam.x..=(self.electron_beam.x)).contains(&ball.position)
+        self.electron_beam.x == ball.position
     }
 
     #[inline]
@@ -205,7 +206,7 @@ impl State {
                         Some(self.playfield.color)
                     }
                 } else {
-                    Some(self.background_color)
+                    None
                 }
             }
             20..40 => {
@@ -222,7 +223,7 @@ impl State {
                         Some(self.playfield.color)
                     }
                 } else {
-                    Some(self.background_color)
+                    None
                 }
             }
             _ => unreachable!(),

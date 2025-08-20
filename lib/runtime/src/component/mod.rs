@@ -15,6 +15,7 @@ use std::{
     fmt::Debug,
     hash::Hash,
     io::{Read, Write},
+    num::NonZero,
 };
 
 pub use component_ref::ComponentRef;
@@ -135,17 +136,24 @@ pub struct LateInitializedData<P: Platform> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
-pub struct ComponentId(u16);
+/// A reference to a component
+/// 
+/// The guts are [NonZero] for layout optimization
+pub struct ComponentId(NonZero<u16>);
 
 impl ComponentId {
-    pub(crate) fn index(&self) -> usize {
-        self.0 as usize
+    pub(crate) fn new(id: u16) -> Self {
+        Self(id.checked_add(1).and_then(NonZero::new).unwrap())
+    }
+
+    pub(crate) fn get(&self) -> u16 {
+        self.0.get() - 1
     }
 }
 
 impl Hash for ComponentId {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_u16(self.0);
+        state.write_u16(self.0.get());
     }
 }
 
