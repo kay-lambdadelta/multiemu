@@ -79,7 +79,7 @@ impl MemoryAccessTable {
             address_space_info.visit_write_components(
                 accessing_range.clone(),
                 |component_id, component_assigned_range| {
-                    self.component_store
+                    self.registry
                     .interact_dyn(component_id, |component| {
                         let adjusted_accessing_range: RangeInclusive<Address> = accessing_range
                             .clone()

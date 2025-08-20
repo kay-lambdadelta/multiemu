@@ -30,7 +30,6 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
 
                         if state_guard.cycles_waiting_for_vsync == Some(0) {
                             commit_staging_buffer = true;
-                            state_guard.cycles_waiting_for_vsync = None;
                         }
                     }
 

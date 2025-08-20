@@ -33,7 +33,7 @@ impl<R> FromIterator<(RangeInclusive<Address>, R)> for MemoryOperationError<R> {
 pub struct MemoryAccessTable {
     address_spaces: HashMap<AddressSpaceHandle, AddressSpace, BuildNoHashHasher<u16>>,
     current_address_space: u16,
-    component_store: Arc<ComponentRegistry>,
+    registry: Arc<ComponentRegistry>,
 }
 
 impl MemoryAccessTable {
@@ -41,19 +41,22 @@ impl MemoryAccessTable {
         Self {
             address_spaces: Default::default(),
             current_address_space: 0,
-            component_store,
+            registry: component_store,
         }
     }
 
     pub(crate) fn insert_address_space(&mut self, address_space_width: u8) -> AddressSpaceHandle {
-        let id = AddressSpaceHandle::new(
-            self.current_address_space
-                .checked_add(1)
-                .expect("Too many address spaces"),
-        );
+        let id = AddressSpaceHandle::new(self.current_address_space);
 
-        self.address_spaces
-            .insert(id, AddressSpace::new(address_space_width));
+        self.current_address_space = self
+            .current_address_space
+            .checked_add(1)
+            .expect("Too many address spaces");
+
+        self.address_spaces.insert(
+            id,
+            AddressSpace::new(self.registry.clone(), address_space_width),
+        );
 
         id
     }
@@ -69,7 +72,7 @@ impl MemoryAccessTable {
         address_space: AddressSpaceHandle,
         commands: impl IntoIterator<Item = MemoryRemappingCommands>,
     ) {
-        let address_space = self.address_spaces.get(&address_space).unwrap();
+        let address_space = &self.address_spaces[&address_space];
         address_space.remap(commands);
     }
 }

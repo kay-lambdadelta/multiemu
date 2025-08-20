@@ -1,4 +1,7 @@
-use crate::{component::ComponentId, memory::Address};
+use crate::{
+    component::{ComponentId, ComponentRegistry},
+    memory::Address,
+};
 use bitvec::{field::BitField, order::Lsb0};
 use nohash::{BuildNoHashHasher, IsEnabled};
 use rangemap::RangeInclusiveMap;
@@ -8,7 +11,7 @@ use std::{
     hash::{Hash, Hasher},
     ops::RangeInclusive,
     sync::{
-        Mutex, RwLock,
+        Arc, Mutex, RwLock, RwLockWriteGuard,
         atomic::{AtomicBool, Ordering},
     },
     vec::Vec,
@@ -49,10 +52,11 @@ pub(super) struct AddressSpace {
     /// Queue for if the address space is locked at the moment
     queue: Mutex<Vec<MemoryRemappingCommands>>,
     queue_modified: AtomicBool,
+    registry: Arc<ComponentRegistry>,
 }
 
 impl AddressSpace {
-    pub fn new(address_space_width: u8) -> Self {
+    pub fn new(registry: Arc<ComponentRegistry>, address_space_width: u8) -> Self {
         let mut mask = bitvec::bitvec![usize, Lsb0; 0; usize::BITS as usize];
         mask[..address_space_width as usize].fill(true);
         let width_mask = mask.load_le();
@@ -65,13 +69,19 @@ impl AddressSpace {
             members: Default::default(),
             queue: Default::default(),
             queue_modified: AtomicBool::new(false),
+            registry,
         }
     }
 
     pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommands>) {
         let mut queue_guard = self.queue.lock().unwrap();
-        queue_guard.extend(commands);
-        self.queue_modified.store(true, Ordering::Release);
+
+        if let Ok(members) = self.members.try_write() {
+            self.update_members(Some(members), commands);
+        } else {
+            queue_guard.extend(commands);
+            self.queue_modified.store(true, Ordering::Release);
+        }
     }
 
     #[inline]
@@ -80,8 +90,9 @@ impl AddressSpace {
         accessing_range: RangeInclusive<Address>,
         mut callback: impl FnMut(ComponentId, &RangeInclusive<Address>) -> Result<(), E>,
     ) -> Result<(), E> {
-        if self.queue_modified.load(Ordering::Acquire) {
-            self.update_members();
+        if self.queue_modified.swap(false, Ordering::Acquire) {
+            let mut queue_guard = self.queue.lock().unwrap();
+            self.update_members(None, queue_guard.drain(..));
         }
 
         let members = self.members.read().unwrap();
@@ -135,8 +146,9 @@ impl AddressSpace {
         accessing_range: RangeInclusive<Address>,
         mut callback: impl FnMut(ComponentId, &RangeInclusive<Address>) -> Result<(), E>,
     ) -> Result<(), E> {
-        if self.queue_modified.load(Ordering::Acquire) {
-            self.update_members();
+        if self.queue_modified.swap(false, Ordering::Acquire) {
+            let mut queue_guard = self.queue.lock().unwrap();
+            self.update_members(None, queue_guard.drain(..));
         }
 
         let members = self.members.read().unwrap();
@@ -184,16 +196,17 @@ impl AddressSpace {
         Ok(())
     }
 
-    fn update_members(&self) {
-        let mut queue_guard = self.queue.lock().unwrap();
-        let queue_contents = std::mem::replace(&mut *queue_guard, Vec::new());
-
+    fn update_members(
+        &self,
+        members: Option<RwLockWriteGuard<'_, Members>>,
+        commands: impl IntoIterator<Item = MemoryRemappingCommands>,
+    ) {
         let mut read_members: RangeInclusiveMap<_, _, Address> = RangeInclusiveMap::default();
         let mut write_members: RangeInclusiveMap<_, _, Address> = RangeInclusiveMap::default();
 
         let invalid_ranges = (0..=self.max_value).complement();
 
-        let mut members = self.members.write().unwrap();
+        let mut members = members.unwrap_or_else(|| self.members.write().unwrap());
 
         for (component, range) in
             members
@@ -225,15 +238,15 @@ impl AddressSpace {
             write_members.insert(range, component);
         }
 
-        for command in queue_contents.iter() {
+        for command in commands {
             match command {
                 MemoryRemappingCommands::Remove { range, types } => {
-                    assert!(
-                        !invalid_ranges.clone().intersects(range.clone()),
-                        "Range {:#04x?} is invalid for a address space that ends at {:04x?}",
-                        range,
-                        self.max_value
-                    );
+                    if invalid_ranges.clone().intersects(range.clone()) {
+                        panic!(
+                            "Range {:#04x?} is invalid for a address space that ends at {:04x?}",
+                            range, self.max_value
+                        );
+                    }
 
                     tracing::debug!("Removing memory range {:#04x?} from address space", range);
 
@@ -250,12 +263,14 @@ impl AddressSpace {
                     component_id,
                     types,
                 } => {
-                    assert!(
-                        !invalid_ranges.clone().intersects(range.clone()),
-                        "Range {:#04x?} is invalid for a address space that ends at {:04x?}",
-                        range,
-                        self.max_value
-                    );
+                    if invalid_ranges.clone().intersects(range.clone()) {
+                        panic!(
+                            "Range {:#04x?} (inserted by component {}) is invalid for a address space that ends at {:04x?}",
+                            range,
+                            self.registry.get_path(component_id),
+                            self.max_value
+                        );
+                    }
 
                     tracing::debug!(
                         "Mapping memory component_id {:?} to address range {:#04x?}",
@@ -264,17 +279,15 @@ impl AddressSpace {
                     );
 
                     if types.contains(&MemoryType::Read) {
-                        read_members.insert(range.clone(), *component_id);
+                        read_members.insert(range.clone(), component_id);
                     }
 
                     if types.contains(&MemoryType::Write) {
-                        write_members.insert(range.clone(), *component_id);
+                        write_members.insert(range.clone(), component_id);
                     }
                 }
             }
         }
-
-        self.queue_modified.store(false, Ordering::Release);
 
         members.read.clear();
         members.write.clear();

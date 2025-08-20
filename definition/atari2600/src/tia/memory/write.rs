@@ -6,6 +6,9 @@ use crate::tia::{
 use bitvec::{field::BitField, order::Msb0, slice::BitSlice, view::BitView};
 use nalgebra::Point2;
 
+const PLAYER_RESP_OFFSET: u16 = 3;
+const OTHER_RESP_OFFSET: u16 = 2;
+
 impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
     pub(crate) fn handle_write_register(
         &self,
