@@ -343,6 +343,9 @@ impl ProcessorState {
             ExecutionStep::PushStack(flags.to_byte()),
             ExecutionStep::LoadDataFromConstant(vector[0]),
             ExecutionStep::LoadDataFromConstant(vector[1]),
+            ExecutionStep::LatchToAddressBus,
+            ExecutionStep::LoadData,
+            ExecutionStep::LoadData,
             ExecutionStep::LatchToProgramPointer,
             ExecutionStep::FetchAndDecode,
         ]);
