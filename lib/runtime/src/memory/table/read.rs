@@ -1,4 +1,4 @@
-use super::{MemoryAccessTable, address_space::AddressSpaceHandle};
+use super::{MemoryAccessTable, address_space::AddressSpaceId};
 use crate::memory::{Address, table::QueueEntry};
 use num::traits::FromBytes;
 use rangemap::RangeInclusiveMap;
@@ -33,7 +33,7 @@ pub enum ReadMemoryRecord {
         /// Address
         address: Address,
         /// Address Space
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
     },
 }
 
@@ -65,7 +65,7 @@ pub enum PreviewMemoryRecord {
         /// Address
         address: Address,
         /// Address space
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
     },
     // Memory here can't be read without an intense calculation or a state change
     Impossible,
@@ -75,11 +75,12 @@ impl MemoryAccessTable {
     /// Step through the memory translation table to fill a buffer
     ///
     /// Contents of the buffer upon failure are usually component specific
+    ///
     #[inline]
     pub fn read(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryOperationError> {
         let buffer_subrange = 0..=(buffer.len() - 1);
@@ -115,6 +116,7 @@ impl MemoryAccessTable {
                 |component_id, component_assigned_range| {
                     self.registry
                         .interact_dyn(component_id, |component| {
+                            
                         let adjusted_accessing_range: RangeInclusive<Address> = accessing_range
                             .clone()
                             .intersection(component_assigned_range.clone())
@@ -144,7 +146,7 @@ impl MemoryAccessTable {
                                         address: redirect_address,
                                         address_space: redirect_address_space,
                                     } => {
-                                        assert!(
+                                        debug_assert!(
                                             !component_assigned_range.contains(&redirect_address)
                                                 && address_space == redirect_address_space,
                                             "Memory attempted to redirect to itself {:x?} -> {:x}",
@@ -189,7 +191,7 @@ impl MemoryAccessTable {
     pub fn read_le_value<T: FromBytes>(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
     ) -> Result<T, ReadMemoryOperationError>
     where
         T::Bytes: Default,
@@ -203,7 +205,7 @@ impl MemoryAccessTable {
     pub fn read_be_value<T: FromBytes>(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
     ) -> Result<T, ReadMemoryOperationError>
     where
         T::Bytes: Default,
@@ -217,7 +219,7 @@ impl MemoryAccessTable {
     pub fn preview(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), PreviewMemoryOperationError> {
         let buffer_subrange = 0..=(buffer.len() - 1);
@@ -333,7 +335,7 @@ impl MemoryAccessTable {
     pub fn preview_le_value<T: FromBytes>(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
     ) -> Result<T, PreviewMemoryOperationError>
     where
         T::Bytes: Default,
@@ -347,7 +349,7 @@ impl MemoryAccessTable {
     pub fn preview_be_value<T: FromBytes>(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
     ) -> Result<T, PreviewMemoryOperationError>
     where
         T::Bytes: Default,

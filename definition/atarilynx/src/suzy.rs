@@ -4,7 +4,7 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig},
     memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
@@ -60,7 +60,7 @@ impl Component for Suzy {
     fn read_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         // TODO: Make this a match table when rust gets inline const patterns
@@ -118,7 +118,7 @@ impl Component for Suzy {
     fn write_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         if TMPADRL.contains(&address) {
@@ -174,7 +174,7 @@ impl Component for Suzy {
     fn preview_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         return Err(MemoryOperationError::from_iter([(
@@ -186,7 +186,7 @@ impl Component for Suzy {
 
 #[derive(Debug, Clone)]
 pub struct SuzyConfig {
-    pub cpu_address_space: AddressSpaceHandle,
+    pub cpu_address_space: AddressSpaceId,
 }
 
 impl<P: Platform> ComponentConfig<P> for SuzyConfig {

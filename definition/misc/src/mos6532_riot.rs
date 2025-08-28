@@ -2,7 +2,7 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion},
     memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
@@ -164,7 +164,7 @@ impl Component for Mos6532Riot {
     fn read_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         for (address, buffer_section) in
@@ -236,7 +236,7 @@ impl Component for Mos6532Riot {
     fn preview_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         for (address, buffer_section) in
@@ -298,7 +298,7 @@ impl Component for Mos6532Riot {
     fn write_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         for (address, buffer_section) in
@@ -491,5 +491,5 @@ pub struct Mos6532RiotConfig {
     pub frequency: Ratio<u32>,
     pub registers_assigned_address: Address,
     pub ram_assigned_address: Address,
-    pub assigned_address_space: AddressSpaceHandle,
+    pub assigned_address_space: AddressSpaceId,
 }

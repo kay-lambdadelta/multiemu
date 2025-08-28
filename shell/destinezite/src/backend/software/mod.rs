@@ -6,7 +6,7 @@ use multiemu_frontend::{
 use multiemu_graphics::{GraphicsApi, software::Software};
 use multiemu_runtime::Machine;
 use nalgebra::{DMatrixViewMut, Vector2};
-use palette::{Srgba, cast::Packed, rgb::channels::Argb};
+use palette::{cast::Packed, named::BLACK, rgb::channels::Argb};
 use softbuffer::{Context, Surface};
 use std::{
     fmt::Debug,
@@ -75,7 +75,7 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
             self.previously_recorded_size.x as usize,
             self.previously_recorded_size.y as usize,
         );
-        surface_buffer_view.fill(Packed::<Argb, u32>::pack(Srgba::new(0, 0, 0, 0xff)));
+        surface_buffer_view.fill(Packed::<Argb, u32>::pack(BLACK.into()));
 
         let integer_scaling = self
             .environment

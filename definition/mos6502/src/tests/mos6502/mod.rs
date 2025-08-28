@@ -3,18 +3,15 @@ use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use multiemu_runtime::{
-    Machine, component::ComponentRef, memory::AddressSpaceHandle, platform::TestPlatform,
+    Machine, component::ComponentRef, memory::AddressSpaceId, platform::TestPlatform,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 
 mod adc;
 
-fn instruction_test_boilerplate() -> (
-    Machine<TestPlatform>,
-    ComponentRef<Mos6502>,
-    AddressSpaceHandle,
-) {
+fn instruction_test_boilerplate() -> (Machine<TestPlatform>, ComponentRef<Mos6502>, AddressSpaceId)
+{
     let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
     let (machine, cpu) = machine.insert_component(

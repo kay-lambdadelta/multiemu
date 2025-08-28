@@ -8,7 +8,6 @@ pub mod pal;
 pub mod secam;
 
 pub trait Region: Send + Sync + Debug + 'static {
-    const REFRESH_RATE: Ratio<u32>;
     const TOTAL_SCANLINES: u16;
 
     fn frequency() -> Ratio<u32>;

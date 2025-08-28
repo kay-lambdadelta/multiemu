@@ -50,7 +50,6 @@ static COLOR_PALETTE: LazyLock<SMatrix<Srgb<u8>, 16, 8>> = LazyLock::new(|| {
 pub struct Ntsc;
 
 impl Region for Ntsc {
-    const REFRESH_RATE: Ratio<u32> = Ratio::new_raw(60, 1);
     const TOTAL_SCANLINES: u16 = 262;
 
     fn frequency() -> Ratio<u32> {

@@ -1,7 +1,8 @@
 use crate::{
     cartridge::ines::Mirroring,
     ppu::{
-        NAME_TABLE_ADDRESSES,
+        NAMETABLE_ADDRESSES,
+        backend::SupportedGraphicsApiPpu,
         region::{Region, ntsc::Ntsc},
     },
 };
@@ -13,7 +14,7 @@ use multiemu_definition_misc::memory::{
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use multiemu_runtime::{
-    MachineFactory, builder::MachineBuilder, memory::AddressSpaceHandle, platform::Platform,
+    MachineFactory, builder::MachineBuilder, memory::AddressSpaceId, platform::Platform,
 };
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
@@ -26,7 +27,7 @@ mod ppu;
 #[derive(Debug, Default)]
 pub struct Nes;
 
-impl<P: Platform> MachineFactory<P> for Nes {
+impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P> for Nes {
     fn construct(&self, machine: MachineBuilder<P>) -> MachineBuilder<P> {
         let (machine, cpu_address_space) = machine.insert_address_space(16);
         let (machine, ppu_address_space) = machine.insert_address_space(14);
@@ -108,36 +109,37 @@ impl<P: Platform> MachineFactory<P> for Nes {
         let ines = cartridge.interact(|cart| cart.rom()).unwrap();
         let machine = setup_ppu_nametables(machine, ppu_address_space, &ines);
 
-        let (machine, processor_frequency) = match ines.timing_mode {
+        let machine = match ines.timing_mode {
             TimingMode::Ntsc => {
+                let processor_frequency = Ntsc::master_clock() / 12;
+
+                let (machine, processor) = machine.insert_component(
+                    "processor",
+                    Mos6502Config {
+                        frequency: processor_frequency,
+                        assigned_address_space: cpu_address_space,
+                        kind: Mos6502Kind::Ricoh2A0x,
+                        broken_ror: false,
+                    },
+                );
+
                 let (machine, _) = machine.insert_component(
                     "ppu",
                     NesPpuConfig::<'_, Ntsc> {
                         ppu_address_space,
                         cpu_address_space,
+                        processor,
                         ines: &ines,
                         _phantom: PhantomData,
                     },
                 );
 
-                let processor_frequency = Ntsc::master_clock() / 12;
-
-                (machine, processor_frequency)
+                machine
             }
             TimingMode::Pal => todo!(),
             TimingMode::Multi => todo!(),
             TimingMode::Dendy => todo!(),
         };
-
-        let (machine, _) = machine.insert_component(
-            "processor",
-            Mos6502Config {
-                frequency: processor_frequency,
-                assigned_address_space: cpu_address_space,
-                kind: Mos6502Kind::Ricoh2A0x,
-                broken_ror: false,
-            },
-        );
 
         machine
     }
@@ -145,20 +147,20 @@ impl<P: Platform> MachineFactory<P> for Nes {
 
 fn setup_ppu_nametables<P: Platform>(
     machine: MachineBuilder<P>,
-    ppu_address_space: AddressSpaceHandle,
+    ppu_address_space: AddressSpaceId,
     ines: &INes,
 ) -> MachineBuilder<P> {
     match ines.mirroring {
         Mirroring::Vertical => {
             let (machine, _) = machine.insert_component(
-                "name_table_0",
+                "nametable_0",
                 StandardMemoryConfig {
                     assigned_address_space: ppu_address_space,
-                    assigned_range: NAME_TABLE_ADDRESSES[0].clone(),
+                    assigned_range: NAMETABLE_ADDRESSES[0].clone(),
                     readable: true,
                     writable: true,
                     initial_contents: RangeInclusiveMap::from_iter([(
-                        NAME_TABLE_ADDRESSES[0].clone(),
+                        NAMETABLE_ADDRESSES[0].clone(),
                         StandardMemoryInitialContents::Random,
                     )]),
                     sram: false,
@@ -166,14 +168,14 @@ fn setup_ppu_nametables<P: Platform>(
             );
 
             let (machine, _) = machine.insert_component(
-                "name_table_1",
+                "nametable_1",
                 StandardMemoryConfig {
                     assigned_address_space: ppu_address_space,
-                    assigned_range: NAME_TABLE_ADDRESSES[1].clone(),
+                    assigned_range: NAMETABLE_ADDRESSES[1].clone(),
                     readable: true,
                     writable: true,
                     initial_contents: RangeInclusiveMap::from_iter([(
-                        NAME_TABLE_ADDRESSES[1].clone(),
+                        NAMETABLE_ADDRESSES[1].clone(),
                         StandardMemoryInitialContents::Random,
                     )]),
                     sram: false,
@@ -181,25 +183,25 @@ fn setup_ppu_nametables<P: Platform>(
             );
 
             let (machine, _) = machine.insert_component(
-                "name_table_2",
+                "nametable_2",
                 MirrorMemoryConfig {
                     readable: true,
                     writable: true,
-                    source_addresses: NAME_TABLE_ADDRESSES[2].clone(),
+                    source_addresses: NAMETABLE_ADDRESSES[2].clone(),
                     source_address_space: ppu_address_space,
-                    destination_addresses: NAME_TABLE_ADDRESSES[0].clone(),
+                    destination_addresses: NAMETABLE_ADDRESSES[0].clone(),
                     destination_address_space: ppu_address_space,
                 },
             );
 
             let (machine, _) = machine.insert_component(
-                "name_table_3",
+                "nametable_3",
                 MirrorMemoryConfig {
                     readable: true,
                     writable: true,
-                    source_addresses: NAME_TABLE_ADDRESSES[3].clone(),
+                    source_addresses: NAMETABLE_ADDRESSES[3].clone(),
                     source_address_space: ppu_address_space,
-                    destination_addresses: NAME_TABLE_ADDRESSES[1].clone(),
+                    destination_addresses: NAMETABLE_ADDRESSES[1].clone(),
                     destination_address_space: ppu_address_space,
                 },
             );
@@ -208,14 +210,14 @@ fn setup_ppu_nametables<P: Platform>(
         }
         Mirroring::Horizontal => {
             let (machine, _) = machine.insert_component(
-                "name_table_0",
+                "nametable_0",
                 StandardMemoryConfig {
                     assigned_address_space: ppu_address_space,
-                    assigned_range: NAME_TABLE_ADDRESSES[0].clone(),
+                    assigned_range: NAMETABLE_ADDRESSES[0].clone(),
                     readable: true,
                     writable: true,
                     initial_contents: RangeInclusiveMap::from_iter([(
-                        NAME_TABLE_ADDRESSES[0].clone(),
+                        NAMETABLE_ADDRESSES[0].clone(),
                         StandardMemoryInitialContents::Random,
                     )]),
                     sram: false,
@@ -223,26 +225,26 @@ fn setup_ppu_nametables<P: Platform>(
             );
 
             let (machine, _) = machine.insert_component(
-                "name_table_1",
+                "nametable_1",
                 MirrorMemoryConfig {
                     readable: true,
                     writable: true,
-                    source_addresses: NAME_TABLE_ADDRESSES[1].clone(),
+                    source_addresses: NAMETABLE_ADDRESSES[1].clone(),
                     source_address_space: ppu_address_space,
-                    destination_addresses: NAME_TABLE_ADDRESSES[0].clone(),
+                    destination_addresses: NAMETABLE_ADDRESSES[0].clone(),
                     destination_address_space: ppu_address_space,
                 },
             );
 
             let (machine, _) = machine.insert_component(
-                "name_table_2",
+                "nametable_2",
                 StandardMemoryConfig {
                     assigned_address_space: ppu_address_space,
-                    assigned_range: NAME_TABLE_ADDRESSES[2].clone(),
+                    assigned_range: NAMETABLE_ADDRESSES[2].clone(),
                     readable: true,
                     writable: true,
                     initial_contents: RangeInclusiveMap::from_iter([(
-                        NAME_TABLE_ADDRESSES[2].clone(),
+                        NAMETABLE_ADDRESSES[2].clone(),
                         StandardMemoryInitialContents::Random,
                     )]),
                     sram: false,
@@ -250,13 +252,13 @@ fn setup_ppu_nametables<P: Platform>(
             );
 
             let (machine, _) = machine.insert_component(
-                "name_table_3",
+                "nametable_3",
                 MirrorMemoryConfig {
                     readable: true,
                     writable: true,
-                    source_addresses: NAME_TABLE_ADDRESSES[3].clone(),
+                    source_addresses: NAMETABLE_ADDRESSES[3].clone(),
                     source_address_space: ppu_address_space,
-                    destination_addresses: NAME_TABLE_ADDRESSES[2].clone(),
+                    destination_addresses: NAMETABLE_ADDRESSES[2].clone(),
                     destination_address_space: ppu_address_space,
                 },
             );

@@ -6,8 +6,8 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig, ComponentId},
     memory::{
-        Address, AddressSpaceHandle, MemoryAccessTable, MemoryOperationError,
-        MemoryRemappingCommands, MemoryType, ReadMemoryRecord, WriteMemoryRecord,
+        Address, AddressSpaceId, MemoryAccessTable, MemoryOperationError, MemoryRemappingCommands,
+        MemoryType, ReadMemoryRecord, WriteMemoryRecord,
     },
     platform::Platform,
 };
@@ -26,7 +26,7 @@ impl Component for Mapctl {
     fn read_memory(
         &self,
         _address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let register_guard = self.status.lock().unwrap();
@@ -38,7 +38,7 @@ impl Component for Mapctl {
     fn write_memory(
         &self,
         _address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         let mut register_guard = self.status.lock().unwrap();
@@ -103,7 +103,7 @@ pub struct MapctlConfig {
     pub mikey: ComponentId,
     pub vector: ComponentId,
     pub reserved: ComponentId,
-    pub cpu_address_space: AddressSpaceHandle,
+    pub cpu_address_space: AddressSpaceId,
 }
 
 impl<P: Platform> ComponentConfig<P> for MapctlConfig {

@@ -1,47 +1,64 @@
 use crate::{
     INes,
-    ppu::{region::Region, task::PpuDriver},
+    ppu::{
+        backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
+        region::Region,
+        task::PpuDriver,
+    },
 };
-use bitvec::{prelude::Lsb0, view::BitView};
+use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
+use multiemu_definition_mos6502::Mos6502;
+use multiemu_graphics::GraphicsApi;
 use multiemu_runtime::{
     builder::ComponentBuilder,
-    component::{BuildError, Component, ComponentConfig},
-    memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
-    },
+    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    graphics::DisplayCallback,
+    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord},
     platform::Platform,
 };
-use nalgebra::Vector2;
+use nalgebra::{Point2, Vector2};
+use palette::{Srgba, named::BLACK};
 use serde::{Deserialize, Serialize};
-use std::{marker::PhantomData, ops::RangeInclusive, sync::Mutex};
+use std::{
+    collections::VecDeque,
+    marker::PhantomData,
+    ops::{Not, RangeInclusive},
+    sync::{Mutex, OnceLock},
+};
+use strum::FromRepr;
 
-// mod backend;
+pub mod backend;
 mod color;
 pub mod region;
 mod task;
 
-const PPUCTRL: Address = 0x2000;
-const PPUMASK: Address = 0x2001;
-const PPUSTATUS: Address = 0x2002;
-const OAMADDR_ADDRESS: Address = 0x2003;
-
-pub struct OamData {}
-
-impl OamData {
-    const ADDRESS: Address = 0x2004;
+#[derive(Clone, Copy, Debug, FromRepr)]
+#[repr(u16)]
+pub enum CpuAccessibleRegister {
+    PpuCtrl = 0x2000,
+    PpuMask = 0x2001,
+    PpuStatus = 0x2002,
+    OamAddr = 0x2003,
+    OamData = 0x2004,
+    PpuScroll = 0x2005,
+    PpuAddr = 0x2006,
+    PpuData = 0x2007,
+    OamDma = 0x4014,
 }
 
-const PPUSCROLL_ADDRESS: Address = 0x2005;
-const PPUADDR_ADDRESS: Address = 0x2006;
-const PPUDATA_ADDRESS: Address = 0x2007;
-const OAMDMA_ADDRESS: Address = 0x4014;
-
-pub const NAME_TABLE_ADDRESSES: [RangeInclusive<Address>; 4] = [
+pub const NAMETABLE_ADDRESSES: [RangeInclusive<Address>; 4] = [
     0x2000..=0x23ff,
     0x2400..=0x27ff,
     0x2800..=0x2bff,
     0x2c00..=0x2fff,
 ];
+pub const NAMETABLE_BASE_ADDRESS: Address = *NAMETABLE_ADDRESSES[0].start();
+pub const NAMETABLE_SIZE: Address = 0x400;
+
+const DUMMY_SCANLINE_COUNT: u16 = 1;
+const VISIBLE_SCANLINE_LENGTH: u16 = 256;
+const HBLANK_LENGTH: u16 = 85;
+const TOTAL_SCANLINE_LENGTH: u16 = VISIBLE_SCANLINE_LENGTH + HBLANK_LENGTH;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct ColorEmphasis {
@@ -51,29 +68,80 @@ pub struct ColorEmphasis {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum DrawingState {
+    FetchingNametable,
+    FetchingAttribute {
+        nametable: u8,
+    },
+    FetchingPatternTableLow {
+        nametable: u8,
+        attribute: u8,
+    },
+    FetchingPatternTableHigh {
+        nametable: u8,
+        attribute: u8,
+        pattern_table_low: u8,
+    },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Debug, Default)]
+enum PpuAddrWritePhase {
+    #[default]
+    Upper,
+    Lower,
+}
+
+impl PpuAddrWritePhase {
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+
+impl Not for PpuAddrWritePhase {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        match self {
+            PpuAddrWritePhase::Upper => PpuAddrWritePhase::Lower,
+            PpuAddrWritePhase::Lower => PpuAddrWritePhase::Upper,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct State {
-    base_nametable_address: u16,
+    nametable_base: u16,
     sprite_8x8_pattern_table_address: u16,
-    background_pattern_table_address: u16,
+    background_pattern_table_base: u16,
     sprite_size: Vector2<u16>,
-    vblank_nmi: bool,
+    vblank_nmi_enabled: bool,
+    reset_cpu_nmi: bool,
     greyscale: bool,
+    entered_vblank: bool,
     show_background_leftmost_pixels: bool,
     show_sprites_leftmost_pixels: bool,
     background_rendering_enabled: bool,
     sprite_rendering_enabled: bool,
+    ppuaddr: u16,
+    ppuaddr_write_phase: PpuAddrWritePhase,
+    ppuaddr_increment_amount: u8,
     color_emphasis: ColorEmphasis,
-    electron_beam: Vector2<u16>,
+    cycle_counter: Point2<u16>,
+    awaiting_memory_access: bool,
+    drawing_state: DrawingState,
+    pixel_queue: VecDeque<Srgba<u8>>,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
-            base_nametable_address: 0x2000,
+            nametable_base: 0x2000,
             sprite_8x8_pattern_table_address: 0,
-            background_pattern_table_address: 0,
+            background_pattern_table_base: 0,
             sprite_size: Vector2::new(8, 8),
-            vblank_nmi: false,
+            vblank_nmi_enabled: false,
+            reset_cpu_nmi: false,
+            entered_vblank: false,
             greyscale: false,
             show_background_leftmost_pixels: false,
             show_sprites_leftmost_pixels: false,
@@ -84,7 +152,14 @@ impl Default for State {
                 green: false,
                 blue: false,
             },
-            electron_beam: Vector2::new(0, 0),
+            // Start it on the dummy scanline
+            cycle_counter: Point2::new(0, 261),
+            drawing_state: DrawingState::FetchingNametable,
+            awaiting_memory_access: true,
+            ppuaddr: 0,
+            ppuaddr_write_phase: Default::default(),
+            ppuaddr_increment_amount: 1,
+            pixel_queue: VecDeque::from_iter([BLACK.into(); 8]),
         }
     }
 }
@@ -92,26 +167,54 @@ impl Default for State {
 #[derive(Debug)]
 pub struct NesPpuConfig<'a, R: Region> {
     pub ines: &'a INes,
-    pub cpu_address_space: AddressSpaceHandle,
-    pub ppu_address_space: AddressSpaceHandle,
+    pub cpu_address_space: AddressSpaceId,
+    pub ppu_address_space: AddressSpaceId,
+    pub processor: ComponentRef<Mos6502>,
     pub _phantom: PhantomData<R>,
 }
 
 #[derive(Debug)]
-pub struct Ppu<R: Region> {
+pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
     state: Mutex<State>,
-    _phantom: PhantomData<R>,
+    backend: OnceLock<G::Backend<R>>,
+    ppu_address_space: AddressSpaceId,
 }
 
-impl<R: Region> Component for Ppu<R> {
+impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
     fn read_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        match address {
-            PPUSTATUS => {}
+        let mut state_guard = self.state.lock().unwrap();
+        let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
+
+        tracing::debug!("Reading from PPU register: {:?}", register);
+
+        match register {
+            CpuAccessibleRegister::PpuMask => todo!(),
+            CpuAccessibleRegister::PpuStatus => {
+                let buffer_bits = buffer.view_bits_mut::<Lsb0>();
+
+                // Currently in vblank
+                buffer_bits.set(7, std::mem::replace(&mut state_guard.entered_vblank, false));
+            }
+            CpuAccessibleRegister::OamAddr => todo!(),
+            CpuAccessibleRegister::OamData => todo!(),
+            CpuAccessibleRegister::PpuScroll => todo!(),
+            CpuAccessibleRegister::PpuAddr => todo!(),
+            CpuAccessibleRegister::PpuData => {
+                // Redirect into the ppu address space
+                return Err(MemoryOperationError::from_iter(std::iter::once((
+                    address..=address,
+                    ReadMemoryRecord::Redirect {
+                        address: state_guard.ppuaddr as usize,
+                        address_space: self.ppu_address_space,
+                    },
+                ))));
+            }
+            CpuAccessibleRegister::OamDma => todo!(),
             _ => {
                 unreachable!()
             }
@@ -123,39 +226,146 @@ impl<R: Region> Component for Ppu<R> {
     fn write_memory(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        let buffer_bits = buffer.view_bits::<Lsb0>();
+        let mut state_guard = self.state.lock().unwrap();
+        let data = buffer[0];
 
-        match address {
-            PPUCTRL => {}
-            PPUMASK => {}
-            _ => {
-                unreachable!()
+        let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
+
+        tracing::debug!("Writing to PPU register: {:?}", register);
+
+        match register {
+            CpuAccessibleRegister::PpuCtrl => {
+                let data_bits = data.view_bits::<Lsb0>();
+
+                state_guard.nametable_base = NAMETABLE_BASE_ADDRESS as u16
+                    + (data_bits[0..=1].load::<u16>() * NAMETABLE_SIZE as u16);
+
+                state_guard.ppuaddr_increment_amount = if data_bits[2] { 32 } else { 1 };
+
+                state_guard.vblank_nmi_enabled = data_bits[7];
             }
+            CpuAccessibleRegister::PpuMask => todo!(),
+            CpuAccessibleRegister::PpuStatus => todo!(),
+            CpuAccessibleRegister::OamAddr => todo!(),
+            CpuAccessibleRegister::OamData => todo!(),
+            CpuAccessibleRegister::PpuScroll => todo!(),
+            CpuAccessibleRegister::PpuAddr => {
+                let mut unpacked_address = state_guard.ppuaddr.to_be_bytes();
+                unpacked_address[state_guard.ppuaddr_write_phase.index()] = data;
+                state_guard.ppuaddr_write_phase = !state_guard.ppuaddr_write_phase;
+                state_guard.ppuaddr = u16::from_be_bytes(unpacked_address);
+            }
+            CpuAccessibleRegister::PpuData => {
+                // Redirect into the ppu address space
+                state_guard.ppuaddr = state_guard
+                    .ppuaddr
+                    .wrapping_add(state_guard.ppuaddr_increment_amount as u16);
+
+                return Err(MemoryOperationError::from_iter(std::iter::once((
+                    address..=address,
+                    WriteMemoryRecord::Redirect {
+                        address: state_guard.ppuaddr as usize,
+                        address_space: self.ppu_address_space,
+                    },
+                ))));
+            }
+            CpuAccessibleRegister::OamDma => todo!(),
         }
 
         Ok(())
     }
 }
 
-impl<'a, P: Platform, R: Region> ComponentConfig<P> for NesPpuConfig<'a, R> {
-    type Component = Ppu<R>;
+impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConfig<P>
+    for NesPpuConfig<'a, R>
+{
+    type Component = Ppu<R, P::GraphicsApi>;
 
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
         let component = component_builder.component_ref();
+        let memory_access_table = component_builder.memory_access_table();
+
+        let (component_builder, _) = component_builder.insert_display(PpuDisplayCallback {
+            component: component.clone(),
+        });
 
         component_builder
-            .insert_task(R::master_clock() / 4, "ppu_driver", PpuDriver { component })
+            .insert_task(
+                R::master_clock() / 4,
+                "ppu_driver",
+                PpuDriver {
+                    component: component.clone(),
+                    processor_nmi: self
+                        .processor
+                        .interact(|component| component.nmi())
+                        .unwrap(),
+                    memory_access_table,
+                    ppu_address_space: self.ppu_address_space,
+                },
+            )
+            .set_lazy_component_initializer(move |data| {
+                component
+                    .interact_local_mut(|component| {
+                        component
+                            .backend
+                            .set(PpuDisplayBackend::new(
+                                data.component_graphics_initialization_data.clone(),
+                            ))
+                            .unwrap();
+                    })
+                    .unwrap();
+            })
+            .memory_map(
+                self.cpu_address_space,
+                CpuAccessibleRegister::PpuCtrl as usize..=CpuAccessibleRegister::PpuCtrl as usize,
+            )
+            .memory_map_read(
+                self.cpu_address_space,
+                CpuAccessibleRegister::PpuStatus as usize
+                    ..=CpuAccessibleRegister::PpuStatus as usize,
+            )
+            .memory_map(
+                self.cpu_address_space,
+                CpuAccessibleRegister::PpuAddr as usize..=CpuAccessibleRegister::PpuAddr as usize,
+            )
+            .memory_map(
+                self.cpu_address_space,
+                CpuAccessibleRegister::PpuData as usize..=CpuAccessibleRegister::PpuData as usize,
+            )
             .build_local(Ppu {
                 state: Mutex::default(),
-                _phantom: PhantomData,
+                backend: OnceLock::default(),
+                ppu_address_space: self.ppu_address_space,
             });
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct PpuDisplayCallback<R: Region, G: SupportedGraphicsApiPpu> {
+    component: ComponentRef<Ppu<R, G>>,
+}
+
+impl<R: Region, G: SupportedGraphicsApiPpu> DisplayCallback<G> for PpuDisplayCallback<R, G> {
+    fn access_framebuffer(
+        &self,
+        callback: Box<dyn FnOnce(&<G as GraphicsApi>::FramebufferTexture) + '_>,
+    ) {
+        self.component
+            .interact_local_mut(|component| {
+                component
+                    .backend
+                    .get_mut()
+                    .unwrap()
+                    .access_framebuffer(callback);
+            })
+            .unwrap()
     }
 }

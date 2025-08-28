@@ -4,7 +4,7 @@ use multiemu_rom::RomId;
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig},
-    memory::AddressSpaceHandle,
+    memory::AddressSpaceId,
     platform::Platform,
 };
 
@@ -17,8 +17,8 @@ impl Component for Mapper000 {}
 pub struct Mapper000Config<'a> {
     pub ines: &'a INes,
     pub rom_id: RomId,
-    pub cpu_address_space: AddressSpaceHandle,
-    pub ppu_address_space: AddressSpaceHandle,
+    pub cpu_address_space: AddressSpaceId,
+    pub ppu_address_space: AddressSpaceId,
 }
 
 impl<'a, P: Platform> ComponentConfig<P> for Mapper000Config<'a> {

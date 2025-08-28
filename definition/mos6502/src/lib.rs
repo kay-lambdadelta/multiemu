@@ -5,7 +5,7 @@ use instruction::Mos6502InstructionSet;
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig, ComponentVersion},
-    memory::AddressSpaceHandle,
+    memory::AddressSpaceId,
     platform::Platform,
 };
 use num::rational::Ratio;
@@ -219,7 +219,7 @@ impl FlagRegister {
 #[derive(Debug)]
 pub struct Mos6502Config {
     pub frequency: Ratio<u32>,
-    pub assigned_address_space: AddressSpaceHandle,
+    pub assigned_address_space: AddressSpaceId,
     pub kind: Mos6502Kind,
     pub broken_ror: bool,
 }
@@ -417,7 +417,7 @@ impl NmiFlag {
     }
 
     pub fn store(&self, nmi: bool) {
-        if !nmi {
+        if nmi {
             self.0.store(true, Ordering::Release);
         }
     }

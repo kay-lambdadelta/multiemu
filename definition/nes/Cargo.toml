@@ -24,7 +24,17 @@ nalgebra = { workspace = true }
 rustc-hash = { workspace = true }
 bytemuck = { workspace = true }
 palette = { workspace = true }
+itertools = { workspace = true }
+
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
+multiemu-config = { workspace = true }
+ron = { workspace = true }
+criterion = { workspace = true }
 
 [features]
 vulkan = ["multiemu-graphics/vulkan"]
 opengl = ["multiemu-graphics/opengl"]
+
+[[bench]]
+name = "machine_cycle"
+harness = false

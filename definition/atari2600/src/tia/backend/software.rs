@@ -7,7 +7,7 @@ use multiemu_graphics::{
     software::{InitializationData, Software},
 };
 use nalgebra::DMatrix;
-use palette::Srgba;
+use palette::{Srgba, named::BLACK};
 
 pub struct SoftwareState {
     pub staging_buffer: DMatrix<Srgba<u8>>,
@@ -29,7 +29,7 @@ impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
         let staging_buffer = DMatrix::from_element(
             VISIBLE_SCANLINE_LENGTH as usize,
             R::TOTAL_SCANLINES as usize,
-            Srgba::new(0, 0, 0, 0xff),
+            BLACK.into(),
         );
 
         SoftwareState {

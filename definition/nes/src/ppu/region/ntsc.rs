@@ -1,7 +1,6 @@
-use crate::ppu::color::PpuColor;
-
 use super::Region;
-use nalgebra::{SMatrix, Vector2};
+use crate::ppu::color::PpuColor;
+use nalgebra::SMatrix;
 use num::rational::Ratio;
 use palette::{FromColor, Hsl, Srgb};
 use std::sync::LazyLock;
@@ -51,13 +50,12 @@ static COLOR_PALETTE: LazyLock<SMatrix<Srgb<u8>, 16, 4>> = LazyLock::new(|| {
 pub struct Ntsc;
 
 impl Region for Ntsc {
+    const VISIBLE_SCANLINES: u16 = 240;
+    const VBLANK_LENGTH: u16 = 20;
+
     fn master_clock() -> Ratio<u32> {
         // 236.25 MHz / 11
         Ratio::new(236250000, 11)
-    }
-
-    fn visible_scanline_dimensions() -> Vector2<u16> {
-        nalgebra::Vector2::new(256, 240)
     }
 
     fn color_to_srgb(color: PpuColor) -> Srgb<u8> {

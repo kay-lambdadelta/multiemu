@@ -3,11 +3,13 @@ use nalgebra::DMatrixViewMut;
 use palette::Srgba;
 use std::fmt::Debug;
 
+use crate::ppu::region::Region;
+
 pub mod software;
 #[cfg(feature = "vulkan")]
 pub mod vulkan;
 
-pub(crate) trait TiaDisplayBackend<R: Region>: Debug + Sized + 'static {
+pub(crate) trait PpuDisplayBackend<R: Region>: Debug + Sized + 'static {
     type GraphicsApi: GraphicsApi;
 
     fn new(initialization_data: <Self::GraphicsApi as GraphicsApi>::InitializationData) -> Self;
@@ -19,6 +21,6 @@ pub(crate) trait TiaDisplayBackend<R: Region>: Debug + Sized + 'static {
     );
 }
 
-pub(crate) trait SupportedGraphicsApiTia: GraphicsApi {
-    type Backend<R: Region>: TiaDisplayBackend<R, GraphicsApi = Self>;
+pub(crate) trait SupportedGraphicsApiPpu: GraphicsApi {
+    type Backend<R: Region>: PpuDisplayBackend<R, GraphicsApi = Self>;
 }

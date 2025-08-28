@@ -1,7 +1,7 @@
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig},
-    memory::{Address, AddressSpaceHandle},
+    memory::{Address, AddressSpaceId},
     platform::Platform,
 };
 use std::ops::RangeInclusive;
@@ -13,7 +13,7 @@ pub struct NullMemoryConfig {
     // Memory region this buffer will be mapped to
     pub assigned_range: RangeInclusive<Address>,
     /// Address space this exists on
-    pub assigned_address_space: AddressSpaceHandle,
+    pub assigned_address_space: AddressSpaceId,
 }
 
 impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {

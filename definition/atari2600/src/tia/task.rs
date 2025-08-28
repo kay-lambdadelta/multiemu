@@ -33,6 +33,20 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
                         }
                     }
 
+                    if !(state_guard.cycles_waiting_for_vsync.is_some()
+                        || state_guard.vblank_active)
+                        && (0..VISIBLE_SCANLINE_LENGTH).contains(&state_guard.electron_beam.x)
+                    {
+                        let color = R::color_to_srgb(state_guard.get_rendered_color());
+
+                        backend_guard.modify_staging_buffer(|mut staging_buffer_guard| {
+                            staging_buffer_guard[(
+                                state_guard.electron_beam.x as usize,
+                                state_guard.electron_beam.y as usize,
+                            )] = color.into();
+                        });
+                    }
+
                     state_guard.electron_beam.x += 1;
 
                     if state_guard.electron_beam.x >= SCANLINE_LENGTH {
@@ -46,20 +60,6 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
                         if state_guard.electron_beam.y >= R::TOTAL_SCANLINES {
                             state_guard.electron_beam.y = 0;
                         }
-                    }
-
-                    if !(state_guard.cycles_waiting_for_vsync.is_some()
-                        || state_guard.vblank_active)
-                        && (0..VISIBLE_SCANLINE_LENGTH).contains(&state_guard.electron_beam.x)
-                    {
-                        let color = R::color_to_srgb(state_guard.get_rendered_color());
-
-                        backend_guard.modify_staging_buffer(|mut staging_buffer_guard| {
-                            staging_buffer_guard[(
-                                state_guard.electron_beam.x as usize,
-                                state_guard.electron_beam.y as usize,
-                            )] = color.into();
-                        });
                     }
                 }
 

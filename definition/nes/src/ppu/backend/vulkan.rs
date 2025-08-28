@@ -1,5 +1,5 @@
-use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
-use crate::tia::{VISIBLE_SCANLINE_LENGTH, region::Region};
+use super::{PpuDisplayBackend, SupportedGraphicsApiPpu};
+use crate::ppu::{VISIBLE_SCANLINE_LENGTH, region::Region};
 use multiemu_graphics::{
     GraphicsApi,
     vulkan::{
@@ -19,7 +19,7 @@ use multiemu_graphics::{
     },
 };
 use nalgebra::DMatrixViewMut;
-use palette::Srgba;
+use palette::{Srgba, named::BLACK};
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -31,7 +31,7 @@ pub struct VulkanState {
     pub framebuffer: Arc<Image>,
 }
 
-impl<R: Region> TiaDisplayBackend<R> for VulkanState {
+impl<R: Region> PpuDisplayBackend<R> for VulkanState {
     type GraphicsApi = Vulkan;
 
     fn new(initialization_data: InitializationData) -> Self {
@@ -47,8 +47,8 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
                 ..Default::default()
             },
             std::iter::repeat_n(
-                Srgba::new(0, 0, 0, 0xff),
-                VISIBLE_SCANLINE_LENGTH as usize * R::TOTAL_SCANLINES as usize,
+                BLACK.into(),
+                VISIBLE_SCANLINE_LENGTH as usize * R::VISIBLE_SCANLINES as usize,
             ),
         )
         .unwrap();
@@ -58,7 +58,11 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
             ImageCreateInfo {
                 image_type: ImageType::Dim2d,
                 format: Format::R8G8B8A8_SRGB,
-                extent: [VISIBLE_SCANLINE_LENGTH as u32, R::TOTAL_SCANLINES as u32, 1],
+                extent: [
+                    VISIBLE_SCANLINE_LENGTH as u32,
+                    R::VISIBLE_SCANLINES as u32,
+                    1,
+                ],
                 usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
                 ..Default::default()
             },
@@ -83,7 +87,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
         callback(DMatrixViewMut::from_slice(
             &mut staging_buffer_guard,
             VISIBLE_SCANLINE_LENGTH as usize,
-            R::TOTAL_SCANLINES as usize,
+            R::VISIBLE_SCANLINES as usize,
         ));
     }
 
@@ -125,6 +129,6 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
     }
 }
 
-impl SupportedGraphicsApiTia for Vulkan {
+impl SupportedGraphicsApiPpu for Vulkan {
     type Backend<R: Region> = VulkanState;
 }

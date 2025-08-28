@@ -11,7 +11,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let (mut machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
-    for i in (0x0000..=0xffff).step_by(0x1f) {
+    for i in (0x0000..=0x1000).step_by(0x1f) {
         machine = machine
             .insert_component(
                 &format!("memory_{}", i),

@@ -6,7 +6,7 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, ComponentConfig, ComponentRef},
     graphics::DisplayCallback,
-    memory::AddressSpaceHandle,
+    memory::AddressSpaceId,
     platform::Platform,
 };
 use std::marker::PhantomData;
@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 #[derive(Debug, Clone)]
 pub(crate) struct TiaConfig<R: Region> {
     pub cpu: ComponentRef<Mos6502>,
-    pub cpu_address_space: AddressSpaceHandle,
+    pub cpu_address_space: AddressSpaceId,
     pub _phantom: PhantomData<R>,
 }
 

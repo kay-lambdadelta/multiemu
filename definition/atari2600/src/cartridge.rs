@@ -2,7 +2,7 @@ use multiemu_rom::{RomId, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig},
-    memory::{Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord},
+    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord},
     platform::Platform,
 };
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,7 @@ pub struct Atari2600Cartridge {
 #[derive(Debug)]
 pub struct Atari2600CartridgeConfig {
     pub rom: RomId,
-    pub cpu_address_space: AddressSpaceHandle,
+    pub cpu_address_space: AddressSpaceId,
     pub force_cart_type: Option<CartType>,
 }
 
@@ -33,7 +33,7 @@ impl Component for Atari2600Cartridge {
     fn read_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         match self.cart_type {

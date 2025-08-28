@@ -5,9 +5,7 @@ use color::TiaColor;
 use multiemu_definition_mos6502::RdyFlag;
 use multiemu_runtime::{
     component::Component,
-    memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord,
-    },
+    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord},
 };
 use nalgebra::{DMatrix, Point2};
 use palette::Srgba;
@@ -133,7 +131,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
     fn read_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let data = &mut buffer[0];
@@ -156,7 +154,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
     fn write_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         let data = buffer[0];

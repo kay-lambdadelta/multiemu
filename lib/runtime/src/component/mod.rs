@@ -1,7 +1,7 @@
 use crate::{
     builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
@@ -60,7 +60,7 @@ pub trait Component: Debug + Any {
     fn read_memory(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         Err(MemoryOperationError::from_iter([(
@@ -73,7 +73,7 @@ pub trait Component: Debug + Any {
     fn preview_memory(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         // Convert between a read and a preview
@@ -105,7 +105,7 @@ pub trait Component: Debug + Any {
     fn write_memory(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         Err(MemoryOperationError::from_iter([(
@@ -137,7 +137,7 @@ pub struct LateInitializedData<P: Platform> {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// A reference to a component
-/// 
+///
 /// The guts are [NonZero] for layout optimization
 pub struct ComponentId(NonZero<u16>);
 

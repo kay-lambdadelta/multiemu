@@ -527,7 +527,29 @@ impl CpuDriver {
                         }
                     }
                     Mos6502Opcode::Rra => todo!(),
-                    Mos6502Opcode::Rti => todo!(),
+                    Mos6502Opcode::Rti => {
+                        let flags = self
+                            .memory_access_table
+                            .read_le_value::<u8>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                config.assigned_address_space,
+                            )
+                            .unwrap_or_default();
+
+                        state.stack = state.stack.wrapping_add(1);
+                        state.flags = FlagRegister::from_byte(flags);
+
+                        let program = self
+                            .memory_access_table
+                            .read_le_value::<u16>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                config.assigned_address_space,
+                            )
+                            .unwrap_or_default();
+
+                        state.stack = state.stack.wrapping_add(2);
+                        state.program = program;
+                    }
                     Mos6502Opcode::Rts => {
                         let program = self
                             .memory_access_table
@@ -639,8 +661,16 @@ impl CpuDriver {
                         .execution_queue
                         .push_back(ExecutionStep::ModifyProgramPointer(value));
                 }
-                Wdc65C02Opcode::Phx => todo!(),
-                Wdc65C02Opcode::Phy => todo!(),
+                Wdc65C02Opcode::Phx => {
+                    state
+                        .execution_queue
+                        .push_back(ExecutionStep::PushStack(state.x));
+                }
+                Wdc65C02Opcode::Phy => {
+                    state
+                        .execution_queue
+                        .push_back(ExecutionStep::PushStack(state.y));
+                }
                 Wdc65C02Opcode::Plx => todo!(),
                 Wdc65C02Opcode::Ply => todo!(),
                 Wdc65C02Opcode::Stz => todo!(),

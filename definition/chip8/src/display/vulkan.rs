@@ -19,7 +19,7 @@ use multiemu_graphics::{
     },
 };
 use nalgebra::{DMatrixView, DMatrixViewMut, Vector2};
-use palette::Srgba;
+use palette::{Srgba, named::BLACK};
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -47,7 +47,7 @@ impl Chip8DisplayBackend for VulkanState {
                     | MemoryTypeFilter::PREFER_HOST,
                 ..Default::default()
             },
-            std::iter::repeat_n(Srgba::new(0, 0, 0, 0xff), LORES.cast().product()),
+            std::iter::repeat_n(BLACK.into(), LORES.cast().product()),
         )
         .unwrap();
 
@@ -84,7 +84,7 @@ impl Chip8DisplayBackend for VulkanState {
             self.current_resolution.x,
             self.current_resolution.y,
         )
-        .resize(resolution.x, resolution.y, Srgba::new(0, 0, 0, 0xff));
+        .resize(resolution.x, resolution.y, BLACK.into());
         drop(staging_buffer_guard);
 
         self.staging_buffer = Buffer::from_iter(

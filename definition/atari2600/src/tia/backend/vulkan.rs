@@ -19,7 +19,7 @@ use multiemu_graphics::{
     },
 };
 use nalgebra::DMatrixViewMut;
-use palette::Srgba;
+use palette::{Srgba, named::BLACK};
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -47,7 +47,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
                 ..Default::default()
             },
             std::iter::repeat_n(
-                Srgba::new(0, 0, 0, 0xff),
+                BLACK.into(),
                 VISIBLE_SCANLINE_LENGTH as usize * R::TOTAL_SCANLINES as usize,
             ),
         )

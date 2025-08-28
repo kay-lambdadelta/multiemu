@@ -3,6 +3,7 @@ use nalgebra::{DMatrix, DMatrixViewMut, Point2, Scalar, Vector2, Vector3, Vector
 use palette::{
     Srgba,
     cast::{ComponentOrder, Packed},
+    named::BLACK,
 };
 use std::collections::HashMap;
 
@@ -82,7 +83,7 @@ impl SoftwareEguiRenderer {
 
             let texture = self.textures.entry(new_texture_id).or_insert_with(|| {
                 let image_size = new_texture.image.size();
-                DMatrix::from_element(image_size[0], image_size[1], Srgba::new(0.0, 0.0, 0.0, 1.0))
+                DMatrix::from_element(image_size[0], image_size[1], BLACK.into_format().into())
             });
 
             let source_texture_view = match &new_texture.image {
@@ -110,7 +111,7 @@ impl SoftwareEguiRenderer {
             destination_texture_view.copy_from(&source_texture_view);
         }
 
-        render_buffer.fill(Packed::pack(Srgba::new(0, 0, 0, 0xff)));
+        render_buffer.fill(Packed::pack(BLACK.into()));
 
         let render_buffer_dimensions =
             Vector2::new(render_buffer.nrows(), render_buffer.ncols()).cast::<f32>();

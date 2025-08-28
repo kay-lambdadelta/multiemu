@@ -8,7 +8,7 @@ use crate::{
     },
     graphics::{DisplayCallback, DisplayId, DisplayInfo, GraphicsRequirements},
     input::{VirtualGamepad, VirtualGamepadId},
-    memory::{AddressSpaceHandle, MemoryAccessTable, MemoryRemappingCommands, MemoryType},
+    memory::{AddressSpaceId, MemoryAccessTable, MemoryRemappingCommands, MemoryType},
     platform::Platform,
     save::{SaveManager, SnapshotManager},
     scheduler::{Scheduler, Task},
@@ -176,7 +176,7 @@ impl<P: Platform> MachineBuilder<P> {
     }
 
     /// Insert the required information to construct a address space
-    pub fn insert_address_space(mut self, width: u8) -> (Self, AddressSpaceHandle) {
+    pub fn insert_address_space(mut self, width: u8) -> (Self, AddressSpaceId) {
         if width > usize::BITS as u8 {
             panic!(
                 "This host machine cannot handle an address space of {} bits",
@@ -526,7 +526,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     /// Insert a callback into the memory translation table for reading
     pub fn memory_map_read(
         self,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         addresses: RangeInclusive<usize>,
     ) -> Self {
         self.component_metadata
@@ -542,7 +542,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn memory_map_write(
         self,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         addresses: RangeInclusive<usize>,
     ) -> Self {
         self.component_metadata
@@ -558,7 +558,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn memory_map(
         self,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         addresses: RangeInclusive<usize>,
     ) -> Self {
         let component_metadata = self.component_metadata.memory.get_or_insert_default();

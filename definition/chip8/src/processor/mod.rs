@@ -12,7 +12,7 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion},
     input::{VirtualGamepad, VirtualGamepadMetadata},
-    memory::AddressSpaceHandle,
+    memory::AddressSpaceId,
     platform::Platform,
 };
 use num::rational::Ratio;
@@ -134,7 +134,7 @@ impl Component for Chip8Processor {
 
 #[derive(Debug)]
 pub struct Chip8ProcessorConfig<G: SupportedGraphicsApiChip8Display> {
-    pub cpu_address_space: AddressSpaceHandle,
+    pub cpu_address_space: AddressSpaceId,
     pub display: ComponentRef<Chip8Display<G>>,
     pub audio: ComponentRef<Chip8Audio>,
     pub timer: ComponentRef<Chip8Timer>,

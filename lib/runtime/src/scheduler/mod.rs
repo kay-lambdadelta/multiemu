@@ -137,7 +137,7 @@ impl Scheduler {
             .map(|(task_id, task)| {
                 let relative_period = task.period / system_gcd;
 
-                tracing::info!(
+                tracing::debug!(
                     "Task {} has a period of {} ({:?}), tick rate of {}",
                     task_id,
                     task.period,

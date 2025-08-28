@@ -8,7 +8,10 @@ use multiemu_runtime::{
 };
 use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
-use palette::Srgba;
+use palette::{
+    Srgba,
+    named::{BLACK, WHITE},
+};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
@@ -79,7 +82,7 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
                         }
 
                         let old_sprite_pixel =
-                            framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
+                            framebuffer[(position.x, position.y)] != BLACK.into();
 
                         if *sprite_pixel && old_sprite_pixel {
                             hit_detection = true;
@@ -87,10 +90,11 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
 
                         framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel
                         {
-                            Srgba::new(255, 255, 255, 255)
+                            WHITE
                         } else {
-                            Srgba::new(0, 0, 0, 255)
-                        };
+                            BLACK
+                        }
+                        .into();
                     }
                 }
             });
@@ -131,7 +135,7 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
                         }
 
                         let old_sprite_pixel =
-                            framebuffer[(position.x, position.y)] != Srgba::new(0, 0, 0, 255);
+                            framebuffer[(position.x, position.y)] != BLACK.into();
 
                         if *sprite_pixel && old_sprite_pixel {
                             hit_detection = true;
@@ -139,10 +143,11 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
 
                         framebuffer[(position.x, position.y)] = if *sprite_pixel ^ old_sprite_pixel
                         {
-                            Srgba::new(255, 255, 255, 255)
+                            WHITE
                         } else {
-                            Srgba::new(0, 0, 0, 255)
-                        };
+                            BLACK
+                        }
+                        .into();
                     }
                 }
             });
@@ -157,7 +162,7 @@ impl<R: SupportedGraphicsApiChip8Display> Chip8Display<R> {
             .as_mut()
             .unwrap()
             .interact_staging_buffer_mut(|mut framebuffer| {
-                framebuffer.fill(Srgba::new(0, 0, 0, 255));
+                framebuffer.fill(BLACK.into());
             });
     }
 }
@@ -195,8 +200,7 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
         let screen_size = if self.hires { HIRES } else { LORES }.cast();
 
-        let mut screen_buffer =
-            DMatrix::from_element(screen_size.x, screen_size.y, Srgba::new(0, 0, 0, 255));
+        let mut screen_buffer = DMatrix::from_element(screen_size.x, screen_size.y, BLACK.into());
 
         self.backend
             .as_ref()

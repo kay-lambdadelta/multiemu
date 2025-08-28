@@ -4,6 +4,7 @@ use palette::{
     Srgba,
     blend::Compose,
     cast::{ComponentOrder, Packed},
+    named::BLACK,
 };
 
 #[inline]
@@ -36,9 +37,10 @@ pub(super) fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
         // Inaccuraries that lead outside the texture we will read off with black
         let pixel = texture
             .get((pixel_coords.x, pixel_coords.y))
-            .unwrap_or(&const { Srgba::new(0.0, 0.0, 0.0, 1.0) });
+            .copied()
+            .unwrap_or(BLACK.into_format().into());
 
-        let source_pixel = interpolated_color * *pixel;
+        let source_pixel = interpolated_color * pixel;
 
         *destination_pixel = Packed::pack(Srgba::from_format(
             source_pixel.over(destination_pixel.unpack().into_format()),

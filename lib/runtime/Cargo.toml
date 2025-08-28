@@ -28,7 +28,7 @@ itertools = { workspace = true }
 ron = { workspace = true }
 rangetools = { workspace = true }
 smallvec = { workspace = true }
-indexmap = "2.10"
+indexmap = "2.11"
 nohash = "0.2"
 flate2 = "1.1"
 boxcar = "0.2"

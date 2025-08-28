@@ -1,17 +1,15 @@
 use super::Region;
 use crate::ppu::color::PpuColor;
-use nalgebra::Vector2;
 use num::rational::Ratio;
 
 #[derive(Debug)]
 pub struct Dendy;
 
 impl Region for Dendy {
-    fn master_clock() -> Ratio<u32> {
-        todo!()
-    }
+    const VBLANK_LENGTH: u16 = 0;
+    const VISIBLE_SCANLINES: u16 = 0;
 
-    fn visible_scanline_dimensions() -> Vector2<u16> {
+    fn master_clock() -> Ratio<u32> {
         todo!()
     }
 

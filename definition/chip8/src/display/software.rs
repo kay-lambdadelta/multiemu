@@ -6,7 +6,7 @@ use multiemu_graphics::{
     software::{InitializationData, Software},
 };
 use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Vector2};
-use palette::Srgba;
+use palette::{Srgba, named::BLACK};
 
 #[derive(Debug)]
 pub struct SoftwareState {
@@ -18,11 +18,8 @@ impl Chip8DisplayBackend for SoftwareState {
     type GraphicsApi = Software;
 
     fn new(_initialization_data: InitializationData) -> Self {
-        let staging_buffer = DMatrix::from_element(
-            LORES.x as usize,
-            LORES.y as usize,
-            Srgba::new(0, 0, 0, 0xff),
-        );
+        let staging_buffer =
+            DMatrix::from_element(LORES.x as usize, LORES.y as usize, BLACK.into());
 
         Self {
             staging_buffer: staging_buffer.clone(),
@@ -32,7 +29,7 @@ impl Chip8DisplayBackend for SoftwareState {
 
     fn resize(&mut self, resolution: Vector2<usize>) {
         self.staging_buffer
-            .resize_mut(resolution.x, resolution.y, Srgba::new(0, 0, 0, 255));
+            .resize_mut(resolution.x, resolution.y, BLACK.into());
 
         self.framebuffer = self.staging_buffer.clone();
     }

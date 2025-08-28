@@ -10,7 +10,7 @@ use multiemu_runtime::{
     MachineFactory,
     builder::MachineBuilder,
     component::ComponentRef,
-    memory::{Address, AddressSpaceHandle},
+    memory::{Address, AddressSpaceId},
     platform::Platform,
 };
 use num::rational::Ratio;
@@ -127,7 +127,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
 }
 
 fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
-    cpu_address_space: AddressSpaceHandle,
+    cpu_address_space: AddressSpaceId,
     machine: MachineBuilder<P>,
 ) -> (MachineBuilder<P>, ComponentRef<Mos6532Riot>) {
     let (machine, cpu) = machine.insert_component(

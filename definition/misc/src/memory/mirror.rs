@@ -2,7 +2,7 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig},
     memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
@@ -14,9 +14,9 @@ pub struct MirrorMemoryConfig {
     pub readable: bool,
     pub writable: bool,
     pub source_addresses: RangeInclusive<Address>,
-    pub source_address_space: AddressSpaceHandle,
+    pub source_address_space: AddressSpaceId,
     pub destination_addresses: RangeInclusive<Address>,
-    pub destination_address_space: AddressSpaceHandle,
+    pub destination_address_space: AddressSpaceId,
 }
 
 #[derive(Debug)]
@@ -28,7 +28,7 @@ impl Component for MirrorMemory {
     fn read_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let affected_range = address..=(address + (buffer.len() - 1));
@@ -47,7 +47,7 @@ impl Component for MirrorMemory {
     fn preview_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         let affected_range = address..=(address + (buffer.len() - 1));
@@ -66,7 +66,7 @@ impl Component for MirrorMemory {
     fn write_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         let affected_range = address..=(address + (buffer.len() - 1));

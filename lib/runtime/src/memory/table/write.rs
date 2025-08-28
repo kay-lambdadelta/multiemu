@@ -1,4 +1,4 @@
-use super::{MemoryAccessTable, address_space::AddressSpaceHandle};
+use super::{MemoryAccessTable, address_space::AddressSpaceId};
 use crate::memory::{Address, table::QueueEntry};
 use num::traits::ToBytes;
 use rangemap::RangeInclusiveMap;
@@ -33,7 +33,7 @@ pub enum WriteMemoryRecord {
         /// The address it redirects to
         address: Address,
         /// The address space it redirects to
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
     },
 }
 
@@ -45,7 +45,7 @@ impl MemoryAccessTable {
     pub fn write(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), WriteMemoryOperationError> {
         let buffer_subrange = 0..=(buffer.len() - 1);
@@ -110,7 +110,7 @@ impl MemoryAccessTable {
                                         address: redirect_address,
                                         address_space: redirect_address_space,
                                     } => {
-                                        assert!(
+                                        debug_assert!(
                                             !component_assigned_range.contains(&redirect_address)
                                                 && address_space == redirect_address_space,
                                             "Memory attempted to redirect to itself {:x?} -> {:x}",
@@ -156,7 +156,7 @@ impl MemoryAccessTable {
     pub fn write_le_value<T: ToBytes>(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         value: T,
     ) -> Result<(), WriteMemoryOperationError> {
         self.write(address, address_space, value.to_le_bytes().as_ref())
@@ -167,7 +167,7 @@ impl MemoryAccessTable {
     pub fn write_be_value<T: ToBytes>(
         &self,
         address: Address,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         value: T,
     ) -> Result<(), WriteMemoryOperationError> {
         self.write(address, address_space, value.to_be_bytes().as_ref())

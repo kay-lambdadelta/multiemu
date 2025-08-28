@@ -2,7 +2,7 @@ use multiemu_rom::{RomId, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig},
-    memory::{Address, AddressSpaceHandle, MemoryOperationError, ReadMemoryRecord},
+    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord},
     platform::Platform,
 };
 use std::{
@@ -31,7 +31,7 @@ pub struct RomMemoryConfig {
     /// Memory region this buffer will be mapped to
     pub assigned_range: RangeInclusive<Address>,
     /// Address space this exists on
-    pub assigned_address_space: AddressSpaceHandle,
+    pub assigned_address_space: AddressSpaceId,
     /// ROM range
     pub rom_range: RangeInclusive<usize>,
 }
@@ -46,7 +46,7 @@ impl Component for RomMemory {
     fn read_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let adjusted_offset =

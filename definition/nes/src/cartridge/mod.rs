@@ -4,7 +4,7 @@ use multiemu_rom::{RomId, RomRequirement};
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig},
-    memory::AddressSpaceHandle,
+    memory::AddressSpaceId,
     platform::Platform,
 };
 use serde::{Deserialize, Serialize};
@@ -28,8 +28,8 @@ impl Component for NesCartridge {}
 
 #[derive(Debug)]
 pub struct NesCartridgeConfig {
-    pub cpu_address_space: AddressSpaceHandle,
-    pub ppu_address_space: AddressSpaceHandle,
+    pub cpu_address_space: AddressSpaceId,
+    pub ppu_address_space: AddressSpaceId,
     pub rom: RomId,
 }
 

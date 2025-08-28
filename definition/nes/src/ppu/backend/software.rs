@@ -1,13 +1,12 @@
-use std::fmt::Debug;
-
-use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
-use crate::tia::{VISIBLE_SCANLINE_LENGTH, region::Region};
+use super::{PpuDisplayBackend, SupportedGraphicsApiPpu};
+use crate::ppu::{VISIBLE_SCANLINE_LENGTH, region::Region};
 use multiemu_graphics::{
     GraphicsApi,
     software::{InitializationData, Software},
 };
 use nalgebra::DMatrix;
-use palette::Srgba;
+use palette::{Srgba, named::BLACK};
+use std::fmt::Debug;
 
 pub struct SoftwareState {
     pub staging_buffer: DMatrix<Srgba<u8>>,
@@ -22,14 +21,14 @@ impl Debug for SoftwareState {
     }
 }
 
-impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
+impl<R: Region> PpuDisplayBackend<R> for SoftwareState {
     type GraphicsApi = Software;
 
     fn new(_: InitializationData) -> Self {
         let staging_buffer = DMatrix::from_element(
             VISIBLE_SCANLINE_LENGTH as usize,
-            R::TOTAL_SCANLINES as usize,
-            Srgba::new(0, 0, 0, 0xff),
+            R::VISIBLE_SCANLINES as usize,
+            BLACK.into(),
         );
 
         SoftwareState {
@@ -57,6 +56,6 @@ impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
     }
 }
 
-impl SupportedGraphicsApiTia for Software {
+impl SupportedGraphicsApiPpu for Software {
     type Backend<R: Region> = SoftwareState;
 }

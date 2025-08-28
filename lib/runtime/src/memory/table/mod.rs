@@ -8,7 +8,7 @@ mod address_space;
 mod read;
 mod write;
 
-pub use address_space::{AddressSpaceHandle, MemoryRemappingCommands, MemoryType};
+pub use address_space::{AddressSpaceId, MemoryRemappingCommands, MemoryType};
 pub use read::*;
 pub use write::*;
 
@@ -31,7 +31,7 @@ impl<R> FromIterator<(RangeInclusive<Address>, R)> for MemoryOperationError<R> {
 #[derive(Debug)]
 /// The main structure representing the devices memory address spaces
 pub struct MemoryAccessTable {
-    address_spaces: HashMap<AddressSpaceHandle, AddressSpace, BuildNoHashHasher<u16>>,
+    address_spaces: HashMap<AddressSpaceId, AddressSpace, BuildNoHashHasher<u16>>,
     current_address_space: u16,
     registry: Arc<ComponentRegistry>,
 }
@@ -45,8 +45,8 @@ impl MemoryAccessTable {
         }
     }
 
-    pub(crate) fn insert_address_space(&mut self, address_space_width: u8) -> AddressSpaceHandle {
-        let id = AddressSpaceHandle::new(self.current_address_space);
+    pub(crate) fn insert_address_space(&mut self, address_space_width: u8) -> AddressSpaceId {
+        let id = AddressSpaceId::new(self.current_address_space);
 
         self.current_address_space = self
             .current_address_space
@@ -62,14 +62,14 @@ impl MemoryAccessTable {
     }
 
     /// Iter over present spaces
-    pub fn address_spaces(&self) -> impl Iterator<Item = AddressSpaceHandle> {
+    pub fn address_spaces(&self) -> impl Iterator<Item = AddressSpaceId> {
         self.address_spaces.keys().copied()
     }
 
     /// Remap memory in a specific address space, clearing previous mappings
     pub fn remap(
         &self,
-        address_space: AddressSpaceHandle,
+        address_space: AddressSpaceId,
         commands: impl IntoIterator<Item = MemoryRemappingCommands>,
     ) {
         let address_space = &self.address_spaces[&address_space];
@@ -80,6 +80,6 @@ impl MemoryAccessTable {
 #[derive(Debug)]
 struct QueueEntry {
     address: Address,
-    address_space: AddressSpaceHandle,
+    address_space: AddressSpaceId,
     buffer_subrange: RangeInclusive<Address>,
 }

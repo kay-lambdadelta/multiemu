@@ -3,7 +3,7 @@ use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig, ComponentVersion, SaveError},
     memory::{
-        Address, AddressSpaceHandle, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
@@ -32,7 +32,7 @@ pub struct StandardMemoryConfig {
     pub readable: bool,
     pub writable: bool,
     pub assigned_range: RangeInclusive<Address>,
-    pub assigned_address_space: AddressSpaceHandle,
+    pub assigned_address_space: AddressSpaceId,
     pub initial_contents: RangeInclusiveMap<usize, StandardMemoryInitialContents>,
     pub sram: bool,
 }
@@ -118,7 +118,7 @@ impl Component for StandardMemory {
     fn read_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
@@ -151,7 +151,7 @@ impl Component for StandardMemory {
     fn preview_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
         self.read_internal(address, buffer);
@@ -162,7 +162,7 @@ impl Component for StandardMemory {
     fn write_memory(
         &self,
         address: Address,
-        _address_space: AddressSpaceHandle,
+        _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         // Shoved off in a helper function to prevent duplicated logic
