@@ -1,6 +1,6 @@
 use multiemu_config::Environment;
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomManager};
-use redb::ReadableDatabase;
+use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomManager};
+use redb::{ReadOnlyMultimapTable, ReadableDatabase};
 use scc::{HashCache, hash_cache::OccupiedEntry};
 use std::{
     collections::VecDeque,
@@ -11,7 +11,9 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, LazyLock},
 };
-use zip::ZipArchive;
+use zip::{ZipArchive, read::ZipFileSeek};
+
+use crate::rom;
 
 /// Cache to try to avoid reading the metadata of the same file multiple times
 static ZIP_CACHE: LazyLock<ZipCache> = LazyLock::new(ZipCache::default);
@@ -192,18 +194,19 @@ fn process_file(
     let database_transaction = rom_manager.rom_information.begin_read()?;
     let database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
 
-    let mut converted_reader = None;
-
-    let rom_id: RomId = match entry.clone() {
+    match entry.clone() {
         SearchEntry::File(path) => {
             let file = File::open(&path)?;
-            let (rom_id, new_converted_reader) = convert_and_fetch_id(path, file)?;
+            let (rom_id, converted_reader) = convert_and_fetch_id(path, file)?;
 
-            if let Some(new_converted_reader) = new_converted_reader {
-                converted_reader = Some(new_converted_reader);
-            }
-
-            rom_id
+            process_file_internal(
+                entry,
+                symlink,
+                environment,
+                database_table,
+                rom_id,
+                converted_reader,
+            )?;
         }
         SearchEntry::Archive {
             archive_path,
@@ -211,90 +214,111 @@ fn process_file(
             path,
         } => {
             let mut archive = ZIP_CACHE.get(&archive_path)?;
+
             let index = archive
                 .index_for_path(&path)
                 .ok_or_else(|| format!("Could not find entry \"{}\" in archive", path.display()))?;
-            let file = archive.by_index(index)?;
 
-            RomId::calculate_id(file)?
+            let file = archive.by_index(index)?;
+            let rom_id = RomId::calculate_id(file)?;
+
+            process_file_internal(
+                entry,
+                symlink,
+                environment,
+                database_table,
+                rom_id,
+                // TODO: Autoconversions for files inside zips
+                None::<&[u8]>,
+            )?;
         }
     };
-
-    // Just fetch the first one
-    if let Some(rom_info) = database_table.get(&rom_id)?.next() {
-        let rom_info = rom_info?.value();
-
-        tracing::info!(
-            "Found ROM {} with name \"{:?}\" in file \"{}\"",
-            rom_id,
-            PathBuf::from_iter(rom_info.path().iter()),
-            entry
-        );
-
-        let internal_rom_path = environment.rom_store_directory.0.join(rom_id.to_string());
-        let _ = fs::remove_file(&internal_rom_path);
-
-        if let Some(mut converted_reader) = converted_reader.take() {
-            let mut internal_rom_file = File::create(&internal_rom_path)?;
-
-            std::io::copy(&mut converted_reader, &mut internal_rom_file)?;
-        } else {
-            match entry {
-                SearchEntry::File(path) => {
-                    if symlink {
-                        #[cfg(unix)]
-                        {
-                            std::os::unix::fs::symlink(&path, &internal_rom_path)?;
-                        }
-
-                        #[cfg(windows)]
-                        {
-                            std::os::windows::fs::symlink_file(&path, &internal_rom_path)?;
-                        }
-
-                        #[cfg(not(any(unix, windows)))]
-                        panic!("Unsupported platform for symlinks");
-                    } else {
-                        fs::copy(&path, &internal_rom_path)?;
-                    }
-                }
-                SearchEntry::Archive {
-                    archive_path,
-                    archive_type: ArchiveType::Zip,
-                    path,
-                } => {
-                    let mut archive = ZIP_CACHE.get(&archive_path)?;
-                    let index = archive.index_for_path(&path).ok_or_else(|| {
-                        format!("Could not find entry \"{}\" in archive", path.display())
-                    })?;
-                    let mut file = archive.by_index(index)?;
-                    let mut internal_rom_file = File::create(&internal_rom_path)?;
-                    std::io::copy(&mut file, &mut internal_rom_file)?;
-                }
-            }
-        }
-    } else {
-        tracing::debug!("Could not identify ROM {} at \"{}\"", rom_id, entry);
-    }
 
     Ok(())
 }
 
+fn process_file_internal(
+    entry: SearchEntry,
+    symlink: bool,
+    environment: Arc<Environment>,
+    database_table: ReadOnlyMultimapTable<RomId, RomInfo>,
+    rom_id: RomId,
+    mut converted_reader: Option<impl Read>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    Ok(
+        if let Some(rom_info) = database_table.get(&rom_id)?.next() {
+            let rom_info = rom_info?.value();
+
+            tracing::info!(
+                "Found ROM {} with name \"{:?}\" in file \"{}\"",
+                rom_id,
+                PathBuf::from_iter(rom_info.path().iter()),
+                entry
+            );
+
+            let internal_rom_path = environment.rom_store_directory.0.join(rom_id.to_string());
+            let _ = fs::remove_file(&internal_rom_path);
+
+            if let Some(mut converted_reader) = converted_reader.take() {
+                let mut internal_rom_file = File::create(&internal_rom_path)?;
+
+                std::io::copy(&mut converted_reader, &mut internal_rom_file)?;
+            } else {
+                match entry {
+                    SearchEntry::File(path) => {
+                        if symlink {
+                            #[cfg(unix)]
+                            {
+                                std::os::unix::fs::symlink(&path, &internal_rom_path)?;
+                            }
+
+                            #[cfg(windows)]
+                            {
+                                std::os::windows::fs::symlink_file(&path, &internal_rom_path)?;
+                            }
+
+                            #[cfg(not(any(unix, windows)))]
+                            panic!("Unsupported platform for symlinks");
+                        } else {
+                            fs::copy(&path, &internal_rom_path)?;
+                        }
+                    }
+                    SearchEntry::Archive {
+                        archive_path,
+                        archive_type: ArchiveType::Zip,
+                        path,
+                    } => {
+                        let mut archive = ZIP_CACHE.get(&archive_path)?;
+                        let index = archive.index_for_path(&path).ok_or_else(|| {
+                            format!("Could not find entry \"{}\" in archive", path.display())
+                        })?;
+                        let mut file = archive.by_index(index)?;
+                        let mut internal_rom_file = File::create(&internal_rom_path)?;
+                        std::io::copy(&mut file, &mut internal_rom_file)?;
+                    }
+                }
+            }
+        } else {
+            tracing::debug!("Could not identify ROM {} at \"{}\"", rom_id, entry);
+        },
+    )
+}
+
 fn convert_and_fetch_id(
     path: impl AsRef<Path>,
-    rom_file: File,
+    rom: impl Read + Seek + Send + 'static,
 ) -> Result<(RomId, Option<impl Read>), Box<dyn Error + Send + Sync>> {
     let path = path.as_ref();
 
     if let Some(file_extention) = path.extension().and_then(|ext| ext.to_str()) {
         match file_extention.to_lowercase().as_str() {
-            "rvz" | "wia" | "wbfs" | "ciso" | "nfs" | "gcz" => {
+            "rvz" | "wia" => {
                 tracing::info!(
                     "Converted detected non-standard format to ISO for \"{}\"",
                     path.display()
                 );
 
-                let mut converted_reader = crate::convert::wiigamecube::to_iso(rom_file)?;
+                let mut converted_reader = crate::convert::wiigamecube::to_iso(rom)?;
                 converted_reader.rewind()?;
 
                 let rom_id = RomId::calculate_id(&mut converted_reader)?;
@@ -303,12 +327,12 @@ fn convert_and_fetch_id(
                 Ok((rom_id, Some(converted_reader)))
             }
             _ => {
-                let rom_id = RomId::calculate_id(rom_file)?;
+                let rom_id = RomId::calculate_id(rom)?;
 
                 Ok((rom_id, None))
             }
         }
     } else {
-        Ok((RomId::calculate_id(rom_file)?, None))
+        Ok((RomId::calculate_id(rom)?, None))
     }
 }

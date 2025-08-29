@@ -22,7 +22,7 @@ strum = { workspace = true }
 scc = { workspace = true }
 ron = { workspace = true }
 quick-xml = { version = "0.38", features = ["serialize"] }
-zip = { version = "3.0", default-features = false, features = [
+zip = { version = "4.5", default-features = false, features = [
     "zstd",
     "bzip2",
     "deflate64",
@@ -30,9 +30,10 @@ zip = { version = "3.0", default-features = false, features = [
     "lzma",
 ] }
 strsim = "0.11"
-nod = "1.4"
+nod = "2.0.0-alpha.3"
 tempfile = "3.21"
 ureq = { version = "3.1", features = ["socks-proxy", "charset"] }
+num_cpus = "1.17"
 
 [package.metadata.deb]
 maintainer = "Kay <lambdadeltacommunism@gmail.com>"

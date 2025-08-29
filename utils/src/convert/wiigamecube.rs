@@ -1,27 +1,46 @@
-use nod::{Disc, OpenOptions};
-use std::{
-    fs::File,
-    io::{Read, Seek},
-    sync::Arc,
+use nod::{
+    common::Format,
+    read::{DiscOptions, DiscReader, PartitionEncryption},
+    write::{DiscWriter, FormatOptions, ProcessOptions},
 };
-use tempfile::tempfile;
+use std::io::{Read, Seek, Write};
 
 pub fn to_iso(
-    // TODO: Once DynClone requirement is removed, change this to be generic
-    file: File,
+    rom: impl Read + Seek + Send + 'static,
 ) -> Result<impl Read + Seek, Box<dyn std::error::Error + Send + Sync>> {
-    let mut temp_file = tempfile()?;
-
-    let mut disk = Disc::new_stream_with_options(
-        Box::new(Arc::new(file)),
-        &OpenOptions {
-            rebuild_encryption: true,
-            validate_hashes: true,
+    let mut tempfile = tempfile::tempfile()?;
+    let reader = DiscReader::new_from_non_cloneable_read(
+        rom,
+        &DiscOptions {
+            partition_encryption: PartitionEncryption::Original,
+            preloader_threads: 0,
         },
     )?;
 
-    std::io::copy(&mut disk, &mut temp_file)?;
-    temp_file.rewind()?;
+    let writer = DiscWriter::new(
+        reader,
+        &FormatOptions {
+            format: Format::Iso,
+            compression: Format::Iso.default_compression(),
+            block_size: Format::Iso.default_block_size(),
+        },
+    )?;
 
-    Ok(temp_file)
+    writer.process(
+        |bytes, _, _| {
+            tempfile.write_all(bytes.as_ref())?;
+
+            Ok(())
+        },
+        &ProcessOptions {
+            processor_threads: num_cpus::get(),
+            digest_crc32: false,
+            digest_md5: false,
+            digest_sha1: false,
+            digest_xxh64: false,
+        },
+    )?;
+    tempfile.rewind()?;
+
+    Ok(tempfile)
 }
