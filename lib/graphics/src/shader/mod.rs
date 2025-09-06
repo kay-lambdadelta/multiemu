@@ -120,7 +120,7 @@ impl<T: ShaderFormat> ShaderCache<T> {
             version
         );
 
-        match self.shaders.get(&(wgsl.clone(), version)) {
+        match self.shaders.get_sync(&(wgsl.clone(), version)) {
             Some(module) => Ok(module.clone()),
             None => {
                 // Try to parse it ourself and create it
@@ -164,7 +164,9 @@ impl<T: ShaderFormat> ShaderCache<T> {
                     module,
                 });
 
-                let _ = self.shaders.put((wgsl.clone(), version), shader.clone());
+                let _ = self
+                    .shaders
+                    .put_sync((wgsl.clone(), version), shader.clone());
 
                 Ok(shader)
             }

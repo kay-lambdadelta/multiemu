@@ -37,7 +37,7 @@ serde = { version = "1.0", default-features = false, features = [
     "derive",
 ] }
 serde_with = "3.14"
-serde-inline-default = "0.2"
+serde-inline-default = "1.0"
 rayon = "1.10"
 nalgebra = { version = "0.34", features = [
     "serde-serialize",
@@ -65,10 +65,10 @@ uuid = { version = "1.18", features = ["serde", "v4"] }
 ringbuffer = "0.16"
 bincode = { version = "2.0", features = ["serde"] }
 rustc-hash = "2.1"
-ron = "0.10"
+ron = "0.11"
 data-encoding = "2.9"
 deku = "0.19"
-scc = "2.4"
+scc = "3.0"
 sealed = "0.6"
 crossbeam = "0.8"
 egui = { version = "0.32", features = ["default_fonts", "rayon", "log"] }

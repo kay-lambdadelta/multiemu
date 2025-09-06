@@ -38,8 +38,12 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task for PpuDriver<R, G> {
 
                     if state_guard.cycle_counter.x == 0 {
                         // Do nothing
+
+
                         // Use this to present frame
-                        backend.commit_staging_buffer();
+                        if state_guard.cycle_counter.y == 0 {
+                            backend.commit_staging_buffer();
+                        }
                     } else if (0..R::VISIBLE_SCANLINES).contains(&state_guard.cycle_counter.y) {
                         self.handle_visible_cycles(&mut state_guard, backend);
                     } else if state_guard.cycle_counter.y == 241 {

@@ -42,7 +42,7 @@ impl VirtualGamepad {
 
     pub fn set(&self, input: Input, state: InputState) {
         if self.metadata.present_inputs.contains(&input) {
-            self.state.upsert(input, state);
+            self.state.upsert_sync(input, state);
         }
     }
 
@@ -54,7 +54,7 @@ impl VirtualGamepad {
         );
 
         self.state
-            .get(&input)
+            .get_sync(&input)
             .as_deref()
             .copied()
             .unwrap_or_default()

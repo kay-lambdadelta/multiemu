@@ -87,7 +87,7 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
 
         let backend = ROM_CACHE
             .0
-            .entry(self.rom)
+            .entry_sync(self.rom)
             .or_put_with(|| {
                 let backend = DefaultRomMemoryBackend::new(rom);
                 Arc::new(backend)

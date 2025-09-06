@@ -11,9 +11,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, LazyLock},
 };
-use zip::{ZipArchive, read::ZipFileSeek};
-
-use crate::rom;
+use zip::ZipArchive;
 
 /// Cache to try to avoid reading the metadata of the same file multiple times
 static ZIP_CACHE: LazyLock<ZipCache> = LazyLock::new(ZipCache::default);
@@ -33,7 +31,7 @@ impl ZipCache {
     ) -> Result<OccupiedEntry<'_, PathBuf, ZipArchive<File>>, Box<dyn Error + Send + Sync>> {
         let path = path.as_ref();
 
-        match self.0.entry(path.to_path_buf()) {
+        match self.0.entry_sync(path.to_path_buf()) {
             scc::hash_cache::Entry::Occupied(occupied_entry) => Ok(occupied_entry),
             scc::hash_cache::Entry::Vacant(vacant_entry) => {
                 let archive = ZipArchive::new(File::open(path)?)?;

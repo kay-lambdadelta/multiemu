@@ -61,7 +61,7 @@ impl ComponentRegistry {
     }
 
     pub fn get_id(&self, path: &ComponentPath) -> Option<ComponentId> {
-        self.component_ids.get(path).as_deref().copied()
+        self.component_ids.get_sync(path).as_deref().copied()
     }
 
     pub(crate) fn interact_all(
@@ -113,7 +113,7 @@ impl ComponentRegistry {
         });
 
         let component_id = ComponentId::new(index.try_into().unwrap());
-        let _ = self.component_ids.insert(path, component_id);
+        let _ = self.component_ids.insert_sync(path, component_id);
 
         component_id
     }
@@ -131,7 +131,7 @@ impl ComponentRegistry {
         });
 
         let component_id = ComponentId::new(index.try_into().unwrap());
-        let _ = self.component_ids.insert(path, component_id);
+        let _ = self.component_ids.insert_sync(path, component_id);
 
         component_id
     }
