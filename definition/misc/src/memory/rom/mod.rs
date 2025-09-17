@@ -52,7 +52,7 @@ impl Component for RomMemory {
         let adjusted_offset =
             (address - self.config.assigned_range.start()) + self.config.rom_range.start();
 
-        assert!(self.config.rom_range.contains(&adjusted_offset));
+        debug_assert!(self.config.rom_range.contains(&adjusted_offset));
 
         self.backend.read(adjusted_offset, buffer);
 

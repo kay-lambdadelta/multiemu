@@ -76,7 +76,7 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
                     .0
             }
             _ => {
-                unreachable!("Unsupported mapper");
+                unreachable!("Unsupported mapper {}", ines.mapper);
             }
         };
 

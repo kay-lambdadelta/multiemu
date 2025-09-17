@@ -103,7 +103,7 @@ pub trait Component: Debug + Any {
     }
 
     fn write_memory(
-        &self,
+        &mut self,
         address: Address,
         address_space: AddressSpaceId,
         buffer: &[u8],

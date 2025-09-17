@@ -17,7 +17,7 @@ pub enum ReadMemoryOperationErrorFailureType {
 }
 
 #[derive(Error, Debug)]
-#[error("Read operation failed: {0:#?}")]
+#[error("Read operation failed: {0:#x?}")]
 /// Wrapper around the error type in order to specify ranges
 pub struct ReadMemoryOperationError(
     RangeInclusiveMap<Address, ReadMemoryOperationErrorFailureType>,
@@ -49,7 +49,7 @@ pub enum PreviewMemoryOperationErrorFailureType {
 }
 
 #[derive(Error, Debug)]
-#[error("Preview operation failed (if you see this in a panic this is a bug): {0:#?}")]
+#[error("Preview operation failed (if you see this in a panic this is a bug): {0:#x?}")]
 /// Wrapper around the error type in order to specify ranges
 pub struct PreviewMemoryOperationError(
     RangeInclusiveMap<Address, PreviewMemoryOperationErrorFailureType>,
@@ -113,22 +113,17 @@ impl MemoryAccessTable {
 
             address_space_info.visit_read_components(
                 accessing_range.clone(),
-                |component_id, component_assigned_range| {
+                |component_id, relevant_assigned_range| {
                     self.registry
                         .interact_dyn(component_id, |component| {
-                            
-                        let adjusted_accessing_range: RangeInclusive<Address> = accessing_range
-                            .clone()
-                            .intersection(component_assigned_range.clone())
-                            .into();
 
-                        let adjusted_buffer_subrange = (adjusted_accessing_range.start() - address)
-                            ..=(adjusted_accessing_range.end() - address);
+                        let adjusted_buffer_subrange = (relevant_assigned_range.start() - address)
+                            ..=(relevant_assigned_range.end() - address);
 
                         did_handle = true;
 
                         if let Err(errors) = component.read_memory(
-                            *adjusted_accessing_range.start(),
+                            *relevant_assigned_range.start(),
                             address_space,
                             &mut buffer[adjusted_buffer_subrange.clone()],
                         ) {
@@ -147,10 +142,10 @@ impl MemoryAccessTable {
                                         address_space: redirect_address_space,
                                     } => {
                                         debug_assert!(
-                                            !component_assigned_range.contains(&redirect_address)
+                                            !relevant_assigned_range.contains(&redirect_address)
                                                 && address_space == redirect_address_space,
                                             "Memory attempted to redirect to itself {:x?} -> {:x}",
-                                            component_assigned_range,
+                                            relevant_assigned_range,
                                             redirect_address,
                                         );
 

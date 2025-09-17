@@ -1,6 +1,8 @@
 use crate::ppu::{
-    DrawingState, Ppu, State, TOTAL_SCANLINE_LENGTH, VISIBLE_SCANLINE_LENGTH,
+    BACKGROUND_PALETTE_BASE_ADDRESS, DrawingState, Ppu, State, TOTAL_SCANLINE_LENGTH,
+    VISIBLE_SCANLINE_LENGTH,
     backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
+    color::PpuColor,
     region::Region,
 };
 use bitvec::{field::BitField, view::BitView};
@@ -12,8 +14,11 @@ use multiemu_runtime::{
     scheduler::Task,
 };
 use nalgebra::Point2;
-use palette::Srgba;
-use std::{num::NonZero, sync::Arc};
+use palette::Srgb;
+use std::{
+    num::NonZero,
+    sync::{Arc, atomic::Ordering},
+};
 
 pub struct PpuDriver<R: Region, G: SupportedGraphicsApiPpu> {
     pub component: ComponentRef<Ppu<R, G>>,
@@ -28,34 +33,36 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task for PpuDriver<R, G> {
     fn run(&mut self, time_slice: NonZero<u32>) {
         self.component
             .interact_mut(|component| {
-                let mut state_guard = component.state.lock().unwrap();
                 let backend = component.backend.get_mut().unwrap();
 
                 for _ in 0..time_slice.get() {
-                    if std::mem::replace(&mut state_guard.reset_cpu_nmi, false) {
+                    if std::mem::replace(&mut component.state.reset_cpu_nmi, false) {
                         self.processor_nmi.store(false);
                     }
 
-                    if state_guard.cycle_counter.x == 0 {
+                    if component.state.cycle_counter.x == 0 {
                         // Do nothing
 
-
                         // Use this to present frame
-                        if state_guard.cycle_counter.y == 0 {
+                        if component.state.cycle_counter.y == 0 {
                             backend.commit_staging_buffer();
                         }
-                    } else if (0..R::VISIBLE_SCANLINES).contains(&state_guard.cycle_counter.y) {
-                        self.handle_visible_cycles(&mut state_guard, backend);
-                    } else if state_guard.cycle_counter.y == 241 {
-                        state_guard.entered_vblank = true;
+                    } else if (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y) {
+                        self.handle_visible_cycles(&mut component.state, backend);
+                    } else if component.state.cycle_counter.y == 241 {
+                        component
+                            .state
+                            .entered_vblank
+                            .store(true, Ordering::Release);
 
-                        if state_guard.vblank_nmi_enabled {
+                        if component.state.vblank_nmi_enabled {
                             self.processor_nmi.store(true);
-                            state_guard.reset_cpu_nmi = true;
+                            component.state.reset_cpu_nmi = true;
                         }
                     }
 
-                    state_guard.cycle_counter = state_guard.get_modified_cycle_counter::<R>(1);
+                    component.state.cycle_counter =
+                        component.state.get_modified_cycle_counter::<R>(1);
                 }
             })
             .unwrap();
@@ -72,7 +79,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> PpuDriver<R, G> {
         match state.cycle_counter.x {
             1..=FINAL_VISIBLE_CYCLE => {
                 if state.cycle_counter.x == 1 {
-                    state.entered_vblank = false;
+                    state.entered_vblank.store(false, Ordering::Release);
                 }
 
                 // Steps wait a cycle inbetween for memory access realism
@@ -139,13 +146,15 @@ impl<R: Region, G: SupportedGraphicsApiPpu> PpuDriver<R, G> {
 
                                 let color = color_bits.load::<u8>();
 
+                                let color = state.calculate_color::<R>(
+                                    &self.memory_access_table,
+                                    self.ppu_address_space,
+                                    attribute,
+                                    color,
+                                );
+
                                 // TODO: this just renders in greyscale
-                                state.pixel_queue.push_back(Srgba::new(
-                                    color * 0x10,
-                                    color * 0x10,
-                                    color * 0x10,
-                                    u8::MAX,
-                                ));
+                                state.pixel_queue.push_back(color.into());
                             }
                         }
                     }
@@ -251,5 +260,47 @@ impl State {
         memory_access_table
             .read_le_value(address as usize, ppu_address_space)
             .unwrap()
+    }
+
+    #[inline]
+    fn calculate_color<R: Region>(
+        &self,
+        memory_access_table: &MemoryAccessTable,
+        ppu_address_space: AddressSpaceId,
+        attribute_byte: u8,
+        color: u8,
+    ) -> Srgb<u8> {
+        let tile_position = self.get_modified_cycle_counter::<R>(8) / 8;
+        let attribute_byte = attribute_byte.view_bits::<Lsb0>();
+        let color = color.view_bits::<Lsb0>();
+
+        let quadrant = Point2::new(tile_position.x % 4, tile_position.y % 4) / 2;
+        let shift = (quadrant.y * 2 + quadrant.x) * 2;
+
+        let mut palette_index = 0u8;
+
+        {
+            let palette_index = palette_index.view_bits_mut::<Lsb0>();
+
+            palette_index[0..2].copy_from_bitslice(&color[0..2]);
+            palette_index[2..4]
+                .copy_from_bitslice(&attribute_byte[shift as usize..shift as usize + 2]);
+        }
+
+        let color: u8 = memory_access_table
+            .read_le_value(
+                BACKGROUND_PALETTE_BASE_ADDRESS + palette_index as usize,
+                ppu_address_space,
+            )
+            .unwrap();
+
+        let color = color.view_bits::<Lsb0>();
+
+        let color = PpuColor {
+            hue: color[0..4].load(),
+            luminance: color[4..6].load(),
+        };
+
+        R::color_to_srgb(color)
     }
 }

@@ -201,6 +201,8 @@ impl INes {
                     DefaultExpansionDevice::new(remaining[0..6].load::<u8>());
                 remaining = &remaining[6..];
 
+                assert_eq!(remaining.len(), 0, "Parser misalignment");
+
                 (
                     INesVersion::V2 {
                         console_type: console_type.ok_or(ParsingError::BadConsoleType)?,
@@ -213,8 +215,6 @@ impl INes {
             }
             _ => return Err(ParsingError::BadVersion { version }),
         };
-
-        assert_eq!(remaining.len(), 0, "Parser misalignment");
 
         let mut roms = HashMap::new();
         let mut cursor = HEADER_SIZE;

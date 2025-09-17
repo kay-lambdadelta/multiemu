@@ -33,6 +33,7 @@ impl MainThreadQueue {
     /// This will block if we are not on the main thread, possibly causing a performance loss
     ///
     /// Keep this in mind
+    #[inline]
     pub fn maybe_wait_on_main<'a, T: Send + 'static>(
         &'a self,
         callback: impl FnOnce() -> T + Send + 'a,

@@ -12,12 +12,12 @@ use multiemu_runtime::{
     platform::Platform,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Mapctl {
     config: MapctlConfig,
-    status: Mutex<MapctlStatus>,
+    status: MapctlStatus,
     my_id: ComponentId,
     mat: Arc<MemoryAccessTable>,
 }
@@ -29,21 +29,18 @@ impl Component for Mapctl {
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        let register_guard = self.status.lock().unwrap();
-        register_guard.to_slice(buffer).unwrap();
+        self.status.to_slice(buffer).unwrap();
 
         Ok(())
     }
 
     fn write_memory(
-        &self,
+        &mut self,
         _address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        let mut register_guard = self.status.lock().unwrap();
-        let register = MapctlStatus::from_bytes((buffer, 0)).unwrap().1;
-        *register_guard = register;
+        self.status = MapctlStatus::from_bytes((buffer, 0)).unwrap().1;
 
         let mut remapping_commands = Vec::default();
 
@@ -53,7 +50,7 @@ impl Component for Mapctl {
             types: vec![MemoryType::Read, MemoryType::Write],
         });
 
-        if register.suzy {
+        if self.status.suzy {
             remapping_commands.push(MemoryRemappingCommands::AddComponent {
                 range: SUZY_ADDRESSES,
                 component_id: self.config.suzy,
@@ -61,7 +58,7 @@ impl Component for Mapctl {
             });
         }
 
-        if register.mikey {
+        if self.status.mikey {
             remapping_commands.push(MemoryRemappingCommands::AddComponent {
                 range: MIKEY_ADDRESSES,
                 component_id: self.config.mikey,
@@ -75,7 +72,7 @@ impl Component for Mapctl {
             types: vec![MemoryType::Read, MemoryType::Write],
         });
 
-        if register.vector {
+        if self.status.vector {
             remapping_commands.push(MemoryRemappingCommands::AddComponent {
                 range: VECTOR_ADDRESSES,
                 component_id: self.config.vector,

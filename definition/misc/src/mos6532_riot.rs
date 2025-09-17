@@ -1,3 +1,4 @@
+use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
 use multiemu_runtime::{
     builder::ComponentBuilder,
     component::{BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion},
@@ -15,13 +16,8 @@ use std::{
     fmt::Debug,
     io::{Read, Write},
     num::NonZero,
-    sync::{
-        OnceLock,
-        atomic::{AtomicBool, AtomicU8, Ordering},
-    },
+    sync::OnceLock,
 };
-
-use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -40,14 +36,14 @@ pub struct Snapshot {
 struct Registers {
     swcha: OnceLock<Box<dyn SwchaCallback>>,
     swchb: OnceLock<Box<dyn SwchbCallback>>,
-    swacnt: AtomicBool,
-    swbcnt: AtomicBool,
-    intim: AtomicU8,
-    instat: AtomicU8,
-    tim1t: AtomicU8,
-    tim8t: AtomicU8,
-    tim64t: AtomicU8,
-    t1024t: AtomicU8,
+    swacnt: bool,
+    swbcnt: bool,
+    intim: u8,
+    instat: u8,
+    tim1t: u8,
+    tim8t: u8,
+    tim64t: u8,
+    t1024t: u8,
 }
 
 pub trait SwchaCallback: Debug + Send + Sync + 'static {
@@ -84,14 +80,14 @@ impl Mos6532Riot {
 
 impl Component for Mos6532Riot {
     fn reset(&mut self) {
-        self.registers.swacnt.store(false, Ordering::Release);
-        self.registers.swbcnt.store(false, Ordering::Release);
-        self.registers.intim.store(0, Ordering::Release);
-        self.registers.instat.store(0, Ordering::Release);
-        self.registers.tim1t.store(0, Ordering::Release);
-        self.registers.tim8t.store(0, Ordering::Release);
-        self.registers.tim64t.store(0, Ordering::Release);
-        self.registers.t1024t.store(0, Ordering::Release);
+        self.registers.swacnt = false;
+        self.registers.swbcnt = false;
+        self.registers.intim = 0;
+        self.registers.instat = 0;
+        self.registers.tim1t = 0;
+        self.registers.tim8t = 0;
+        self.registers.tim64t = 0;
+        self.registers.t1024t = 0;
 
         // I dunno what to do with the handlers
         // The components that installed the handlers will be reset too so its probably fine
@@ -103,14 +99,14 @@ impl Component for Mos6532Riot {
 
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
         let snapshot = Snapshot {
-            swacnt: self.registers.swacnt.load(Ordering::Acquire),
-            swbcnt: self.registers.swbcnt.load(Ordering::Acquire),
-            intim: self.registers.intim.load(Ordering::Acquire),
-            instat: self.registers.instat.load(Ordering::Acquire),
-            tim1t: self.registers.tim1t.load(Ordering::Acquire),
-            tim8t: self.registers.tim8t.load(Ordering::Acquire),
-            tim64t: self.registers.tim64t.load(Ordering::Acquire),
-            t1024t: self.registers.t1024t.load(Ordering::Acquire),
+            swacnt: self.registers.swacnt,
+            swbcnt: self.registers.swbcnt,
+            intim: self.registers.intim,
+            instat: self.registers.instat,
+            tim1t: self.registers.tim1t,
+            tim8t: self.registers.tim8t,
+            tim64t: self.registers.tim64t,
+            t1024t: self.registers.t1024t,
         };
 
         bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
@@ -130,30 +126,14 @@ impl Component for Mos6532Riot {
                     bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
 
                 // Restore state into atomics
-                self.registers
-                    .swacnt
-                    .store(snapshot.swacnt, Ordering::Release);
-                self.registers
-                    .swbcnt
-                    .store(snapshot.swbcnt, Ordering::Release);
-                self.registers
-                    .intim
-                    .store(snapshot.intim, Ordering::Release);
-                self.registers
-                    .instat
-                    .store(snapshot.instat, Ordering::Release);
-                self.registers
-                    .tim1t
-                    .store(snapshot.tim1t, Ordering::Release);
-                self.registers
-                    .tim8t
-                    .store(snapshot.tim8t, Ordering::Release);
-                self.registers
-                    .tim64t
-                    .store(snapshot.tim64t, Ordering::Release);
-                self.registers
-                    .t1024t
-                    .store(snapshot.t1024t, Ordering::Release);
+                self.registers.swacnt = snapshot.swacnt;
+                self.registers.swbcnt = snapshot.swbcnt;
+                self.registers.intim = snapshot.intim;
+                self.registers.instat = snapshot.instat;
+                self.registers.tim1t = snapshot.tim1t;
+                self.registers.tim8t = snapshot.tim8t;
+                self.registers.tim64t = snapshot.tim64t;
+                self.registers.t1024t = snapshot.t1024t;
 
                 Ok(())
             }
@@ -173,7 +153,7 @@ impl Component for Mos6532Riot {
             let adjusted_address = address - self.config.registers_assigned_address;
 
             match adjusted_address {
-                0x0 if self.registers.swacnt.load(Ordering::Acquire) => {
+                0x0 if self.registers.swacnt => {
                     *buffer_section = self
                         .registers
                         .swcha
@@ -182,13 +162,9 @@ impl Component for Mos6532Riot {
                         .unwrap_or(0);
                 }
                 0x1 => {
-                    *buffer_section = if self.registers.swacnt.load(Ordering::Acquire) {
-                        1
-                    } else {
-                        0
-                    };
+                    *buffer_section = if self.registers.swacnt { 1 } else { 0 };
                 }
-                0x2 if self.registers.swbcnt.load(Ordering::Acquire) => {
+                0x2 if self.registers.swbcnt => {
                     *buffer_section = self
                         .registers
                         .swchb
@@ -197,29 +173,25 @@ impl Component for Mos6532Riot {
                         .unwrap_or(0);
                 }
                 0x3 => {
-                    *buffer_section = if self.registers.swbcnt.load(Ordering::Acquire) {
-                        1
-                    } else {
-                        0
-                    };
+                    *buffer_section = if self.registers.swbcnt { 1 } else { 0 };
                 }
                 0x4 => {
-                    *buffer_section = self.registers.intim.load(Ordering::Acquire);
+                    *buffer_section = self.registers.intim;
                 }
                 0x5 => {
-                    *buffer_section = self.registers.instat.load(Ordering::Acquire);
+                    *buffer_section = self.registers.instat;
                 }
                 0x14 => {
-                    *buffer_section = self.registers.tim1t.load(Ordering::Acquire);
+                    *buffer_section = self.registers.tim1t;
                 }
                 0x15 => {
-                    *buffer_section = self.registers.tim8t.load(Ordering::Acquire);
+                    *buffer_section = self.registers.tim8t;
                 }
                 0x16 => {
-                    *buffer_section = self.registers.tim64t.load(Ordering::Acquire);
+                    *buffer_section = self.registers.tim64t;
                 }
                 0x17 => {
-                    *buffer_section = self.registers.t1024t.load(Ordering::Acquire);
+                    *buffer_section = self.registers.t1024t;
                 }
                 _ => {
                     return Err(MemoryOperationError::from_iter([(
@@ -252,36 +224,28 @@ impl Component for Mos6532Riot {
                     )]));
                 }
                 0x1 => {
-                    *buffer_section = if self.registers.swacnt.load(Ordering::Acquire) {
-                        1
-                    } else {
-                        0
-                    };
+                    *buffer_section = if self.registers.swacnt { 1 } else { 0 };
                 }
                 0x3 => {
-                    *buffer_section = if self.registers.swbcnt.load(Ordering::Acquire) {
-                        1
-                    } else {
-                        0
-                    };
+                    *buffer_section = if self.registers.swbcnt { 1 } else { 0 };
                 }
                 0x4 => {
-                    *buffer_section = self.registers.intim.load(Ordering::Acquire);
+                    *buffer_section = self.registers.intim;
                 }
                 0x5 => {
-                    *buffer_section = self.registers.instat.load(Ordering::Acquire);
+                    *buffer_section = self.registers.instat;
                 }
                 0x14 => {
-                    *buffer_section = self.registers.tim1t.load(Ordering::Acquire);
+                    *buffer_section = self.registers.tim1t;
                 }
                 0x15 => {
-                    *buffer_section = self.registers.tim8t.load(Ordering::Acquire);
+                    *buffer_section = self.registers.tim8t;
                 }
                 0x16 => {
-                    *buffer_section = self.registers.tim64t.load(Ordering::Acquire);
+                    *buffer_section = self.registers.tim64t;
                 }
                 0x17 => {
-                    *buffer_section = self.registers.t1024t.load(Ordering::Acquire);
+                    *buffer_section = self.registers.t1024t;
                 }
                 _ => {
                     return Err(MemoryOperationError::from_iter([(
@@ -296,7 +260,7 @@ impl Component for Mos6532Riot {
     }
 
     fn write_memory(
-        &self,
+        &mut self,
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
@@ -307,7 +271,7 @@ impl Component for Mos6532Riot {
             let adjusted_address = address - self.config.registers_assigned_address;
 
             match adjusted_address {
-                0x0 if !self.registers.swacnt.load(Ordering::Acquire) => {
+                0x0 if !self.registers.swacnt => {
                     self.registers
                         .swcha
                         .get()
@@ -315,12 +279,9 @@ impl Component for Mos6532Riot {
                         .write_register(*buffer_section);
                 }
                 0x1 => {
-                    self.registers.swacnt.store(
-                        if *buffer_section == 0 { false } else { true },
-                        Ordering::Release,
-                    );
+                    self.registers.swacnt = if *buffer_section == 0 { false } else { true };
                 }
-                0x2 if !self.registers.swbcnt.load(Ordering::Acquire) => {
+                0x2 if !self.registers.swbcnt => {
                     self.registers
                         .swchb
                         .get()
@@ -328,30 +289,19 @@ impl Component for Mos6532Riot {
                         .write_register(*buffer_section);
                 }
                 0x3 => {
-                    self.registers.swbcnt.store(
-                        if *buffer_section == 0 { false } else { true },
-                        Ordering::Release,
-                    );
+                    self.registers.swbcnt = if *buffer_section == 0 { false } else { true };
                 }
                 0x14 => {
-                    self.registers
-                        .tim1t
-                        .store(*buffer_section, Ordering::Release);
+                    self.registers.tim1t = *buffer_section;
                 }
                 0x15 => {
-                    self.registers
-                        .tim8t
-                        .store(*buffer_section, Ordering::Release);
+                    self.registers.tim8t = *buffer_section;
                 }
                 0x16 => {
-                    self.registers
-                        .tim64t
-                        .store(*buffer_section, Ordering::Release);
+                    self.registers.tim64t = *buffer_section;
                 }
                 0x17 => {
-                    self.registers
-                        .t1024t
-                        .store(*buffer_section, Ordering::Release);
+                    self.registers.t1024t = *buffer_section;
                 }
                 _ => {
                     return Err(MemoryOperationError::from_iter([(
@@ -376,14 +326,14 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
         let registers = Registers {
             swcha: OnceLock::new(),
             swchb: OnceLock::new(),
-            swacnt: AtomicBool::new(false),
-            swbcnt: AtomicBool::new(false),
-            intim: AtomicU8::new(0),
-            instat: AtomicU8::new(0),
-            tim1t: AtomicU8::new(0),
-            tim8t: AtomicU8::new(0),
-            tim64t: AtomicU8::new(0),
-            t1024t: AtomicU8::new(0),
+            swacnt: false,
+            swbcnt: false,
+            intim: 0,
+            instat: 0,
+            tim1t: 0,
+            tim8t: 0,
+            tim64t: 0,
+            t1024t: 0,
         };
 
         let ram_assigned_addresses =
@@ -433,11 +383,11 @@ fn set_up_timer_tasks<'a, P: Platform>(
 
             move |slice: NonZero<u32>| {
                 component_ref
-                    .interact(|component| {
-                        component
+                    .interact_mut(|component| {
+                        component.registers.tim1t = component
                             .registers
                             .tim1t
-                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::AcqRel)
+                            .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
                     })
                     .unwrap();
             }
@@ -447,11 +397,11 @@ fn set_up_timer_tasks<'a, P: Platform>(
 
             move |slice: NonZero<u32>| {
                 component_ref
-                    .interact(|component| {
-                        component
+                    .interact_mut(|component| {
+                        component.registers.tim8t = component
                             .registers
                             .tim8t
-                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::AcqRel)
+                            .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
                     })
                     .unwrap();
             }
@@ -461,11 +411,11 @@ fn set_up_timer_tasks<'a, P: Platform>(
 
             move |slice: NonZero<u32>| {
                 component_ref
-                    .interact(|component| {
-                        component
+                    .interact_mut(|component| {
+                        component.registers.tim64t = component
                             .registers
                             .tim64t
-                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::AcqRel)
+                            .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
                     })
                     .unwrap();
             }
@@ -475,11 +425,11 @@ fn set_up_timer_tasks<'a, P: Platform>(
 
             move |slice: NonZero<u32>| {
                 component_ref
-                    .interact(|component| {
-                        component
+                    .interact_mut(|component| {
+                        component.registers.t1024t = component
                             .registers
                             .t1024t
-                            .fetch_add(slice.get().try_into().unwrap_or(u8::MAX), Ordering::AcqRel)
+                            .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
                     })
                     .unwrap();
             }

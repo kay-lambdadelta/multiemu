@@ -38,7 +38,7 @@ serde = { version = "1.0", default-features = false, features = [
 ] }
 serde_with = "3.14"
 serde-inline-default = "1.0"
-rayon = "1.10"
+rayon = "1.11"
 nalgebra = { version = "0.34", features = [
     "serde-serialize",
     "convert-bytemuck",
@@ -47,8 +47,7 @@ bytemuck = { version = "1.23", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
-# crates.io bitvec has very bad atomic detection code basically making it unusuable on any unusual platform
-bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "d45d8fddb27dd9900c72adbbdb7108b355028a8f", features = [
+bitvec = { git = "https://github.com/kay-lambdadelta/ferrilab", features = [
     "std",
     "serde",
 ] }
@@ -90,5 +89,5 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 debug = true
 
 [patch.crates-io]
-bitvec = { git = "https://github.com/ferrilab/ferrilab", rev = "d45d8fddb27dd9900c72adbbdb7108b355028a8f" }
-radium = { git = "https://github.com/ferrilab/ferrilab", rev = "d45d8fddb27dd9900c72adbbdb7108b355028a8f" }
+bitvec = { git = "https://github.com/kay-lambdadelta/ferrilab" }
+radium = { git = "https://github.com/kay-lambdadelta/ferrilab" }

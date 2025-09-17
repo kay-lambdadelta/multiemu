@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 mod backend;
@@ -122,7 +122,7 @@ struct Player {
 
 #[derive(Debug)]
 pub(crate) struct Tia<R: Region, G: SupportedGraphicsApiTia> {
-    state: Mutex<State>,
+    state: State,
     backend: Option<G::Backend<R>>,
     cpu_rdy: Arc<RdyFlag>,
 }
@@ -135,12 +135,11 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
         let data = &mut buffer[0];
-        let mut state_guard = self.state.lock().unwrap();
 
         if let Some(address) = ReadRegisters::from_repr(address) {
             tracing::debug!("Reading from TIA register: {:?}", address);
 
-            self.handle_read_register(data, &mut state_guard, address);
+            self.handle_read_register(data, address);
 
             Ok(())
         } else {
@@ -152,19 +151,18 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
     }
 
     fn write_memory(
-        &self,
+        &mut self,
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
         let data = buffer[0];
         let data_bits = data.view_bits::<Lsb0>();
-        let mut state_guard = self.state.lock().unwrap();
 
         if let Some(address) = WriteRegisters::from_repr(address) {
             tracing::debug!("Writing to TIA register: {:?} = {:02x}", address, data);
 
-            self.handle_write_register(data, data_bits, &mut state_guard, address);
+            self.handle_write_register(data, data_bits, address);
 
             Ok(())
         } else {

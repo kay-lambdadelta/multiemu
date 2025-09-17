@@ -20,45 +20,45 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
     fn run(&mut self, time_slice: NonZero<u32>) {
         self.component
             .interact_mut(|component| {
-                let mut state_guard = component.state.lock().unwrap();
                 let mut commit_staging_buffer = false;
                 let backend_guard = component.backend.as_mut().unwrap();
 
                 for _ in 0..time_slice.get() {
-                    if let Some(cycles) = state_guard.cycles_waiting_for_vsync {
-                        state_guard.cycles_waiting_for_vsync = Some(cycles.saturating_sub(1));
+                    if let Some(cycles) = component.state.cycles_waiting_for_vsync {
+                        component.state.cycles_waiting_for_vsync = Some(cycles.saturating_sub(1));
 
-                        if state_guard.cycles_waiting_for_vsync == Some(0) {
+                        if component.state.cycles_waiting_for_vsync == Some(0) {
                             commit_staging_buffer = true;
                         }
                     }
 
-                    if !(state_guard.cycles_waiting_for_vsync.is_some()
-                        || state_guard.vblank_active)
-                        && (0..VISIBLE_SCANLINE_LENGTH).contains(&state_guard.electron_beam.x)
+                    if !(component.state.cycles_waiting_for_vsync.is_some()
+                        || component.state.vblank_active)
+                        && (0..VISIBLE_SCANLINE_LENGTH).contains(&component.state.electron_beam.x)
                     {
-                        let color = R::color_to_srgb(state_guard.get_rendered_color());
+                        let color = R::color_to_srgb(component.state.get_rendered_color());
 
                         backend_guard.modify_staging_buffer(|mut staging_buffer_guard| {
                             staging_buffer_guard[(
-                                state_guard.electron_beam.x as usize,
-                                state_guard.electron_beam.y as usize,
+                                component.state.electron_beam.x as usize,
+                                component.state.electron_beam.y as usize,
                             )] = color.into();
                         });
                     }
 
-                    state_guard.electron_beam.x += 1;
+                    component.state.electron_beam.x += 1;
 
-                    if state_guard.electron_beam.x >= SCANLINE_LENGTH {
-                        state_guard.electron_beam.x = 0;
-                        state_guard.electron_beam.y += 1;
+                    if component.state.electron_beam.x >= SCANLINE_LENGTH {
+                        component.state.electron_beam.x = 0;
+                        component.state.electron_beam.y += 1;
 
-                        if std::mem::replace(&mut state_guard.reset_rdy_on_scanline_end, false) {
+                        if std::mem::replace(&mut component.state.reset_rdy_on_scanline_end, false)
+                        {
                             self.cpu_rdy.store(true);
                         }
 
-                        if state_guard.electron_beam.y >= R::TOTAL_SCANLINES {
-                            state_guard.electron_beam.y = 0;
+                        if component.state.electron_beam.y >= R::TOTAL_SCANLINES {
+                            component.state.electron_beam.y = 0;
                         }
                     }
                 }

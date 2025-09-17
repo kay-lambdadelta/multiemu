@@ -28,5 +28,9 @@ harness = false
 name = "write"
 harness = false
 
+[[bench]]
+name = "registry"
+harness = false
+
 [features]
 mmap = ["dep:memmap2"]

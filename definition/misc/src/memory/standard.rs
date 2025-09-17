@@ -12,12 +12,10 @@ use rand::RngCore;
 use rangemap::RangeInclusiveMap;
 use std::{
     borrow::Cow,
-    io::{BufReader, BufWriter, Read, Write},
+    io::{Read, Write},
     ops::RangeInclusive,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
-
-const PAGE_SIZE: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StandardMemoryInitialContents {
@@ -41,7 +39,7 @@ pub struct StandardMemoryConfig {
 pub struct StandardMemory {
     rom_manager: Arc<RomManager>,
     config: StandardMemoryConfig,
-    buffer: Vec<Mutex<[u8; PAGE_SIZE]>>,
+    buffer: Vec<u8>,
 }
 
 impl Component for StandardMemory {
@@ -62,27 +60,11 @@ impl Component for StandardMemory {
     fn load_snapshot(
         &mut self,
         version: ComponentVersion,
-        reader: Box<dyn Read>,
+        mut reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(version, 0);
 
-        let mut file = BufReader::new(reader);
-
-        let assigned_start = *self.config.assigned_range.start();
-        let assigned_end = *self.config.assigned_range.end();
-
-        for (i, chunk) in self.buffer.iter().enumerate() {
-            let start_addr = assigned_start + i * PAGE_SIZE;
-            if start_addr > assigned_end {
-                break;
-            }
-
-            let max_len = (assigned_end - start_addr + 1) as usize;
-            let len = max_len.min(PAGE_SIZE);
-
-            let mut locked_chunk = chunk.lock().unwrap();
-            file.read_exact(&mut locked_chunk[..len])?;
-        }
+        reader.read_exact(&mut self.buffer)?;
 
         Ok(())
     }
@@ -94,23 +76,8 @@ impl Component for StandardMemory {
         self.store_snapshot(writer)
     }
 
-    fn store_snapshot(&self, writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
-        let mut file = BufWriter::new(writer);
-        let assigned_start = *self.config.assigned_range.start();
-        let assigned_end = *self.config.assigned_range.end();
-
-        for (i, chunk) in self.buffer.iter().enumerate() {
-            let start_addr = assigned_start + i * PAGE_SIZE;
-            if start_addr > assigned_end {
-                break;
-            }
-
-            let max_len = (assigned_end - start_addr + 1) as usize;
-            let len = max_len.min(PAGE_SIZE);
-
-            let locked_chunk = chunk.lock().unwrap();
-            file.write_all(&locked_chunk[..len])?;
-        }
+    fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
+        writer.write_all(&self.buffer)?;
 
         Ok(())
     }
@@ -121,28 +88,6 @@ impl Component for StandardMemory {
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        if let Some(end_address) = self.config.assigned_range.start().checked_sub(1) {
-            let invalid_before_range = address..=end_address;
-
-            if !invalid_before_range.is_empty() {
-                return Err(MemoryOperationError::from_iter([(
-                    invalid_before_range,
-                    ReadMemoryRecord::Denied,
-                )]));
-            }
-        }
-
-        if let Some(start_address) = self.config.assigned_range.end().checked_add(1) {
-            let invalid_after_range = start_address..=address;
-
-            if !invalid_after_range.is_empty() {
-                return Err(MemoryOperationError::from_iter([(
-                    invalid_after_range,
-                    ReadMemoryRecord::Denied,
-                )]));
-            }
-        }
-
         self.read_internal(address, buffer);
 
         Ok(())
@@ -160,7 +105,7 @@ impl Component for StandardMemory {
     }
 
     fn write_memory(
-        &self,
+        &mut self,
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
@@ -188,9 +133,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         let rom_manager = component_builder.rom_manager();
 
         let buffer_size = self.assigned_range.clone().count();
-        let chunks_needed = buffer_size.div_ceil(PAGE_SIZE);
-        let buffer =
-            Vec::from_iter(std::iter::repeat_n([0; PAGE_SIZE], chunks_needed).map(Mutex::new));
+        let buffer = vec![0; buffer_size];
         let assigned_range = self.assigned_range.clone();
         let assigned_address_space = self.assigned_address_space;
 
@@ -229,104 +172,38 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
 }
 
 impl StandardMemory {
-    /// Writes unchecked internally
-    #[inline]
-    fn write_internal(&self, address: Address, buffer: &[u8]) {
-        let requested_range = address - self.config.assigned_range.start()
-            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
-
-        let start_chunk = requested_range.start() / PAGE_SIZE;
-        let end_chunk = requested_range.end() / PAGE_SIZE;
-
-        let mut buffer_offset = 0;
-
-        for chunk_index in start_chunk..=end_chunk {
-            let chunk = &self.buffer[chunk_index];
-
-            let chunk_start = if chunk_index == start_chunk {
-                requested_range.start() % PAGE_SIZE
-            } else {
-                0
-            };
-
-            let chunk_end = if chunk_index == end_chunk {
-                requested_range.end() % PAGE_SIZE
-            } else {
-                PAGE_SIZE - 1
-            };
-
-            // Lock the chunk and read the relevant part
-            let mut locked_chunk = chunk.lock().unwrap();
-            let chunk_range = chunk_start..=chunk_end;
-            let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
-
-            locked_chunk[chunk_range].copy_from_slice(&buffer[buffer_range]);
-
-            buffer_offset += chunk_end - chunk_start + 1;
-
-            if buffer_offset > buffer.len() {
-                break;
-            }
-        }
-    }
-
     #[inline]
     fn read_internal(&self, address: Address, buffer: &mut [u8]) {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
-        let start_chunk = requested_range.start() / PAGE_SIZE;
-        let end_chunk = requested_range.end() / PAGE_SIZE;
-
-        let mut buffer_offset = 0;
-
-        for chunk_index in start_chunk..=end_chunk {
-            let chunk = &self.buffer[chunk_index];
-
-            let chunk_start = if chunk_index == start_chunk {
-                requested_range.start() % PAGE_SIZE
-            } else {
-                0
-            };
-
-            let chunk_end = if chunk_index == end_chunk {
-                requested_range.end() % PAGE_SIZE
-            } else {
-                PAGE_SIZE - 1
-            };
-
-            // Lock the chunk and read the relevant part
-            let locked_chunk = chunk.lock().unwrap();
-            let chunk_range = chunk_start..=chunk_end;
-            let buffer_range = buffer_offset..=buffer_offset + chunk_end - chunk_start;
-
-            buffer[buffer_range].copy_from_slice(&locked_chunk[chunk_range]);
-
-            buffer_offset += chunk_end - chunk_start + 1;
-
-            if buffer_offset > buffer.len() {
-                break;
-            }
-        }
+        buffer.copy_from_slice(&self.buffer[requested_range]);
     }
 
-    fn initialize_buffer(&self) {
-        let internal_buffer_size = self.config.assigned_range.clone().count();
+    /// Writes unchecked internally
+    #[inline]
+    fn write_internal(&mut self, address: Address, buffer: &[u8]) {
+        let requested_range = address - self.config.assigned_range.start()
+            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
+        self.buffer[requested_range].copy_from_slice(&buffer);
+    }
+
+    fn initialize_buffer(&mut self) {
         // HACK: This overfills the buffer for ease of programming, but its ok because the actual mmu doesn't allow accesses out at runtime
         for (range, operation) in self.config.initial_contents.iter() {
+            let range = range.start() - self.config.assigned_range.start()
+                ..=(range.end() - self.config.assigned_range.start());
+            
             match operation {
                 StandardMemoryInitialContents::Value(value) => {
-                    let contents = vec![*value; range.clone().count()];
-                    self.write_internal(*range.start(), &contents);
+                    self.buffer[range.clone()].fill(*value);
                 }
                 StandardMemoryInitialContents::Random => {
-                    let mut contents = vec![0; range.clone().count()];
-                    rand::rng().fill_bytes(contents.as_mut_slice());
-                    self.write_internal(*range.start(), &contents);
+                    rand::rng().fill_bytes(&mut self.buffer[range.clone()]);
                 }
                 StandardMemoryInitialContents::Array(value) => {
-                    self.write_internal(*range.start(), value);
+                    self.buffer[range.clone()].copy_from_slice(&value);
                 }
                 StandardMemoryInitialContents::Rom(rom_id) => {
                     let mut rom_file = self
@@ -334,28 +211,9 @@ impl StandardMemory {
                         .open(*rom_id, RomRequirement::Required)
                         .unwrap();
 
-                    let mut total_read = 0;
-                    let mut buffer = [0; 4096];
-
-                    while total_read < internal_buffer_size {
-                        let remaining_space = internal_buffer_size - total_read;
-                        let amount_to_read = remaining_space.min(buffer.len());
-                        let amount = rom_file
-                            .read(&mut buffer[..amount_to_read])
-                            .expect("Could not read rom");
-
-                        if amount == 0 {
-                            break;
-                        }
-
-                        total_read += amount;
-
-                        let write_size = remaining_space.min(amount);
-                        self.write_internal(
-                            *range.start() + total_read - amount,
-                            &buffer[..write_size],
-                        );
-                    }
+                    rom_file
+                        .read_exact(&mut self.buffer[range.clone()])
+                        .unwrap();
                 }
             }
         }

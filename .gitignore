@@ -7,3 +7,4 @@ flamegraph.svg
 /.idea
 /.vscode
 sync.sh
+callgrind*

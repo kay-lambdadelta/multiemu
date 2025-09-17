@@ -5,6 +5,8 @@ use num::rational::Ratio;
 use palette::{FromColor, Hsl, Srgb};
 use std::sync::LazyLock;
 
+// FIXME: Truly the worst math in this repository
+
 static BASE_COLOR_PALETTE: LazyLock<[Hsl<palette::encoding::Srgb, f32>; 16]> =
     LazyLock::new(|| {
         [

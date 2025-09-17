@@ -64,7 +64,7 @@ impl Component for MirrorMemory {
     }
 
     fn write_memory(
-        &self,
+        &mut self,
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
