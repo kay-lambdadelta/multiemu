@@ -1,0 +1,25 @@
+[package]
+name = "multiemu-frontend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-runtime = { workspace = true }
+multiemu-input = { workspace = true }
+multiemu-config = { workspace = true }
+multiemu-audio = { workspace = true }
+multiemu-graphics = { workspace = true }
+redb = { workspace = true }
+nalgebra = { workspace = true }
+num = { workspace = true }
+palette = { workspace = true }
+ringbuffer = { workspace = true }
+tracing = { workspace = true }
+strum = { workspace = true }
+egui = { workspace = true }
+raw-window-handle = { workspace = true }
+egui_extras = { version = "0.32", default-features = false, features = [
+    "image",
+] }
+image = { version = "0.25", default-features = false, features = ["webp"] }

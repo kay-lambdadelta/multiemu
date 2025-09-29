@@ -1,0 +1,18 @@
+[package]
+name = "multiemu-config"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-input = { workspace = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+serde-inline-default = { workspace = true }
+strum = { workspace = true }
+ron = { workspace = true }
+cfg-if = { workspace = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
+dirs = "6.0"

@@ -1,0 +1,31 @@
+[package]
+name = "multiemu-shell-citrine"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["Kay <lambdadeltakay@proton.me>"]
+description = "A multi system emulator"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-runtime = { workspace = true }
+multiemu-input = { workspace = true }
+multiemu-config = { workspace = true }
+multiemu-audio = { workspace = true }
+multiemu-frontend = { workspace = true }
+multiemu-definition-chip8 = { workspace = true }
+multiemu-definition-nes = { workspace = true }
+multiemu-definition-atari2600 = { workspace = true }
+multiemu-definition-atarilynx = { workspace = true }
+tracing = { workspace = true }
+strum = { workspace = true }
+nalgebra = { workspace = true, features = ["rayon"] }
+bytemuck = { workspace = true }
+num = { workspace = true }
+tracing-subscriber = { workspace = true }
+palette = { workspace = true }
+uuid = { workspace = true }
+ringbuffer = { workspace = true }
+
+[target.armv6k-nintendo-3ds.dependencies]
+ctru-rs = { workspace = true }

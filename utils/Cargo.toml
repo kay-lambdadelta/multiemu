@@ -1,0 +1,39 @@
+[package]
+name = "multiemu-utils"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["Kay <lambdadeltakay@proton.me>"]
+description = "A command line utility interface for multiemu, but has tools generically useful for rom organization"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-config = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rayon = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+redb = { workspace = true }
+codes-iso-639 = { workspace = true }
+codes-iso-3166 = { workspace = true }
+strum = { workspace = true }
+scc = { workspace = true }
+ron = { workspace = true }
+quick-xml = { version = "0.38", features = ["serialize"] }
+zip = { version = "5.0", default-features = false, features = [
+    "zstd",
+    "bzip2",
+    "deflate64",
+    "deflate",
+    "lzma",
+] }
+strsim = "0.11"
+nod = "2.0.0-alpha.3"
+tempfile = "3.21"
+ureq = { version = "3.1", features = ["socks-proxy", "charset"] }
+num_cpus = "1.17"
+
+[package.metadata.deb]
+maintainer = "Kay <lambdadeltakay@proton.me>"

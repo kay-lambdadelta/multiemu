@@ -1,0 +1,93 @@
+[workspace]
+resolver = "3"
+members = ["utils", "lib/*", "definition/*", "shell/*"]
+
+[workspace.dependencies]
+# Main emulator runtime shared with shell and components
+multiemu-runtime = { path = "lib/runtime" }
+# Utilities to operate on roms
+multiemu-rom = { path = "lib/rom" }
+# Input definitions
+multiemu-input = { path = "lib/input" }
+# Config definitions
+multiemu-config = { path = "lib/config" }
+# Audio processing utilities
+multiemu-audio = { path = "lib/audio" }
+# Main machinery for platform backends
+multiemu-frontend = { path = "lib/frontend" }
+# Graphics processing utilities
+multiemu-graphics = { path = "lib/graphics" }
+
+multiemu-definition-misc = { path = "definition/misc" }
+multiemu-definition-mos6502 = { path = "definition/mos6502" }
+multiemu-definition-chip8 = { path = "definition/chip8" }
+multiemu-definition-nes = { path = "definition/nes" }
+multiemu-definition-intel8080 = { path = "definition/intel8080" }
+multiemu-definition-atari2600 = { path = "definition/atari2600" }
+multiemu-definition-atarilynx = { path = "definition/atarilynx" }
+
+# External dependencies
+strum = { version = "0.27", default-features = false, features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rangemap = { version = "1.6", features = ["serde1"] }
+redb = { version = "3.1", features = ["logging"] }
+serde = { version = "1.0", default-features = false, features = [
+    "alloc",
+    "derive",
+] }
+serde_with = "3.14"
+serde-inline-default = "1.0"
+rayon = "1.11"
+nalgebra = { version = "0.34", features = [
+    "serde-serialize",
+    "convert-bytemuck",
+] }
+bytemuck = { version = "1.23", features = ["derive"] }
+num = { version = "0.4", features = ["serde"] }
+arrayvec = { version = "0.7", features = ["serde"] }
+thiserror = "2.0"
+bitvec = { git = "https://github.com/kay-lambdadelta/ferrilab", features = [
+    "std",
+    "serde",
+] }
+rand = "0.9"
+palette = { version = "0.7", default-features = false, features = [
+    "std",
+    "bytemuck",
+    "serializing",
+    "named",
+] }
+clap = { version = "4.5", features = ["derive"] }
+criterion = "0.7"
+uuid = { version = "1.18", features = ["serde", "v4"] }
+ringbuffer = "0.16"
+bincode = { version = "2.0", features = ["serde"] }
+rustc-hash = "2.1"
+ron = "0.11"
+data-encoding = "2.9"
+deku = "0.19"
+scc = "3.1"
+sealed = "0.6"
+crossbeam = "0.8"
+egui = { version = "0.32", features = ["default_fonts", "rayon", "log"] }
+naga = { version = "26.0", features = ["wgsl-in", "serialize", "deserialize"] }
+raw-window-handle = "0.6"
+itertools = "0.14"
+rangetools = "0.1"
+smallvec = "1.15"
+cfg-if = "1.0"
+
+# Locale shit
+codes-iso-639 = { version = "0.1", features = ["part_3"] }
+codes-iso-3166 = { version = "0.1", features = ["languages"] }
+
+# 3DS stuff
+ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
+
+[profile.bench]
+debug = true
+
+[patch.crates-io]
+bitvec = { git = "https://github.com/kay-lambdadelta/ferrilab" }
+radium = { git = "https://github.com/kay-lambdadelta/ferrilab" }

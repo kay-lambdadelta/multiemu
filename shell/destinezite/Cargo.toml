@@ -1,0 +1,65 @@
+[package]
+name = "multiemu-shell-destinezite"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["Kay <lambdadeltakay@proton.me>"]
+description = "A multi system emulator"
+
+[dependencies]
+multiemu-rom = { workspace = true }
+multiemu-runtime = { workspace = true }
+multiemu-input = { workspace = true }
+multiemu-config = { workspace = true }
+multiemu-audio = { workspace = true }
+multiemu-frontend = { workspace = true }
+multiemu-graphics = { workspace = true }
+multiemu-definition-misc = { workspace = true, features = ["mmap"] }
+multiemu-definition-chip8 = { workspace = true }
+multiemu-definition-nes = { workspace = true }
+multiemu-definition-atari2600 = { workspace = true }
+multiemu-definition-atarilynx = { workspace = true }
+tracing = { workspace = true }
+strum = { workspace = true }
+nalgebra = { workspace = true, features = ["rayon"] }
+bytemuck = { workspace = true }
+num = { workspace = true }
+tracing-subscriber = { workspace = true }
+palette = { workspace = true }
+uuid = { workspace = true }
+ringbuffer = { workspace = true }
+clap = { workspace = true }
+egui = { workspace = true }
+raw-window-handle = { workspace = true }
+redb = { workspace = true }
+winit = { version = "0.30", default-features = false, features = [
+    "wayland",
+    "wayland-dlopen",
+    "x11",
+    "rwh_06",
+    "android-native-activity",
+] }
+egui-winit = { version = "0.32" }
+cpal = "0.16"
+gilrs = "0.11"
+softbuffer = "0.4"
+
+[features]
+default = ["vulkan"]
+vulkan = [
+    "multiemu-graphics/vulkan",
+    "multiemu-definition-chip8/vulkan",
+    "multiemu-definition-nes/vulkan",
+    "multiemu-definition-atari2600/vulkan",
+    "multiemu-definition-atarilynx/vulkan",
+]
+opengl = [
+    "multiemu-graphics/opengl",
+    "multiemu-definition-chip8/opengl",
+    "multiemu-definition-nes/opengl",
+    "multiemu-definition-atari2600/opengl",
+    "multiemu-definition-atarilynx/opengl",
+]
+
+[package.metadata.deb]
+maintainer = "Kay <lambdadeltakay@proton.me>"
