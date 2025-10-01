@@ -1,59 +1,64 @@
 use bytemuck::{Pod, Zeroable};
 use egui::{TextureId, epaint::Primitive};
-use multiemu_frontend::EGUI_WGSL_SHADER;
-use multiemu_graphics::{
-    GraphicsVersion,
-    shader::{ShaderCache, SpirvShader},
-    vulkan::vulkano::{
-        DeviceSize,
-        buffer::{
-            Buffer, BufferCreateInfo, BufferUsage, Subbuffer,
-            allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
-        },
-        command_buffer::{
-            AutoCommandBufferBuilder, BufferImageCopy, CommandBufferUsage, CopyBufferToImageInfo,
-            PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents,
-            SubpassEndInfo, allocator::StandardCommandBufferAllocator,
-        },
-        descriptor_set::{
-            DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator,
-        },
-        device::{Device, Queue},
-        format::{ClearValue, Format},
-        image::{
-            Image, ImageCreateInfo, ImageSubresourceLayers, ImageType, ImageUsage, SampleCount,
-            sampler::{Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode},
-            view::{ImageView, ImageViewCreateInfo},
-        },
-        memory::{
-            DeviceAlignment,
-            allocator::{
-                AllocationCreateInfo, DeviceLayout, MemoryTypeFilter, StandardMemoryAllocator,
+use multiemu::{
+    frontend::EGUI_WGSL_SHADER,
+    graphics::{
+        GraphicsVersion,
+        vulkan::vulkano::{
+            DeviceSize,
+            buffer::{
+                Buffer, BufferCreateInfo, BufferUsage, Subbuffer,
+                allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
             },
-        },
-        pipeline::{
-            DynamicState, GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
-            PipelineShaderStageCreateInfo,
-            graphics::{
-                GraphicsPipelineCreateInfo,
-                color_blend::{
-                    AttachmentBlend, BlendFactor, ColorBlendAttachmentState, ColorBlendState,
-                },
-                input_assembly::InputAssemblyState,
-                multisample::MultisampleState,
-                rasterization::{CullMode, RasterizationState},
-                vertex_input::{
-                    VertexInputAttributeDescription, VertexInputBindingDescription,
-                    VertexInputState,
-                },
-                viewport::{Viewport, ViewportState},
+            command_buffer::{
+                AutoCommandBufferBuilder, BufferImageCopy, CommandBufferUsage,
+                CopyBufferToImageInfo, PrimaryAutoCommandBuffer, RenderPassBeginInfo,
+                SubpassBeginInfo, SubpassContents, SubpassEndInfo,
+                allocator::StandardCommandBufferAllocator,
             },
-            layout::PipelineDescriptorSetLayoutCreateInfo,
+            descriptor_set::{
+                DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator,
+            },
+            device::{Device, Queue},
+            format::{ClearValue, Format},
+            image::{
+                Image, ImageCreateInfo, ImageSubresourceLayers, ImageType, ImageUsage, SampleCount,
+                sampler::{
+                    Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode,
+                },
+                view::{ImageView, ImageViewCreateInfo},
+            },
+            memory::{
+                DeviceAlignment,
+                allocator::{
+                    AllocationCreateInfo, DeviceLayout, MemoryTypeFilter, StandardMemoryAllocator,
+                },
+            },
+            pipeline::{
+                DynamicState, GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
+                PipelineShaderStageCreateInfo,
+                graphics::{
+                    GraphicsPipelineCreateInfo,
+                    color_blend::{
+                        AttachmentBlend, BlendFactor, ColorBlendAttachmentState, ColorBlendState,
+                    },
+                    input_assembly::InputAssemblyState,
+                    multisample::MultisampleState,
+                    rasterization::{CullMode, RasterizationState},
+                    vertex_input::{
+                        VertexInputAttributeDescription, VertexInputBindingDescription,
+                        VertexInputState,
+                    },
+                    viewport::{Viewport, ViewportState},
+                },
+                layout::PipelineDescriptorSetLayoutCreateInfo,
+            },
+            render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
+            shader::{ShaderModule, ShaderModuleCreateInfo},
+            single_pass_renderpass,
         },
-        render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
-        shader::{ShaderModule, ShaderModuleCreateInfo},
-        single_pass_renderpass,
     },
+    shader::{ShaderCache, SpirvShader},
 };
 use nalgebra::{Point2, Vector2};
 use palette::Srgba;

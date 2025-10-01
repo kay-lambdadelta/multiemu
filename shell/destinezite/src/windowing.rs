@@ -7,17 +7,17 @@ use crate::{
 };
 use egui::RawInput;
 use egui_winit::egui::ViewportId;
-use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
-use multiemu_frontend::{
-    DisplayApiHandle, EguiPlatformIntegration, FrontendRuntime, GraphicsRuntime, MachineFactories,
-    PlatformExt,
-};
-use multiemu_graphics::GraphicsApi;
-use multiemu_input::{GamepadId, Input, InputState};
-use multiemu_rom::RomMetadata;
-use multiemu_runtime::{
-    UserSpecifiedRoms,
+use multiemu::{
+    environment::{ENVIRONMENT_LOCATION, Environment},
+    frontend::{
+        DisplayApiHandle, EguiPlatformIntegration, FrontendRuntime, GraphicsRuntime,
+        MachineFactories, PlatformExt,
+    },
+    graphics::GraphicsApi,
+    input::{GamepadId, Input, InputState},
+    machine::UserSpecifiedRoms,
     platform::Platform,
+    rom::RomMetadata,
     utils::{MainThreadCallback, MainThreadExecutor},
 };
 use nalgebra::Vector2;
@@ -133,7 +133,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
     for DesktopPlatform<G, GR>
 {
     type GraphicsApi = G;
-    type SampleFormat = f32;
     type MainThreadExecutor = WinitMainThreadExecutor;
 }
 

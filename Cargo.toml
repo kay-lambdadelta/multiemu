@@ -1,30 +1,17 @@
 [workspace]
 resolver = "3"
-members = ["utils", "lib/*", "definition/*", "shell/*"]
+members = ["utils", "def/*", "shell/*", "lib"]
 
 [workspace.dependencies]
 # Main emulator runtime shared with shell and components
-multiemu-runtime = { path = "lib/runtime" }
-# Utilities to operate on roms
-multiemu-rom = { path = "lib/rom" }
-# Input definitions
-multiemu-input = { path = "lib/input" }
-# Config definitions
-multiemu-config = { path = "lib/config" }
-# Audio processing utilities
-multiemu-audio = { path = "lib/audio" }
-# Main machinery for platform backends
-multiemu-frontend = { path = "lib/frontend" }
-# Graphics processing utilities
-multiemu-graphics = { path = "lib/graphics" }
-
-multiemu-definition-misc = { path = "definition/misc" }
-multiemu-definition-mos6502 = { path = "definition/mos6502" }
-multiemu-definition-chip8 = { path = "definition/chip8" }
-multiemu-definition-nes = { path = "definition/nes" }
-multiemu-definition-intel8080 = { path = "definition/intel8080" }
-multiemu-definition-atari2600 = { path = "definition/atari2600" }
-multiemu-definition-atarilynx = { path = "definition/atarilynx" }
+multiemu = { path = "lib" }
+multiemu-definition-misc = { path = "def/misc" }
+multiemu-definition-mos6502 = { path = "def/mos6502" }
+multiemu-definition-chip8 = { path = "def/chip8" }
+multiemu-definition-nes = { path = "def/nes" }
+multiemu-definition-intel8080 = { path = "def/intel8080" }
+multiemu-definition-atari2600 = { path = "def/atari2600" }
+multiemu-definition-atarilynx = { path = "def/atarilynx" }
 
 # External dependencies
 strum = { version = "0.27", default-features = false, features = ["derive"] }

@@ -1,5 +1,7 @@
-use multiemu_config::Environment;
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata};
+use multiemu::{
+    environment::Environment,
+    rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata},
+};
 use redb::{ReadOnlyMultimapTable, ReadableDatabase};
 use scc::{HashCache, hash_cache::OccupiedEntry};
 use std::{
@@ -9,7 +11,7 @@ use std::{
     fs::{self, File},
     io::{Read, Seek},
     path::{Path, PathBuf},
-    sync::{Arc, LazyLock},
+    sync::{Arc, LazyLock, RwLock},
 };
 use zip::ZipArchive;
 
@@ -77,18 +79,13 @@ impl Display for SearchEntry {
 pub fn rom_import(
     paths: Vec<PathBuf>,
     symlink: bool,
-    environment: Environment,
+    environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let environment = Arc::new(environment);
-    let rom_manager = Arc::new(
-        RomMetadata::new(
-            Some(environment.database_location.0.clone()),
-            Some(environment.rom_store_directory.0.clone()),
-        )
-        .unwrap(),
-    );
+    let environment_guard = environment.read().unwrap();
 
-    fs::create_dir_all(&environment.rom_store_directory.0)?;
+    let rom_manager = Arc::new(RomMetadata::new(environment.clone()).unwrap());
+
+    fs::create_dir_all(&environment_guard.rom_store_directory)?;
 
     rayon::scope(|scope| {
         let mut stack = VecDeque::from_iter(paths.into_iter().map(SearchEntry::File));
@@ -190,7 +187,7 @@ fn process_file(
     entry: SearchEntry,
     symlink: bool,
     rom_manager: Arc<RomMetadata>,
-    environment: Arc<Environment>,
+    environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let database_transaction = rom_manager.rom_information.begin_read()?;
     let database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
@@ -242,11 +239,13 @@ fn process_file(
 fn process_file_internal(
     entry: SearchEntry,
     symlink: bool,
-    environment: Arc<Environment>,
+    environment: Arc<RwLock<Environment>>,
     database_table: ReadOnlyMultimapTable<RomId, RomInfo>,
     rom_id: RomId,
     mut converted_reader: Option<impl Read>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let environment_guard = environment.read().unwrap();
+
     Ok(
         if let Some(rom_info) = database_table.get(&rom_id)?.next() {
             let rom_info = rom_info?.value();
@@ -258,7 +257,9 @@ fn process_file_internal(
                 entry
             );
 
-            let internal_rom_path = environment.rom_store_directory.0.join(rom_id.to_string());
+            let internal_rom_path = environment_guard
+                .rom_store_directory
+                .join(rom_id.to_string());
             let _ = fs::remove_file(&internal_rom_path);
 
             if let Some(mut converted_reader) = converted_reader.take() {

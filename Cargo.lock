@@ -160,9 +160,9 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.12"
+version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c900954614442c827787a2ffcd8c0602eb53ff7b95a8fbfcdaf5e406197bf3be"
+checksum = "5192cca8006f1fd4f7237516f40fa183bb07f8fbdfedaa0036de5ea9b0b45e78"
 
 [[package]]
 name = "anstyle-parse"
@@ -230,12 +230,6 @@ dependencies = [
  "windows-sys 0.60.2",
  "x11rb",
 ]
-
-[[package]]
-name = "arc-swap"
-version = "1.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
 name = "arrayref"
@@ -1253,9 +1247,9 @@ dependencies = [
 
 [[package]]
 name = "digest"
-version = "0.11.0-rc.2"
+version = "0.11.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6749b668519cd7149ee3d11286a442a8a8bdc3a9d529605f579777bfccc5a4bc"
+checksum = "dac89f8a64533a9b0eaa73a68e424db0fb1fd6271c74cc0125336a05f090568d"
 dependencies = [
  "block-buffer 0.11.0-rc.5",
  "crypto-common 0.2.0-rc.4",
@@ -1972,9 +1966,9 @@ dependencies = [
 
 [[package]]
 name = "hybrid-array"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bad028b20a90afcdb5e28a53392562f1db2bdfa238aa1a978b911461bfffb92"
+checksum = "f471e0a81b2f90ffc0cb2f951ae04da57de8baa46fa99112b062a5173a5088d0"
 dependencies = [
  "typenum",
 ]
@@ -2476,7 +2470,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9ec86664728010f574d67ef01aec964e6f1299241a3402857c1a8a390a62478"
 dependencies = [
  "cfg-if",
- "digest 0.11.0-rc.2",
+ "digest 0.11.0-rc.3",
 ]
 
 [[package]]
@@ -2521,29 +2515,49 @@ dependencies = [
 ]
 
 [[package]]
-name = "multiemu-audio"
+name = "multiemu"
 version = "0.1.0"
 dependencies = [
- "criterion",
- "nalgebra",
- "num",
- "ringbuffer",
- "sealed",
-]
-
-[[package]]
-name = "multiemu-config"
-version = "0.1.0"
-dependencies = [
+ "bincode",
+ "bitvec",
+ "boxcar",
  "cfg-if",
+ "codes-iso-3166",
+ "codes-iso-639",
+ "criterion",
+ "data-encoding",
  "dirs",
- "multiemu-input",
- "multiemu-rom",
+ "egui",
+ "egui_extras",
+ "flate2",
+ "glow",
+ "image",
+ "indexmap 2.11.4",
+ "itertools 0.14.0",
+ "naga",
+ "nalgebra",
+ "nohash",
+ "num",
+ "palette",
+ "rangemap",
+ "rangetools",
+ "raw-window-handle",
+ "redb",
+ "ringbuffer",
  "ron",
+ "rustc-hash 2.1.1",
+ "scc",
+ "sealed",
  "serde",
  "serde-inline-default",
  "serde_with",
+ "sha1 0.10.6",
+ "smallvec",
  "strum",
+ "thiserror 2.0.17",
+ "tracing",
+ "uuid",
+ "vulkano",
 ]
 
 [[package]]
@@ -2555,14 +2569,9 @@ dependencies = [
  "bytemuck",
  "codes-iso-3166",
  "criterion",
- "multiemu-audio",
- "multiemu-config",
+ "multiemu",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
- "multiemu-graphics",
- "multiemu-input",
- "multiemu-rom",
- "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2579,13 +2588,9 @@ version = "0.1.0"
 dependencies = [
  "bitvec",
  "deku",
- "multiemu-audio",
+ "multiemu",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
- "multiemu-graphics",
- "multiemu-input",
- "multiemu-rom",
- "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2605,17 +2610,14 @@ dependencies = [
  "bitvec",
  "bytemuck",
  "criterion",
- "multiemu-audio",
+ "multiemu",
  "multiemu-definition-misc",
- "multiemu-graphics",
- "multiemu-input",
- "multiemu-rom",
- "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
  "rand 0.9.2",
  "rangemap",
+ "ringbuffer",
  "serde",
  "strum",
  "tracing",
@@ -2628,8 +2630,7 @@ dependencies = [
  "bitvec",
  "bytemuck",
  "deku",
- "multiemu-rom",
- "multiemu-runtime",
+ "multiemu",
  "num",
  "strum",
 ]
@@ -2641,11 +2642,11 @@ dependencies = [
  "bincode",
  "criterion",
  "memmap2",
- "multiemu-rom",
- "multiemu-runtime",
+ "multiemu",
  "num",
  "rand 0.9.2",
  "rangemap",
+ "rangetools",
  "scc",
  "serde",
  "serde_with",
@@ -2660,9 +2661,8 @@ dependencies = [
  "bincode",
  "bitvec",
  "bytemuck",
+ "multiemu",
  "multiemu-definition-misc",
- "multiemu-rom",
- "multiemu-runtime",
  "num",
  "rand 0.9.2",
  "rangemap",
@@ -2680,14 +2680,9 @@ dependencies = [
  "criterion",
  "deku",
  "itertools 0.14.0",
- "multiemu-audio",
- "multiemu-config",
+ "multiemu",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
- "multiemu-graphics",
- "multiemu-input",
- "multiemu-rom",
- "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2697,103 +2692,6 @@ dependencies = [
  "rustc-hash 2.1.1",
  "serde",
  "strum",
- "thiserror 2.0.17",
- "tracing",
-]
-
-[[package]]
-name = "multiemu-frontend"
-version = "0.1.0"
-dependencies = [
- "egui",
- "egui_extras",
- "image",
- "multiemu-audio",
- "multiemu-config",
- "multiemu-graphics",
- "multiemu-input",
- "multiemu-rom",
- "multiemu-runtime",
- "nalgebra",
- "num",
- "palette",
- "raw-window-handle",
- "redb",
- "ringbuffer",
- "strum",
- "tracing",
-]
-
-[[package]]
-name = "multiemu-graphics"
-version = "0.1.0"
-dependencies = [
- "glow",
- "naga",
- "nalgebra",
- "palette",
- "rustc-hash 2.1.1",
- "scc",
- "serde",
- "tracing",
- "vulkano",
-]
-
-[[package]]
-name = "multiemu-input"
-version = "0.1.0"
-dependencies = [
- "serde",
- "strum",
- "uuid",
-]
-
-[[package]]
-name = "multiemu-rom"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "codes-iso-3166",
- "codes-iso-639",
- "data-encoding",
- "redb",
- "serde",
- "serde_with",
- "sha1 0.10.6",
- "strum",
- "tracing",
-]
-
-[[package]]
-name = "multiemu-runtime"
-version = "0.1.0"
-dependencies = [
- "arc-swap",
- "bincode",
- "bitvec",
- "boxcar",
- "data-encoding",
- "flate2",
- "indexmap 2.11.4",
- "itertools 0.14.0",
- "multiemu-audio",
- "multiemu-graphics",
- "multiemu-input",
- "multiemu-rom",
- "nalgebra",
- "nohash",
- "num",
- "palette",
- "rangemap",
- "rangetools",
- "redb",
- "ringbuffer",
- "ron",
- "rustc-hash 2.1.1",
- "scc",
- "sealed",
- "serde",
- "smallvec",
  "thiserror 2.0.17",
  "tracing",
 ]
@@ -2804,16 +2702,11 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "ctru-rs",
- "multiemu-audio",
- "multiemu-config",
+ "multiemu",
  "multiemu-definition-atari2600",
  "multiemu-definition-atarilynx",
  "multiemu-definition-chip8",
  "multiemu-definition-nes",
- "multiemu-frontend",
- "multiemu-input",
- "multiemu-rom",
- "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2834,18 +2727,13 @@ dependencies = [
  "egui",
  "egui-winit",
  "gilrs",
- "multiemu-audio",
- "multiemu-config",
+ "itertools 0.14.0",
+ "multiemu",
  "multiemu-definition-atari2600",
  "multiemu-definition-atarilynx",
  "multiemu-definition-chip8",
  "multiemu-definition-misc",
  "multiemu-definition-nes",
- "multiemu-frontend",
- "multiemu-graphics",
- "multiemu-input",
- "multiemu-rom",
- "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2867,8 +2755,7 @@ dependencies = [
  "clap",
  "codes-iso-3166",
  "codes-iso-639",
- "multiemu-config",
- "multiemu-rom",
+ "multiemu",
  "nod",
  "num_cpus",
  "quick-xml 0.38.3",
@@ -3032,7 +2919,7 @@ dependencies = [
  "crc32fast",
  "crossbeam-channel",
  "crossbeam-utils",
- "digest 0.11.0-rc.2",
+ "digest 0.11.0-rc.3",
  "dyn-clone",
  "encoding_rs",
  "itertools 0.14.0",
@@ -4306,9 +4193,9 @@ checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
 
 [[package]]
 name = "saa"
-version = "4.3.2"
+version = "4.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d568b02a433a98d20e7dc1a8b3077163629fe1e86c89fb95e31798324137a925"
+checksum = "540e257511935edc5f7fbe3c472ce4f642d43f0df4333fe996dfdf0b96862c72"
 
 [[package]]
 name = "safe_arch"
@@ -4518,7 +4405,7 @@ checksum = "c5e046edf639aa2e7afb285589e5405de2ef7e61d4b0ac1e30256e3eab911af9"
 dependencies = [
  "cfg-if",
  "cpufeatures",
- "digest 0.11.0-rc.2",
+ "digest 0.11.0-rc.3",
 ]
 
 [[package]]
@@ -6260,9 +6147,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.8.1"
+version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ced3678a2879b30306d323f4542626697a464a97c0a07c9aebf7ebca65cd4dde"
+checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
 
 [[package]]
 name = "zerotrie"

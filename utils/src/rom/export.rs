@@ -1,24 +1,26 @@
 use super::ExportStyle;
-use multiemu_config::Environment;
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomMetadata};
+use multiemu::{
+    environment::Environment,
+    rom::{ROM_INFORMATION_TABLE, RomMetadata},
+};
 use redb::{ReadableDatabase, ReadableMultimapTable};
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{
+    fs,
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
 
 pub fn rom_export(
     path: PathBuf,
     symlink: bool,
     style: ExportStyle,
-    environment: Environment,
+    environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let rom_manager = Arc::new(
-        RomMetadata::new(
-            Some(environment.database_location.0.clone()),
-            Some(environment.rom_store_directory.0.clone()),
-        )
-        .unwrap(),
-    );
+    let environment_guard = environment.read().unwrap();
 
-    fs::create_dir_all(&environment.rom_store_directory.0)?;
+    let rom_manager = Arc::new(RomMetadata::new(environment.clone()).unwrap());
+
+    fs::create_dir_all(&environment_guard.rom_store_directory)?;
     fs::create_dir_all(&path)?;
 
     let database_transaction = rom_manager.rom_information.begin_read().unwrap();
@@ -30,7 +32,9 @@ pub fn rom_export(
         for rom_info in rom_infos {
             let (rom_id, rom_info) = (rom_id.value(), rom_info?.value());
 
-            let rom_path = environment.rom_store_directory.0.join(rom_id.to_string());
+            let rom_path = environment_guard
+                .rom_store_directory
+                .join(rom_id.to_string());
 
             if rom_path.is_file() {
                 tracing::info!(

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use multiemu_rom::{RomId, System};
+use multiemu::rom::{RomId, System};
 use std::path::PathBuf;
 
 #[derive(Parser)]

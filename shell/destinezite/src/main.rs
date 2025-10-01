@@ -6,11 +6,13 @@
 use crate::{backend::software::SoftwareGraphicsRuntime, windowing::DesktopPlatform};
 use clap::Parser;
 use cli::{Cli, CliAction};
-use multiemu_config::{ENVIRONMENT_LOCATION, Environment};
-use multiemu_frontend::PlatformExt;
-use multiemu_graphics::software::Software;
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata};
-use multiemu_runtime::{RomSpecification, UserSpecifiedRoms};
+use multiemu::{
+    environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY},
+    frontend::PlatformExt,
+    graphics::software::Software,
+    machine::{RomSpecification, UserSpecifiedRoms},
+    rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata},
+};
 use redb::ReadableDatabase;
 use std::{
     borrow::Cow,
@@ -32,16 +34,16 @@ mod windowing;
 
 fn main() {
     // Set our current thread as our main thread
-    multiemu_runtime::utils::set_main_thread();
+    multiemu::utils::set_main_thread();
 
-    create_dir_all(multiemu_config::STORAGE_DIRECTORY.deref()).unwrap();
+    create_dir_all(STORAGE_DIRECTORY.deref()).unwrap();
 
     let environment = File::open(ENVIRONMENT_LOCATION.deref())
         .ok()
         .and_then(|f| Environment::load(f).ok())
         .unwrap_or_default();
 
-    let file = File::create(&environment.log_location.0).expect("Failed to create log file");
+    let file = File::create(&environment.log_location).expect("Failed to create log file");
     let stderr_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
         .with_ansi(true)
@@ -61,14 +63,8 @@ fn main() {
 
     tracing::info!("MultiEMU v{}", env!("CARGO_PKG_VERSION"));
 
-    let rom_manager = Arc::new(
-        RomMetadata::new(
-            Some(environment.database_location.0.clone()),
-            Some(environment.rom_store_directory.0.clone()),
-        )
-        .unwrap(),
-    );
     let environment = Arc::new(RwLock::new(environment));
+    let rom_manager = Arc::new(RomMetadata::new(environment.clone()).unwrap());
 
     let cli = Cli::parse();
 
@@ -161,7 +157,7 @@ fn main() {
         let api = environment.read().unwrap().graphics_setting.api;
 
         match api {
-            multiemu_config::graphics::GraphicsApi::Software => {
+            multiemu::environment::graphics::GraphicsApi::Software => {
                 DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run_with_machine(
                     environment.clone(),
                     rom_manager.clone(),
@@ -171,9 +167,9 @@ fn main() {
                 .unwrap();
             }
             #[cfg(feature = "vulkan")]
-            multiemu_config::graphics::GraphicsApi::Vulkan => {
+            multiemu::environment::graphics::GraphicsApi::Vulkan => {
                 use crate::backend::vulkan::VulkanGraphicsRuntime;
-                use multiemu_graphics::vulkan::Vulkan;
+                use multiemu::graphics::vulkan::Vulkan;
 
                 DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run_with_machine(
                     environment.clone(),
@@ -192,7 +188,7 @@ fn main() {
     let api = environment.read().unwrap().graphics_setting.api;
 
     match api {
-        multiemu_config::graphics::GraphicsApi::Software => {
+        multiemu::environment::graphics::GraphicsApi::Software => {
             DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run(
                 environment.clone(),
                 rom_manager.clone(),
@@ -201,9 +197,9 @@ fn main() {
             .unwrap();
         }
         #[cfg(feature = "vulkan")]
-        multiemu_config::graphics::GraphicsApi::Vulkan => {
+        multiemu::environment::graphics::GraphicsApi::Vulkan => {
             use crate::backend::vulkan::VulkanGraphicsRuntime;
-            use multiemu_graphics::vulkan::Vulkan;
+            use multiemu::graphics::vulkan::Vulkan;
 
             DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run(
                 environment.clone(),

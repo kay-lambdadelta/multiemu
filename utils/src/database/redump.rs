@@ -1,10 +1,12 @@
 use clap::Subcommand;
-use multiemu_config::Environment;
-use multiemu_rom::{NintendoSystem, RomMetadata, SegaSystem, SonySystem, System};
+use multiemu::{
+    environment::Environment,
+    rom::{NintendoSystem, RomMetadata, SegaSystem, SonySystem, System},
+};
 use std::{
     error::Error,
     io::{BufReader, Seek},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 use strum::{Display, EnumIter};
 use zip::ZipArchive;
@@ -50,15 +52,9 @@ pub enum RedumpAction {
 
 pub fn database_redump_download(
     systems: impl IntoIterator<Item = System>,
-    environment: Environment,
+    environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let rom_manager = Arc::new(
-        RomMetadata::new(
-            Some(environment.database_location.0.clone()),
-            Some(environment.rom_store_directory.0.clone()),
-        )
-        .unwrap(),
-    );
+    let rom_manager = Arc::new(RomMetadata::new(environment).unwrap());
 
     for system in systems {
         if let Ok(redump_system) = RedumpSystem::try_from(system) {

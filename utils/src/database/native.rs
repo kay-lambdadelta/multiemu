@@ -1,9 +1,15 @@
 use clap::Subcommand;
-use multiemu_config::Environment;
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomMetadata};
+use multiemu::{
+    environment::Environment,
+    rom::{ROM_INFORMATION_TABLE, RomMetadata},
+};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use redb::{ReadableDatabase, ReadableMultimapTable};
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum NativeAction {
@@ -20,15 +26,9 @@ pub enum NativeAction {
 
 pub fn database_native_import(
     paths: Vec<PathBuf>,
-    environment: Environment,
+    environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let rom_manager = Arc::new(
-        RomMetadata::new(
-            Some(environment.database_location.0.clone()),
-            Some(environment.rom_store_directory.0.clone()),
-        )
-        .unwrap(),
-    );
+    let rom_manager = Arc::new(RomMetadata::new(environment).unwrap());
 
     paths
         .into_par_iter()
@@ -40,16 +40,10 @@ pub fn database_native_import(
 pub fn database_native_fuzzy_search(
     search: String,
     similarity: f64,
-    environment: Environment,
+    environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let search = search.to_lowercase();
-    let rom_manager = Arc::new(
-        RomMetadata::new(
-            Some(environment.database_location.0.clone()),
-            Some(environment.rom_store_directory.0.clone()),
-        )
-        .unwrap(),
-    );
+    let rom_manager = Arc::new(RomMetadata::new(environment).unwrap());
 
     let database_transaction = rom_manager.rom_information.begin_read().unwrap();
     let database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;

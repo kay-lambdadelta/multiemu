@@ -1,6 +1,6 @@
 use codes_iso_639::part_3::LanguageCode;
 use codes_iso_3166::part_1::CountryCode;
-use multiemu_rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata, System};
+use multiemu::rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata, System};
 use serde::Deserialize;
 use serde_with::{DisplayFromStr, serde_as};
 use std::{

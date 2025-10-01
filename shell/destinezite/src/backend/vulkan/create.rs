@@ -1,4 +1,4 @@
-use multiemu_graphics::vulkan::vulkano::{
+use multiemu::graphics::vulkan::vulkano::{
     VulkanLibrary,
     device::{
         Device, DeviceExtensions, QueueFlags,

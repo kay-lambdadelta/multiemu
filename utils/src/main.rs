@@ -1,12 +1,15 @@
-use std::{fs::File, ops::Deref};
 use crate::{
     database::{DatabaseAction, logiqx::LogiqxAction, native::NativeAction},
     rom::RomAction,
 };
 use clap::Parser;
 use database::redump::RedumpAction;
-use multiemu_config::ENVIRONMENT_LOCATION;
-use multiemu_rom::System;
+use multiemu::{environment::ENVIRONMENT_LOCATION, rom::System};
+use std::{
+    fs::File,
+    ops::Deref,
+    sync::{Arc, RwLock},
+};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
@@ -35,7 +38,9 @@ fn main() {
     let args = Cli::parse();
 
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
-    let environment = ron::de::from_reader(environment_file).unwrap_or_default();
+    let environment = Arc::new(RwLock::new(
+        ron::de::from_reader(environment_file).unwrap_or_default(),
+    ));
 
     match args {
         Cli::Database(DatabaseAction::Native {

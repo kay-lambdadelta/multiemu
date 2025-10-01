@@ -7,13 +7,7 @@ authors = ["Kay <lambdadeltakay@proton.me>"]
 description = "A multi system emulator"
 
 [dependencies]
-multiemu-rom = { workspace = true }
-multiemu-runtime = { workspace = true }
-multiemu-input = { workspace = true }
-multiemu-config = { workspace = true }
-multiemu-audio = { workspace = true }
-multiemu-frontend = { workspace = true }
-multiemu-graphics = { workspace = true }
+multiemu = { workspace = true }
 multiemu-definition-misc = { workspace = true, features = ["mmap"] }
 multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
@@ -32,6 +26,7 @@ clap = { workspace = true }
 egui = { workspace = true }
 raw-window-handle = { workspace = true }
 redb = { workspace = true }
+itertools = { workspace = true }
 winit = { version = "0.30", default-features = false, features = [
     "wayland",
     "wayland-dlopen",
@@ -47,14 +42,14 @@ softbuffer = "0.4"
 [features]
 default = ["vulkan"]
 vulkan = [
-    "multiemu-graphics/vulkan",
+    "multiemu/vulkan",
     "multiemu-definition-chip8/vulkan",
     "multiemu-definition-nes/vulkan",
     "multiemu-definition-atari2600/vulkan",
     "multiemu-definition-atarilynx/vulkan",
 ]
 opengl = [
-    "multiemu-graphics/opengl",
+    "multiemu/opengl",
     "multiemu-definition-chip8/opengl",
     "multiemu-definition-nes/opengl",
     "multiemu-definition-atari2600/opengl",

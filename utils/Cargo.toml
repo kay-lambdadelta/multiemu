@@ -7,8 +7,7 @@ authors = ["Kay <lambdadeltakay@proton.me>"]
 description = "A command line utility interface for multiemu, but has tools generically useful for rom organization"
 
 [dependencies]
-multiemu-rom = { workspace = true }
-multiemu-config = { workspace = true }
+multiemu = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 rayon = { workspace = true }

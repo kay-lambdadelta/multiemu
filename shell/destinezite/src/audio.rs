@@ -1,13 +1,17 @@
 use bytemuck::Pod;
 use cpal::{
-    Device, Host, SizedSample, Stream, StreamConfig,
+    Device, Host, Stream, StreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
-use multiemu_audio::{FrameIterator, FromSample, SampleFormat};
-use multiemu_frontend::{AudioContext, MaybeMachine};
-use multiemu_runtime::platform::Platform;
+use itertools::Itertools;
+use multiemu::{
+    audio::{FrameIterator, FromSample, SampleFormat},
+    frontend::{AudioContext, MaybeMachine},
+    platform::Platform,
+};
 use nalgebra::SVector;
 use num::rational::Ratio;
+use ringbuffer::RingBuffer;
 use std::{fmt::Debug, ops::Deref, sync::Arc};
 
 #[allow(unused)]
@@ -25,19 +29,7 @@ impl<P: Platform> Debug for CpalAudioRuntime<P> {
     }
 }
 
-impl<P: Platform> AudioContext<P> for CpalAudioRuntime<P>
-where
-    u8: FromSample<P::SampleFormat>,
-    i8: FromSample<P::SampleFormat>,
-    u16: FromSample<P::SampleFormat>,
-    i16: FromSample<P::SampleFormat>,
-    u32: FromSample<P::SampleFormat>,
-    i32: FromSample<P::SampleFormat>,
-    u64: FromSample<P::SampleFormat>,
-    i64: FromSample<P::SampleFormat>,
-    f32: FromSample<P::SampleFormat>,
-    f64: FromSample<P::SampleFormat>,
-{
+impl<P: Platform> AudioContext<P> for CpalAudioRuntime<P> {
     fn new(maybe_machine: Arc<MaybeMachine<P>>) -> Self {
         let host = cpal::default_host();
         tracing::info!("Selecting audio api {:?}", host.id());
@@ -52,41 +44,50 @@ where
             tracing::info!("Selected audio device");
         }
 
-        let config = device.default_output_config().unwrap();
+        let sample_rate = device.default_output_config().unwrap().sample_rate();
+        let config = device
+            .supported_output_configs()
+            .unwrap()
+            .sorted_by_key(|config| config.sample_format() == cpal::SampleFormat::F32)
+            .rev()
+            .find(|config| config.channels() == 2)
+            .unwrap()
+            .with_sample_rate(sample_rate);
+
         tracing::info!("Selected audio device with config: {:#?}", config);
 
-        let sample_rate = Ratio::from_integer(config.sample_rate().0);
+        let sample_rate = Ratio::from_integer(sample_rate.0);
 
         let stream = match config.sample_format() {
             cpal::SampleFormat::I8 => {
-                build_output_stream::<_, i8>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, i8>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::I16 => {
-                build_output_stream::<_, i16>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, i16>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::I32 => {
-                build_output_stream::<_, i32>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, i32>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::I64 => {
-                build_output_stream::<_, i64>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, i64>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::U8 => {
-                build_output_stream::<_, u8>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, u8>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::U16 => {
-                build_output_stream::<_, u16>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, u16>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::U32 => {
-                build_output_stream::<_, u32>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, u32>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::U64 => {
-                build_output_stream::<_, u64>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, u64>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::F32 => {
-                build_output_stream::<_, f32>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, f32>(&device, config.into(), maybe_machine.clone())
             }
             cpal::SampleFormat::F64 => {
-                build_output_stream::<_, f64>(&device, config.into(), maybe_machine.clone())
+                build_stream::<P, f64>(&device, config.into(), maybe_machine.clone())
             }
             _ => unimplemented!(),
         };
@@ -113,32 +114,7 @@ where
     }
 }
 
-pub fn build_output_stream<
-    P: Platform,
-    OS: SampleFormat + SizedSample + Pod + FromSample<P::SampleFormat>,
->(
-    device: &Device,
-    config: StreamConfig,
-    maybe_machine: Arc<MaybeMachine<P>>,
-) -> Stream {
-    match config.channels {
-        1 => fetch_audio_data_builder::<_, OS, 1>(device, config, maybe_machine),
-        2 => fetch_audio_data_builder::<_, OS, 2>(device, config, maybe_machine),
-        3 => fetch_audio_data_builder::<_, OS, 3>(device, config, maybe_machine),
-        4 => fetch_audio_data_builder::<_, OS, 4>(device, config, maybe_machine),
-        5 => fetch_audio_data_builder::<_, OS, 5>(device, config, maybe_machine),
-        6 => fetch_audio_data_builder::<_, OS, 6>(device, config, maybe_machine),
-        7 => fetch_audio_data_builder::<_, OS, 7>(device, config, maybe_machine),
-        8 => fetch_audio_data_builder::<_, OS, 8>(device, config, maybe_machine),
-        _ => unimplemented!(),
-    }
-}
-
-fn fetch_audio_data_builder<
-    P: Platform,
-    OS: SampleFormat + SizedSample + Pod + FromSample<P::SampleFormat>,
-    const C: usize,
->(
+fn build_stream<P: Platform, OS: SampleFormat + cpal::SizedSample + FromSample<f32> + Pod>(
     device: &Device,
     config: StreamConfig,
     maybe_machine: Arc<MaybeMachine<P>>,
@@ -147,25 +123,44 @@ fn fetch_audio_data_builder<
         .build_output_stream(
             &config,
             move |data: &mut [OS], _| {
-                let data: &mut [SVector<OS, C>] = bytemuck::cast_slice_mut(data);
+                let data: &mut [SVector<OS, 2>] = bytemuck::cast_slice_mut(data);
 
                 let Ok(maybe_machine) = maybe_machine.read() else {
                     // We have been poisoned. exit.
                     return;
                 };
 
-                if let Some(maybe_machine) = maybe_machine.deref() {
-                    if let Some(audio_output_info) = maybe_machine.audio_outputs.values().next() {
-                        for (destination, source) in data.iter_mut().zip(
-                            audio_output_info
-                                .callback
-                                .generate_samples()
-                                .remix::<C>()
-                                .rescale::<OS>(),
-                        ) {
-                            *destination = source;
-                        }
+                if let Some(machine) = maybe_machine.deref() {
+                    if let Some(path) = machine.audio_outputs.iter().next() {
+                        let id = machine
+                            .component_registry
+                            .get_id(&path.component_path)
+                            .unwrap();
+
+                        machine
+                            .component_registry
+                            .interact_dyn_mut(id, |component| {
+                                let buffer = component.drain_samples(path).unwrap();
+                                let final_sample = buffer
+                                    .into_iter()
+                                    .last()
+                                    .copied()
+                                    .map(|sample| sample.map(FromSample::from_sample))
+                                    .unwrap_or(SVector::from_element(OS::equilibrium()));
+
+                                for (destination, source) in data.iter_mut().zip(
+                                    buffer
+                                        .drain()
+                                        .rescale::<OS>()
+                                        .chain(std::iter::repeat(final_sample)),
+                                ) {
+                                    *destination = source;
+                                }
+                            })
+                            .unwrap();
                     }
+                } else {
+                    data.fill(SVector::from_element(SampleFormat::equilibrium()));
                 }
             },
             move |err| tracing::error!("an error occurred on the output audio stream: {}", err),

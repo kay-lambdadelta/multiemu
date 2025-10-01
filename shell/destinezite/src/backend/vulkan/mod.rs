@@ -1,37 +1,39 @@
 use crate::windowing::{DesktopPlatform, WinitWindow};
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
-use multiemu_config::Environment;
-use multiemu_frontend::{DisplayApiHandle, GraphicsRuntime};
-use multiemu_graphics::{
-    GraphicsApi,
-    shader::{ShaderCache, SpirvShader},
-    vulkan::{
-        InitializationData, Vulkan,
-        vulkano::{
-            Validated, VulkanError, VulkanLibrary,
-            command_buffer::{
-                AutoCommandBufferBuilder, BlitImageInfo, CommandBufferUsage,
-                allocator::StandardCommandBufferAllocator,
+use multiemu::{
+    environment::Environment,
+    frontend::{DisplayApiHandle, GraphicsRuntime},
+    graphics::{
+        GraphicsApi,
+        vulkan::{
+            InitializationData, Vulkan,
+            vulkano::{
+                Validated, VulkanError, VulkanLibrary,
+                command_buffer::{
+                    AutoCommandBufferBuilder, BlitImageInfo, CommandBufferUsage,
+                    allocator::StandardCommandBufferAllocator,
+                },
+                descriptor_set::allocator::StandardDescriptorSetAllocator,
+                device::{Device, DeviceCreateInfo, Queue, QueueCreateInfo},
+                image::{Image, ImageLayout, sampler::Filter, view::ImageView},
+                memory::{
+                    MemoryProperties,
+                    allocator::{GenericMemoryAllocatorCreateInfo, StandardMemoryAllocator},
+                },
+                render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
+                single_pass_renderpass,
+                swapchain::{
+                    PresentMode, Surface, Swapchain, SwapchainAcquireFuture, SwapchainCreateInfo,
+                    SwapchainPresentInfo, acquire_next_image,
+                },
+                sync::GpuFuture,
             },
-            descriptor_set::allocator::StandardDescriptorSetAllocator,
-            device::{Device, DeviceCreateInfo, Queue, QueueCreateInfo},
-            image::{Image, ImageLayout, sampler::Filter, view::ImageView},
-            memory::{
-                MemoryProperties,
-                allocator::{GenericMemoryAllocatorCreateInfo, StandardMemoryAllocator},
-            },
-            render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
-            single_pass_renderpass,
-            swapchain::{
-                PresentMode, Surface, Swapchain, SwapchainAcquireFuture, SwapchainCreateInfo,
-                SwapchainPresentInfo, acquire_next_image,
-            },
-            sync::GpuFuture,
         },
     },
+    machine::Machine,
+    shader::{ShaderCache, SpirvShader},
 };
-use multiemu_runtime::Machine;
 use nalgebra::Vector2;
 use std::sync::{Arc, RwLock};
 
@@ -244,19 +246,36 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         )
         .unwrap();
 
-        for (_, display_info) in machine.displays.iter() {
-            display_info
-                .display
-                .access_framebuffer(Box::new(|framebuffer| {
-                    command_buffer
-                        .blit_image(BlitImageInfo {
-                            src_image_layout: ImageLayout::TransferSrcOptimal,
-                            dst_image_layout: ImageLayout::TransferDstOptimal,
-                            filter: Filter::Nearest,
-                            ..BlitImageInfo::images(framebuffer.clone(), swapchain_image.clone())
-                        })
-                        .unwrap();
-                }));
+        for display_path in machine.displays.iter() {
+            let id = machine
+                .component_registry
+                .get_id(&display_path.component_path)
+                .unwrap();
+
+            machine
+                .component_registry
+                .interact_dyn_local_mut(id, |component| {
+                    component.access_framebuffer(
+                        display_path,
+                        Box::new(|display| {
+                            let display: &<Vulkan as GraphicsApi>::FramebufferTexture =
+                                display.downcast_ref().unwrap();
+
+                            command_buffer
+                                .blit_image(BlitImageInfo {
+                                    src_image_layout: ImageLayout::TransferSrcOptimal,
+                                    dst_image_layout: ImageLayout::TransferDstOptimal,
+                                    filter: Filter::Nearest,
+                                    ..BlitImageInfo::images(
+                                        display.clone(),
+                                        swapchain_image.clone(),
+                                    )
+                                })
+                                .unwrap();
+                        }),
+                    );
+                })
+                .unwrap();
         }
 
         let command_buffer = command_buffer.build().unwrap();

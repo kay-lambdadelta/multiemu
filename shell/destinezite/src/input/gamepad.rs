@@ -1,6 +1,6 @@
 use crate::windowing::RuntimeBoundMessage;
 use gilrs::{Axis, Button, EventType, GilrsBuilder};
-use multiemu_input::{GamepadId, Input, InputState, gamepad::GamepadInput};
+use multiemu::input::{GamepadId, Input, InputState, gamepad::GamepadInput};
 use std::collections::HashMap;
 use uuid::Uuid;
 use winit::event_loop::EventLoopProxy;
