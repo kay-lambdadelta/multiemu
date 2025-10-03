@@ -4,19 +4,90 @@ use crate::{
     memory::Address,
 };
 use bitvec::{field::BitField, order::Lsb0};
-use bytes::Bytes;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use rangetools::Rangetools;
 use std::{
     hash::{Hash, Hasher},
-    ops::RangeInclusive,
+    ops::{Add, RangeInclusive},
     sync::{
-        Mutex, RwLock, RwLockReadGuard,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, Ordering}, Mutex, RwLock, RwLockReadGuard
     },
     vec::Vec,
 };
+
+const SHARD_SIZE: Address = 0x1000;
+
+#[derive(Debug)]
+struct SparseTableEntry {
+    pub start: Address,
+    pub end: Address,
+    pub component: ComponentId,
+}
+
+#[derive(Debug, Default)]
+pub struct MemoryMappingTable {
+    master: RangeInclusiveMap<Address, ComponentId>,
+    table: Vec<SparseTableEntry>,
+}
+
+impl MemoryMappingTable {
+    #[inline]
+    pub fn overlapping(
+        &self,
+        access_range: RangeInclusive<Address>,
+    ) -> impl Iterator<Item = (RangeInclusive<Address>, ComponentId)> {
+        let start = *access_range.start();
+        let end = *access_range.end();
+
+        let index = self
+            .table
+            .binary_search_by(|entry| {
+                if entry.end < start {
+                    std::cmp::Ordering::Less
+                } else if entry.start > start {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            })
+            .unwrap_or_else(|i| i);
+
+        let left = self.table[..index]
+            .iter()
+            .rev()
+            .take_while(move |entry| entry.end >= start);
+
+        let right = self.table[index..]
+            .iter()
+            .take_while(move |entry| entry.start <= end);
+
+        left.chain(right)
+            .map(|entry| (entry.start..=entry.end, entry.component))
+    }
+
+    pub fn insert(&mut self, range: RangeInclusive<Address>, component: ComponentId) {
+        self.master.insert(range, component);
+    }
+
+    pub fn remove(&mut self, range: RangeInclusive<Address>) {
+        self.master.remove(range);
+    }
+
+    pub fn commit(&mut self) {
+        self.table.clear();
+
+        for (range, component) in self.master.iter() {
+            self.table.push(SparseTableEntry {
+                start: *range.start(),
+                end: *range.end(),
+                component: *component,
+            });
+        }
+
+        self.table.sort_by_key(|entry| entry.start);
+    }
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct AddressSpaceId(u16);
@@ -35,24 +106,10 @@ impl Hash for AddressSpaceId {
 
 impl IsEnabled for AddressSpaceId {}
 
-#[derive(Debug, Clone)]
-pub struct ReadEntry {
-    pub id: ComponentId,
-    pub buffer: Option<Bytes>,
-}
-
-impl PartialEq for ReadEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.id.eq(&other.id)
-    }
-}
-
-impl Eq for ReadEntry {}
-
 #[derive(Default, Debug)]
 pub struct Members {
-    read: RangeInclusiveMap<Address, ReadEntry>,
-    write: RangeInclusiveMap<Address, ComponentId>,
+    read: MemoryMappingTable,
+    write: MemoryMappingTable,
 }
 
 impl Members {
@@ -60,7 +117,7 @@ impl Members {
     pub fn iter_read(
         &self,
         access_range: RangeInclusive<Address>,
-    ) -> impl Iterator<Item = (&RangeInclusive<Address>, &ReadEntry)> {
+    ) -> impl Iterator<Item = (RangeInclusive<Address>, ComponentId)> {
         self.read.overlapping(access_range.clone())
     }
 
@@ -68,7 +125,7 @@ impl Members {
     pub fn iter_write(
         &self,
         access_range: RangeInclusive<Address>,
-    ) -> impl Iterator<Item = (&RangeInclusive<Address>, &ComponentId)> {
+    ) -> impl Iterator<Item = (RangeInclusive<Address>, ComponentId)> {
         self.write.overlapping(access_range.clone())
     }
 }
@@ -117,7 +174,6 @@ impl AddressSpace {
         self.members.read().unwrap()
     }
 
-    #[cold]
     fn update_members(
         &self,
         commands: impl IntoIterator<Item = MemoryRemappingCommands>,
@@ -128,8 +184,7 @@ impl AddressSpace {
 
         for command in commands {
             match command {
-                MemoryRemappingCommands::RemoveRead { range }
-                | MemoryRemappingCommands::RemoveWrite { range } => {
+                MemoryRemappingCommands::RemoveRead { range } => {
                     if invalid_ranges.clone().intersects(range.clone()) {
                         panic!(
                             "Range {:#04x?} is invalid for a address space that ends at {:04x?}",
@@ -142,25 +197,26 @@ impl AddressSpace {
 
                     members.read.remove(range.clone());
                 }
-                MemoryRemappingCommands::MapReadComponent {
-                    range,
-                    path,
-                    buffer,
-                } => {
+                MemoryRemappingCommands::RemoveWrite { range } => {
+                    if invalid_ranges.clone().intersects(range.clone()) {
+                        panic!(
+                            "Range {:#04x?} is invalid for a address space that ends at {:04x?}",
+                            range,
+                            self.width - 1
+                        );
+                    }
+
+                    tracing::debug!("Removing memory range {:#04x?} from address space", range,);
+
+                    members.write.remove(range.clone());
+                }
+                MemoryRemappingCommands::MapReadComponent { range, path } => {
                     if invalid_ranges.clone().intersects(range.clone()) {
                         panic!(
                             "Range {:#04x?} is invalid for a address space that ends at {:04x?} (inserted by {})",
                             range,
                             self.width - 1,
                             path
-                        );
-                    }
-
-                    if let Some(buffer) = buffer.as_ref() {
-                        assert_eq!(
-                            buffer.len(),
-                            range.clone().count(),
-                            "Buffer does not represent the mapped range"
                         );
                     }
 
@@ -171,7 +227,7 @@ impl AddressSpace {
                     );
 
                     let id = registry.get_id(&path).unwrap();
-                    members.read.insert(range.clone(), ReadEntry { id, buffer });
+                    members.read.insert(range.clone(), id);
                 }
                 MemoryRemappingCommands::MapWriteComponent { range, path } => {
                     if invalid_ranges.clone().intersects(range.clone()) {
@@ -210,13 +266,14 @@ impl AddressSpace {
 
                     let id = registry.get_id(&path).unwrap();
 
-                    members
-                        .read
-                        .insert(range.clone(), ReadEntry { id, buffer: None });
+                    members.read.insert(range.clone(), id);
                     members.write.insert(range.clone(), id);
                 }
             }
         }
+
+        members.read.commit();
+        members.write.commit();
     }
 }
 
@@ -225,7 +282,6 @@ pub enum MemoryRemappingCommands {
     MapReadComponent {
         range: RangeInclusive<Address>,
         path: ComponentPath,
-        buffer: Option<Bytes>,
     },
     MapWriteComponent {
         range: RangeInclusive<Address>,

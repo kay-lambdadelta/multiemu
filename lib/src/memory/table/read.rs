@@ -79,7 +79,7 @@ impl MemoryAccessTable {
     ///
     /// Contents of the buffer upon failure are usually component specific
     ///
-    #[inline(always)]
+    #[inline]
     pub fn read(
         &self,
         address: Address,
@@ -130,31 +130,23 @@ impl MemoryAccessTable {
                 let buffer_range =
                     (access_range.start() - address)..=(access_range.end() - address);
 
-                if let Some(component_buffer) = &entry.buffer {
-                    let component_buffer_range = (access_range.start()
-                        - component_assigned_range.start())
-                        ..=(access_range.end() - component_assigned_range.start());
+                self.registry
+                    .get()
+                    .unwrap()
+                    .interact_dyn(entry, |component| {
+                        read_helper(
+                            buffer,
+                            &mut queue,
+                            address,
+                            access_range,
+                            buffer_range,
+                            component,
+                            address_space,
+                        )?;
 
-                    buffer[buffer_range].copy_from_slice(&component_buffer[component_buffer_range]);
-                } else {
-                    self.registry
-                        .get()
-                        .unwrap()
-                        .interact_dyn(entry.id, |component| {
-                            read_helper(
-                                buffer,
-                                &mut queue,
-                                address,
-                                access_range,
-                                buffer_range,
-                                component,
-                                address_space,
-                            )?;
-
-                            Ok(())
-                        })
-                        .unwrap()?;
-                }
+                        Ok(())
+                    })
+                    .unwrap()?;
             }
         }
 
@@ -247,31 +239,23 @@ impl MemoryAccessTable {
                 let buffer_range =
                     (access_range.start() - address)..=(access_range.end() - address);
 
-                if let Some(component_buffer) = &entry.buffer {
-                    let component_buffer_range = (access_range.start()
-                        - component_assigned_range.start())
-                        ..=(access_range.end() - component_assigned_range.start());
+                self.registry
+                    .get()
+                    .unwrap()
+                    .interact_dyn(entry, |component| {
+                        preview_helper(
+                            buffer,
+                            &mut queue,
+                            address,
+                            access_range,
+                            buffer_range,
+                            component,
+                            address_space,
+                        )?;
 
-                    buffer[buffer_range].copy_from_slice(&component_buffer[component_buffer_range]);
-                } else {
-                    self.registry
-                        .get()
-                        .unwrap()
-                        .interact_dyn(entry.id, |component| {
-                            preview_helper(
-                                buffer,
-                                &mut queue,
-                                address,
-                                access_range,
-                                buffer_range,
-                                component,
-                                address_space,
-                            )?;
-
-                            Ok(())
-                        })
-                        .unwrap()?;
-                }
+                        Ok(())
+                    })
+                    .unwrap()?;
             }
         }
 
@@ -316,7 +300,7 @@ impl MemoryAccessTable {
     }
 }
 
-#[inline(always)]
+#[inline]
 fn read_helper(
     buffer: &mut [u8],
     queue: &mut SmallVec<[QueueEntry; 1]>,

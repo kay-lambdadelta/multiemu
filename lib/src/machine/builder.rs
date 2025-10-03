@@ -15,7 +15,6 @@ use crate::{
     scheduler::{ErasedTask, Scheduler, Task, TaskMut},
     utils::MainThreadQueue,
 };
-use bytes::Bytes;
 use indexmap::IndexMap;
 use num::rational::Ratio;
 use rustc_hash::FxBuildHasher;
@@ -450,14 +449,12 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self,
         address_space: AddressSpaceId,
         addresses: RangeInclusive<usize>,
-        buffer: Option<Bytes>,
     ) -> Self {
         self.machine_builder.memory_access_table.remap(
             address_space,
             [MemoryRemappingCommands::MapReadComponent {
                 range: addresses,
                 path: self.path.clone(),
-                buffer,
             }],
         );
 

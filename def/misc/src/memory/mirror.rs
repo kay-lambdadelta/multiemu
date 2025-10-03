@@ -111,7 +111,6 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
                 component_builder = component_builder.memory_map_read(
                     self.source_address_space,
                     self.source_addresses.clone(),
-                    None,
                 );
             }
             (false, true) => {

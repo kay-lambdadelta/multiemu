@@ -166,7 +166,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         let component_builder = match (self.readable, self.writable) {
             (true, true) => component_builder.memory_map(assigned_address_space, assigned_range),
             (true, false) => {
-                component_builder.memory_map_read(assigned_address_space, assigned_range, None)
+                component_builder.memory_map_read(assigned_address_space, assigned_range)
             }
             (false, true) => {
                 component_builder.memory_map_write(assigned_address_space, assigned_range)

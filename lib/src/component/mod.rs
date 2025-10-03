@@ -7,7 +7,6 @@ use crate::{
     },
     platform::Platform,
 };
-use bytes::Bytes;
 use nalgebra::SVector;
 use nohash::IsEnabled;
 use ringbuffer::AllocRingBuffer;
@@ -19,7 +18,6 @@ use std::{
     hash::Hash,
     io::{Read, Write},
     num::NonZero,
-    ops::RangeInclusive,
     sync::Arc,
 };
 
@@ -68,10 +66,6 @@ pub trait Component: Debug + Any {
             address..=(address + (buffer.len() - 1)),
             ReadMemoryRecord::Denied,
         )]))
-    }
-
-    fn get_direct_read_buffer(&self, assigned_range: RangeInclusive<Address>) -> Option<Bytes> {
-        None
     }
 
     /// Previews memory at the specified address in the specified address space to fill the buffer

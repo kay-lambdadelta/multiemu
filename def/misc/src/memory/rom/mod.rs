@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use multiemu::{
     component::{BuildError, Component, ComponentConfig},
     machine::builder::ComponentBuilder,
@@ -91,12 +90,8 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
             .1
             .clone();
 
-        let raw_backend = backend
-            .get_bytes()
-            .map(|bytes| bytes.slice(self.rom_range.clone()));
-
         let component_builder =
-            component_builder.memory_map_read(assigned_address_space, assigned_range, raw_backend);
+            component_builder.memory_map_read(assigned_address_space, assigned_range);
 
         component_builder.build(RomMemory {
             config: self,
@@ -111,9 +106,6 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
 pub trait RomMemoryBackend: Debug + Send + Sync + Sized + 'static {
     fn new(file: File) -> Self;
     fn read(&self, address: usize, buffer: &mut [u8]);
-    fn get_bytes(&self) -> Option<Bytes> {
-        None
-    }
 }
 
 pub struct RomCache<B: RomMemoryBackend>(pub scc::HashCache<RomId, Arc<B>>);

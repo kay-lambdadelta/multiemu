@@ -346,7 +346,6 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuStatus as usize
                     ..=CpuAccessibleRegister::PpuStatus as usize,
-                None,
             )
             .memory_map(
                 self.cpu_address_space,

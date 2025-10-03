@@ -35,7 +35,6 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
             (true, false) => component_builder.memory_map_read(
                 self.assigned_address_space,
                 self.assigned_range.clone(),
-                None,
             ),
             (false, true) => component_builder
                 .memory_map_write(self.assigned_address_space, self.assigned_range.clone()),

@@ -2523,7 +2523,6 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "bitvec",
- "bytes",
  "cfg-if",
  "codes-iso-3166",
  "codes-iso-639",
