@@ -4,6 +4,7 @@ use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use rangemap::RangeInclusiveMap;
+use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
     multiemu::utils::set_main_thread();
@@ -27,42 +28,38 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let machine = machine.build(Default::default());
 
-    let buffer = [0; 1];
     c.bench_function("write1", |b| {
         b.iter(|| {
             machine
                 .memory_access_table
-                .write(0x1000, cpu_address_space, &buffer)
+                .write_le_value::<u8>(0x1000, cpu_address_space, black_box(0))
                 .unwrap();
         })
     });
 
-    let buffer = [0; 2];
     c.bench_function("write2", |b| {
         b.iter(|| {
             machine
                 .memory_access_table
-                .write(0x1000, cpu_address_space, &buffer)
+                .write_le_value::<u16>(0x1000, cpu_address_space, black_box(0))
                 .unwrap();
         })
     });
 
-    let buffer = [0; 4];
     c.bench_function("write4", |b| {
         b.iter(|| {
             machine
                 .memory_access_table
-                .write(0x1000, cpu_address_space, &buffer)
+                .write_le_value::<u32>(0x1000, cpu_address_space, black_box(0))
                 .unwrap();
         })
     });
 
-    let buffer = [0; 8];
     c.bench_function("write8", |b| {
         b.iter(|| {
             machine
                 .memory_access_table
-                .write(0x1000, cpu_address_space, &buffer)
+                .write_le_value::<u64>(0x1000, cpu_address_space, black_box(0))
                 .unwrap();
         })
     });

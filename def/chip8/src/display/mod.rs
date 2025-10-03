@@ -259,34 +259,20 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
     ) -> Result<(), BuildError> {
-        let component = component_builder.component_ref();
-
         let (component_builder, _) = component_builder
-            .insert_task("driver", Ratio::from_integer(60), {
-                let component = component.clone();
-
-                // We ignore the time slice and only commit the buffer once
-                move |_: NonZero<u32>| {
-                    component
-                        .interact_mut(|display| {
-                            display.vsync_occurred = true;
-                            display.backend.as_mut().unwrap().commit_staging_buffer();
-                        })
-                        .unwrap();
-                }
-            })
-            .set_lazy_component_initializer({
-                let component = component.clone();
-
-                move |data| {
-                    component
-                        .interact_local_mut(|display| {
-                            display.backend = Some(Chip8DisplayBackend::new(
-                                data.component_graphics_initialization_data.clone(),
-                            ));
-                        })
-                        .unwrap();
-                }
+            .insert_task_mut(
+                "driver",
+                Ratio::from_integer(60),
+                move |component: &mut Chip8Display<<P as Platform>::GraphicsApi>,
+                      _: NonZero<u32>| {
+                    component.vsync_occurred = true;
+                    component.backend.as_mut().unwrap().commit_staging_buffer();
+                },
+            )
+            .set_lazy_component_initializer(move |component, data| {
+                component.backend = Some(Chip8DisplayBackend::new(
+                    data.component_graphics_initialization_data.clone(),
+                ));
             })
             .insert_display("display");
 

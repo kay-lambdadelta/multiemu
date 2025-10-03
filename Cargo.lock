@@ -405,12 +405,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "boxcar"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36f64beae40a84da1b4b26ff2761a5b895c12adc41dc25aaee1c4f2bbfe97a6e"
-
-[[package]]
 name = "bstr"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -896,7 +890,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "windows 0.54.0",
+ "windows",
 ]
 
 [[package]]
@@ -1606,6 +1600,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "foreign-types"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1721,7 +1721,7 @@ dependencies = [
  "vec_map",
  "wasm-bindgen",
  "web-sys",
- "windows 0.62.1",
+ "windows",
 ]
 
 [[package]]
@@ -1889,8 +1889,7 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
- "serde",
+ "foldhash 0.1.5",
 ]
 
 [[package]]
@@ -1898,6 +1897,10 @@ name = "hashbrown"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5419bdc4f6a9207fbeba6d11b604d481addf78ecd10c11ad51e76c2f6482748d"
+dependencies = [
+ "foldhash 0.2.0",
+ "serde",
+]
 
 [[package]]
 name = "heck"
@@ -2520,7 +2523,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "bitvec",
- "boxcar",
+ "bytes",
  "cfg-if",
  "codes-iso-3166",
  "codes-iso-639",
@@ -2618,6 +2621,7 @@ dependencies = [
  "rand 0.9.2",
  "rangemap",
  "ringbuffer",
+ "ron",
  "serde",
  "strum",
  "tracing",
@@ -2640,6 +2644,7 @@ name = "multiemu-definition-misc"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "bytes",
  "criterion",
  "memmap2",
  "multiemu",
@@ -2732,7 +2737,6 @@ dependencies = [
  "multiemu-definition-atari2600",
  "multiemu-definition-atarilynx",
  "multiemu-definition-chip8",
- "multiemu-definition-misc",
  "multiemu-definition-nes",
  "nalgebra",
  "num",
@@ -2776,9 +2780,9 @@ dependencies = [
 
 [[package]]
 name = "naga"
-version = "26.0.0"
+version = "27.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "916cbc7cb27db60be930a4e2da243cf4bc39569195f22fd8ee419cd31d5b662c"
+checksum = "12b2e757b11b47345d44e7760e45458339bc490463d9548cd8651c53ae523153"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -2787,7 +2791,7 @@ dependencies = [
  "cfg_aliases",
  "codespan-reporting",
  "half",
- "hashbrown 0.15.5",
+ "hashbrown 0.16.0",
  "hexf-parse",
  "indexmap 2.11.4",
  "libm",
@@ -4217,9 +4221,9 @@ dependencies = [
 
 [[package]]
 name = "scc"
-version = "3.1.2"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b502f85d09e86afa08920ba0e320d9919e0edfb57aa6d7f7947d9961f789cdd7"
+checksum = "93ef1d3a981ec33b3924730d96a607a8defd69a9660895cce9f5155fe7f1d7c0"
 dependencies = [
  "saa",
  "sdd",
@@ -5209,7 +5213,7 @@ dependencies = [
  "ash",
  "bytemuck",
  "crossbeam-queue",
- "foldhash",
+ "foldhash 0.1.5",
  "half",
  "heck 0.4.1",
  "indexmap 2.11.4",
@@ -5564,27 +5568,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "windows"
-version = "0.62.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49e6c4a1f363c8210c6f77ba24f645c61c6fb941eccf013da691f7e09515b8ac"
-dependencies = [
- "windows-collections",
- "windows-core 0.62.1",
- "windows-future",
- "windows-numerics",
-]
-
-[[package]]
-name = "windows-collections"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "123e712f464a8a60ce1a13f4c446d2d43ab06464cb5842ff68f5c71b6fb7852e"
-dependencies = [
- "windows-core 0.62.1",
-]
-
-[[package]]
 name = "windows-core"
 version = "0.54.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5605,17 +5588,6 @@ dependencies = [
  "windows-link",
  "windows-result 0.4.0",
  "windows-strings",
-]
-
-[[package]]
-name = "windows-future"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68f3db6b24b120200d649cd4811b4947188ed3a8d2626f7075146c5d178a9a4a"
-dependencies = [
- "windows-core 0.62.1",
- "windows-link",
- "windows-threading",
 ]
 
 [[package]]
@@ -5645,16 +5617,6 @@ name = "windows-link"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45e46c0661abb7180e7b9c281db115305d49ca1709ab8242adf09666d2173c65"
-
-[[package]]
-name = "windows-numerics"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ce3498fe0aba81e62e477408383196b4b0363db5e0c27646f932676283b43d8"
-dependencies = [
- "windows-core 0.62.1",
- "windows-link",
-]
 
 [[package]]
 name = "windows-result"
@@ -5774,15 +5736,6 @@ dependencies = [
  "windows_x86_64_gnu 0.53.0",
  "windows_x86_64_gnullvm 0.53.0",
  "windows_x86_64_msvc 0.53.0",
-]
-
-[[package]]
-name = "windows-threading"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab47f085ad6932defa48855254c758cdd0e2f2d48e62a34118a268d8f345e118"
-dependencies = [
- "windows-link",
 ]
 
 [[package]]

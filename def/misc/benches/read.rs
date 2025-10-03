@@ -1,70 +1,67 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu::{component::Component, machine::Machine};
-use multiemu_definition_misc::memory::standard::{
-    StandardMemory, StandardMemoryConfig, StandardMemoryInitialContents,
-};
-use rangemap::RangeInclusiveMap;
+use multiemu::{component::Component, machine::Machine, rom::RomId};
+use multiemu_definition_misc::memory::rom::{RomMemory, RomMemoryConfig};
+use std::{hint::black_box, str::FromStr};
 
 fn criterion_benchmark(c: &mut Criterion) {
     multiemu::utils::set_main_thread();
 
     let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
-    let (machine, component_ref) = machine.insert_component(
+    let (machine, memory) = machine.insert_component(
         "memory",
-        StandardMemoryConfig {
-            readable: true,
-            writable: true,
-            assigned_range: 0x0000..=0xffff,
+        RomMemoryConfig {
+            rom: RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap(),
+            assigned_range: 0x0000..=0x0fff,
             assigned_address_space: cpu_address_space,
-            initial_contents: RangeInclusiveMap::from_iter([(
-                0x0000..=0xffff,
-                StandardMemoryInitialContents::Value(0x00),
-            )]),
-            sram: false,
+            rom_range: 0x0000..=0x0fff,
         },
     );
 
     let machine = machine.build(Default::default());
-    let component_id = component_ref.id();
+    let component_id = machine.component_registry.get_id(&memory).unwrap();
 
-    let mut buffer = [0; 1];
     c.bench_function("read1", |b| {
         b.iter(|| {
-            machine
-                .memory_access_table
-                .read(0x1000, cpu_address_space, &mut buffer)
-                .unwrap();
+            black_box(
+                machine
+                    .memory_access_table
+                    .read_le_value::<u8>(0x0fff, cpu_address_space)
+                    .unwrap(),
+            );
         })
     });
 
-    let mut buffer = [0; 2];
     c.bench_function("read2", |b| {
         b.iter(|| {
-            machine
-                .memory_access_table
-                .read(0x1000, cpu_address_space, &mut buffer)
-                .unwrap();
+            black_box(
+                machine
+                    .memory_access_table
+                    .read_le_value::<u16>(0x0fff, cpu_address_space)
+                    .unwrap(),
+            );
         })
     });
 
-    let mut buffer = [0; 4];
     c.bench_function("read4", |b| {
         b.iter(|| {
-            machine
-                .memory_access_table
-                .read(0x1000, cpu_address_space, &mut buffer)
-                .unwrap();
+            black_box(
+                machine
+                    .memory_access_table
+                    .read_le_value::<u32>(0x0fff, cpu_address_space)
+                    .unwrap(),
+            );
         })
     });
 
-    let mut buffer = [0; 8];
     c.bench_function("read8", |b| {
         b.iter(|| {
-            machine
-                .memory_access_table
-                .read(0x1000, cpu_address_space, &mut buffer)
-                .unwrap();
+            black_box(
+                machine
+                    .memory_access_table
+                    .read_le_value::<u64>(0x0fff, cpu_address_space)
+                    .unwrap(),
+            );
         })
     });
 
@@ -74,9 +71,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             machine
                 .component_registry
-                .interact::<StandardMemory, _>(component_id, |component| {
+                .interact::<RomMemory, _>(component_id, |component| {
                     component
-                        .read_memory(0x1000, cpu_address_space, &mut buffer)
+                        .read_memory(0x0fff, cpu_address_space, &mut buffer)
                         .unwrap();
                 })
                 .unwrap();

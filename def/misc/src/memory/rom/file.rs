@@ -20,6 +20,7 @@ impl RomMemoryBackend for FileBackend {
         return FileBackend(Mutex::new(file));
     }
 
+    #[inline]
     #[cfg(not(unix))]
     fn read(&self, offset: usize, buffer: &mut [u8]) {
         use std::io::{Read, Seek, SeekFrom};
@@ -29,6 +30,7 @@ impl RomMemoryBackend for FileBackend {
         file_guard.read_exact(buffer).unwrap();
     }
 
+    #[inline]
     #[cfg(unix)]
     fn read(&self, offset: usize, buffer: &mut [u8]) {
         use std::os::unix::fs::FileExt;

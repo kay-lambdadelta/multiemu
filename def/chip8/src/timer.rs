@@ -62,20 +62,14 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
-        let component = component_builder.component_ref();
-
         component_builder
-            .insert_task(
+            .insert_task_mut(
                 "driver",
                 Ratio::from_integer(60),
-                move |slice: NonZero<u32>| {
-                    component
-                        .interact_mut(|component| {
-                            component.timer = component
-                                .timer
-                                .saturating_sub(slice.get().try_into().unwrap_or(u8::MAX));
-                        })
-                        .unwrap();
+                move |component: &mut Chip8Timer, slice: NonZero<u32>| {
+                    component.timer = component
+                        .timer
+                        .saturating_sub(slice.get().try_into().unwrap_or(u8::MAX));
                 },
             )
             .build(Chip8Timer { timer: 0 });

@@ -1,25 +1,26 @@
 use crate::{
     component::{
-        Component, ComponentConfig, ComponentId, ComponentPath, ComponentRef, ComponentVersion,
-        LateInitializedData, ResourcePath,
+        Component, ComponentConfig, ComponentPath, ComponentVersion, LateInitializedData,
+        ResourcePath,
     },
     graphics::GraphicsApi,
     machine::{
         Machine, UserSpecifiedRoms, graphics::GraphicsRequirements, registry::ComponentRegistry,
         virtual_gamepad::VirtualGamepad,
     },
-    memory::{Address, AddressSpaceId, MemoryAccessTable, MemoryRemappingCommands, MemoryType},
+    memory::{AddressSpaceId, MemoryAccessTable, MemoryRemappingCommands},
     persistence::{SaveManager, SnapshotManager},
     platform::Platform,
     rom::{RomMetadata, System},
-    scheduler::{Scheduler, Task},
+    scheduler::{ErasedTask, Scheduler, Task, TaskMut},
     utils::MainThreadQueue,
 };
+use bytes::Bytes;
 use indexmap::IndexMap;
 use num::rational::Ratio;
-use rangemap::RangeInclusiveSet;
 use rustc_hash::FxBuildHasher;
 use std::{
+    any::Any,
     borrow::Cow,
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -29,28 +30,21 @@ use std::{
     path::PathBuf,
     str::FromStr,
     sync::{Arc, Mutex},
-    vec::Vec,
 };
 
 /// Overall data extracted from components needed for machine initialization
 pub struct ComponentMetadata<P: Platform> {
-    pub read_memory_mappings: HashMap<AddressSpaceId, RangeInclusiveSet<Address>>,
-    pub write_memory_mappings: HashMap<AddressSpaceId, RangeInclusiveSet<Address>>,
     pub tasks: HashMap<ResourcePath, StoredTask>,
     pub displays: HashSet<ResourcePath>,
     pub graphics_requirements: GraphicsRequirements<P::GraphicsApi>,
     pub audio_outputs: HashSet<ResourcePath>,
     pub gamepads: HashMap<ResourcePath, Arc<VirtualGamepad>>,
-    pub path: ComponentPath,
-    pub late_initializer: Option<Box<dyn FnOnce(&LateInitializedData<P>)>>,
+    pub late_initializer: Option<Box<dyn FnOnce(&mut dyn Component, &LateInitializedData<P>)>>,
 }
 
-impl<P: Platform> ComponentMetadata<P> {
-    pub fn new(path: ComponentPath) -> Self {
+impl<P: Platform> Default for ComponentMetadata<P> {
+    fn default() -> Self {
         Self {
-            path,
-            read_memory_mappings: Default::default(),
-            write_memory_mappings: Default::default(),
             tasks: Default::default(),
             displays: Default::default(),
             graphics_requirements: Default::default(),
@@ -74,16 +68,16 @@ pub struct MachineBuilder<P: Platform> {
     /// Selected sample rate
     sample_rate: Ratio<u32>,
     /// The store for components
-    registry: Arc<ComponentRegistry>,
+    registry: ComponentRegistry,
     /// Component metadata
-    component_metadata: IndexMap<ComponentId, ComponentMetadata<P>, FxBuildHasher>,
+    component_metadata: IndexMap<ComponentPath, ComponentMetadata<P>, FxBuildHasher>,
     /// Roms we were opened with
     user_specified_roms: Option<UserSpecifiedRoms>,
 }
 
 pub struct StoredTask {
     pub period: Ratio<u32>,
-    pub task: Box<dyn Task>,
+    pub task: ErasedTask,
 }
 
 impl Debug for StoredTask {
@@ -104,15 +98,15 @@ impl<P: Platform> MachineBuilder<P> {
         main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
         let main_thread_queue = MainThreadQueue::new(main_thread_executor);
-        let component_store = ComponentRegistry::new(main_thread_queue.clone());
+        let registry = ComponentRegistry::new(main_thread_queue.clone());
         let save_manager = SaveManager::new(save_path);
         let snapshot_manager = SnapshotManager::new(snapshot_path);
 
         MachineBuilder::<P> {
-            memory_access_table: Arc::new(MemoryAccessTable::new(component_store.clone())),
+            memory_access_table: Arc::new(MemoryAccessTable::default()),
             save_manager,
             snapshot_manager,
-            registry: component_store,
+            registry,
             rom_metadata: rom_manager,
             sample_rate,
             component_metadata: IndexMap::default(),
@@ -134,46 +128,49 @@ impl<P: Platform> MachineBuilder<P> {
         &self.rom_metadata
     }
 
+    pub fn registry(&self) -> &ComponentRegistry {
+        &self.registry
+    }
+
     #[inline]
     fn insert_component_with_path<B: ComponentConfig<P>>(
-        mut self,
+        &mut self,
         path: ComponentPath,
         config: B,
-    ) -> (Self, ComponentRef<B::Component>) {
-        let component_ref = ComponentRef::new(self.registry.clone());
-        let mut component_metadata = ComponentMetadata::new(path);
+    ) {
+        self.registry.reserve_component(path.clone());
+        let mut component_metadata = ComponentMetadata::default();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
-            machine_builder: &mut self,
-            component_ref: component_ref.clone(),
+            machine_builder: self,
             component_metadata: &mut component_metadata,
+            path: &path,
+            _phantom: PhantomData,
         };
 
         config
             .build_component(component_builder)
             .expect("Failed to build component");
 
-        self.component_metadata
-            .insert(component_ref.id(), component_metadata);
-
-        (self, component_ref)
+        self.component_metadata.insert(path, component_metadata);
     }
 
     /// Insert a component into the machine
     #[inline]
     pub fn insert_component<B: ComponentConfig<P>>(
-        self,
+        mut self,
         name: &str,
         config: B,
-    ) -> (Self, ComponentRef<B::Component>) {
+    ) -> (Self, ComponentPath) {
         assert!(
             !name.contains(ComponentPath::SEPERATOR),
             "This function requires a name not a path"
         );
 
         let path = ComponentPath::from_str(name).unwrap();
+        self.insert_component_with_path(path.clone(), config);
 
-        self.insert_component_with_path(path, config)
+        (self, path)
     }
 
     /// Insert a component with a default config
@@ -181,7 +178,7 @@ impl<P: Platform> MachineBuilder<P> {
     pub fn insert_default_component<B: ComponentConfig<P> + Default>(
         self,
         name: &str,
-    ) -> (Self, ComponentRef<B::Component>) {
+    ) -> (Self, ComponentPath) {
         let config = B::default();
         self.insert_component(name, config)
     }
@@ -217,63 +214,26 @@ impl<P: Platform> MachineBuilder<P> {
         mut self,
         component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
     ) -> Machine<P> {
-        let mut tasks: HashMap<_, HashMap<_, _>> = HashMap::default();
+        let registry = Arc::new(self.registry);
+        self.memory_access_table.set_registry(registry.clone());
+
+        let mut tasks = HashMap::default();
         let mut virtual_gamepads = HashMap::default();
         let mut audio_outputs = HashSet::new();
-        let mut collected_remappings_commands: HashMap<_, Vec<_>> = HashMap::default();
-        let mut component_initializers = Vec::default();
+        let mut component_initializers = HashMap::new();
         let mut displays = HashSet::default();
 
-        for (component_id, component_metadata) in self.component_metadata.drain(..) {
-            component_initializers.extend(component_metadata.late_initializer);
-
-            for (address_space, commands) in component_metadata
-                .read_memory_mappings
-                .into_iter()
-                .flat_map(|(address_space, addresses)| {
-                    addresses.into_iter().map(move |addresses| {
-                        (
-                            address_space,
-                            MemoryRemappingCommands::AddComponent {
-                                range: addresses,
-                                component_id,
-                                types: vec![MemoryType::Read],
-                            },
-                        )
-                    })
-                })
-                .chain(
-                    component_metadata
-                        .write_memory_mappings
-                        .into_iter()
-                        .flat_map(|(address_space, addresses)| {
-                            addresses.into_iter().map(move |addresses| {
-                                (
-                                    address_space,
-                                    MemoryRemappingCommands::AddComponent {
-                                        range: addresses,
-                                        component_id,
-                                        types: vec![MemoryType::Write],
-                                    },
-                                )
-                            })
-                        }),
-                )
-            {
-                collected_remappings_commands
-                    .entry(address_space)
-                    .or_default()
-                    .push(commands);
+        for (path, component_metadata) in self.component_metadata.drain(..) {
+            if let Some(initializer) = component_metadata.late_initializer {
+                let id = registry.get_id(&path).unwrap();
+                component_initializers.insert(id, initializer);
             }
 
             displays.extend(component_metadata.displays);
 
             // Gather the tasks
             for (resource_path, task) in component_metadata.tasks {
-                tasks
-                    .entry(component_id)
-                    .or_default()
-                    .insert(resource_path, task);
+                tasks.insert(resource_path, task);
             }
 
             virtual_gamepads.extend(component_metadata.gamepads);
@@ -281,26 +241,27 @@ impl<P: Platform> MachineBuilder<P> {
             audio_outputs.extend(component_metadata.audio_outputs);
         }
 
-        for (address_space, commands) in collected_remappings_commands {
-            self.memory_access_table.remap(address_space, commands);
-        }
-
-        let runtime_essentials = LateInitializedData::<P> {
+        let late_initialized_data = LateInitializedData::<P> {
             component_graphics_initialization_data,
+            component_registry: registry.clone(),
         };
 
-        for initializer in component_initializers {
-            initializer(&runtime_essentials)
+        for (component_id, initializer) in component_initializers {
+            registry
+                .interact_dyn_local_mut(component_id, |component| {
+                    initializer(component, &late_initialized_data)
+                })
+                .unwrap();
         }
 
         // Create the scheduler
-        let scheduler = Scheduler::new(tasks);
+        let scheduler = Scheduler::new(tasks, registry.clone());
 
         Machine {
             scheduler: Mutex::new(scheduler),
             memory_access_table: self.memory_access_table.clone(),
             virtual_gamepads,
-            component_registry: self.registry,
+            component_registry: registry,
             displays,
             save_manager: self.save_manager,
             snapshot_manager: self.snapshot_manager,
@@ -313,13 +274,14 @@ impl<P: Platform> MachineBuilder<P> {
 
 pub struct ComponentBuilder<'a, P: Platform, C: Component> {
     machine_builder: &'a mut MachineBuilder<P>,
-    component_ref: ComponentRef<C>,
     component_metadata: &'a mut ComponentMetadata<P>,
+    path: &'a ComponentPath,
+    _phantom: PhantomData<C>,
 }
 
 impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
-    pub fn path(&self) -> &ComponentPath {
-        &self.component_metadata.path
+    pub fn path(&self) -> &'a ComponentPath {
+        &self.path
     }
 
     pub fn rom_manager(&self) -> &Arc<RomMetadata> {
@@ -334,18 +296,21 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self.machine_builder.sample_rate
     }
 
-    /// Accessing this ref the function gives out will panic if the machine isn't complete
-    pub fn component_ref(&self) -> ComponentRef<C> {
-        self.component_ref.clone()
+    pub fn registry(&self) -> &ComponentRegistry {
+        &self.machine_builder.registry
     }
 
     pub fn set_lazy_component_initializer(
         self,
-        initializer: impl FnOnce(&LateInitializedData<P>) + 'static,
+        initializer: impl FnOnce(&mut C, &LateInitializedData<P>) + 'static,
     ) -> Self {
         self.component_metadata
             .late_initializer
-            .get_or_insert(Box::new(initializer));
+            .get_or_insert(Box::new(|component, data| {
+                let component: &mut C = (component as &mut dyn Any).downcast_mut().unwrap();
+
+                initializer(component, data)
+            }));
 
         self
     }
@@ -357,11 +322,9 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .as_ref()
             .map(|roms| &roms.main)
         {
-            let metadata = &*self.component_metadata;
-
             self.machine_builder
                 .save_manager
-                .get(main.id, main.identity.name(), metadata.path.clone())
+                .get(main.id, main.identity.name(), self.path.clone())
                 .unwrap()
         } else {
             None
@@ -370,14 +333,11 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
     pub fn build_local(self, component: C) {
-        let path = self.component_metadata.path.clone();
+        let path = self.path.clone();
 
-        let id = self
-            .machine_builder
+        self.machine_builder
             .registry
             .insert_component_local(path, component);
-
-        self.component_ref.set_id(id);
     }
 
     /// Insert this component in the global store, ensuring quick access for all other components
@@ -387,14 +347,11 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     where
         C: Send + Sync,
     {
-        let path = self.component_metadata.path.clone();
+        let path = self.path.clone();
 
-        let id = self
-            .machine_builder
+        self.machine_builder
             .registry
             .insert_component(path, component);
-
-        self.component_ref.set_id(id);
     }
 
     /// Insert a component into the machine
@@ -403,23 +360,25 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         mut self,
         name: &str,
         config: B,
-    ) -> (Self, ComponentRef<B::Component>) {
+    ) -> (Self, ComponentPath) {
         assert!(
             !name.contains(ComponentPath::SEPERATOR),
             "This function requires a name not a path"
         );
 
-        let mut path = self.component_metadata.path.clone();
+        let mut path = self.path.clone();
         path.push(name).unwrap();
 
-        let mut component_metadata = ComponentMetadata::new(path);
-
-        let component_ref = ComponentRef::new(self.machine_builder.registry.clone());
+        self.machine_builder
+            .registry
+            .reserve_component(path.clone());
+        let mut component_metadata = ComponentMetadata::default();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
             machine_builder: &mut self.machine_builder,
-            component_ref: component_ref.clone(),
             component_metadata: &mut component_metadata,
+            path: &path,
+            _phantom: PhantomData,
         };
 
         config
@@ -428,9 +387,9 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
         self.machine_builder
             .component_metadata
-            .insert(component_ref.id(), component_metadata);
+            .insert(path.clone(), component_metadata);
 
-        (self, component_ref)
+        (self, path)
     }
 
     /// Insert a component with a default config
@@ -438,14 +397,14 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     pub fn insert_default_child_component<B: ComponentConfig<P> + Default>(
         self,
         name: &str,
-    ) -> (Self, ComponentRef<B::Component>) {
+    ) -> (Self, ComponentPath) {
         let config = B::default();
         self.insert_child_component(name, config)
     }
 
     pub fn insert_audio_output(self, name: impl Into<Cow<'static, str>>) -> (Self, ResourcePath) {
         let resource_path = ResourcePath {
-            component_path: self.component_metadata.path.clone(),
+            component_path: self.path.clone(),
             name: name.into(),
         };
 
@@ -458,7 +417,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn insert_display(self, name: impl Into<Cow<'static, str>>) -> (Self, ResourcePath) {
         let resource_path = ResourcePath {
-            component_path: self.component_metadata.path.clone(),
+            component_path: self.path.clone(),
             name: name.into(),
         };
 
@@ -475,7 +434,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         gamepad: Arc<VirtualGamepad>,
     ) -> (Self, ResourcePath) {
         let resource_path = ResourcePath {
-            component_path: self.component_metadata.path.clone(),
+            component_path: self.path.clone(),
             name: name.into(),
         };
 
@@ -491,12 +450,16 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self,
         address_space: AddressSpaceId,
         addresses: RangeInclusive<usize>,
+        buffer: Option<Bytes>,
     ) -> Self {
-        self.component_metadata
-            .read_memory_mappings
-            .entry(address_space)
-            .or_default()
-            .insert(addresses);
+        self.machine_builder.memory_access_table.remap(
+            address_space,
+            [MemoryRemappingCommands::MapReadComponent {
+                range: addresses,
+                path: self.path.clone(),
+                buffer,
+            }],
+        );
 
         self
     }
@@ -506,11 +469,13 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         address_space: AddressSpaceId,
         addresses: RangeInclusive<usize>,
     ) -> Self {
-        self.component_metadata
-            .write_memory_mappings
-            .entry(address_space)
-            .or_default()
-            .insert(addresses);
+        self.machine_builder.memory_access_table.remap(
+            address_space,
+            [MemoryRemappingCommands::MapWriteComponent {
+                range: addresses,
+                path: self.path.clone(),
+            }],
+        );
 
         self
     }
@@ -520,17 +485,13 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         address_space: AddressSpaceId,
         addresses: RangeInclusive<usize>,
     ) -> Self {
-        self.component_metadata
-            .read_memory_mappings
-            .entry(address_space)
-            .or_default()
-            .insert(addresses.clone());
-
-        self.component_metadata
-            .write_memory_mappings
-            .entry(address_space)
-            .or_default()
-            .insert(addresses);
+        self.machine_builder.memory_access_table.remap(
+            address_space,
+            [MemoryRemappingCommands::MapComponent {
+                range: addresses.clone(),
+                path: self.path.clone(),
+            }],
+        );
 
         self
     }
@@ -540,10 +501,10 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self,
         name: impl Into<Cow<'static, str>>,
         frequency: Ratio<u32>,
-        callback: impl Task,
+        mut callback: impl Task<C>,
     ) -> Self {
         let resource_path = ResourcePath {
-            component_path: self.component_metadata.path.clone(),
+            component_path: self.path.clone(),
             name: name.into(),
         };
 
@@ -551,11 +512,61 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             panic!("Task with path {} already exists", resource_path);
         }
 
+        let component_id = self.machine_builder.registry.get_id(&self.path).unwrap();
+
         self.component_metadata.tasks.insert(
             resource_path,
             StoredTask {
                 period: frequency.reduced().recip(),
-                task: Box::new(callback),
+                task: Box::new(move |component_registry, slice| {
+                    component_registry
+                        .interact(
+                            component_id,
+                            #[inline]
+                            |component| {
+                                callback.run(component, slice);
+                            },
+                        )
+                        .unwrap();
+                }),
+            },
+        );
+
+        self
+    }
+
+    pub fn insert_task_mut(
+        self,
+        name: impl Into<Cow<'static, str>>,
+        frequency: Ratio<u32>,
+        mut callback: impl TaskMut<C>,
+    ) -> Self {
+        let resource_path = ResourcePath {
+            component_path: self.path.clone(),
+            name: name.into(),
+        };
+
+        if self.component_metadata.tasks.contains_key(&resource_path) {
+            panic!("Task with path {} already exists", resource_path);
+        }
+
+        let component_id = self.machine_builder.registry.get_id(&self.path).unwrap();
+
+        self.component_metadata.tasks.insert(
+            resource_path,
+            StoredTask {
+                period: frequency.reduced().recip(),
+                task: Box::new(move |component_registry, slice| {
+                    component_registry
+                        .interact_mut(
+                            component_id,
+                            #[inline]
+                            |component| {
+                                callback.run(component, slice);
+                            },
+                        )
+                        .unwrap();
+                }),
             },
         );
 

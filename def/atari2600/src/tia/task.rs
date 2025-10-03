@@ -7,67 +7,61 @@ use bitvec::{
     order::{Lsb0, Msb0},
     view::BitView,
 };
-use multiemu::{component::ComponentRef, scheduler::Task};
+use multiemu::scheduler::TaskMut;
 use multiemu_definition_mos6502::RdyFlag;
 use std::{num::NonZero, sync::Arc};
 
-pub struct TiaTask<R: Region, G: SupportedGraphicsApiTia> {
-    pub component: ComponentRef<Tia<R, G>>,
+pub struct TiaTask {
     pub cpu_rdy: Arc<RdyFlag>,
 }
 
-impl<R: Region, G: SupportedGraphicsApiTia> Task for TiaTask<R, G> {
-    fn run(&mut self, time_slice: NonZero<u32>) {
-        self.component
-            .interact_mut(|component| {
-                let mut commit_staging_buffer = false;
-                let backend_guard = component.backend.as_mut().unwrap();
+impl<R: Region, G: SupportedGraphicsApiTia> TaskMut<Tia<R, G>> for TiaTask {
+    fn run(&mut self, component: &mut Tia<R, G>, time_slice: NonZero<u32>) {
+        let mut commit_staging_buffer = false;
+        let backend_guard = component.backend.as_mut().unwrap();
 
-                for _ in 0..time_slice.get() {
-                    if let Some(cycles) = component.state.cycles_waiting_for_vsync {
-                        component.state.cycles_waiting_for_vsync = Some(cycles.saturating_sub(1));
+        for _ in 0..time_slice.get() {
+            if let Some(cycles) = component.state.cycles_waiting_for_vsync {
+                component.state.cycles_waiting_for_vsync = Some(cycles.saturating_sub(1));
 
-                        if component.state.cycles_waiting_for_vsync == Some(0) {
-                            commit_staging_buffer = true;
-                        }
-                    }
+                if component.state.cycles_waiting_for_vsync == Some(0) {
+                    commit_staging_buffer = true;
+                }
+            }
 
-                    if !(component.state.cycles_waiting_for_vsync.is_some()
-                        || component.state.vblank_active)
-                        && (0..VISIBLE_SCANLINE_LENGTH).contains(&component.state.electron_beam.x)
-                    {
-                        let color = R::color_to_srgb(component.state.get_rendered_color());
+            if !(component.state.cycles_waiting_for_vsync.is_some()
+                || component.state.vblank_active)
+                && (0..VISIBLE_SCANLINE_LENGTH).contains(&component.state.electron_beam.x)
+            {
+                let color = R::color_to_srgb(component.state.get_rendered_color());
 
-                        backend_guard.modify_staging_buffer(|mut staging_buffer_guard| {
-                            staging_buffer_guard[(
-                                component.state.electron_beam.x as usize,
-                                component.state.electron_beam.y as usize,
-                            )] = color.into();
-                        });
-                    }
+                backend_guard.modify_staging_buffer(|mut staging_buffer_guard| {
+                    staging_buffer_guard[(
+                        component.state.electron_beam.x as usize,
+                        component.state.electron_beam.y as usize,
+                    )] = color.into();
+                });
+            }
 
-                    component.state.electron_beam.x += 1;
+            component.state.electron_beam.x += 1;
 
-                    if component.state.electron_beam.x >= SCANLINE_LENGTH {
-                        component.state.electron_beam.x = 0;
-                        component.state.electron_beam.y += 1;
+            if component.state.electron_beam.x >= SCANLINE_LENGTH {
+                component.state.electron_beam.x = 0;
+                component.state.electron_beam.y += 1;
 
-                        if std::mem::replace(&mut component.state.reset_rdy_on_scanline_end, false)
-                        {
-                            self.cpu_rdy.store(true);
-                        }
-
-                        if component.state.electron_beam.y >= R::TOTAL_SCANLINES {
-                            component.state.electron_beam.y = 0;
-                        }
-                    }
+                if std::mem::replace(&mut component.state.reset_rdy_on_scanline_end, false) {
+                    self.cpu_rdy.store(true);
                 }
 
-                if commit_staging_buffer {
-                    backend_guard.commit_staging_buffer();
+                if component.state.electron_beam.y >= R::TOTAL_SCANLINES {
+                    component.state.electron_beam.y = 0;
                 }
-            })
-            .unwrap();
+            }
+        }
+
+        if commit_staging_buffer {
+            backend_guard.commit_staging_buffer();
+        }
     }
 }
 

@@ -14,7 +14,7 @@ use processor::Chip8ProcessorConfig;
 pub use processor::decoder::Chip8InstructionDecoder;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
+use std::{borrow::Cow, marker::PhantomData};
 use timer::Chip8TimerConfig;
 
 mod audio;
@@ -52,6 +52,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> MachineFactory<
                 frequency: Ratio::from_integer(1000),
                 force_mode: None,
                 always_shr_in_place: false,
+                _phantom: PhantomData,
             },
         );
         let rom = machine.user_specified_roms().unwrap().main.clone();

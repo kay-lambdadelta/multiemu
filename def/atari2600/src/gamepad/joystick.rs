@@ -1,6 +1,6 @@
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentRef},
+    component::{BuildError, Component, ComponentConfig, ComponentPath},
     input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput},
     machine::{
         builder::ComponentBuilder,
@@ -34,8 +34,9 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
         let (component_builder, _) =
             component_builder.insert_gamepad("atari-2600-joystick-1", player2_gamepad.clone());
 
-        self.mos6532_riot
-            .interact(|riot| {
+        component_builder
+            .registry()
+            .interact_by_path::<Mos6532Riot, _>(&self.mos6532_riot, |riot| {
                 riot.install_swcha(JoystickSwchaCallback {
                     gamepads: [player1_gamepad, player2_gamepad],
                 });
@@ -50,7 +51,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
 
 #[derive(Debug)]
 pub struct Atari2600JoystickConfig {
-    pub mos6532_riot: ComponentRef<Mos6532Riot>,
+    pub mos6532_riot: ComponentPath,
 }
 
 #[derive(Debug)]

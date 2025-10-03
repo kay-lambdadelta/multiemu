@@ -337,16 +337,14 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
         let memory_access_table = component_builder.memory_access_table();
-        let component = component_builder.component_ref();
 
         component_builder
-            .insert_task(
+            .insert_task_mut(
                 "driver",
                 self.frequency,
                 CpuDriver {
                     memory_access_table,
                     instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
-                    component,
                 },
             )
             .build(Mos6502 {

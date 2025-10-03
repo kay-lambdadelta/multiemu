@@ -196,8 +196,8 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
             memory_allocator.clone(),
             command_buffer_allocator.clone(),
             descriptor_set_allocator.clone(),
-            swapchain.image_format(),
             &shader_cache,
+            render_pass.clone(),
         );
 
         Ok(Self {

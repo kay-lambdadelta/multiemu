@@ -11,7 +11,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
-    let (machine, component_ref) = machine.insert_component(
+    let (machine, memory) = machine.insert_component(
         "memory",
         StandardMemoryConfig {
             readable: true,
@@ -26,8 +26,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         },
     );
     let machine = machine.build(Default::default());
+    let component_id = machine.component_registry.get_id(&memory).unwrap();
 
-    let component_id = component_ref.id();
     c.bench_function("registry_read", |b| {
         b.iter(|| {
             machine
@@ -44,26 +44,6 @@ fn criterion_benchmark(c: &mut Criterion) {
             machine
                 .component_registry
                 .interact_mut::<StandardMemory, _>(component_id, |component| {
-                    black_box(component);
-                })
-                .unwrap();
-        })
-    });
-
-    c.bench_function("component_ref_read", |b| {
-        b.iter(|| {
-            component_ref
-                .interact(|component| {
-                    black_box(component);
-                })
-                .unwrap();
-        })
-    });
-
-    c.bench_function("component_ref_write", |b| {
-        b.iter(|| {
-            component_ref
-                .interact_mut(|component| {
                     black_box(component);
                 })
                 .unwrap();

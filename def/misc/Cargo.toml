@@ -15,7 +15,10 @@ tracing = { workspace = true }
 bincode = { workspace = true }
 scc = { workspace = true }
 rangetools = { workspace = true }
-memmap2 = { version = "0.9", optional = true }
+bytes = { workspace = true }
+
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dependencies]
+memmap2 = "0.9"
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
 criterion = { workspace = true }
@@ -32,5 +35,3 @@ harness = false
 name = "registry"
 harness = false
 
-[features]
-mmap = ["dep:memmap2"]

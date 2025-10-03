@@ -1,6 +1,6 @@
-use crate::{Mos6502, Mos6502Config, Mos6502Kind};
+use crate::{Mos6502Config, Mos6502Kind};
 use multiemu::{
-    component::ComponentRef, machine::Machine, memory::AddressSpaceId, platform::TestPlatform,
+    component::ComponentPath, machine::Machine, memory::AddressSpaceId, platform::TestPlatform,
 };
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
@@ -10,8 +10,7 @@ use rangemap::RangeInclusiveMap;
 
 mod adc;
 
-fn instruction_test_boilerplate() -> (Machine<TestPlatform>, ComponentRef<Mos6502>, AddressSpaceId)
-{
+fn instruction_test_boilerplate() -> (Machine<TestPlatform>, ComponentPath, AddressSpaceId) {
     let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
     let (machine, cpu) = machine.insert_component(

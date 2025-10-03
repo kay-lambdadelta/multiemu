@@ -89,7 +89,10 @@ impl Component for StandardMemory {
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        self.read_internal(address, buffer);
+        let requested_range = address - self.config.assigned_range.start()
+            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
+
+        buffer.copy_from_slice(&self.buffer[requested_range]);
 
         Ok(())
     }
@@ -100,7 +103,10 @@ impl Component for StandardMemory {
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
-        self.read_internal(address, buffer);
+        let requested_range = address - self.config.assigned_range.start()
+            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
+
+        buffer.copy_from_slice(&self.buffer[requested_range]);
 
         Ok(())
     }
@@ -111,8 +117,10 @@ impl Component for StandardMemory {
         _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        // Shoved off in a helper function to prevent duplicated logic
-        self.write_internal(address, buffer);
+        let requested_range = address - self.config.assigned_range.start()
+            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
+
+        self.buffer[requested_range].copy_from_slice(&buffer);
 
         Ok(())
     }
@@ -158,7 +166,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         let component_builder = match (self.readable, self.writable) {
             (true, true) => component_builder.memory_map(assigned_address_space, assigned_range),
             (true, false) => {
-                component_builder.memory_map_read(assigned_address_space, assigned_range)
+                component_builder.memory_map_read(assigned_address_space, assigned_range, None)
             }
             (false, true) => {
                 component_builder.memory_map_write(assigned_address_space, assigned_range)
@@ -173,23 +181,6 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
 }
 
 impl StandardMemory {
-    #[inline]
-    fn read_internal(&self, address: Address, buffer: &mut [u8]) {
-        let requested_range = address - self.config.assigned_range.start()
-            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
-
-        buffer.copy_from_slice(&self.buffer[requested_range]);
-    }
-
-    /// Writes unchecked internally
-    #[inline]
-    fn write_internal(&mut self, address: Address, buffer: &[u8]) {
-        let requested_range = address - self.config.assigned_range.start()
-            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
-
-        self.buffer[requested_range].copy_from_slice(&buffer);
-    }
-
     fn initialize_buffer(&mut self) {
         // HACK: This overfills the buffer for ease of programming, but its ok because the actual mmu doesn't allow accesses out at runtime
         for (range, operation) in self.config.initial_contents.iter() {

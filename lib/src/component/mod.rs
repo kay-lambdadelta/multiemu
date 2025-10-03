@@ -1,12 +1,13 @@
 use crate::{
     graphics::GraphicsApi,
-    machine::builder::ComponentBuilder,
+    machine::{builder::ComponentBuilder, registry::ComponentRegistry},
     memory::{
         Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
         WriteMemoryRecord,
     },
     platform::Platform,
 };
+use bytes::Bytes;
 use nalgebra::SVector;
 use nohash::IsEnabled;
 use ringbuffer::AllocRingBuffer;
@@ -18,12 +19,12 @@ use std::{
     hash::Hash,
     io::{Read, Write},
     num::NonZero,
+    ops::RangeInclusive,
+    sync::Arc,
 };
 
-pub use component_ref::ComponentRef;
 pub use path::{ComponentPath, ResourcePath};
 
-mod component_ref;
 mod path;
 
 #[allow(unused)]
@@ -67,6 +68,10 @@ pub trait Component: Debug + Any {
             address..=(address + (buffer.len() - 1)),
             ReadMemoryRecord::Denied,
         )]))
+    }
+
+    fn get_direct_read_buffer(&self, assigned_range: RangeInclusive<Address>) -> Option<Bytes> {
+        None
     }
 
     /// Previews memory at the specified address in the specified address space to fill the buffer
@@ -149,6 +154,7 @@ pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized {
 #[derive(Debug)]
 pub struct LateInitializedData<P: Platform> {
     pub component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
+    pub component_registry: Arc<ComponentRegistry>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]

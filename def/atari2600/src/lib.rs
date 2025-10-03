@@ -2,14 +2,13 @@ use cartridge::Atari2600CartridgeConfig;
 use codes_iso_3166::part_1::CountryCode;
 use gamepad::joystick::Atari2600JoystickConfig;
 use multiemu::{
-    component::ComponentRef,
+    component::ComponentPath,
     machine::{MachineFactory, builder::MachineBuilder},
     memory::{Address, AddressSpaceId},
     platform::Platform,
 };
 use multiemu_definition_misc::{
-    memory::mirror::MirrorMemoryConfig,
-    mos6532_riot::{Mos6532Riot, Mos6532RiotConfig},
+    memory::mirror::MirrorMemoryConfig, mos6532_riot::Mos6532RiotConfig,
 };
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use num::rational::Ratio;
@@ -128,7 +127,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
 fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
     cpu_address_space: AddressSpaceId,
     machine: MachineBuilder<P>,
-) -> (MachineBuilder<P>, ComponentRef<Mos6532Riot>) {
+) -> (MachineBuilder<P>, ComponentPath) {
     let (machine, cpu) = machine.insert_component(
         "mos_6502",
         Mos6502Config {

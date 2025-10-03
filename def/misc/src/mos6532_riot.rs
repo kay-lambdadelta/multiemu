@@ -1,6 +1,6 @@
 use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion},
+    component::{BuildError, Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     memory::{
         Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
@@ -359,8 +359,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
             },
         );
 
-        let component_builder =
-            set_up_timer_tasks(component_builder.component_ref(), &self, component_builder);
+        let component_builder = set_up_timer_tasks(&self, component_builder);
 
         component_builder.build(Self::Component {
             registers,
@@ -372,68 +371,51 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
 }
 
 fn set_up_timer_tasks<'a, P: Platform>(
-    component_ref: ComponentRef<Mos6532Riot>,
     config: &Mos6532RiotConfig,
     component_builder: ComponentBuilder<'a, P, Mos6532Riot>,
 ) -> ComponentBuilder<'a, P, Mos6532Riot> {
     // Make the timers operate
     component_builder
-        .insert_task("tim1t", config.frequency, {
-            let component_ref = component_ref.clone();
-
-            move |slice: NonZero<u32>| {
-                component_ref
-                    .interact_mut(|component| {
-                        component.registers.tim1t = component
-                            .registers
-                            .tim1t
-                            .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
-                    })
-                    .unwrap();
-            }
-        })
-        .insert_task("tim8t", config.frequency / 8, {
-            let component_ref = component_ref.clone();
-
-            move |slice: NonZero<u32>| {
-                component_ref
-                    .interact_mut(|component| {
-                        component.registers.tim8t = component
-                            .registers
-                            .tim8t
-                            .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
-                    })
-                    .unwrap();
-            }
-        })
-        .insert_task("tim64t", config.frequency / 64, {
-            let component_ref = component_ref.clone();
-
-            move |slice: NonZero<u32>| {
-                component_ref
-                    .interact_mut(|component| {
-                        component.registers.tim64t = component
-                            .registers
-                            .tim64t
-                            .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
-                    })
-                    .unwrap();
-            }
-        })
-        .insert_task("t1024t", config.frequency / 1024, {
-            let component_ref = component_ref.clone();
-
-            move |slice: NonZero<u32>| {
-                component_ref
-                    .interact_mut(|component| {
-                        component.registers.t1024t = component
-                            .registers
-                            .t1024t
-                            .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
-                    })
-                    .unwrap();
-            }
-        })
+        .insert_task_mut(
+            "tim1t",
+            config.frequency,
+            move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
+                component.registers.tim1t = component
+                    .registers
+                    .tim1t
+                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
+            },
+        )
+        .insert_task_mut(
+            "tim8t",
+            config.frequency / 8,
+            move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
+                component.registers.tim8t = component
+                    .registers
+                    .tim8t
+                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
+            },
+        )
+        .insert_task_mut(
+            "tim64t",
+            config.frequency / 64,
+            move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
+                component.registers.tim64t = component
+                    .registers
+                    .tim64t
+                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
+            },
+        )
+        .insert_task_mut(
+            "t1024t",
+            config.frequency / 1024,
+            move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
+                component.registers.t1024t = component
+                    .registers
+                    .t1024t
+                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
+            },
+        )
 }
 
 #[derive(Debug)]

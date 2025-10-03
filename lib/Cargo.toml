@@ -33,6 +33,7 @@ rangetools = { workspace = true }
 smallvec = { workspace = true }
 rangemap = { workspace = true }
 bitvec = { workspace = true }
+bytes = { workspace = true }
 egui_extras = { version = "0.32", default-features = false, features = [
     "image",
 ] }
@@ -40,7 +41,6 @@ image = { version = "0.25", default-features = false, features = ["webp"] }
 flate2 = "1.1"
 sha1 = "0.10"
 indexmap = "2.11"
-boxcar = "0.2"
 nohash = "0.2"
 
 # Vulkan support

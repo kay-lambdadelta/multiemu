@@ -1,5 +1,8 @@
 use crate::{
-    cartridge::ines::{INesVersion, Mirroring, expansion_device::DefaultExpansionDevice},
+    cartridge::{
+        NesCartridge,
+        ines::{INesVersion, Mirroring, expansion_device::DefaultExpansionDevice},
+    },
     gamepad::controller::NesControllerConfig,
     ppu::{
         BACKGROUND_PALETTE_BASE_ADDRESS, NAMETABLE_ADDRESSES,
@@ -126,7 +129,11 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             },
         );
 
-        let ines = cartridge.interact(|cart| cart.rom()).unwrap();
+        let ines = machine
+            .registry()
+            .interact_by_path::<NesCartridge, _>(&cartridge, |cart| cart.rom())
+            .unwrap();
+
         let machine = setup_ppu_nametables(machine, ppu_address_space, &ines);
 
         let default_expansion_device = match ines.version {

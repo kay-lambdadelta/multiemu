@@ -12,7 +12,7 @@ impl Scheduler {
             } in &self.timeline[self.current_tick as usize]
             {
                 let task_info = &mut self.tasks[*task_id as usize];
-                task_info.task.run(*time_slice);
+                (task_info.task)(&self.registry, *time_slice);
             }
 
             self.update_current_tick(1);

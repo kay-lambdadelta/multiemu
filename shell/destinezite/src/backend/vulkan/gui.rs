@@ -55,7 +55,6 @@ use multiemu::{
             },
             render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
             shader::{ShaderModule, ShaderModuleCreateInfo},
-            single_pass_renderpass,
         },
     },
     shader::{ShaderCache, SpirvShader},
@@ -118,26 +117,9 @@ impl VulkanEguiRenderer {
         memory_allocator: Arc<StandardMemoryAllocator>,
         command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
         descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
-        output_format: Format,
         shader_cache: &ShaderCache<SpirvShader>,
+        render_pass: Arc<RenderPass>,
     ) -> Self {
-        let render_pass = single_pass_renderpass!(
-            device.clone(),
-            attachments: {
-                color: {
-                    format: output_format,
-                    samples: 1,
-                    load_op: Clear,
-                    store_op: Store,
-                }
-            },
-            pass: {
-                color: [color],
-                depth_stencil: {}
-            }
-        )
-        .unwrap();
-
         let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
 
         let shader = shader_cache

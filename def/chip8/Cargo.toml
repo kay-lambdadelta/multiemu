@@ -22,6 +22,7 @@ bincode = { workspace = true }
 ringbuffer = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
+ron = { workspace = true }
 criterion = { workspace = true }
 
 [features]
@@ -30,4 +31,8 @@ opengl = ["multiemu/opengl"]
 
 [[bench]]
 name = "instruction_decode"
+harness = false
+
+[[bench]]
+name = "machine_cycle"
 harness = false

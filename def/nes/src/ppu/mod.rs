@@ -3,12 +3,12 @@ use crate::{
     ppu::{
         backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
         region::Region,
-        task::PpuDriver,
+        task::Driver,
     },
 };
 use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentRef, ResourcePath},
+    component::{BuildError, Component, ComponentConfig, ComponentPath, ResourcePath},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord},
     platform::Platform,
@@ -172,7 +172,7 @@ pub struct NesPpuConfig<'a, R: Region> {
     pub ines: &'a INes,
     pub cpu_address_space: AddressSpaceId,
     pub ppu_address_space: AddressSpaceId,
-    pub processor: ComponentRef<Mos6502>,
+    pub processor: ComponentPath,
     pub _phantom: PhantomData<R>,
 }
 
@@ -311,35 +311,31 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
-        let component = component_builder.component_ref();
         let memory_access_table = component_builder.memory_access_table();
 
         let (component_builder, _) = component_builder.insert_display("tv");
 
+        let processor_nmi = component_builder
+            .registry()
+            .interact_by_path::<Mos6502, _>(&self.processor, |component| component.nmi())
+            .unwrap();
+
         component_builder
-            .insert_task(
+            .insert_task_mut(
                 "driver",
                 R::master_clock() / 4,
-                PpuDriver {
-                    component: component.clone(),
-                    processor_nmi: self
-                        .processor
-                        .interact(|component| component.nmi())
-                        .unwrap(),
+                Driver {
+                    processor_nmi,
                     memory_access_table,
                     ppu_address_space: self.ppu_address_space,
                 },
             )
-            .set_lazy_component_initializer(move |data| {
+            .set_lazy_component_initializer(move |component, data| {
                 component
-                    .interact_local_mut(|component| {
-                        component
-                            .backend
-                            .set(PpuDisplayBackend::new(
-                                data.component_graphics_initialization_data.clone(),
-                            ))
-                            .unwrap();
-                    })
+                    .backend
+                    .set(PpuDisplayBackend::new(
+                        data.component_graphics_initialization_data.clone(),
+                    ))
                     .unwrap();
             })
             .memory_map(
@@ -350,6 +346,7 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuStatus as usize
                     ..=CpuAccessibleRegister::PpuStatus as usize,
+                None,
             )
             .memory_map(
                 self.cpu_address_space,
@@ -367,9 +364,4 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
 
         Ok(())
     }
-}
-
-#[derive(Debug)]
-struct PpuDisplayCallback<R: Region, G: SupportedGraphicsApiPpu> {
-    component: ComponentRef<Ppu<R, G>>,
 }

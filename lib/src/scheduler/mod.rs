@@ -1,8 +1,7 @@
 use crate::{
-    component::{ComponentId, ResourcePath},
-    machine::builder::StoredTask,
+    component::ResourcePath,
+    machine::{builder::StoredTask, registry::ComponentRegistry},
 };
-use nohash::BuildNoHashHasher;
 use num::{
     ToPrimitive,
     integer::{gcd, lcm},
@@ -13,6 +12,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
     num::NonZero,
+    sync::Arc,
     time::Duration,
     vec::Vec,
 };
@@ -31,9 +31,10 @@ mod task;
 /// TODO: Future me, make this deterministically multithreaded
 
 pub type TaskId = u16;
+pub type ErasedTask = Box<dyn FnMut(&ComponentRegistry, NonZero<u32>) + Send + Sync>;
 
 struct TaskInfo {
-    pub task: Box<dyn Task>,
+    pub task: ErasedTask,
     pub relative_period: u32,
 }
 
@@ -65,34 +66,30 @@ pub struct Scheduler {
     /// Active tasks
     timeline: Vec<Vec<ScheduleEntry>>,
     tasks: Vec<TaskInfo>,
-    /// Indexed by component id, slight speed boost over nohash
-    component_tasks: HashMap<ComponentId, Vec<TaskId>, BuildNoHashHasher<u16>>,
+    #[allow(unused)]
+    task_lookup: HashMap<ResourcePath, TaskId>,
+    registry: Arc<ComponentRegistry>,
 }
 
 impl Scheduler {
     pub(crate) fn new(
-        component_tasks: HashMap<ComponentId, HashMap<ResourcePath, StoredTask>>,
+        component_tasks: HashMap<ResourcePath, StoredTask>,
+        registry: Arc<ComponentRegistry>,
     ) -> Self {
         // Only the active tasks are put on the schedule
         let mut tasks: BTreeMap<u16, _> = BTreeMap::new();
-        let mut component_owned_tasks: HashMap<_, Vec<_>, _> = HashMap::default();
+        let mut task_lookup = HashMap::default();
 
-        for (component_id, task_id, _task_name, task) in component_tasks
-            .into_iter()
-            .flat_map(|(component_id, tasks)| {
-                tasks.into_iter().map(move |task| (component_id, task))
-            })
-            .enumerate()
-            .map(|(task_id, (component_id, (task_name, task)))| {
-                (component_id, task_id.try_into().unwrap(), task_name, task)
-            })
+        for (resource_path, task_id, task) in
+            component_tasks
+                .into_iter()
+                .enumerate()
+                .map(|(task_id, (resource_path, task))| {
+                    (resource_path, task_id.try_into().unwrap(), task)
+                })
         {
             tasks.insert(task_id, task);
-
-            component_owned_tasks
-                .entry(component_id)
-                .or_default()
-                .push(task_id);
+            task_lookup.insert(resource_path, task_id);
         }
 
         let system_lcm = Ratio::new(
@@ -221,8 +218,9 @@ impl Scheduler {
             current_tick: 0,
             tick_real_time,
             tasks,
-            component_tasks: component_owned_tasks,
             timeline,
+            task_lookup,
+            registry,
         }
     }
 

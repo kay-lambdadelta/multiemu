@@ -40,7 +40,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut scheduler_guard = machine.scheduler.lock().unwrap();
     let full_cycle = scheduler_guard.full_cycle();
 
-    c.bench_function("full_machine_cycle", |b| {
+    c.bench_function("atari_2600_full_machine_cycle", |b| {
         b.iter(|| {
             scheduler_guard.run_for_cycles(full_cycle);
         })

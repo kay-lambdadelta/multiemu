@@ -3,11 +3,11 @@ use crate::{
 };
 use deku::{DekuContainerRead, DekuContainerWrite, DekuRead, DekuWrite};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentId},
+    component::{BuildError, Component, ComponentConfig, ComponentPath},
     machine::builder::ComponentBuilder,
     memory::{
         Address, AddressSpaceId, MemoryAccessTable, MemoryOperationError, MemoryRemappingCommands,
-        MemoryType, ReadMemoryRecord, WriteMemoryRecord,
+        ReadMemoryRecord, WriteMemoryRecord,
     },
     platform::Platform,
 };
@@ -18,7 +18,7 @@ use std::sync::Arc;
 pub struct Mapctl {
     config: MapctlConfig,
     status: MapctlStatus,
-    my_id: ComponentId,
+    my_path: ComponentPath,
     mat: Arc<MemoryAccessTable>,
 }
 
@@ -44,46 +44,40 @@ impl Component for Mapctl {
 
         let mut remapping_commands = Vec::default();
 
-        remapping_commands.push(MemoryRemappingCommands::AddComponent {
+        remapping_commands.push(MemoryRemappingCommands::MapComponent {
             range: 0x0000..=0xffff,
-            component_id: self.config.ram,
-            types: vec![MemoryType::Read, MemoryType::Write],
+            path: self.config.ram.clone(),
         });
 
         if self.status.suzy {
-            remapping_commands.push(MemoryRemappingCommands::AddComponent {
+            remapping_commands.push(MemoryRemappingCommands::MapComponent {
                 range: SUZY_ADDRESSES,
-                component_id: self.config.suzy,
-                types: vec![MemoryType::Read, MemoryType::Write],
+                path: self.config.suzy.clone(),
             });
         }
 
         if self.status.mikey {
-            remapping_commands.push(MemoryRemappingCommands::AddComponent {
+            remapping_commands.push(MemoryRemappingCommands::MapComponent {
                 range: MIKEY_ADDRESSES,
-                component_id: self.config.mikey,
-                types: vec![MemoryType::Read, MemoryType::Write],
+                path: self.config.mikey.clone(),
             });
         }
 
-        remapping_commands.push(MemoryRemappingCommands::AddComponent {
+        remapping_commands.push(MemoryRemappingCommands::MapComponent {
             range: RESERVED_MEMORY_ADDRESS..=RESERVED_MEMORY_ADDRESS,
-            component_id: self.config.reserved,
-            types: vec![MemoryType::Read, MemoryType::Write],
+            path: self.config.reserved.clone(),
         });
 
         if self.status.vector {
-            remapping_commands.push(MemoryRemappingCommands::AddComponent {
+            remapping_commands.push(MemoryRemappingCommands::MapComponent {
                 range: VECTOR_ADDRESSES,
-                component_id: self.config.vector,
-                types: vec![MemoryType::Read, MemoryType::Write],
+                path: self.config.vector.clone(),
             });
         }
 
-        remapping_commands.push(MemoryRemappingCommands::AddComponent {
+        remapping_commands.push(MemoryRemappingCommands::MapComponent {
             range: MAPCTL_ADDRESS..=MAPCTL_ADDRESS,
-            component_id: self.my_id,
-            types: vec![MemoryType::Read, MemoryType::Write],
+            path: self.my_path.clone(),
         });
 
         self.mat
@@ -95,11 +89,11 @@ impl Component for Mapctl {
 
 #[derive(Debug, Clone)]
 pub struct MapctlConfig {
-    pub ram: ComponentId,
-    pub suzy: ComponentId,
-    pub mikey: ComponentId,
-    pub vector: ComponentId,
-    pub reserved: ComponentId,
+    pub ram: ComponentPath,
+    pub suzy: ComponentPath,
+    pub mikey: ComponentPath,
+    pub vector: ComponentPath,
+    pub reserved: ComponentPath,
     pub cpu_address_space: AddressSpaceId,
 }
 
@@ -110,7 +104,7 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
-        let component_id = component_builder.component_ref().id();
+        let my_path = component_builder.path().clone();
 
         let component_builder =
             component_builder.memory_map(self.cpu_address_space, 0xfff9..=0xfff9);
@@ -120,7 +114,7 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         component_builder.build(Mapctl {
             config: self,
             status: Default::default(),
-            my_id: component_id,
+            my_path,
             mat,
         });
 

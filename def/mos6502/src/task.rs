@@ -5,189 +5,174 @@ use crate::{
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,
 };
-use multiemu::{
-    component::ComponentRef, memory::MemoryAccessTable, processor::InstructionDecoder,
-    scheduler::Task,
-};
+use multiemu::{memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::TaskMut};
 use std::{num::NonZero, sync::Arc};
 
 pub struct CpuDriver {
     pub memory_access_table: Arc<MemoryAccessTable>,
     pub instruction_decoder: Mos6502InstructionDecoder,
-    pub component: ComponentRef<Mos6502>,
 }
 
-impl Task for CpuDriver {
-    fn run(&mut self, time_slice: NonZero<u32>) {
-        self.component
-            .interact_mut(|component| {
-                // Keep the guard like this so doing a full load of the guard only happens occasionally
-                let mut time_slice = time_slice.get();
+impl TaskMut<Mos6502> for CpuDriver {
+    fn run(&mut self, component: &mut Mos6502, time_slice: NonZero<u32>) {
+        // Keep the guard like this so doing a full load of the guard only happens occasionally
+        let mut time_slice = time_slice.get();
 
-                while time_slice != 0 {
-                    if !component.rdy.load() {
-                        time_slice -= 1;
-                        continue;
-                    }
+        while time_slice != 0 {
+            if !component.rdy.load() {
+                time_slice -= 1;
+                continue;
+            }
 
-                    match component.state.execution_queue.pop_front().unwrap() {
-                        ExecutionStep::Reset => {
-                            component.state.interrupt(RESET_VECTOR, false);
+            match component.state.execution_queue.pop_front().unwrap() {
+                ExecutionStep::Reset => {
+                    component.state.interrupt(RESET_VECTOR, false);
 
-                            time_slice -= 1;
-                        }
-                        ExecutionStep::Jammed => {
-                            time_slice -= 1;
-
-                            component
-                                .state
-                                .execution_queue
-                                .push_back(ExecutionStep::Jammed);
-                        }
-                        ExecutionStep::Wait => {
-                            time_slice -= 1;
-
-                            component
-                                .state
-                                .execution_queue
-                                .push_back(ExecutionStep::Wait);
-                        }
-                        ExecutionStep::FetchAndDecode => {
-                            if component.config.kind.supports_interrupts() {
-                                if component.nmi.interrupt_required() {
-                                    component.state.interrupt(NMI_VECTOR, false);
-                                } else if component.irq.interrupt_required()
-                                    && !component.state.flags.interrupt_disable
-                                {
-                                    component.state.interrupt(IRQ_VECTOR, true);
-                                } else {
-                                    tracing::debug!(
-                                        "Fetching and decoding instruction from {:#04x}",
-                                        component.state.program
-                                    );
-
-                                    component.fetch_and_decode(
-                                        &self.instruction_decoder,
-                                        &self.memory_access_table,
-                                    );
-                                }
-                            } else {
-                                tracing::debug!(
-                                    "Fetching and decoding instruction from {:#04x}",
-                                    component.state.program
-                                );
-
-                                component.fetch_and_decode(
-                                    &self.instruction_decoder,
-                                    &self.memory_access_table,
-                                );
-                            }
-
-                            time_slice -= 1;
-                        }
-                        ExecutionStep::LoadData => {
-                            let byte = self
-                                .memory_access_table
-                                .read_le_value(
-                                    component.state.address_bus as usize,
-                                    component.config.assigned_address_space,
-                                )
-                                .unwrap_or_default();
-
-                            component.state.latch.push(byte);
-                            component.state.address_bus =
-                                component.state.address_bus.wrapping_add(1);
-
-                            time_slice -= 1;
-                        }
-                        ExecutionStep::LoadDataFromConstant(data) => {
-                            component.state.latch.push(data);
-                            time_slice -= 1;
-                        }
-                        ExecutionStep::StoreData(data) => {
-                            let _ = self.memory_access_table.write_le_value(
-                                component.state.address_bus as usize,
-                                component.config.assigned_address_space,
-                                data,
-                            );
-                            component.state.address_bus =
-                                component.state.address_bus.wrapping_add(1);
-
-                            time_slice -= 1;
-                        }
-                        ExecutionStep::PushStack(data) => {
-                            component.state.stack = component.state.stack.wrapping_sub(1);
-                            let _ = self.memory_access_table.write_le_value(
-                                STACK_BASE_ADDRESS + component.state.stack as usize,
-                                component.config.assigned_address_space,
-                                data,
-                            );
-
-                            time_slice -= 1;
-                        }
-                        ExecutionStep::LatchToAddressBus => {
-                            match component.state.latch.len() {
-                                1 => {
-                                    component.state.address_bus = component.state.latch[0] as u16;
-                                }
-                                2 => {
-                                    let latch =
-                                        [component.state.latch[0], component.state.latch[1]];
-                                    component.state.address_bus = u16::from_le_bytes(latch);
-                                }
-                                _ => {
-                                    unreachable!()
-                                }
-                            }
-
-                            component.state.latch.clear();
-                        }
-                        // Literally only used for interrupts
-                        ExecutionStep::LatchToProgramPointer => {
-                            assert!(component.state.latch.len() == 2);
-
-                            component.state.program = u16::from_le_bytes([
-                                component.state.latch[0],
-                                component.state.latch[1],
-                            ]);
-                            component.state.latch.clear();
-                        }
-                        ExecutionStep::AddressBusToProgramPointer => {
-                            component.state.program = component.state.address_bus;
-                            time_slice -= 1;
-                        }
-                        ExecutionStep::ModifyProgramPointer(value) => {
-                            component.state.program =
-                                component.state.program.wrapping_add_signed(value as i16);
-                            time_slice -= 1;
-                        }
-                        ExecutionStep::ModifyAddressBus(offset) => {
-                            let offset = match offset {
-                                AddressBusModification::X => component.state.x,
-                                AddressBusModification::Y => component.state.y,
-                            };
-
-                            component.state.address_bus =
-                                component.state.address_bus.wrapping_add(offset as u16);
-                        }
-                        ExecutionStep::Interpret { instruction } => {
-                            self.interpret_instruction(
-                                &mut component.state,
-                                &component.config,
-                                instruction.clone(),
-                            );
-
-                            component
-                                .state
-                                .execution_queue
-                                .push_back(ExecutionStep::FetchAndDecode);
-
-                            time_slice -= 1;
-                        }
-                    }
+                    time_slice -= 1;
                 }
-            })
-            .unwrap();
+                ExecutionStep::Jammed => {
+                    time_slice -= 1;
+
+                    component
+                        .state
+                        .execution_queue
+                        .push_back(ExecutionStep::Jammed);
+                }
+                ExecutionStep::Wait => {
+                    time_slice -= 1;
+
+                    component
+                        .state
+                        .execution_queue
+                        .push_back(ExecutionStep::Wait);
+                }
+                ExecutionStep::FetchAndDecode => {
+                    if component.config.kind.supports_interrupts() {
+                        if component.nmi.interrupt_required() {
+                            component.state.interrupt(NMI_VECTOR, false);
+                        } else if component.irq.interrupt_required()
+                            && !component.state.flags.interrupt_disable
+                        {
+                            component.state.interrupt(IRQ_VECTOR, true);
+                        } else {
+                            tracing::debug!(
+                                "Fetching and decoding instruction from {:#04x}",
+                                component.state.program
+                            );
+
+                            component.fetch_and_decode(
+                                &self.instruction_decoder,
+                                &self.memory_access_table,
+                            );
+                        }
+                    } else {
+                        tracing::debug!(
+                            "Fetching and decoding instruction from {:#04x}",
+                            component.state.program
+                        );
+
+                        component
+                            .fetch_and_decode(&self.instruction_decoder, &self.memory_access_table);
+                    }
+
+                    time_slice -= 1;
+                }
+                ExecutionStep::LoadData => {
+                    let byte = self
+                        .memory_access_table
+                        .read_le_value(
+                            component.state.address_bus as usize,
+                            component.config.assigned_address_space,
+                        )
+                        .unwrap_or_default();
+
+                    component.state.latch.push(byte);
+                    component.state.address_bus = component.state.address_bus.wrapping_add(1);
+
+                    time_slice -= 1;
+                }
+                ExecutionStep::LoadDataFromConstant(data) => {
+                    component.state.latch.push(data);
+                    time_slice -= 1;
+                }
+                ExecutionStep::StoreData(data) => {
+                    let _ = self.memory_access_table.write_le_value(
+                        component.state.address_bus as usize,
+                        component.config.assigned_address_space,
+                        data,
+                    );
+                    component.state.address_bus = component.state.address_bus.wrapping_add(1);
+
+                    time_slice -= 1;
+                }
+                ExecutionStep::PushStack(data) => {
+                    component.state.stack = component.state.stack.wrapping_sub(1);
+                    let _ = self.memory_access_table.write_le_value(
+                        STACK_BASE_ADDRESS + component.state.stack as usize,
+                        component.config.assigned_address_space,
+                        data,
+                    );
+
+                    time_slice -= 1;
+                }
+                ExecutionStep::LatchToAddressBus => {
+                    match component.state.latch.len() {
+                        1 => {
+                            component.state.address_bus = component.state.latch[0] as u16;
+                        }
+                        2 => {
+                            let latch = [component.state.latch[0], component.state.latch[1]];
+                            component.state.address_bus = u16::from_le_bytes(latch);
+                        }
+                        _ => {
+                            unreachable!()
+                        }
+                    }
+
+                    component.state.latch.clear();
+                }
+                // Literally only used for interrupts
+                ExecutionStep::LatchToProgramPointer => {
+                    assert!(component.state.latch.len() == 2);
+
+                    component.state.program =
+                        u16::from_le_bytes([component.state.latch[0], component.state.latch[1]]);
+                    component.state.latch.clear();
+                }
+                ExecutionStep::AddressBusToProgramPointer => {
+                    component.state.program = component.state.address_bus;
+                    time_slice -= 1;
+                }
+                ExecutionStep::ModifyProgramPointer(value) => {
+                    component.state.program =
+                        component.state.program.wrapping_add_signed(value as i16);
+                    time_slice -= 1;
+                }
+                ExecutionStep::ModifyAddressBus(offset) => {
+                    let offset = match offset {
+                        AddressBusModification::X => component.state.x,
+                        AddressBusModification::Y => component.state.y,
+                    };
+
+                    component.state.address_bus =
+                        component.state.address_bus.wrapping_add(offset as u16);
+                }
+                ExecutionStep::Interpret { instruction } => {
+                    self.interpret_instruction(
+                        &mut component.state,
+                        &component.config,
+                        instruction.clone(),
+                    );
+
+                    component
+                        .state
+                        .execution_queue
+                        .push_back(ExecutionStep::FetchAndDecode);
+
+                    time_slice -= 1;
+                }
+            }
+        }
     }
 }
 

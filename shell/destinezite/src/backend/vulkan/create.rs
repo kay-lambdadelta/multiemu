@@ -119,11 +119,10 @@ pub fn create_vulkan_swapchain(
             .physical_device()
             .surface_capabilities(&surface, Default::default())
             .unwrap();
-        let image_format = device
+        let (image_format, _) = device
             .physical_device()
             .surface_formats(&surface, Default::default())
-            .unwrap()[0]
-            .0;
+            .unwrap()[0];
 
         Swapchain::new(
             device.clone(),

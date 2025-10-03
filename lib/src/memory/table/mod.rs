@@ -3,13 +3,17 @@ use crate::machine::registry::ComponentRegistry;
 use super::Address;
 use address_space::AddressSpace;
 use nohash::BuildNoHashHasher;
-use std::{collections::HashMap, ops::RangeInclusive, sync::Arc};
+use std::{
+    collections::HashMap,
+    ops::RangeInclusive,
+    sync::{Arc, OnceLock},
+};
 
 mod address_space;
 mod read;
 mod write;
 
-pub use address_space::{AddressSpaceId, MemoryRemappingCommands, MemoryType};
+pub use address_space::{AddressSpaceId, MemoryRemappingCommands};
 pub use read::*;
 pub use write::*;
 
@@ -29,21 +33,17 @@ impl<R> FromIterator<(RangeInclusive<Address>, R)> for MemoryOperationError<R> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// The main structure representing the devices memory address spaces
 pub struct MemoryAccessTable {
     address_spaces: HashMap<AddressSpaceId, AddressSpace, BuildNoHashHasher<u16>>,
     current_address_space: u16,
-    registry: Arc<ComponentRegistry>,
+    registry: OnceLock<Arc<ComponentRegistry>>,
 }
 
 impl MemoryAccessTable {
-    pub(crate) fn new(component_store: Arc<ComponentRegistry>) -> Self {
-        Self {
-            address_spaces: Default::default(),
-            current_address_space: 0,
-            registry: component_store,
-        }
+    pub(crate) fn set_registry(&self, registry: Arc<ComponentRegistry>) {
+        self.registry.set(registry).unwrap();
     }
 
     pub(crate) fn insert_address_space(&mut self, address_space_width: u8) -> AddressSpaceId {
@@ -54,10 +54,8 @@ impl MemoryAccessTable {
             .checked_add(1)
             .expect("Too many address spaces");
 
-        self.address_spaces.insert(
-            id,
-            AddressSpace::new(self.registry.clone(), address_space_width),
-        );
+        self.address_spaces
+            .insert(id, AddressSpace::new(address_space_width));
 
         id
     }
@@ -67,7 +65,9 @@ impl MemoryAccessTable {
         self.address_spaces.keys().copied()
     }
 
-    /// Remap memory in a specific address space, clearing previous mappings
+    /// Adds a command to the remap queue
+    ///
+    /// Note that the queue is not applied till the next memory operation
     pub fn remap(
         &self,
         address_space: AddressSpaceId,

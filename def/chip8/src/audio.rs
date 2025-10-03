@@ -1,11 +1,9 @@
 use multiemu::{
     audio::SquareWave,
-    component::{
-        BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion, ResourcePath,
-    },
+    component::{BuildError, Component, ComponentConfig, ComponentVersion, ResourcePath},
     machine::builder::ComponentBuilder,
     platform::Platform,
-    scheduler::Task,
+    scheduler::TaskMut,
 };
 use nalgebra::SVector;
 use num::rational::Ratio;
@@ -73,12 +71,10 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<(), BuildError> {
-        let component = component_builder.component_ref();
         let host_sample_rate = component_builder.host_sample_rate();
         let register_change_frequency = Ratio::from_integer(60);
 
         let driver = Driver {
-            component,
             host_sample_rate,
             register_change_frequency,
         };
@@ -86,7 +82,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         component_builder
             .insert_audio_output("audio-output")
             .0
-            .insert_task("driver", register_change_frequency, driver)
+            .insert_task_mut("driver", register_change_frequency, driver)
             .build(Chip8Audio {
                 sound_timer: 0,
                 buffer: AllocRingBuffer::new(host_sample_rate.to_integer() as usize),
@@ -98,30 +94,25 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
 }
 
 struct Driver {
-    component: ComponentRef<Chip8Audio>,
     host_sample_rate: Ratio<u32>,
     register_change_frequency: Ratio<u32>,
 }
 
-impl Task for Driver {
-    fn run(&mut self, time_slice: NonZero<u32>) {
-        self.component
-            .interact_mut(|component| {
-                let sample_generation_slice = time_slice.get().min(component.sound_timer as u32);
-                let samples_to_generate = ((self.host_sample_rate * sample_generation_slice)
-                    / self.register_change_frequency)
-                    .to_integer();
+impl TaskMut<Chip8Audio> for Driver {
+    fn run(&mut self, component: &mut Chip8Audio, time_slice: NonZero<u32>) {
+        let sample_generation_slice = time_slice.get().min(component.sound_timer as u32);
+        let samples_to_generate = ((self.host_sample_rate * sample_generation_slice)
+            / self.register_change_frequency)
+            .to_integer();
 
-                for _ in 0..samples_to_generate {
-                    component
-                        .buffer
-                        .enqueue(component.wave_generator.next().unwrap());
-                }
+        for _ in 0..samples_to_generate {
+            component
+                .buffer
+                .enqueue(component.wave_generator.next().unwrap());
+        }
 
-                component.sound_timer = component
-                    .sound_timer
-                    .saturating_sub(time_slice.get().try_into().unwrap_or(u8::MAX));
-            })
-            .unwrap();
+        component.sound_timer = component
+            .sound_timer
+            .saturating_sub(time_slice.get().try_into().unwrap_or(u8::MAX));
     }
 }

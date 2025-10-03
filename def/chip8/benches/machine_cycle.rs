@@ -6,7 +6,7 @@ use multiemu::{
     rom::{RomId, RomMetadata},
     utils::DirectMainThreadExecutor,
 };
-use multiemu_definition_nes::Nes;
+use multiemu_definition_chip8::Chip8;
 use num::rational::Ratio;
 use std::{
     fs::File,
@@ -24,8 +24,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     let machine = Machine::build(
         Some(
             UserSpecifiedRoms::from_id(
-                // BurgerTime (USA)
-                RomId::from_str("3737eefc3c7b1934e929b551251cf1ea98f5f451").unwrap(),
+                // octorancher.ch8
+                RomId::from_str("8263bac7d98d94097171f0a5dc6f210f77543080").unwrap(),
                 &rom_manager,
             )
             .unwrap(),
@@ -36,12 +36,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         Ratio::from_integer(44100),
         Arc::new(DirectMainThreadExecutor),
     );
-    let machine: Machine<TestPlatform> = Nes.construct(machine).build(Default::default());
+    let machine: Machine<TestPlatform> = Chip8.construct(machine).build(Default::default());
 
     let mut scheduler_guard = machine.scheduler.lock().unwrap();
     let full_cycle = scheduler_guard.full_cycle();
 
-    c.bench_function("nes_full_machine_cycle", |b| {
+    c.bench_function("chip8_full_machine_cycle", |b| {
         b.iter(|| {
             scheduler_guard.run_for_cycles(full_cycle);
         })

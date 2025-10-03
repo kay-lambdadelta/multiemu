@@ -1,17 +1,13 @@
 use super::Chip8Mode;
-use crate::{
-    Chip8InstructionDecoder,
-    audio::Chip8Audio,
-    display::{Chip8Display, SupportedGraphicsApiChip8Display},
-    timer::Chip8Timer,
-};
+use crate::{Chip8InstructionDecoder, display::SupportedGraphicsApiChip8Display};
 use arrayvec::ArrayVec;
 use input::{Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentRef, ComponentVersion},
+    component::{BuildError, Component, ComponentConfig, ComponentPath, ComponentVersion},
     machine::{
         builder::ComponentBuilder,
+        registry::ComponentRegistry,
         virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
     },
     memory::AddressSpaceId,
@@ -21,6 +17,7 @@ use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{Read, Write},
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
 use task::CpuDriver;
@@ -87,6 +84,7 @@ impl Default for ProcessorState {
 #[derive(Debug)]
 pub struct Chip8Processor {
     state: ProcessorState,
+    registry: Option<Arc<ComponentRegistry>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,12 +135,13 @@ impl Component for Chip8Processor {
 #[derive(Debug)]
 pub struct Chip8ProcessorConfig<G: SupportedGraphicsApiChip8Display> {
     pub cpu_address_space: AddressSpaceId,
-    pub display: ComponentRef<Chip8Display<G>>,
-    pub audio: ComponentRef<Chip8Audio>,
-    pub timer: ComponentRef<Chip8Timer>,
+    pub display: ComponentPath,
+    pub audio: ComponentPath,
+    pub timer: ComponentPath,
     pub frequency: Ratio<u32>,
     pub force_mode: Option<Chip8Mode>,
     pub always_shr_in_place: bool,
+    pub _phantom: PhantomData<fn() -> G>,
 }
 
 impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig<P>
@@ -157,29 +156,36 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         let memory_access_table = component_builder.memory_access_table();
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Mode::Chip8)));
         let state = ProcessorState::default();
-        let component = component_builder.component_ref();
+        let registry = component_builder.registry();
 
         let virtual_gamepad = VirtualGamepad::new(VirtualGamepadMetadata {
             present_inputs: present_inputs(),
             default_bindings: default_bindings(),
         });
+        let frequency = self.frequency;
+
+        let driver = CpuDriver {
+            instruction_decoder: Chip8InstructionDecoder,
+            virtual_gamepad: virtual_gamepad.clone(),
+            memory_access_table,
+            mode,
+            display: registry.get_id(&self.display).unwrap(),
+            audio: registry.get_id(&self.audio).unwrap(),
+            timer: registry.get_id(&self.timer).unwrap(),
+            config: self,
+        };
 
         component_builder
-            .insert_gamepad("chip8-keypad", virtual_gamepad.clone())
+            .insert_gamepad("chip8-keypad", virtual_gamepad)
             .0
-            .insert_task(
-                "driver",
-                self.frequency,
-                CpuDriver {
-                    instruction_decoder: Chip8InstructionDecoder,
-                    virtual_gamepad,
-                    memory_access_table,
-                    mode,
-                    config: self,
-                    component,
-                },
-            )
-            .build(Chip8Processor { state });
+            .insert_task_mut("driver", frequency, driver)
+            .set_lazy_component_initializer(|component, data| {
+                component.registry = Some(data.component_registry.clone())
+            })
+            .build(Chip8Processor {
+                state,
+                registry: None,
+            });
 
         Ok(())
     }

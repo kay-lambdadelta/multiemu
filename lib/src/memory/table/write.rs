@@ -1,9 +1,13 @@
 use super::{MemoryAccessTable, address_space::AddressSpaceId};
-use crate::memory::{Address, table::QueueEntry};
+use crate::{
+    component::Component,
+    memory::{Address, table::QueueEntry},
+};
 use num::traits::ToBytes;
 use rangemap::RangeInclusiveMap;
+use rangetools::Rangetools;
 use smallvec::SmallVec;
-use std::hash::Hash;
+use std::{hash::Hash, ops::RangeInclusive};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -40,7 +44,7 @@ impl MemoryAccessTable {
     /// Step through the memory translation table to give a set of components the buffer
     ///
     /// Contents of the buffer upon failure are usually component specific
-    #[inline]
+    #[inline(always)]
     pub fn write(
         &self,
         address: Address,
@@ -70,69 +74,50 @@ impl MemoryAccessTable {
             })?;
 
             // TODO: Handle width mask wraparound properly
-            let accessing_range = (buffer_subrange.start() + address)
-                & address_space_info.width_mask
+            let access_range = (buffer_subrange.start() + address) & address_space_info.width_mask
                 ..=(buffer_subrange.end() + address) & address_space_info.width_mask;
             let address = address & address_space_info.width_mask;
 
-            address_space_info.visit_write_components(
-                accessing_range.clone(),
-                |component_id, relevant_assigned_range| {
-                    self.registry
-                    .interact_dyn_mut(component_id, |component| {
-                        let adjusted_buffer_subrange = (relevant_assigned_range.start() - address)
-                            ..=(relevant_assigned_range.end() - address);
+            let members = address_space_info.get_members(
+                self.registry
+                    .get()
+                    .expect("Cannot do writes until machine is finished building"),
+            );
 
-                        did_handle = true;
+            for (component_assigned_range, component_id) in members.iter_write(access_range.clone())
+            {
+                did_handle = true;
 
-                        if let Err(errors) = component.write_memory(
-                            *relevant_assigned_range.start(),
-                            address_space,
-                            &buffer[adjusted_buffer_subrange.clone()],
-                        ) {
-                            let mut detected_errors = RangeInclusiveMap::default();
+                let access_range: RangeInclusive<_> = component_assigned_range
+                    .clone()
+                    .intersection(access_range.clone())
+                    .into();
 
-                            for (range, error) in errors.records {
-                                match error {
-                                    WriteMemoryRecord::Denied => {
-                                        detected_errors.insert(
-                                            range,
-                                            WriteMemoryOperationErrorFailureType::Denied,
-                                        );
-                                    }
-                                    WriteMemoryRecord::Redirect {
-                                        address: redirect_address,
-                                        address_space: redirect_address_space,
-                                    } => {
-                                        debug_assert!(
-                                            !relevant_assigned_range.contains(&redirect_address)
-                                                && address_space == redirect_address_space,
-                                            "Memory attempted to redirect to itself {:x?} -> {:x}",
-                                            relevant_assigned_range,
-                                            redirect_address,
-                                        );
+                let buffer_range =
+                    (access_range.start() - address)..=(access_range.end() - address);
 
-                                        queue.push(QueueEntry {
-                                            address: redirect_address,
-                                            address_space: redirect_address_space,
-                                            buffer_subrange: (range.start() - address)
-                                                ..=(range.end() - address),
-                                        });
-                                    }
-                                }
-                            }
+                self.registry
+                    .get()
+                    .unwrap()
+                    .interact_dyn_mut(
+                        *component_id,
+                        #[inline(always)]
+                        |component| {
+                            write_helper(
+                                buffer,
+                                &mut queue,
+                                address,
+                                access_range,
+                                buffer_range,
+                                component,
+                                address_space,
+                            )?;
 
-                            if !detected_errors.is_empty() {
-                                return Err(WriteMemoryOperationError(detected_errors));
-                            }
-                        }
-                        Ok(())
-                    })
+                            Ok(())
+                        },
+                    )
                     .unwrap()?;
-
-                    Ok(())
-                },
-            )?;
+            }
         }
 
         if !did_handle {
@@ -166,4 +151,55 @@ impl MemoryAccessTable {
     ) -> Result<(), WriteMemoryOperationError> {
         self.write(address, address_space, value.to_be_bytes().as_ref())
     }
+}
+
+#[inline(always)]
+fn write_helper(
+    buffer: &[u8],
+    queue: &mut SmallVec<[QueueEntry; 1]>,
+    address: usize,
+    access_range: RangeInclusive<usize>,
+    buffer_range: RangeInclusive<usize>,
+    component: &mut dyn Component,
+    address_space: AddressSpaceId,
+) -> Result<(), WriteMemoryOperationError> {
+    if let Err(errors) = component.write_memory(
+        *access_range.start(),
+        address_space,
+        &buffer[buffer_range.clone()],
+    ) {
+        let mut detected_errors = RangeInclusiveMap::default();
+
+        for (range, error) in errors.records {
+            match error {
+                WriteMemoryRecord::Denied => {
+                    detected_errors.insert(range, WriteMemoryOperationErrorFailureType::Denied);
+                }
+                WriteMemoryRecord::Redirect {
+                    address: redirect_address,
+                    address_space: redirect_address_space,
+                } => {
+                    debug_assert!(
+                        !access_range.contains(&redirect_address)
+                            && address_space == redirect_address_space,
+                        "Memory attempted to redirect to itself {:x?} -> {:x}",
+                        access_range,
+                        redirect_address,
+                    );
+
+                    queue.push(QueueEntry {
+                        address: redirect_address,
+                        address_space: redirect_address_space,
+                        buffer_subrange: (range.start() - address)..=(range.end() - address),
+                    });
+                }
+            }
+        }
+
+        if !detected_errors.is_empty() {
+            return Err(WriteMemoryOperationError(detected_errors));
+        }
+    }
+
+    Ok(())
 }

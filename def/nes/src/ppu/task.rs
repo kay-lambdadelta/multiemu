@@ -8,9 +8,8 @@ use crate::ppu::{
 use bitvec::{field::BitField, view::BitView};
 use deku::bitvec::{BitArray, Lsb0, Msb0};
 use multiemu::{
-    component::ComponentRef,
     memory::{AddressSpaceId, MemoryAccessTable},
-    scheduler::Task,
+    scheduler::TaskMut,
 };
 use multiemu_definition_mos6502::NmiFlag;
 use nalgebra::Point2;
@@ -20,8 +19,7 @@ use std::{
     sync::{Arc, atomic::Ordering},
 };
 
-pub struct PpuDriver<R: Region, G: SupportedGraphicsApiPpu> {
-    pub component: ComponentRef<Ppu<R, G>>,
+pub struct Driver {
     pub processor_nmi: Arc<NmiFlag>,
     pub memory_access_table: Arc<MemoryAccessTable>,
     pub ppu_address_space: AddressSpaceId,
@@ -29,49 +27,44 @@ pub struct PpuDriver<R: Region, G: SupportedGraphicsApiPpu> {
 
 const FINAL_VISIBLE_CYCLE: u16 = VISIBLE_SCANLINE_LENGTH;
 
-impl<R: Region, G: SupportedGraphicsApiPpu> Task for PpuDriver<R, G> {
-    fn run(&mut self, time_slice: NonZero<u32>) {
-        self.component
-            .interact_mut(|component| {
-                let backend = component.backend.get_mut().unwrap();
+impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
+    fn run(&mut self, component: &mut Ppu<R, G>, time_slice: NonZero<u32>) {
+        let backend = component.backend.get_mut().unwrap();
 
-                for _ in 0..time_slice.get() {
-                    if std::mem::replace(&mut component.state.reset_cpu_nmi, false) {
-                        self.processor_nmi.store(false);
-                    }
+        for _ in 0..time_slice.get() {
+            if std::mem::replace(&mut component.state.reset_cpu_nmi, false) {
+                self.processor_nmi.store(false);
+            }
 
-                    if component.state.cycle_counter.x == 0 {
-                        // Do nothing
+            if component.state.cycle_counter.x == 0 {
+                // Do nothing
 
-                        // Use this to present frame
-                        if component.state.cycle_counter.y == 0 {
-                            backend.commit_staging_buffer();
-                        }
-                    } else if (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y) {
-                        self.handle_visible_cycles(&mut component.state, backend);
-                    } else if component.state.cycle_counter.y == 241 {
-                        component
-                            .state
-                            .entered_vblank
-                            .store(true, Ordering::Release);
-
-                        if component.state.vblank_nmi_enabled {
-                            self.processor_nmi.store(true);
-                            component.state.reset_cpu_nmi = true;
-                        }
-                    }
-
-                    component.state.cycle_counter =
-                        component.state.get_modified_cycle_counter::<R>(1);
+                // Use this to present frame
+                if component.state.cycle_counter.y == 0 {
+                    backend.commit_staging_buffer();
                 }
-            })
-            .unwrap();
+            } else if (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y) {
+                self.handle_visible_cycles::<R, G>(&mut component.state, backend);
+            } else if component.state.cycle_counter.y == 241 {
+                component
+                    .state
+                    .entered_vblank
+                    .store(true, Ordering::Release);
+
+                if component.state.vblank_nmi_enabled {
+                    self.processor_nmi.store(true);
+                    component.state.reset_cpu_nmi = true;
+                }
+            }
+
+            component.state.cycle_counter = component.state.get_modified_cycle_counter::<R>(1);
+        }
     }
 }
 
-impl<R: Region, G: SupportedGraphicsApiPpu> PpuDriver<R, G> {
+impl Driver {
     #[inline]
-    fn handle_visible_cycles(
+    fn handle_visible_cycles<R: Region, G: SupportedGraphicsApiPpu>(
         &self,
         state: &mut State,
         backend: &mut <G as SupportedGraphicsApiPpu>::Backend<R>,

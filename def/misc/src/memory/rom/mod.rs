@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use multiemu::{
     component::{BuildError, Component, ComponentConfig},
     machine::builder::ComponentBuilder,
@@ -14,12 +15,12 @@ use std::{
 
 #[allow(unused)]
 mod file;
-#[cfg(feature = "mmap")]
+#[cfg(any(target_family = "unix", target_os = "windows"))]
 mod mmap;
 
-#[cfg(feature = "mmap")]
+#[cfg(any(target_family = "unix", target_os = "windows"))]
 pub type DefaultRomMemoryBackend = mmap::MmapBackend;
-#[cfg(not(feature = "mmap"))]
+#[cfg(not(any(target_family = "unix", target_os = "windows")))]
 pub type DefaultRomMemoryBackend = file::FileBackend;
 
 /// Use a global cache to share among rom instances and reduce loaded memory/fds
@@ -52,8 +53,6 @@ impl Component for RomMemory {
         let adjusted_offset =
             (address - self.config.assigned_range.start()) + self.config.rom_range.start();
 
-        debug_assert!(self.config.rom_range.contains(&adjusted_offset));
-
         self.backend.read(adjusted_offset, buffer);
 
         Ok(())
@@ -82,9 +81,6 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
         let assigned_address_space = self.assigned_address_space;
         let assigned_range = self.assigned_range.clone();
 
-        let component_builder =
-            component_builder.memory_map_read(assigned_address_space, assigned_range);
-
         let backend = ROM_CACHE
             .0
             .entry_sync(self.rom)
@@ -95,6 +91,13 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
             .1
             .clone();
 
+        let raw_backend = backend
+            .get_bytes()
+            .map(|bytes| bytes.slice(self.rom_range.clone()));
+
+        let component_builder =
+            component_builder.memory_map_read(assigned_address_space, assigned_range, raw_backend);
+
         component_builder.build(RomMemory {
             config: self,
             backend,
@@ -104,9 +107,13 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
     }
 }
 
+#[allow(unused)]
 pub trait RomMemoryBackend: Debug + Send + Sync + Sized + 'static {
     fn new(file: File) -> Self;
     fn read(&self, address: usize, buffer: &mut [u8]);
+    fn get_bytes(&self) -> Option<Bytes> {
+        None
+    }
 }
 
 pub struct RomCache<B: RomMemoryBackend>(pub scc::HashCache<RomId, Arc<B>>);

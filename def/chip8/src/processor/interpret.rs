@@ -5,8 +5,11 @@ use super::{
     task::CpuDriver,
 };
 use crate::{
-    CHIP8_FONT, Chip8Mode, display::SupportedGraphicsApiChip8Display,
+    CHIP8_FONT, Chip8Mode,
+    audio::Chip8Audio,
+    display::{Chip8Display, SupportedGraphicsApiChip8Display},
     processor::instruction::InstructionSetSuperChip8,
+    timer::Chip8Timer,
 };
 use arrayvec::ArrayVec;
 use bitvec::{
@@ -14,6 +17,7 @@ use bitvec::{
     prelude::{Lsb0, Msb0},
     view::BitView,
 };
+use multiemu::machine::registry::ComponentRegistry;
 use nalgebra::Point2;
 use rand::Rng;
 
@@ -23,6 +27,7 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,
+        registry: &ComponentRegistry,
         mode: &mut Chip8Mode,
         instruction: Chip8InstructionSet,
     ) {
@@ -30,9 +35,8 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
 
         match instruction {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Clr) => {
-                self.config
-                    .display
-                    .interact_mut(|component| {
+                registry
+                    .interact_mut::<Chip8Display<G>, _>(self.display, |component| {
                         component.clear_display();
                     })
                     .unwrap();
@@ -247,9 +251,8 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
                         cursor += buffer_section.len();
                     }
 
-                    self.config
-                        .display
-                        .interact_mut(|display_component| {
+                    registry
+                        .interact_mut::<Chip8Display<G>, _>(self.display, |display_component| {
                             state.registers.work_registers[0xf] =
                                 display_component.draw_supersized_sprite(position, buffer) as u8;
                         })
@@ -269,9 +272,8 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
                         cursor += buffer_section.len();
                     }
 
-                    self.config
-                        .display
-                        .interact_mut(|display_component| {
+                    registry
+                        .interact_mut::<Chip8Display<G>, _>(self.display, |display_component| {
                             state.registers.work_registers[0xf] =
                                 display_component.draw_sprite(position, &buffer) as u8;
                         })
@@ -299,10 +301,8 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
                 }
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Moved { register }) => {
-                let delay_timer_value = self
-                    .config
-                    .timer
-                    .interact(|component| component.get())
+                let delay_timer_value = registry
+                    .interact_mut::<Chip8Timer, _>(self.timer, |component| component.get())
                     .unwrap();
 
                 state.registers.work_registers[register as usize] = delay_timer_value;
@@ -313,9 +313,8 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loadd { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                self.config
-                    .timer
-                    .interact_mut(|component| {
+                registry
+                    .interact_mut::<Chip8Timer, _>(self.timer, |component| {
                         component.set(register_value);
                     })
                     .unwrap();
@@ -323,9 +322,8 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loads { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                self.config
-                    .audio
-                    .interact_mut(|component| {
+                registry
+                    .interact_mut::<Chip8Audio, _>(self.audio, |component| {
                         component.set(register_value);
                     })
                     .unwrap();
@@ -403,17 +401,15 @@ impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
 
                 match subinstruction {
                     InstructionSetSuperChip8::Lores => {
-                        self.config
-                            .display
-                            .interact_mut(|display_component| {
+                        registry
+                            .interact_mut::<Chip8Display<G>, _>(self.display, |display_component| {
                                 display_component.set_hires(false);
                             })
                             .unwrap();
                     }
                     InstructionSetSuperChip8::Hires => {
-                        self.config
-                            .display
-                            .interact_mut(|display_component| {
+                        registry
+                            .interact_mut::<Chip8Display<G>, _>(self.display, |display_component| {
                                 display_component.set_hires(true);
                             })
                             .unwrap();

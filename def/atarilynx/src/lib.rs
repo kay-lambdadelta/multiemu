@@ -78,9 +78,9 @@ impl<P: Platform> MachineFactory<P> for AtariLynx {
             "mapctl",
             MapctlConfig {
                 cpu_address_space,
-                ram: ram.id(),
-                suzy: suzy.id(),
-                reserved: reserved.id(),
+                ram,
+                suzy,
+                reserved,
                 mikey: todo!(),
                 vector: todo!(),
             },
