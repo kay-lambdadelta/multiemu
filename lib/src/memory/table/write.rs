@@ -84,25 +84,23 @@ impl MemoryAccessTable {
                     .expect("Cannot do writes until machine is finished building"),
             );
 
-            for (component_assigned_range, component_id) in members.iter_write(access_range.clone())
-            {
-                did_handle = true;
+            members.visit_write::<WriteMemoryOperationError>(
+                access_range.clone(),
+                |component_assigned_range, component| {
+                    did_handle = true;
 
-                let access_range: RangeInclusive<_> = component_assigned_range
-                    .clone()
-                    .intersection(access_range.clone())
-                    .into();
+                    let access_range: RangeInclusive<_> = component_assigned_range
+                        .clone()
+                        .intersection(access_range.clone())
+                        .into();
 
-                let buffer_range =
-                    (access_range.start() - address)..=(access_range.end() - address);
+                    let buffer_range =
+                        (access_range.start() - address)..=(access_range.end() - address);
 
-                self.registry
-                    .get()
-                    .unwrap()
-                    .interact_dyn_mut(
-                        component_id,
-                        #[inline(always)]
-                        |component| {
+                    self.registry
+                        .get()
+                        .unwrap()
+                        .interact_dyn_mut(component, |component| {
                             write_helper(
                                 buffer,
                                 &mut queue,
@@ -114,10 +112,10 @@ impl MemoryAccessTable {
                             )?;
 
                             Ok(())
-                        },
-                    )
-                    .unwrap()?;
-            }
+                        })
+                        .unwrap()
+                },
+            )?;
         }
 
         if !did_handle {
@@ -180,13 +178,13 @@ fn write_helper(
                     address_space: redirect_address_space,
                 } => {
                     debug_assert!(
-                        !access_range.contains(&redirect_address)
-                            && address_space == redirect_address_space,
+                        !(access_range.contains(&redirect_address)
+                            && address_space == redirect_address_space),
                         "Memory attempted to redirect to itself {:x?} -> {:x}",
                         access_range,
                         redirect_address,
                     );
-
+                    
                     queue.push(QueueEntry {
                         address: redirect_address,
                         address_space: redirect_address_space,

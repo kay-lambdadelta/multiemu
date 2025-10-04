@@ -5,6 +5,7 @@ use address_space::AddressSpace;
 use nohash::BuildNoHashHasher;
 use std::{
     collections::HashMap,
+    fmt::Debug,
     ops::RangeInclusive,
     sync::{Arc, OnceLock},
 };
@@ -33,12 +34,20 @@ impl<R> FromIterator<(RangeInclusive<Address>, R)> for MemoryOperationError<R> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 /// The main structure representing the devices memory address spaces
 pub struct MemoryAccessTable {
     address_spaces: HashMap<AddressSpaceId, AddressSpace, BuildNoHashHasher<u16>>,
     current_address_space: u16,
     registry: OnceLock<Arc<ComponentRegistry>>,
+}
+
+impl Debug for MemoryAccessTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemoryAccessTable")
+            .field("address_spaces", &self.address_spaces)
+            .finish()
+    }
 }
 
 impl MemoryAccessTable {
@@ -63,6 +72,10 @@ impl MemoryAccessTable {
     /// Iter over present spaces
     pub fn address_spaces(&self) -> impl Iterator<Item = AddressSpaceId> {
         self.address_spaces.keys().copied()
+    }
+
+    pub fn force_remap_commit(&self, address_space: AddressSpaceId) {
+        drop(self.address_spaces[&address_space].get_members(self.registry.get().unwrap()));
     }
 
     /// Adds a command to the remap queue

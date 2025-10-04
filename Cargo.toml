@@ -23,14 +23,14 @@ serde = { version = "1.0", default-features = false, features = [
     "alloc",
     "derive",
 ] }
-serde_with = "3.14"
+serde_with = "3.15"
 serde-inline-default = "1.0"
 rayon = "1.11"
 nalgebra = { version = "0.34", features = [
     "serde-serialize",
     "convert-bytemuck",
 ] }
-bytemuck = { version = "1.23", features = ["derive"] }
+bytemuck = { version = "1.24", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
@@ -54,7 +54,7 @@ rustc-hash = "2.1"
 ron = "0.11"
 data-encoding = "2.9"
 deku = "0.19"
-scc = "3.2"
+scc = "3.3"
 sealed = "0.6"
 crossbeam = "0.8"
 egui = { version = "0.32", features = ["default_fonts", "rayon", "log"] }

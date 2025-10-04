@@ -119,35 +119,38 @@ impl MemoryAccessTable {
                     .expect("Cannot do reads until machine is finished building"),
             );
 
-            for (component_assigned_range, entry) in members.iter_read(access_range.clone()) {
-                did_handle = true;
+            members.visit_read::<ReadMemoryOperationError>(
+                access_range.clone(),
+                |component_assigned_range, component| {
+                    did_handle = true;
 
-                let access_range: RangeInclusive<_> = component_assigned_range
-                    .clone()
-                    .intersection(access_range.clone())
-                    .into();
+                    let access_range: RangeInclusive<_> = component_assigned_range
+                        .clone()
+                        .intersection(access_range.clone())
+                        .into();
 
-                let buffer_range =
-                    (access_range.start() - address)..=(access_range.end() - address);
+                    let buffer_range =
+                        (access_range.start() - address)..=(access_range.end() - address);
 
-                self.registry
-                    .get()
-                    .unwrap()
-                    .interact_dyn(entry, |component| {
-                        read_helper(
-                            buffer,
-                            &mut queue,
-                            address,
-                            access_range,
-                            buffer_range,
-                            component,
-                            address_space,
-                        )?;
+                    self.registry
+                        .get()
+                        .unwrap()
+                        .interact_dyn(component, |component| {
+                            read_helper(
+                                buffer,
+                                &mut queue,
+                                address,
+                                access_range,
+                                buffer_range,
+                                component,
+                                address_space,
+                            )?;
 
-                        Ok(())
-                    })
-                    .unwrap()?;
-            }
+                            Ok(())
+                        })
+                        .unwrap()
+                },
+            )?;
         }
 
         if !did_handle {
@@ -228,35 +231,38 @@ impl MemoryAccessTable {
                     .expect("Cannot do preview until machine is finished building"),
             );
 
-            for (component_assigned_range, entry) in members.iter_read(access_range.clone()) {
-                did_handle = true;
+            members.visit_read::<PreviewMemoryOperationError>(
+                access_range.clone(),
+                |component_assigned_range, component| {
+                    did_handle = true;
 
-                let access_range: RangeInclusive<_> = component_assigned_range
-                    .clone()
-                    .intersection(access_range.clone())
-                    .into();
+                    let access_range: RangeInclusive<_> = component_assigned_range
+                        .clone()
+                        .intersection(access_range.clone())
+                        .into();
 
-                let buffer_range =
-                    (access_range.start() - address)..=(access_range.end() - address);
+                    let buffer_range =
+                        (access_range.start() - address)..=(access_range.end() - address);
 
-                self.registry
-                    .get()
-                    .unwrap()
-                    .interact_dyn(entry, |component| {
-                        preview_helper(
-                            buffer,
-                            &mut queue,
-                            address,
-                            access_range,
-                            buffer_range,
-                            component,
-                            address_space,
-                        )?;
+                    self.registry
+                        .get()
+                        .unwrap()
+                        .interact_dyn(component, |component| {
+                            preview_helper(
+                                buffer,
+                                &mut queue,
+                                address,
+                                access_range,
+                                buffer_range,
+                                component,
+                                address_space,
+                            )?;
 
-                        Ok(())
-                    })
-                    .unwrap()?;
-            }
+                            Ok(())
+                        })
+                        .unwrap()
+                },
+            )?;
         }
 
         if !did_handle {
@@ -327,8 +333,8 @@ fn read_helper(
                     address_space: redirect_address_space,
                 } => {
                     debug_assert!(
-                        !access_range.contains(&redirect_address)
-                            && address_space == redirect_address_space,
+                        !(access_range.contains(&redirect_address)
+                            && address_space == redirect_address_space),
                         "Memory attempted to redirect to itself {:x?} -> {:x}",
                         access_range,
                         redirect_address,
@@ -351,7 +357,7 @@ fn read_helper(
     Ok(())
 }
 
-#[inline(always)]
+#[inline]
 fn preview_helper(
     buffer: &mut [u8],
     queue: &mut SmallVec<[QueueEntry; 1]>,
@@ -378,8 +384,8 @@ fn preview_helper(
                     address_space: redirect_address_space,
                 } => {
                     debug_assert!(
-                        !access_range.contains(&redirect_address)
-                            && address_space == redirect_address_space,
+                        !(access_range.contains(&redirect_address)
+                            && address_space == redirect_address_space),
                         "Memory attempted to redirect to itself {:x?} -> {:x}",
                         access_range,
                         redirect_address,

@@ -12,9 +12,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         "memory",
         RomMemoryConfig {
             rom: RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap(),
-            assigned_range: 0x0000..=0x0fff,
+            assigned_range: 0x0000..=0x1fff,
             assigned_address_space: cpu_address_space,
-            rom_range: 0x0000..=0x0fff,
+            rom_range: 0x0000..=0x1fff,
         },
     );
 

@@ -38,6 +38,7 @@ impl Region for Ntsc {
         Ratio::new(236250000, 11)
     }
 
+    #[inline]
     fn color_to_srgb(color: PpuColor) -> Srgb<u8> {
         COLOR_PALETTE[(color.hue as usize, color.luminance as usize)]
     }
