@@ -97,3 +97,4 @@ struct QueueEntry {
     address_space: AddressSpaceId,
     buffer_subrange: RangeInclusive<Address>,
 }
+

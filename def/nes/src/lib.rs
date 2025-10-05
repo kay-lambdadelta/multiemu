@@ -148,11 +148,22 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
         let machine = match default_expansion_device {
             DefaultExpansionDevice::StandardControllers { .. } => {
                 let (machine, _) = machine.insert_component(
-                    "standard-nes-controller-player-1",
+                    "standard-nes-controller-0",
                     NesControllerConfig {
+                        cpu_address_space,
                         controller_index: 0,
                     },
                 );
+
+                /*
+                let (machine, _) = machine.insert_component(
+                    "standard-nes-controller-1",
+                    NesControllerConfig {
+                        cpu_address_space,
+                        controller_index: 1,
+                    },
+                );
+                */
 
                 machine
             }

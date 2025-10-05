@@ -94,6 +94,8 @@ enum InstructionGroup {
     Undocumented = 0b11,
 }
 
+// The names of these addressing mode translation functions don't really and truly mean much
+
 impl AddressingMode {
     #[inline]
     pub fn from_group1_addressing(addressing_mode: u8) -> Self {

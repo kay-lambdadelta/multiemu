@@ -184,7 +184,7 @@ fn write_helper(
                         access_range,
                         redirect_address,
                     );
-                    
+
                     queue.push(QueueEntry {
                         address: redirect_address,
                         address_space: redirect_address_space,

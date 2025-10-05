@@ -56,7 +56,7 @@ pub struct ScheduleEntry {
 ///
 /// It is a cooperative multithreaded tick based scheduler
 ///
-/// Currently it only supports frequency based executions'
+/// Currently it only supports frequency based executions
 #[derive(Debug)]
 pub struct Scheduler {
     /// Global tick we are currently on

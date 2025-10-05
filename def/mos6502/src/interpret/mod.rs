@@ -5,9 +5,9 @@ use super::{
 use crate::{
     ExecutionStep, Mos6502Config,
     instruction::{AddressingMode, Mos6502AddressingMode, Opcode, Wdc65C02Opcode},
-    task::CpuDriver,
+    task::Driver,
 };
-use bitvec::{prelude::Msb0, view::BitView};
+use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu::memory::Address;
 use num::traits::{FromBytes, ToBytes};
 
@@ -16,7 +16,7 @@ const INTERRUPT_VECTOR: Address = 0xfffe;
 
 // NOTE: https://www.pagetable.com/c64ref/6502
 
-impl CpuDriver {
+impl Driver {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,
@@ -35,9 +35,10 @@ impl CpuDriver {
                         let value: u8 = self.load(state, &instruction, config);
 
                         let result = state.a & value;
+                        let result_bits = result.view_bits::<Lsb0>();
 
-                        state.flags.carry = result.view_bits::<Msb0>()[0];
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.carry = result_bits[7];
+                        state.flags.negative = result_bits[7];
                         state.flags.zero = result == 0;
 
                         state.a = result;
@@ -47,7 +48,7 @@ impl CpuDriver {
 
                         let result = state.a & value;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.a = result;
@@ -58,12 +59,12 @@ impl CpuDriver {
                         let mut result = state.a & value;
 
                         let carry = state.flags.carry;
-                        state.flags.carry = result.view_bits::<Msb0>()[0];
+                        state.flags.carry = result.view_bits::<Lsb0>()[7];
 
                         result >>= 1;
 
-                        let result_bits = result.view_bits_mut::<Msb0>();
-                        result_bits.set(0, carry);
+                        let result_bits = result.view_bits_mut::<Lsb0>();
+                        result_bits.set(7, carry);
 
                         state.flags.overflow = result_bits[1] != result_bits[0];
                         state.flags.negative = result_bits[0];
@@ -73,14 +74,16 @@ impl CpuDriver {
                     }
                     Mos6502Opcode::Asl => {
                         let mut value: u8 = self.load(state, &instruction, config);
-                        let value_bits = value.view_bits::<Msb0>();
+                        let value_bits = value.view_bits::<Lsb0>();
 
-                        let carry = value_bits[0];
-                        let negative = value_bits[1];
+                        let carry = value_bits[7];
+                        let negative = value_bits[6];
+
                         value <<= 1;
 
                         state.flags.carry = carry;
                         state.flags.negative = negative;
+                        state.flags.zero = value == 0;
 
                         if instruction.addressing_mode.unwrap()
                             == AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)
@@ -94,25 +97,17 @@ impl CpuDriver {
                     }
                     Mos6502Opcode::Asr => {
                         let mut value: u8 = self.load(state, &instruction, config);
-                        let value_bits = value.view_bits::<Msb0>();
+                        let value_bits = value.view_bits::<Lsb0>();
 
-                        let carry = value_bits[0];
-                        let negative = value_bits[1];
+                        let carry = value_bits[7];
 
-                        value >>= 1;
+                        value = (state.a & value) >> 1;
 
                         state.flags.carry = carry;
-                        state.flags.negative = negative;
+                        state.flags.negative = false;
+                        state.flags.zero = value == 0;
 
-                        if instruction.addressing_mode.unwrap()
-                            == AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)
-                        {
-                            state.a = value;
-                        } else {
-                            state
-                                .execution_queue
-                                .push_back(ExecutionStep::StoreData(value));
-                        }
+                        state.a = value;
                     }
                     Mos6502Opcode::Bcc => {
                         let value: i8 = self.load(state, &instruction, config);
@@ -143,7 +138,7 @@ impl CpuDriver {
                     }
                     Mos6502Opcode::Bit => {
                         let value: u8 = self.load(state, &instruction, config);
-                        let value_bits = value.view_bits::<Msb0>();
+                        let value_bits = value.view_bits::<Lsb0>();
 
                         let result = state.a & value;
 
@@ -254,7 +249,7 @@ impl CpuDriver {
 
                         let result = state.a.wrapping_sub(value);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
                         state.flags.carry = state.a >= value;
                     }
@@ -263,7 +258,7 @@ impl CpuDriver {
 
                         let result = state.x.wrapping_sub(value);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
                         state.flags.carry = state.x >= value;
                     }
@@ -272,9 +267,9 @@ impl CpuDriver {
 
                         let result = state.y.wrapping_sub(value);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
-                        state.flags.carry = state.x >= value;
+                        state.flags.carry = state.y >= value;
                     }
                     Mos6502Opcode::Dcp => todo!(),
                     Mos6502Opcode::Dec => {
@@ -282,23 +277,17 @@ impl CpuDriver {
 
                         let result = value.wrapping_sub(1);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
-                        if instruction.addressing_mode.unwrap()
-                            == AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)
-                        {
-                            state.a = result;
-                        } else {
-                            state
-                                .execution_queue
-                                .push_back(ExecutionStep::StoreData(result));
-                        }
+                        state
+                            .execution_queue
+                            .push_back(ExecutionStep::StoreData(result));
                     }
                     Mos6502Opcode::Dex => {
                         let result = state.x.wrapping_sub(1);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.x = result;
@@ -306,7 +295,7 @@ impl CpuDriver {
                     Mos6502Opcode::Dey => {
                         let result = state.y.wrapping_sub(1);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.y = result;
@@ -316,7 +305,7 @@ impl CpuDriver {
 
                         let result = state.a ^ value;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.a = result;
@@ -326,7 +315,7 @@ impl CpuDriver {
 
                         let result = value.wrapping_add(1);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state
@@ -336,7 +325,7 @@ impl CpuDriver {
                     Mos6502Opcode::Inx => {
                         let result = state.x.wrapping_add(1);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.x = result;
@@ -344,7 +333,7 @@ impl CpuDriver {
                     Mos6502Opcode::Iny => {
                         let result = state.y.wrapping_add(1);
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.y = result;
@@ -388,7 +377,7 @@ impl CpuDriver {
                     Mos6502Opcode::Lda => {
                         let value: u8 = self.load(state, &instruction, config);
 
-                        state.flags.negative = value.view_bits::<Msb0>()[0];
+                        state.flags.negative = value.view_bits::<Lsb0>()[7];
                         state.flags.zero = value == 0;
 
                         state.a = value;
@@ -396,7 +385,7 @@ impl CpuDriver {
                     Mos6502Opcode::Ldx => {
                         let value: u8 = self.load(state, &instruction, config);
 
-                        state.flags.negative = value.view_bits::<Msb0>()[0];
+                        state.flags.negative = value.view_bits::<Lsb0>()[7];
                         state.flags.zero = value == 0;
 
                         state.x = value;
@@ -404,14 +393,14 @@ impl CpuDriver {
                     Mos6502Opcode::Ldy => {
                         let value: u8 = self.load(state, &instruction, config);
 
-                        state.flags.negative = value.view_bits::<Msb0>()[0];
+                        state.flags.negative = value.view_bits::<Lsb0>()[7];
                         state.flags.zero = value == 0;
 
                         state.y = value;
                     }
                     Mos6502Opcode::Lsr => {
                         let value: u8 = self.load(state, &instruction, config);
-                        let value_bits = value.view_bits::<Msb0>();
+                        let value_bits = value.view_bits::<Lsb0>();
 
                         let carry = value_bits[0];
                         let value = value >> 1;
@@ -440,7 +429,7 @@ impl CpuDriver {
 
                         let result = state.a | value;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.a = result;
@@ -469,7 +458,7 @@ impl CpuDriver {
                             )
                             .unwrap_or_default();
 
-                        state.flags.negative = state.a.view_bits::<Msb0>()[0];
+                        state.flags.negative = state.a.view_bits::<Lsb0>()[7];
                         state.flags.zero = state.a == 0;
 
                         state.stack = state.stack.wrapping_add(1);
@@ -488,12 +477,14 @@ impl CpuDriver {
                     }
                     Mos6502Opcode::Rla => todo!(),
                     Mos6502Opcode::Rol => {
-                        let value: u8 = self.load(state, &instruction, config);
-                        let value_bits = value.view_bits::<Msb0>();
+                        let mut value: u8 = self.load(state, &instruction, config);
+                        let value_bits = value.view_bits::<Lsb0>();
 
+                        let old_carry = state.flags.carry;
                         state.flags.carry = value_bits[7];
                         state.flags.negative = value_bits[6];
-                        let value = value.rotate_left(1);
+                        value <<= 1;
+                        value.view_bits_mut::<Lsb0>().set(0, old_carry);
 
                         state.flags.zero = value == 0;
 
@@ -508,12 +499,15 @@ impl CpuDriver {
                         }
                     }
                     Mos6502Opcode::Ror => {
-                        let value: u8 = self.load(state, &instruction, config);
-                        let value_bits = value.view_bits::<Msb0>();
+                        let mut value: u8 = self.load(state, &instruction, config);
+                        let value_bits = value.view_bits::<Lsb0>();
 
+                        let old_carry = state.flags.carry;
                         state.flags.carry = value_bits[0];
-                        state.flags.negative = value_bits[1];
-                        let value = value.rotate_right(1);
+                        state.flags.negative = old_carry;
+                        value >>= 1;
+                        value.view_bits_mut::<Lsb0>().set(7, old_carry);
+
                         state.flags.zero = value == 0;
 
                         if instruction.addressing_mode.unwrap()
@@ -600,7 +594,7 @@ impl CpuDriver {
                     Mos6502Opcode::Tax => {
                         let result = state.a;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.x = result;
@@ -608,7 +602,7 @@ impl CpuDriver {
                     Mos6502Opcode::Tay => {
                         let result = state.a;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.y = result;
@@ -616,7 +610,7 @@ impl CpuDriver {
                     Mos6502Opcode::Tsx => {
                         let result = state.stack;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.x = result;
@@ -624,7 +618,7 @@ impl CpuDriver {
                     Mos6502Opcode::Txa => {
                         let result = state.x;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.a = result;
@@ -635,7 +629,7 @@ impl CpuDriver {
                     Mos6502Opcode::Tya => {
                         let result = state.y;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = result == 0;
 
                         state.a = result;
@@ -646,7 +640,7 @@ impl CpuDriver {
 
                         let result = (state.a & random_value) & state.x & value;
 
-                        state.flags.negative = result.view_bits::<Msb0>()[0];
+                        state.flags.negative = result.view_bits::<Lsb0>()[7];
                         state.flags.zero = value == 0;
 
                         state.a = result;
@@ -738,13 +732,13 @@ fn adc(state: &mut ProcessorState, config: &Mos6502Config, value: u8) {
         let (second_operation_result, second_operation_carry) =
             first_operation_result.overflowing_add(carry);
 
-        let a_bits = state.a.view_bits::<Msb0>();
-        let value_bits = value.view_bits::<Msb0>();
-        let result_bits = second_operation_result.view_bits::<Msb0>();
+        let a_bits = state.a.view_bits::<Lsb0>();
+        let value_bits = value.view_bits::<Lsb0>();
+        let result_bits = second_operation_result.view_bits::<Lsb0>();
 
-        state.flags.overflow = (a_bits[0] == value_bits[0]) && (a_bits[0] != result_bits[0]);
+        state.flags.overflow = (a_bits[7] == value_bits[7]) && (a_bits[7] != result_bits[7]);
         state.flags.carry = first_operation_carry || second_operation_carry;
-        state.flags.negative = result_bits[0];
+        state.flags.negative = result_bits[7];
         state.flags.zero = second_operation_result == 0;
 
         state.a = second_operation_result;

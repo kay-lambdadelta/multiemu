@@ -1,5 +1,5 @@
 use arrayvec::ArrayVec;
-use bitvec::{order::Msb0, view::BitView};
+use bitvec::{prelude::Lsb0, view::BitView};
 use decoder::Mos6502InstructionDecoder;
 use instruction::Mos6502InstructionSet;
 use multiemu::{
@@ -18,7 +18,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use task::CpuDriver;
+use task::Driver;
 
 mod decoder;
 mod instruction;
@@ -186,32 +186,32 @@ pub struct FlagRegister {
 impl FlagRegister {
     pub fn to_byte(&self) -> u8 {
         let mut byte = 0;
-        let bits = byte.view_bits_mut::<Msb0>();
+        let bits = byte.view_bits_mut::<Lsb0>();
 
-        bits.set(0, self.negative);
-        bits.set(1, self.overflow);
-        bits.set(2, self.undocumented);
-        bits.set(3, self.break_);
-        bits.set(4, self.decimal);
-        bits.set(5, self.interrupt_disable);
-        bits.set(6, self.zero);
-        bits.set(7, self.carry);
+        bits.set(7, self.negative);
+        bits.set(6, self.overflow);
+        bits.set(5, self.undocumented);
+        bits.set(4, self.break_);
+        bits.set(3, self.decimal);
+        bits.set(2, self.interrupt_disable);
+        bits.set(1, self.zero);
+        bits.set(0, self.carry);
 
         byte
     }
 
     pub fn from_byte(byte: u8) -> Self {
-        let bits = byte.view_bits::<Msb0>();
+        let bits = byte.view_bits::<Lsb0>();
 
         Self {
-            negative: bits[0],
-            overflow: bits[1],
-            undocumented: bits[2],
-            break_: bits[3],
-            decimal: bits[4],
-            interrupt_disable: bits[5],
-            zero: bits[6],
-            carry: bits[7],
+            negative: bits[7],
+            overflow: bits[6],
+            undocumented: bits[5],
+            break_: bits[4],
+            decimal: bits[3],
+            interrupt_disable: bits[2],
+            zero: bits[1],
+            carry: bits[0],
         }
     }
 }
@@ -342,7 +342,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
             .insert_task_mut(
                 "driver",
                 self.frequency,
-                CpuDriver {
+                Driver {
                     memory_access_table,
                     instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
                 },

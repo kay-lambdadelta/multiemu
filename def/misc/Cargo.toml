@@ -22,16 +22,3 @@ memmap2 = "0.9"
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
 criterion = { workspace = true }
-
-[[bench]]
-name = "read"
-harness = false
-
-[[bench]]
-name = "write"
-harness = false
-
-[[bench]]
-name = "registry"
-harness = false
-

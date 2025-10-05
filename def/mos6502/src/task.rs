@@ -8,12 +8,12 @@ use crate::{
 use multiemu::{memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::TaskMut};
 use std::{num::NonZero, sync::Arc};
 
-pub struct CpuDriver {
+pub struct Driver {
     pub memory_access_table: Arc<MemoryAccessTable>,
     pub instruction_decoder: Mos6502InstructionDecoder,
 }
 
-impl TaskMut<Mos6502> for CpuDriver {
+impl TaskMut<Mos6502> for Driver {
     fn run(&mut self, component: &mut Mos6502, time_slice: NonZero<u32>) {
         // Keep the guard like this so doing a full load of the guard only happens occasionally
         let mut time_slice = time_slice.get();

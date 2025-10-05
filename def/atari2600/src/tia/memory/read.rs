@@ -1,6 +1,6 @@
 use super::ReadRegisters;
 use crate::tia::{ObjectId, SupportedGraphicsApiTia, Tia, region::Region};
-use bitvec::{order::Msb0, view::BitView};
+use bitvec::{order::Msb0, prelude::Lsb0, view::BitView};
 
 impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
     pub(crate) fn handle_read_register(&self, data: &mut u8, address: ReadRegisters) {
@@ -55,9 +55,9 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
                     .map(|set| set.contains(&ObjectId::Playfield))
                     .unwrap_or(false);
 
-                let data_bits = data.view_bits_mut::<Msb0>();
+                let data_bits = data.view_bits_mut::<Lsb0>();
 
-                data_bits.set(0, collision);
+                data_bits.set(7, collision);
             }
             ReadRegisters::Cxppmm => {
                 self.read_collision_register(

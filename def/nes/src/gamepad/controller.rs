@@ -1,3 +1,4 @@
+use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu::{
     component::{BuildError, Component, ComponentConfig},
     input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput},
@@ -5,16 +6,18 @@ use multiemu::{
         builder::ComponentBuilder,
         virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
     },
-    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord},
+    memory::{
+        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
+        WriteMemoryRecord,
+    },
     platform::Platform,
 };
 use std::{
     collections::{HashMap, HashSet},
-    sync::{
-        Arc,
-        atomic::{AtomicU8, Ordering},
-    },
+    sync::{Arc, Mutex},
 };
+
+const CONTROLLER_0: Address = 0x4016;
 
 const READ_ORDER: [Input; 8] = [
     Input::Gamepad(GamepadInput::FPadRight),
@@ -27,31 +30,84 @@ const READ_ORDER: [Input; 8] = [
     Input::Gamepad(GamepadInput::DPadRight),
 ];
 
+#[derive(Debug, Default)]
+struct ControllerState {
+    current_read: u8,
+    strobe: bool,
+}
+
 #[derive(Debug)]
 pub struct NesController {
     gamepad: Arc<VirtualGamepad>,
-    current_read: AtomicU8,
+    state: Mutex<ControllerState>,
 }
 
 impl Component for NesController {
     fn read_memory(
         &self,
-        address: Address,
-        address_space: AddressSpaceId,
+        _address: Address,
+        _address_space: AddressSpaceId,
         buffer: &mut [u8],
     ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        let current_read = self.current_read.load(Ordering::Acquire);
+        let mut state_guard = self.state.lock().unwrap();
+        let buffer_bits = buffer.view_bits_mut::<Lsb0>();
 
-        let pressed = self
-            .gamepad
-            .get(READ_ORDER[current_read as usize])
-            .as_digital(None);
+        buffer_bits.set(
+            0,
+            if (0..READ_ORDER.len() as u8).contains(&state_guard.current_read) {
+                let pressed = self
+                    .gamepad
+                    .get(READ_ORDER[state_guard.current_read as usize])
+                    .as_digital(None);
 
-        buffer[0] = if pressed { 1 } else { 0 };
+                pressed
+            } else {
+                true
+            },
+        );
 
-        if (0..READ_ORDER.len() as u8).contains(&current_read) {
-            self.current_read.store(current_read + 1, Ordering::Release);
+        if !state_guard.strobe && state_guard.current_read < READ_ORDER.len() as u8 {
+            state_guard.current_read += 1;
         }
+
+        Ok(())
+    }
+
+    fn write_memory(
+        &mut self,
+        _address: Address,
+        _address_space: AddressSpaceId,
+        buffer: &[u8],
+    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
+        let mut state = self.state.lock().unwrap();
+        state.strobe = buffer.view_bits::<Lsb0>()[0];
+
+        if state.strobe {
+            state.current_read = 0;
+        }
+
+        Ok(())
+    }
+
+    fn preview_memory(
+        &self,
+        _address: Address,
+        _address_space: AddressSpaceId,
+        buffer: &mut [u8],
+    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
+        let state_guard = self.state.lock().unwrap();
+        let buffer_bits = buffer.view_bits_mut::<Lsb0>();
+
+        buffer_bits.set(
+            0,
+            if (0..READ_ORDER.len() as u8).contains(&state_guard.current_read) {
+                self.gamepad
+                    .get(READ_ORDER[state_guard.current_read as usize])
+                    .as_digital(None)
+            } else {
+                true
+            },
+        );
 
         Ok(())
     }
@@ -66,12 +122,22 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
     ) -> Result<(), BuildError> {
         let gamepad = create_gamepad();
 
-        let (component_builder, _) =
-            component_builder.insert_gamepad("standard-nes-controller", gamepad.clone());
+        let (component_builder, _) = component_builder
+            .insert_gamepad(format!("player-{}", self.controller_index), gamepad.clone());
+
+        let register_location = CONTROLLER_0 + self.controller_index as usize;
+        let component_builder = component_builder.memory_map_read(
+            self.cpu_address_space,
+            register_location..=register_location,
+        );
+
+        // FIXME: The two controllers need to share this state
+        let component_builder =
+            component_builder.memory_map_write(self.cpu_address_space, CONTROLLER_0..=CONTROLLER_0);
 
         component_builder.build(NesController {
             gamepad,
-            current_read: AtomicU8::new(0),
+            state: Mutex::default(),
         });
 
         Ok(())
@@ -80,6 +146,7 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
 
 #[derive(Debug)]
 pub struct NesControllerConfig {
+    pub cpu_address_space: AddressSpaceId,
     pub controller_index: u8,
 }
 
@@ -126,6 +193,14 @@ fn create_gamepad() -> Arc<VirtualGamepad> {
                     (
                         Input::Keyboard(KeyboardInput::KeyX),
                         Input::Gamepad(GamepadInput::FPadRight),
+                    ),
+                    (
+                        Input::Keyboard(KeyboardInput::Enter),
+                        Input::Gamepad(GamepadInput::Start),
+                    ),
+                    (
+                        Input::Keyboard(KeyboardInput::ShiftRight),
+                        Input::Gamepad(GamepadInput::Select),
                     ),
                 ]),
         ),
