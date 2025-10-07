@@ -33,6 +33,7 @@ rangetools = { workspace = true }
 smallvec = { workspace = true }
 rangemap = { workspace = true }
 bitvec = { workspace = true }
+rayon = { workspace = true }
 egui_extras = { version = "0.32", default-features = false, features = [
     "image",
 ] }

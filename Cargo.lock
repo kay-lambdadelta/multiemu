@@ -2543,6 +2543,7 @@ dependencies = [
  "rangemap",
  "rangetools",
  "raw-window-handle",
+ "rayon",
  "redb",
  "ringbuffer",
  "ron",

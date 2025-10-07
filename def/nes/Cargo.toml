@@ -34,3 +34,7 @@ opengl = ["multiemu/opengl"]
 [[bench]]
 name = "machine_cycle"
 harness = false
+
+[[bench]]
+name = "machine_initialization"
+harness = false

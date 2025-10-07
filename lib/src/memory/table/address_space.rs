@@ -8,6 +8,7 @@ use itertools::Itertools;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use rangetools::Rangetools;
+use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator};
 use std::{
     error::Error,
     hash::{Hash, Hasher},
@@ -140,61 +141,65 @@ impl MemoryMappingTable {
         self.table.clear();
 
         let max = 2usize.pow(address_space_width as u32) - 1;
-        let mut entries = Vec::default();
+        let total_pages = (max + 1) / PAGE_SIZE;
 
-        for base in (0..=max).step_by(PAGE_SIZE) {
-            let end = base + PAGE_SIZE - 1;
-            let page_range = base..=end;
+        // Process all pages in parallel
+        let new_table: Vec<Page> = (0..total_pages)
+            .into_par_iter()
+            .map(|page_index| {
+                let base = page_index * PAGE_SIZE;
+                let end = base + PAGE_SIZE - 1;
+                let page_range = base..=end;
 
-            entries.extend(
-                self.master
+                let mut entries: Vec<_> = self
+                    .master
                     .overlapping(page_range.clone())
-                    .map(|(range, component)| (range.clone(), *component)),
-            );
+                    .map(|(range, component)| (range.clone(), *component))
+                    .collect();
 
-            match entries.len() {
-                0 => {
-                    self.table.push(Page::Empty);
-                }
-                1 => {
-                    let (range, component) = entries.remove(0);
+                match entries.len() {
+                    0 => Page::Empty,
+                    1 => {
+                        let (range, component) = entries.remove(0);
+                        let test_range: RangeInclusive<Address> =
+                            range.clone().intersection(page_range.clone()).into();
 
-                    let test_range: RangeInclusive<Address> =
-                        range.clone().intersection(page_range.clone()).into();
-
-                    if test_range == page_range {
-                        self.table.push(Page::Single {
-                            component,
-                            start: *range.start(),
-                            end: *range.end(),
-                        });
-                    } else {
-                        self.table.push(Page::Mixed {
-                            components: vec![MixedTableEntry {
+                        if test_range == page_range {
+                            Page::Single {
                                 component,
                                 start: *range.start(),
                                 end: *range.end(),
-                            }],
-                        });
+                            }
+                        } else {
+                            Page::Mixed {
+                                components: vec![MixedTableEntry {
+                                    component,
+                                    start: *range.start(),
+                                    end: *range.end(),
+                                }],
+                            }
+                        }
+                    }
+                    _ => {
+                        let inner_table: Vec<_> = entries
+                            .drain(..)
+                            .map(|(range, component)| MixedTableEntry {
+                                component,
+                                start: *range.start(),
+                                end: *range.end(),
+                            })
+                            .sorted_by_key(|entry| entry.start)
+                            .collect();
+
+                        Page::Mixed {
+                            components: inner_table,
+                        }
                     }
                 }
-                _ => {
-                    let inner_table: Vec<_> = entries
-                        .drain(..)
-                        .map(|(range, component)| MixedTableEntry {
-                            component,
-                            start: *range.start(),
-                            end: *range.end(),
-                        })
-                        .sorted_by_key(|entry| entry.start)
-                        .collect();
+            })
+            .collect();
 
-                    self.table.push(Page::Mixed {
-                        components: inner_table,
-                    });
-                }
-            }
-        }
+        self.table = new_table;
     }
 }
 
