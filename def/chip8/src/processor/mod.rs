@@ -20,7 +20,7 @@ use std::{
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
-use task::CpuDriver;
+use task::Driver;
 
 pub mod decoder;
 mod input;
@@ -164,7 +164,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         });
         let frequency = self.frequency;
 
-        let driver = CpuDriver {
+        let driver = Driver {
             instruction_decoder: Chip8InstructionDecoder,
             virtual_gamepad: virtual_gamepad.clone(),
             memory_access_table,

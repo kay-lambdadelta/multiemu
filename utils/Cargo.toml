@@ -20,6 +20,7 @@ codes-iso-3166 = { workspace = true }
 strum = { workspace = true }
 scc = { workspace = true }
 ron = { workspace = true }
+tempfile = { workspace = true }
 quick-xml = { version = "0.38", features = ["serialize"] }
 zip = { version = "5.0", default-features = false, features = [
     "zstd",
@@ -30,7 +31,6 @@ zip = { version = "5.0", default-features = false, features = [
 ] }
 strsim = "0.11"
 nod = "2.0.0-alpha.3"
-tempfile = "3.21"
 ureq = { version = "3.1", features = ["socks-proxy", "charset"] }
 num_cpus = "1.17"
 

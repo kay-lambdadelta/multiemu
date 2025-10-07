@@ -13,7 +13,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-pub(crate) struct CpuDriver<G: SupportedGraphicsApiChip8Display> {
+pub(crate) struct Driver<G: SupportedGraphicsApiChip8Display> {
     /// Instruction cache
     pub instruction_decoder: Chip8InstructionDecoder,
     /// Keypad virtual gamepad
@@ -28,7 +28,7 @@ pub(crate) struct CpuDriver<G: SupportedGraphicsApiChip8Display> {
     pub config: Chip8ProcessorConfig<G>,
 }
 
-impl<G: SupportedGraphicsApiChip8Display> TaskMut<Chip8Processor> for CpuDriver<G> {
+impl<G: SupportedGraphicsApiChip8Display> TaskMut<Chip8Processor> for Driver<G> {
     fn run(&mut self, component: &mut Chip8Processor, time_slice: NonZero<u32>) {
         let mut time_slice = time_slice.get();
 

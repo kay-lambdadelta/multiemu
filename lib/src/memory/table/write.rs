@@ -44,7 +44,7 @@ impl MemoryAccessTable {
     /// Step through the memory translation table to give a set of components the buffer
     ///
     /// Contents of the buffer upon failure are usually component specific
-    #[inline]
+    #[inline(always)]
     pub fn write(
         &self,
         address: Address,
@@ -151,7 +151,7 @@ impl MemoryAccessTable {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn write_helper(
     buffer: &[u8],
     queue: &mut SmallVec<[QueueEntry; 1]>,

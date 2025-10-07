@@ -79,7 +79,7 @@ impl MemoryAccessTable {
     ///
     /// Contents of the buffer upon failure are usually component specific
     ///
-    #[inline]
+    #[inline(always)]
     pub fn read(
         &self,
         address: Address,
@@ -306,7 +306,7 @@ impl MemoryAccessTable {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn read_helper(
     buffer: &mut [u8],
     queue: &mut SmallVec<[QueueEntry; 1]>,
@@ -357,7 +357,7 @@ fn read_helper(
     Ok(())
 }
 
-#[inline]
+#[inline(always)]
 fn preview_helper(
     buffer: &mut [u8],
     queue: &mut SmallVec<[QueueEntry; 1]>,

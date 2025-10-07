@@ -359,11 +359,11 @@ impl Driver {
                     }
                     Mos6502Opcode::Jsr => {
                         // We load the byte BEFORE the program counter
-                        let program_bytes = (state.program.wrapping_sub(1)).to_le_bytes();
+                        let program_bytes = (state.program.wrapping_sub(1)).to_be_bytes();
 
                         state.execution_queue.extend([
-                            ExecutionStep::PushStack(program_bytes[1]),
                             ExecutionStep::PushStack(program_bytes[0]),
+                            ExecutionStep::PushStack(program_bytes[1]),
                             ExecutionStep::AddressBusToProgramPointer,
                         ]);
                     }
@@ -533,28 +533,49 @@ impl Driver {
                         state.stack = state.stack.wrapping_add(1);
                         state.flags = FlagRegister::from_byte(flags);
 
-                        let program = self
+                        let program_pointer_low = self
                             .memory_access_table
-                            .read_le_value::<u16>(
+                            .read_le_value::<u8>(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 config.assigned_address_space,
                             )
                             .unwrap_or_default();
+                        state.stack = state.stack.wrapping_add(1);
 
-                        state.stack = state.stack.wrapping_add(2);
-                        state.program = program;
+                        let program_pointer_high = self
+                            .memory_access_table
+                            .read_le_value::<u8>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                config.assigned_address_space,
+                            )
+                            .unwrap_or_default();
+                        state.stack = state.stack.wrapping_add(1);
+
+                        state.program =
+                            u16::from_be_bytes([program_pointer_high, program_pointer_low]);
                     }
                     Mos6502Opcode::Rts => {
-                        let program = self
+                        let program_pointer_low = self
                             .memory_access_table
-                            .read_le_value::<u16>(
+                            .read_le_value::<u8>(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 config.assigned_address_space,
                             )
                             .unwrap_or_default();
+                        state.stack = state.stack.wrapping_add(1);
 
-                        state.stack = state.stack.wrapping_add(2);
-                        state.program = program.wrapping_add(1);
+                        let program_pointer_high = self
+                            .memory_access_table
+                            .read_le_value::<u8>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                config.assigned_address_space,
+                            )
+                            .unwrap_or_default();
+                        state.stack = state.stack.wrapping_add(1);
+
+                        state.program =
+                            u16::from_be_bytes([program_pointer_high, program_pointer_low]);
+                        state.program = state.program.wrapping_add(1);
                     }
                     Mos6502Opcode::Sax => {
                         let value = state.a & state.x;

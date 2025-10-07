@@ -1,6 +1,5 @@
-use crate::machine::registry::ComponentRegistry;
-
 use super::Address;
+use crate::machine::registry::ComponentRegistry;
 use address_space::AddressSpace;
 use nohash::BuildNoHashHasher;
 use std::{
@@ -14,7 +13,7 @@ mod address_space;
 mod read;
 mod write;
 
-pub use address_space::{AddressSpaceId, MemoryRemappingCommands};
+pub use address_space::{AddressSpaceId, MappingPermissions, MemoryRemappingCommand};
 pub use read::*;
 pub use write::*;
 
@@ -84,7 +83,7 @@ impl MemoryAccessTable {
     pub fn remap(
         &self,
         address_space: AddressSpaceId,
-        commands: impl IntoIterator<Item = MemoryRemappingCommands>,
+        commands: impl IntoIterator<Item = MemoryRemappingCommand>,
     ) {
         let address_space = &self.address_spaces[&address_space];
         address_space.remap(commands);
@@ -97,4 +96,3 @@ struct QueueEntry {
     address_space: AddressSpaceId,
     buffer_subrange: RangeInclusive<Address>,
 }
-

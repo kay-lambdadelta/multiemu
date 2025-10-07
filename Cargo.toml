@@ -65,6 +65,7 @@ rangetools = "0.1"
 smallvec = "1.15"
 cfg-if = "1.0"
 bytes = "1.10"
+tempfile = "3.21"
 
 # Locale shit
 codes-iso-639 = { version = "0.1", features = ["part_3"] }

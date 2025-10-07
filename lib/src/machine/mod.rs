@@ -29,8 +29,6 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-/// Audio related types
-pub mod audio;
 /// Machine builder
 pub mod builder;
 /// Graphics utilities

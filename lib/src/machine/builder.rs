@@ -8,7 +8,7 @@ use crate::{
         Machine, UserSpecifiedRoms, graphics::GraphicsRequirements, registry::ComponentRegistry,
         virtual_gamepad::VirtualGamepad,
     },
-    memory::{AddressSpaceId, MemoryAccessTable, MemoryRemappingCommands},
+    memory::{AddressSpaceId, MappingPermissions, MemoryAccessTable, MemoryRemappingCommand},
     persistence::{SaveManager, SnapshotManager},
     platform::Platform,
     rom::{RomMetadata, System},
@@ -448,13 +448,14 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     pub fn memory_map_read(
         self,
         address_space: AddressSpaceId,
-        addresses: RangeInclusive<usize>,
+        range: RangeInclusive<usize>,
     ) -> Self {
         self.machine_builder.memory_access_table.remap(
             address_space,
-            [MemoryRemappingCommands::MapReadComponent {
-                range: addresses,
-                path: self.path.clone(),
+            [MemoryRemappingCommand::Remap {
+                range,
+                permissions: vec![MappingPermissions::Read],
+                component: self.path.clone(),
             }],
         );
 
@@ -464,29 +465,27 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     pub fn memory_map_write(
         self,
         address_space: AddressSpaceId,
-        addresses: RangeInclusive<usize>,
+        range: RangeInclusive<usize>,
     ) -> Self {
         self.machine_builder.memory_access_table.remap(
             address_space,
-            [MemoryRemappingCommands::MapWriteComponent {
-                range: addresses,
-                path: self.path.clone(),
+            [MemoryRemappingCommand::Remap {
+                range,
+                permissions: vec![MappingPermissions::Write],
+                component: self.path.clone(),
             }],
         );
 
         self
     }
 
-    pub fn memory_map(
-        self,
-        address_space: AddressSpaceId,
-        addresses: RangeInclusive<usize>,
-    ) -> Self {
+    pub fn memory_map(self, address_space: AddressSpaceId, range: RangeInclusive<usize>) -> Self {
         self.machine_builder.memory_access_table.remap(
             address_space,
-            [MemoryRemappingCommands::MapComponent {
-                range: addresses.clone(),
-                path: self.path.clone(),
+            [MemoryRemappingCommand::Remap {
+                range,
+                permissions: vec![MappingPermissions::Read, MappingPermissions::Write],
+                component: self.path.clone(),
             }],
         );
 

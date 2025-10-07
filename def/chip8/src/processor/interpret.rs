@@ -2,7 +2,7 @@ use super::{
     ExecutionState, ProcessorState,
     input::Chip8KeyCode,
     instruction::{Chip8InstructionSet, InstructionSetChip8},
-    task::CpuDriver,
+    task::Driver,
 };
 use crate::{
     CHIP8_FONT, Chip8Mode,
@@ -23,7 +23,7 @@ use rand::Rng;
 
 // Instruction interpreting can be clean and easy due to the chip8 enforcing 1 cycle = 1 instruction
 
-impl<G: SupportedGraphicsApiChip8Display> CpuDriver<G> {
+impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,

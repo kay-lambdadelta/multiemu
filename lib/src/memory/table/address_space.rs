@@ -23,20 +23,20 @@ const PAGE_SIZE: Address = 0x1000;
 
 #[derive(Debug)]
 struct MixedTableEntry {
-    pub component: ComponentId,
     /// Full, uncropped relevant range
     pub start: Address,
     pub end: Address,
+    pub component: ComponentId,
 }
 
 #[derive(Debug)]
 enum Page {
     Empty,
     Single {
-        component: ComponentId,
         /// Full, uncropped relevant range
         start: Address,
         end: Address,
+        component: ComponentId,
     },
     Mixed {
         components: Vec<MixedTableEntry>,
@@ -50,7 +50,7 @@ pub struct MemoryMappingTable {
 }
 
 impl MemoryMappingTable {
-    #[inline]
+    #[inline(always)]
     pub fn visit_overlapping<E>(
         &self,
         access_range: RangeInclusive<Address>,
@@ -70,9 +70,9 @@ impl MemoryMappingTable {
                     continue;
                 }
                 Page::Single {
-                    component,
                     start,
                     end,
+                    component,
                 } => {
                     let range = *start..=*end;
 
@@ -224,7 +224,7 @@ pub struct Members {
 }
 
 impl Members {
-    #[inline]
+    #[inline(always)]
     pub fn visit_read<E: Error>(
         &self,
         access_range: RangeInclusive<Address>,
@@ -233,7 +233,7 @@ impl Members {
         self.read.visit_overlapping(access_range.clone(), visitor)
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn visit_write<E: Error>(
         &self,
         access_range: RangeInclusive<Address>,
@@ -249,7 +249,7 @@ pub(super) struct AddressSpace {
     address_space_width: u8,
     members: RwLock<Members>,
     /// Queue for if the address space is locked at the moment
-    queue: Mutex<Vec<MemoryRemappingCommands>>,
+    queue: Mutex<Vec<MemoryRemappingCommand>>,
     queue_modified: AtomicBool,
 }
 
@@ -268,7 +268,7 @@ impl AddressSpace {
         }
     }
 
-    pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommands>) {
+    pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommand>) {
         let mut queue_guard = self.queue.lock().unwrap();
 
         queue_guard.extend(commands);
@@ -287,7 +287,7 @@ impl AddressSpace {
 
     fn update_members(
         &self,
-        commands: impl IntoIterator<Item = MemoryRemappingCommands>,
+        commands: impl IntoIterator<Item = MemoryRemappingCommand>,
         registry: &ComponentRegistry,
     ) {
         let max = 2usize.pow(self.address_space_width as u32) - 1;
@@ -297,82 +297,35 @@ impl AddressSpace {
 
         for command in commands {
             match command {
-                MemoryRemappingCommands::RemoveRead { range } => {
-                    if invalid_ranges.clone().intersects(range.clone()) {
-                        panic!(
-                            "Range {:#04x?} is invalid for a address space that ends at {:04x?}",
-                            range, max
-                        );
-                    }
-
-                    tracing::debug!("Removing memory range {:#04x?} from address space", range,);
-
-                    members.read.remove(range.clone());
-                }
-                MemoryRemappingCommands::RemoveWrite { range } => {
-                    if invalid_ranges.clone().intersects(range.clone()) {
-                        panic!(
-                            "Range {:#04x?} is invalid for a address space that ends at {:04x?}",
-                            range, max
-                        );
-                    }
-
-                    tracing::debug!("Removing memory range {:#04x?} from address space", range,);
-
-                    members.write.remove(range.clone());
-                }
-                MemoryRemappingCommands::MapReadComponent { range, path } => {
+                MemoryRemappingCommand::Remap {
+                    range,
+                    permissions,
+                    component,
+                } => {
                     if invalid_ranges.clone().intersects(range.clone()) {
                         panic!(
                             "Range {:#04x?} is invalid for a address space that ends at {:04x?} (inserted by {})",
-                            range, max, path
+                            range, max, component
                         );
                     }
+                    let id = registry.get_id(&component).unwrap();
 
-                    tracing::debug!(
-                        "Mapping read memory to address range {:#04x?} for {}",
-                        range,
-                        path
-                    );
+                    if permissions.contains(&MappingPermissions::Read) {
+                        members.read.insert(range.clone(), id);
+                    }
 
-                    let id = registry.get_id(&path).unwrap();
-                    members.read.insert(range.clone(), id);
+                    if permissions.contains(&MappingPermissions::Write) {
+                        members.write.insert(range, id);
+                    }
                 }
-                MemoryRemappingCommands::MapWriteComponent { range, path } => {
-                    if invalid_ranges.clone().intersects(range.clone()) {
-                        panic!(
-                            "Range {:#04x?} is invalid for a address space that ends at {:04x?} (inserted by {})",
-                            range, max, path
-                        );
+                MemoryRemappingCommand::Unmap { range, permissions } => {
+                    if permissions.contains(&MappingPermissions::Read) {
+                        members.read.remove(range.clone());
                     }
 
-                    tracing::debug!(
-                        "Mapping write memory to address range {:#04x?} for {}",
-                        range,
-                        path
-                    );
-
-                    let id = registry.get_id(&path).unwrap();
-                    members.write.insert(range.clone(), id);
-                }
-                MemoryRemappingCommands::MapComponent { range, path } => {
-                    if invalid_ranges.clone().intersects(range.clone()) {
-                        panic!(
-                            "Range {:#04x?} is invalid for a address space that ends at {:04x?} (inserted by {})",
-                            range, max, path
-                        );
+                    if permissions.contains(&MappingPermissions::Write) {
+                        members.write.remove(range.clone());
                     }
-
-                    tracing::debug!(
-                        "Mapping memory to address range {:#04x?} for {}",
-                        range,
-                        path
-                    );
-
-                    let id = registry.get_id(&path).unwrap();
-
-                    members.read.insert(range.clone(), id);
-                    members.write.insert(range.clone(), id);
                 }
             }
         }
@@ -382,25 +335,22 @@ impl AddressSpace {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum MappingPermissions {
+    Read,
+    Write,
+}
+
 #[derive(Debug)]
-pub enum MemoryRemappingCommands {
-    MapReadComponent {
+pub enum MemoryRemappingCommand {
+    Remap {
         range: RangeInclusive<Address>,
-        path: ComponentPath,
+        permissions: Vec<MappingPermissions>,
+        component: ComponentPath,
     },
-    MapWriteComponent {
+    Unmap {
         range: RangeInclusive<Address>,
-        path: ComponentPath,
-    },
-    MapComponent {
-        range: RangeInclusive<Address>,
-        path: ComponentPath,
-    },
-    RemoveRead {
-        range: RangeInclusive<Address>,
-    },
-    RemoveWrite {
-        range: RangeInclusive<Address>,
+        permissions: Vec<MappingPermissions>,
     },
 }
 
