@@ -1,10 +1,10 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, mem::ManuallyDrop};
 
 use super::is_main_thread;
 
 /// Based upon the fragile crate but made more simple for our purposes
 #[repr(transparent)]
-pub struct Fragile<T>(T);
+pub struct Fragile<T>(ManuallyDrop<T>);
 
 impl<T: Debug> Debug for Fragile<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -26,7 +26,7 @@ impl<T> Fragile<T> {
             "Cannot create this type outside the main thread"
         );
 
-        Fragile(value)
+        Fragile(ManuallyDrop::new(value))
     }
 
     #[inline]
@@ -57,6 +57,8 @@ impl<T> Drop for Fragile<T> {
                 is_main_thread(),
                 "Cannot drop this type outside the main thread"
             );
+
+            unsafe { ManuallyDrop::drop(&mut self.0) };
         }
     }
 }

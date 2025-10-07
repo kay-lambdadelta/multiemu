@@ -34,7 +34,7 @@ bytemuck = { version = "1.24", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
-bitvec = { git = "https://github.com/kay-lambdadelta/ferrilab", features = [
+bitvec = { git = "https://github.com/kay-lambdadelta/ferrilab", default-features = false, features = [
     "std",
     "serde",
 ] }

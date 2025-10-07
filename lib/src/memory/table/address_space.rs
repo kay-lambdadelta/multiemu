@@ -66,9 +66,7 @@ impl MemoryMappingTable {
             let page = &self.table[page_index];
 
             match page {
-                Page::Empty => {
-                    continue;
-                }
+                Page::Empty => {}
                 Page::Single {
                     start,
                     end,
@@ -277,25 +275,24 @@ impl AddressSpace {
 
     #[inline]
     pub fn get_members(&self, registry: &ComponentRegistry) -> RwLockReadGuard<'_, Members> {
-        if self.queue_modified.swap(false, Ordering::Acquire) {
-            let mut queue_guard = self.queue.lock().unwrap();
-            self.update_members(queue_guard.drain(..), registry);
+        if !self.queue_modified.swap(false, Ordering::Acquire) {
+            self.members.read().unwrap()
+        } else {
+            self.update_members(registry);
+            self.members.read().unwrap()
         }
-
-        self.members.read().unwrap()
     }
 
-    fn update_members(
-        &self,
-        commands: impl IntoIterator<Item = MemoryRemappingCommand>,
-        registry: &ComponentRegistry,
-    ) {
+    #[cold]
+    fn update_members(&self, registry: &ComponentRegistry) {
+        let mut queue_guard = self.queue.lock().unwrap();
+
         let max = 2usize.pow(self.address_space_width as u32) - 1;
 
         let invalid_ranges = (0..=max).complement();
         let mut members = self.members.write().unwrap();
 
-        for command in commands {
+        for command in queue_guard.drain(..) {
             match command {
                 MemoryRemappingCommand::Remap {
                     range,

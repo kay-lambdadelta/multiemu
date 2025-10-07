@@ -100,19 +100,23 @@ impl MemoryAccessTable {
                     self.registry
                         .get()
                         .unwrap()
-                        .interact_dyn_mut(component, |component| {
-                            write_helper(
-                                buffer,
-                                &mut queue,
-                                address,
-                                access_range,
-                                buffer_range,
-                                component,
-                                address_space,
-                            )?;
+                        .interact_dyn_mut(
+                            component,
+                            #[inline(always)]
+                            |component| {
+                                write_helper(
+                                    buffer,
+                                    &mut queue,
+                                    address,
+                                    access_range,
+                                    buffer_range,
+                                    component,
+                                    address_space,
+                                )?;
 
-                            Ok(())
-                        })
+                                Ok(())
+                            },
+                        )
                         .unwrap()
                 },
             )?;

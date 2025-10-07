@@ -255,6 +255,8 @@ impl State {
             .unwrap()
     }
 
+    // This function uses manual bit math because absolute speed is critical here
+
     #[inline]
     fn calculate_color<R: Region>(
         &self,
@@ -264,34 +266,26 @@ impl State {
         color: u8,
     ) -> Srgb<u8> {
         let tile_position = self.get_modified_cycle_counter::<R>(8) / 8;
-        let attribute_byte = attribute_byte.view_bits::<Lsb0>();
-        let color = color.view_bits::<Lsb0>();
 
         let quadrant = Point2::new(tile_position.x % 4, tile_position.y % 4) / 2;
         let shift = (quadrant.y * 2 + quadrant.x) * 2;
 
-        let mut palette_index = 0u8;
+        let color_bits = color & 0b11; // lowest 2 bits
+        let attribute_bits = (attribute_byte >> shift) & 0b11; // 2 bits from attribute byte
 
-        {
-            let palette_index = palette_index.view_bits_mut::<Lsb0>();
+        // Combine into a 4-bit palette index
+        let palette_index = color_bits | (attribute_bits << 2);
 
-            palette_index[0..2].copy_from_bitslice(&color[0..2]);
-            palette_index[2..4]
-                .copy_from_bitslice(&attribute_byte[shift as usize..shift as usize + 2]);
-        }
-
-        let color: u8 = memory_access_table
+        let color_value: u8 = memory_access_table
             .read_le_value(
                 BACKGROUND_PALETTE_BASE_ADDRESS + palette_index as usize,
                 ppu_address_space,
             )
             .unwrap();
 
-        let color = color.view_bits::<Lsb0>();
-
         let color = PpuColor {
-            hue: color[0..4].load(),
-            luminance: color[4..6].load(),
+            hue: color_value & 0b1111,
+            luminance: (color_value >> 4) & 0b11,
         };
 
         R::color_to_srgb(color)
