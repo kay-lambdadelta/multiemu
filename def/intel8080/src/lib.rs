@@ -53,7 +53,7 @@ impl<P: Platform> ComponentConfig<P> for Intel8080Config {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         todo!()
     }
 }

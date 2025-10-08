@@ -231,7 +231,7 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
     }
 }
 
-pub(crate) trait Chip8DisplayBackend: Debug + 'static {
+pub(crate) trait Chip8DisplayBackend: Send + Sync + Debug + 'static {
     type GraphicsApi: GraphicsApi;
 
     fn new(initialization_data: <Self::GraphicsApi as GraphicsApi>::InitializationData) -> Self;
@@ -258,8 +258,8 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) -> Result<(), BuildError> {
-        let (component_builder, _) = component_builder
+    ) -> Result<Self::Component, BuildError> {
+        component_builder
             .insert_task_mut(
                 "driver",
                 Ratio::from_integer(60),
@@ -276,14 +276,12 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             })
             .insert_display("display");
 
-        component_builder.build_local(Chip8Display {
+        Ok(Chip8Display {
             backend: None,
             hires: false,
             vsync_occurred: false,
             config: self,
-        });
-
-        Ok(())
+        })
     }
 }
 

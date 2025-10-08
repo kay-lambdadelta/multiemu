@@ -13,6 +13,7 @@ use std::{
     ops::Deref,
     str::FromStr,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -35,14 +36,23 @@ fn criterion_benchmark(c: &mut Criterion) {
         Ratio::from_integer(44100),
         Arc::new(DirectMainThreadExecutor),
     );
-    let machine: Machine<TestPlatform> = Atari2600.construct(machine).build(Default::default());
+    let mut machine: Machine<TestPlatform> = Atari2600
+        .construct(machine)
+        .build(Default::default(), false);
 
-    let mut scheduler_guard = machine.scheduler.lock().unwrap();
-    let full_cycle = scheduler_guard.full_cycle();
+    let scheduler_state = machine.scheduler_state.as_mut().unwrap();
+    let full_cycle = scheduler_state.timeline_length();
 
     c.bench_function("atari_2600_full_machine_cycle", |b| {
         b.iter(|| {
-            scheduler_guard.run_for_cycles(full_cycle);
+            scheduler_state.run_for_cycles(full_cycle);
+        })
+    });
+
+    let one_second = Duration::from_secs(1);
+    c.bench_function("atari_2600_one_second", |b| {
+        b.iter(|| {
+            scheduler_state.run(one_second);
         })
     });
 }

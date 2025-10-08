@@ -2,8 +2,8 @@ use crate::{
     graphics::GraphicsApi,
     machine::{builder::ComponentBuilder, registry::ComponentRegistry},
     memory::{
-        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
-        WriteMemoryRecord,
+        Address, AddressSpaceId, PreviewMemoryError, PreviewMemoryErrorType, ReadMemoryError,
+        ReadMemoryErrorType, WriteMemoryError, WriteMemoryErrorType,
     },
     platform::Platform,
 };
@@ -27,7 +27,7 @@ mod path;
 
 #[allow(unused)]
 /// Basic supertrait for all components
-pub trait Component: Debug + Any {
+pub trait Component: Send + Sync + Debug + Any {
     /// Reset state
     fn reset(&mut self) {}
 
@@ -61,11 +61,14 @@ pub trait Component: Debug + Any {
         address: Address,
         address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        Err(MemoryOperationError::from_iter([(
-            address..=(address + (buffer.len() - 1)),
-            ReadMemoryRecord::Denied,
-        )]))
+    ) -> Result<(), ReadMemoryError> {
+        Err(ReadMemoryError(
+            std::iter::once((
+                address..=(address + (buffer.len() - 1)),
+                ReadMemoryErrorType::Denied,
+            ))
+            .collect(),
+        ))
     }
 
     /// Previews memory at the specified address in the specified address space to fill the buffer
@@ -74,30 +77,26 @@ pub trait Component: Debug + Any {
         address: Address,
         address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
+    ) -> Result<(), PreviewMemoryError> {
         // Convert between a read and a preview
 
         self.read_memory(address, address_space, buffer)
-            .map_err(|e| MemoryOperationError {
-                records: e
-                    .records
-                    .into_iter()
-                    .map(|(range, record)| {
-                        (
-                            range,
-                            match record {
-                                ReadMemoryRecord::Denied => PreviewMemoryRecord::Denied,
-                                ReadMemoryRecord::Redirect {
-                                    address,
-                                    address_space,
-                                } => PreviewMemoryRecord::Redirect {
-                                    address,
-                                    address_space,
+            .map_err(|e| {
+                PreviewMemoryError(
+                    e.0.into_iter()
+                        .map(|(range, record)| {
+                            (
+                                range,
+                                match record {
+                                    ReadMemoryErrorType::Denied => PreviewMemoryErrorType::Denied,
+                                    ReadMemoryErrorType::OutOfBus => {
+                                        PreviewMemoryErrorType::OutOfBus
+                                    }
                                 },
-                            },
-                        )
-                    })
-                    .collect(),
+                            )
+                        })
+                        .collect(),
+                )
             })
     }
 
@@ -106,11 +105,14 @@ pub trait Component: Debug + Any {
         address: Address,
         address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        Err(MemoryOperationError::from_iter([(
-            address..=(address + (buffer.len() - 1)),
-            WriteMemoryRecord::Denied,
-        )]))
+    ) -> Result<(), WriteMemoryError> {
+        Err(WriteMemoryError(
+            std::iter::once((
+                address..=(address + (buffer.len() - 1)),
+                WriteMemoryErrorType::Denied,
+            ))
+            .collect(),
+        ))
     }
 
     /// TODO: If we can figure out a non nightmarish way to have the platform generic references with these I
@@ -134,15 +136,16 @@ pub trait Component: Debug + Any {
 
 #[allow(unused)]
 /// Factory config to construct a component
-pub trait ComponentConfig<P: Platform>: Debug + Send + Sync + Sized {
+pub trait ComponentConfig<P: Platform>: Debug + Sized {
     /// Paramters to create this component
     type Component: Component;
 
     /// Make a new component from the config
+    #[must_use]
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) -> Result<(), BuildError>;
+    ) -> Result<Self::Component, BuildError>;
 }
 
 #[derive(Debug)]

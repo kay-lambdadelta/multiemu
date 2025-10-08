@@ -7,7 +7,10 @@ use bitvec::{array::BitArray, order::Lsb0, view::BitView};
 use color::TiaColor;
 use multiemu::{
     component::{Component, ResourcePath},
-    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord},
+    memory::{
+        Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
+        WriteMemoryErrorType,
+    },
 };
 use multiemu_definition_mos6502::RdyFlag;
 use nalgebra::{DMatrix, Point2};
@@ -137,7 +140,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         let data = &mut buffer[0];
 
         if let Some(address) = ReadRegisters::from_repr(address) {
@@ -147,10 +150,13 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
 
             Ok(())
         } else {
-            Err(MemoryOperationError::from_iter([(
-                address..=(address + (buffer.len() - 1)),
-                ReadMemoryRecord::Denied,
-            )]))
+            return Err(ReadMemoryError(
+                std::iter::once((
+                    address..=(address + (buffer.len() - 1)),
+                    ReadMemoryErrorType::Denied,
+                ))
+                .collect(),
+            ));
         }
     }
 
@@ -159,7 +165,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
+    ) -> Result<(), WriteMemoryError> {
         let data = buffer[0];
         let data_bits = data.view_bits::<Lsb0>();
 
@@ -170,10 +176,13 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
 
             Ok(())
         } else {
-            Err(MemoryOperationError::from_iter([(
-                address..=(address + (buffer.len() - 1)),
-                WriteMemoryRecord::Denied,
-            )]))
+            return Err(WriteMemoryError(
+                std::iter::once((
+                    address..=(address + (buffer.len() - 1)),
+                    WriteMemoryErrorType::Denied,
+                ))
+                .collect(),
+            ));
         }
     }
 

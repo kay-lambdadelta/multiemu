@@ -25,7 +25,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let player1_gamepad = create_gamepad();
         let player2_gamepad = create_gamepad();
 
@@ -43,9 +43,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
             })
             .unwrap();
 
-        component_builder.build(Atari2600Joystick);
-
-        Ok(())
+        Ok(Atari2600Joystick)
     }
 }
 

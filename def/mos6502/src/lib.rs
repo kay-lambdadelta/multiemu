@@ -335,27 +335,25 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let memory_access_table = component_builder.memory_access_table();
 
-        component_builder
-            .insert_task_mut(
-                "driver",
-                self.frequency,
-                Driver {
-                    memory_access_table,
-                    instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
-                },
-            )
-            .build(Mos6502 {
-                rdy: Arc::new(RdyFlag::new()),
-                irq: Arc::new(IrqFlag::new()),
-                nmi: Arc::new(NmiFlag::new()),
-                state: ProcessorState::default(),
-                config: self,
-            });
+        component_builder.insert_task_mut(
+            "driver",
+            self.frequency,
+            Driver {
+                memory_access_table,
+                instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
+            },
+        );
 
-        Ok(())
+        Ok(Mos6502 {
+            rdy: Arc::new(RdyFlag::new()),
+            irq: Arc::new(IrqFlag::new()),
+            nmi: Arc::new(NmiFlag::new()),
+            state: ProcessorState::default(),
+            config: self,
+        })
     }
 }
 

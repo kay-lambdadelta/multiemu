@@ -12,7 +12,7 @@ use crate::{
     persistence::{SaveManager, SnapshotManager},
     platform::{Platform, TestPlatform},
     rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata, System},
-    scheduler::Scheduler,
+    scheduler::{SchedulerHandle, SchedulerState},
     utils::DirectMainThreadExecutor,
 };
 use num::rational::Ratio;
@@ -26,7 +26,7 @@ use std::{
     marker::PhantomData,
     ops::Deref,
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
 /// Machine builder
@@ -38,16 +38,16 @@ pub mod virtual_gamepad;
 
 /// A assembled machine, usable for a further runtime to assist emulation
 ///
-/// Note: This should all be interior mutable
-///
 /// This should only be dropped on the main thread. Dropping it outside the main thread may result in a abort or a panic, but not UB
 #[derive(Debug)]
 pub struct Machine<P: Platform>
 where
     Self: Send + Sync,
 {
-    /// Scheduler loaded with tasks
-    pub scheduler: Mutex<Scheduler>,
+    /// Scheduler controller
+    pub scheduler_handle: Arc<SchedulerHandle>,
+    // A dedicated thread might own the actual scheduler state, if this is present you need to drive it
+    pub scheduler_state: Option<SchedulerState>,
     /// Memory translation table
     pub memory_access_table: Arc<MemoryAccessTable>,
     /// All virtual gamepads inserted by components

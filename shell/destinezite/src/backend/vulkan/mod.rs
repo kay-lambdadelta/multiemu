@@ -254,7 +254,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
 
             machine
                 .component_registry
-                .interact_dyn_local_mut(id, |component| {
+                .interact_dyn_mut(id, |component| {
                     component.access_framebuffer(
                         display_path,
                         Box::new(|display| {

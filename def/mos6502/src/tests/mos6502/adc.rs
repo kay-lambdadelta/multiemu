@@ -7,7 +7,7 @@ pub fn adc_immediate() {
     set_main_thread();
 
     for value in 0x00..=0xff {
-        let (machine, cpu, cpu_address_space) = instruction_test_boilerplate();
+        let (mut machine, cpu, cpu_address_space) = instruction_test_boilerplate();
         let component_id = machine.component_registry.get_id(&cpu).unwrap();
 
         // Enable carry
@@ -29,7 +29,7 @@ pub fn adc_immediate() {
             .unwrap();
 
         // Should be done in 2 cycles
-        machine.scheduler.lock().unwrap().run_for_cycles(2);
+        machine.scheduler_state.as_mut().unwrap().run_for_cycles(2);
 
         machine
             .component_registry
@@ -61,7 +61,7 @@ pub fn adc_absolute() {
     set_main_thread();
 
     for value in 0x00..=0xff {
-        let (machine, cpu, cpu_address_space) = instruction_test_boilerplate();
+        let (mut machine, cpu, cpu_address_space) = instruction_test_boilerplate();
         let component_id = machine.component_registry.get_id(&cpu).unwrap();
 
         machine
@@ -93,7 +93,7 @@ pub fn adc_absolute() {
             .write_le_value::<u16>(0x0001, cpu_address_space, 0x3)
             .unwrap();
 
-        machine.scheduler.lock().unwrap().run_for_cycles(4);
+        machine.scheduler_state.as_mut().unwrap().run_for_cycles(4);
 
         machine
             .component_registry

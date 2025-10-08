@@ -2,6 +2,7 @@ use crate::{
     component::ResourcePath,
     machine::{builder::StoredTask, registry::ComponentRegistry},
 };
+use crossbeam::atomic::AtomicCell;
 use num::{
     ToPrimitive,
     integer::{gcd, lcm},
@@ -12,21 +13,21 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
     num::NonZero,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
     vec::Vec,
 };
 
+pub(crate) use run::scheduler_thread;
 pub use task::*;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ExecutionMode {
-    Single,
-    Multi,
-}
 
 mod run;
 mod task;
+#[cfg(test)]
+mod test;
 
 /// TODO: Future me, make this deterministically multithreaded
 
@@ -58,7 +59,7 @@ pub struct ScheduleEntry {
 ///
 /// Currently it only supports frequency based executions
 #[derive(Debug)]
-pub struct Scheduler {
+pub struct SchedulerState {
     /// Global tick we are currently on
     current_tick: u32,
     /// The amount of time a tick takes
@@ -69,9 +70,10 @@ pub struct Scheduler {
     #[allow(unused)]
     task_lookup: HashMap<ResourcePath, TaskId>,
     registry: Arc<ComponentRegistry>,
+    handle: Arc<SchedulerHandle>,
 }
 
-impl Scheduler {
+impl SchedulerState {
     pub(crate) fn new(
         component_tasks: HashMap<ResourcePath, StoredTask>,
         registry: Arc<ComponentRegistry>,
@@ -214,6 +216,13 @@ impl Scheduler {
             }
         }
 
+        let handle = SchedulerHandle {
+            timeline_length,
+            average_efficiency: AtomicCell::new(1.0),
+            paused: AtomicBool::new(true),
+            exit: AtomicBool::new(false),
+        };
+
         Self {
             current_tick: 0,
             tick_real_time,
@@ -221,6 +230,7 @@ impl Scheduler {
             timeline,
             task_lookup,
             registry,
+            handle: Arc::new(handle),
         }
     }
 
@@ -230,7 +240,43 @@ impl Scheduler {
             self.current_tick.checked_add(amount).unwrap() % self.timeline.len() as u32;
     }
 
-    pub fn full_cycle(&self) -> u32 {
+    pub fn handle(&self) -> Arc<SchedulerHandle> {
+        self.handle.clone()
+    }
+
+    pub fn timeline_length(&self) -> u32 {
         self.timeline.len() as u32
+    }
+}
+
+#[derive(Debug)]
+pub struct SchedulerHandle {
+    timeline_length: u32,
+    average_efficiency: AtomicCell<f32>,
+    paused: AtomicBool,
+    exit: AtomicBool,
+}
+
+impl SchedulerHandle {
+    /// Pause execution
+    ///
+    /// This does nothing when not using a dedicated thread for the scheduler
+    pub fn pause(&self) {
+        self.paused.store(true, Ordering::Release);
+    }
+
+    /// Play execution
+    ///
+    /// This does nothing when not using a dedicated thread for the scheduler
+    pub fn play(&self) {
+        self.paused.store(false, Ordering::Release);
+    }
+
+    pub fn timeline_length(&self) -> u32 {
+        self.timeline_length
+    }
+
+    pub fn average_efficiency(&self) -> f32 {
+        self.average_efficiency.load()
     }
 }

@@ -70,7 +70,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let host_sample_rate = component_builder.host_sample_rate();
         let register_change_frequency = Ratio::from_integer(60);
 
@@ -82,14 +82,13 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         component_builder
             .insert_audio_output("audio-output")
             .0
-            .insert_task_mut("driver", register_change_frequency, driver)
-            .build(Chip8Audio {
-                sound_timer: 0,
-                buffer: AllocRingBuffer::new(host_sample_rate.to_integer() as usize),
-                wave_generator: SquareWave::new(Ratio::from_integer(440), host_sample_rate, 0.5),
-            });
+            .insert_task_mut("driver", register_change_frequency, driver);
 
-        Ok(())
+        Ok(Chip8Audio {
+            sound_timer: 0,
+            buffer: AllocRingBuffer::new(host_sample_rate.to_integer() as usize),
+            wave_generator: SquareWave::new(Ratio::from_integer(440), host_sample_rate, 0.5),
+        })
     }
 }
 

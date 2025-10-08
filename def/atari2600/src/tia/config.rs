@@ -24,13 +24,13 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let (component_builder, _) = component_builder.insert_display("tv");
         let component_builder = component_builder.memory_map(self.cpu_address_space, 0x000..=0x03f);
 
         let cpu_rdy = component_builder
             .registry()
-            .interact_local_by_path::<Mos6502, _>(&self.cpu, |cpu| cpu.rdy())
+            .interact_by_path::<Mos6502, _>(&self.cpu, |cpu| cpu.rdy())
             .unwrap();
 
         let component_builder = component_builder.insert_task_mut(
@@ -41,18 +41,16 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
             },
         );
 
-        component_builder
-            .set_lazy_component_initializer(move |component, lazy| {
-                component.backend = Some(TiaDisplayBackend::new(
-                    lazy.component_graphics_initialization_data.clone(),
-                ));
-            })
-            .build_local(Tia {
-                state: Default::default(),
-                backend: None,
-                cpu_rdy,
-            });
+        component_builder.set_lazy_component_initializer(move |component, lazy| {
+            component.backend = Some(TiaDisplayBackend::new(
+                lazy.component_graphics_initialization_data.clone(),
+            ));
+        });
 
-        Ok(())
+        Ok(Tia {
+            state: Default::default(),
+            backend: None,
+            cpu_rdy,
+        })
     }
 }

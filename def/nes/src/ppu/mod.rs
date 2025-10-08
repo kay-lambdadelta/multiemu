@@ -10,7 +10,7 @@ use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
 use multiemu::{
     component::{BuildError, Component, ComponentConfig, ComponentPath, ResourcePath},
     machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord, WriteMemoryRecord},
+    memory::{Address, AddressSpaceId, MemoryAccessTable, ReadMemoryError, WriteMemoryError},
     platform::Platform,
 };
 use multiemu_definition_mos6502::Mos6502;
@@ -23,7 +23,7 @@ use std::{
     marker::PhantomData,
     ops::{Not, RangeInclusive},
     sync::{
-        OnceLock,
+        Arc, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -181,6 +181,7 @@ pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
     state: State,
     backend: OnceLock<G::Backend<R>>,
     ppu_address_space: AddressSpaceId,
+    access_table: Arc<MemoryAccessTable>,
 }
 
 impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
@@ -189,10 +190,10 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
 
-        tracing::debug!("Reading from PPU register: {:?}", register);
+        tracing::trace!("Reading from PPU register: {:?}", register);
 
         match register {
             CpuAccessibleRegister::PpuMask => todo!(),
@@ -207,14 +208,11 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
             CpuAccessibleRegister::PpuScroll => todo!(),
             CpuAccessibleRegister::PpuAddr => todo!(),
             CpuAccessibleRegister::PpuData => {
-                // Redirect into the ppu address space
-                return Err(MemoryOperationError::from_iter(std::iter::once((
-                    address..=address,
-                    ReadMemoryRecord::Redirect {
-                        address: self.state.ppuaddr as usize,
-                        address_space: self.ppu_address_space,
-                    },
-                ))));
+                self.access_table.read(
+                    self.state.ppuaddr as usize,
+                    self.ppu_address_space,
+                    buffer,
+                )?;
             }
             CpuAccessibleRegister::OamDma => todo!(),
             _ => {
@@ -230,12 +228,12 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
+    ) -> Result<(), WriteMemoryError> {
         let data = buffer[0];
 
         let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
 
-        tracing::debug!("Writing to PPU register: {:?}", register);
+        tracing::trace!("Writing to PPU register: {:?}", register);
 
         match register {
             CpuAccessibleRegister::PpuCtrl => {
@@ -266,8 +264,9 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
             }
             CpuAccessibleRegister::PpuData => {
                 tracing::debug!(
-                    "CPU is sending data to 0x{:x?} in the PPU address space",
-                    self.state.ppuaddr
+                    "CPU is sending data to 0x{:04x} in the PPU address space: {:02x}",
+                    self.state.ppuaddr,
+                    data
                 );
 
                 // Redirect into the ppu address space
@@ -276,13 +275,11 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     .ppuaddr
                     .wrapping_add(self.state.ppuaddr_increment_amount as u16);
 
-                return Err(MemoryOperationError::from_iter(std::iter::once((
-                    address..=address,
-                    WriteMemoryRecord::Redirect {
-                        address: self.state.ppuaddr as usize,
-                        address_space: self.ppu_address_space,
-                    },
-                ))));
+                self.access_table.write(
+                    self.state.ppuaddr as usize,
+                    self.ppu_address_space,
+                    buffer,
+                )?;
             }
             CpuAccessibleRegister::OamDma => todo!(),
         }
@@ -310,8 +307,8 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
-        let memory_access_table = component_builder.memory_access_table();
+    ) -> Result<Self::Component, BuildError> {
+        let access_table = component_builder.memory_access_table();
 
         let (component_builder, _) = component_builder.insert_display("tv");
 
@@ -326,7 +323,6 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                 R::master_clock() / 4,
                 Driver {
                     processor_nmi,
-                    memory_access_table,
                     ppu_address_space: self.ppu_address_space,
                 },
             )
@@ -354,13 +350,13 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
             .memory_map(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuData as usize..=CpuAccessibleRegister::PpuData as usize,
-            )
-            .build_local(Ppu {
-                state: Default::default(),
-                backend: OnceLock::default(),
-                ppu_address_space: self.ppu_address_space,
-            });
+            );
 
-        Ok(())
+        Ok(Ppu {
+            state: Default::default(),
+            backend: OnceLock::default(),
+            ppu_address_space: self.ppu_address_space,
+            access_table,
+        })
     }
 }

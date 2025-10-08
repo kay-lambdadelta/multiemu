@@ -3,8 +3,8 @@ use multiemu::{
     component::{BuildError, Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
-        WriteMemoryRecord,
+        Address, AddressSpaceId, PreviewMemoryError, PreviewMemoryErrorType, ReadMemoryError,
+        ReadMemoryErrorType, WriteMemoryError, WriteMemoryErrorType,
     },
     platform::Platform,
 };
@@ -146,7 +146,7 @@ impl Component for Mos6532Riot {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         for (address, buffer_section) in
             (address..=(address + (buffer.len() - 1))).zip(buffer.iter_mut())
         {
@@ -194,10 +194,13 @@ impl Component for Mos6532Riot {
                     *buffer_section = self.registers.t1024t;
                 }
                 _ => {
-                    return Err(MemoryOperationError::from_iter([(
-                        address..=(address + (buffer.len() - 1)),
-                        ReadMemoryRecord::Denied,
-                    )]));
+                    return Err(ReadMemoryError(
+                        std::iter::once((
+                            address..=(address + (buffer.len() - 1)),
+                            ReadMemoryErrorType::Denied,
+                        ))
+                        .collect(),
+                    ));
                 }
             }
         }
@@ -210,7 +213,7 @@ impl Component for Mos6532Riot {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
+    ) -> Result<(), PreviewMemoryError> {
         for (address, buffer_section) in
             (address..=(address + (buffer.len() - 1))).zip(buffer.iter_mut())
         {
@@ -218,10 +221,13 @@ impl Component for Mos6532Riot {
 
             match adjusted_address {
                 0x0 | 0x2 => {
-                    return Err(MemoryOperationError::from_iter([(
-                        address..=(address + (buffer.len() - 1)),
-                        PreviewMemoryRecord::Impossible,
-                    )]));
+                    return Err(PreviewMemoryError(
+                        std::iter::once((
+                            address..=(address + (buffer.len() - 1)),
+                            PreviewMemoryErrorType::Denied,
+                        ))
+                        .collect(),
+                    ));
                 }
                 0x1 => {
                     *buffer_section = if self.registers.swacnt { 1 } else { 0 };
@@ -248,10 +254,13 @@ impl Component for Mos6532Riot {
                     *buffer_section = self.registers.t1024t;
                 }
                 _ => {
-                    return Err(MemoryOperationError::from_iter([(
-                        address..=(address + (buffer.len() - 1)),
-                        PreviewMemoryRecord::Denied,
-                    )]));
+                    return Err(PreviewMemoryError(
+                        std::iter::once((
+                            address..=(address + (buffer.len() - 1)),
+                            PreviewMemoryErrorType::Denied,
+                        ))
+                        .collect(),
+                    ));
                 }
             }
         }
@@ -264,7 +273,7 @@ impl Component for Mos6532Riot {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
+    ) -> Result<(), WriteMemoryError> {
         for (address, buffer_section) in
             (address..=(address + (buffer.len() - 1))).zip(buffer.iter())
         {
@@ -304,10 +313,13 @@ impl Component for Mos6532Riot {
                     self.registers.t1024t = *buffer_section;
                 }
                 _ => {
-                    return Err(MemoryOperationError::from_iter([(
-                        address..=(address + (buffer.len() - 1)),
-                        WriteMemoryRecord::Denied,
-                    )]));
+                    return Err(WriteMemoryError(
+                        std::iter::once((
+                            address..=(address + (buffer.len() - 1)),
+                            WriteMemoryErrorType::Denied,
+                        ))
+                        .collect(),
+                    ));
                 }
             }
         }
@@ -322,7 +334,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let registers = Registers {
             swcha: OnceLock::new(),
             swchb: OnceLock::new(),
@@ -359,14 +371,12 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
             },
         );
 
-        let component_builder = set_up_timer_tasks(&self, component_builder);
+        set_up_timer_tasks(&self, component_builder);
 
-        component_builder.build(Self::Component {
+        Ok(Self::Component {
             registers,
             config: self,
-        });
-
-        Ok(())
+        })
     }
 }
 

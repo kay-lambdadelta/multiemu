@@ -1,14 +1,13 @@
-use std::ops::RangeInclusive;
-
 use multiemu::{
     component::{BuildError, Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
-        WriteMemoryRecord,
+        Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
+        WriteMemoryErrorType,
     },
     platform::Platform,
 };
+use std::ops::RangeInclusive;
 
 use crate::SUZY_ADDRESSES;
 
@@ -62,7 +61,7 @@ impl Component for Suzy {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         // TODO: Make this a match table when rust gets inline const patterns
 
         if TMPADRL.contains(&address) {
@@ -106,10 +105,13 @@ impl Component for Suzy {
         } else if PPTDATA.contains(&address) {
         } else if HOWIE.contains(&address) {
         } else {
-            return Err(MemoryOperationError::from_iter([(
-                address..=(address + (buffer.len() - 1)),
-                ReadMemoryRecord::Denied,
-            )]));
+            return Err(ReadMemoryError(
+                std::iter::once((
+                    address..=(address + (buffer.len() - 1)),
+                    ReadMemoryErrorType::Denied,
+                ))
+                .collect(),
+            ));
         }
 
         Ok(())
@@ -120,7 +122,7 @@ impl Component for Suzy {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
+    ) -> Result<(), WriteMemoryError> {
         if TMPADRL.contains(&address) {
         } else if TILTACUM.contains(&address) {
         } else if HOFF.contains(&address) {
@@ -162,25 +164,16 @@ impl Component for Suzy {
         } else if PPTDATA.contains(&address) {
         } else if HOWIE.contains(&address) {
         } else {
-            return Err(MemoryOperationError::from_iter([(
-                address..=(address + (buffer.len() - 1)),
-                WriteMemoryRecord::Denied,
-            )]));
+            return Err(WriteMemoryError(
+                std::iter::once((
+                    address..=(address + (buffer.len() - 1)),
+                    WriteMemoryErrorType::Denied,
+                ))
+                .collect(),
+            ));
         }
 
         Ok(())
-    }
-
-    fn preview_memory(
-        &self,
-        address: Address,
-        _address_space: AddressSpaceId,
-        buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
-        return Err(MemoryOperationError::from_iter([(
-            address..=(address + (buffer.len() - 1)),
-            PreviewMemoryRecord::Impossible,
-        )]));
     }
 }
 
@@ -195,11 +188,9 @@ impl<P: Platform> ComponentConfig<P> for SuzyConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) -> Result<(), BuildError> {
-        component_builder
-            .memory_map(self.cpu_address_space, SUZY_ADDRESSES)
-            .build(Suzy {});
+    ) -> Result<Self::Component, BuildError> {
+        component_builder.memory_map(self.cpu_address_space, SUZY_ADDRESSES);
 
-        Ok(())
+        Ok(Suzy {})
     }
 }

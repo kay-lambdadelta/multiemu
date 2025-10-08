@@ -44,7 +44,7 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let rom_manager = component_builder.rom_manager();
 
         let mut rom_file = BufReader::new(
@@ -61,7 +61,7 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
 
         tracing::info!("Loaded INES ROM: {:?}", ines);
 
-        let component_builder = match ines.mapper {
+        match ines.mapper {
             000 => {
                 component_builder
                     .insert_child_component(
@@ -80,8 +80,6 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
             }
         };
 
-        component_builder.build(NesCartridge { rom: ines });
-
-        Ok(())
+        Ok(NesCartridge { rom: ines })
     }
 }

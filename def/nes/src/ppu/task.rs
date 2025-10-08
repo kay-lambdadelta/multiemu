@@ -21,7 +21,6 @@ use std::{
 
 pub struct Driver {
     pub processor_nmi: Arc<NmiFlag>,
-    pub memory_access_table: Arc<MemoryAccessTable>,
     pub ppu_address_space: AddressSpaceId,
 }
 
@@ -44,7 +43,11 @@ impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
                     backend.commit_staging_buffer();
                 }
             } else if (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y) {
-                self.handle_visible_cycles::<R, G>(&mut component.state, backend);
+                self.handle_visible_cycles::<R, G>(
+                    &mut component.state,
+                    backend,
+                    &component.access_table,
+                );
             } else if component.state.cycle_counter.y == 241 {
                 component
                     .state
@@ -68,6 +71,7 @@ impl Driver {
         &self,
         state: &mut State,
         backend: &mut <G as SupportedGraphicsApiPpu>::Backend<R>,
+        access_table: &MemoryAccessTable,
     ) {
         match state.cycle_counter.x {
             1..=FINAL_VISIBLE_CYCLE => {
@@ -83,18 +87,14 @@ impl Driver {
                         DrawingState::FetchingNametable,
                     ) {
                         DrawingState::FetchingNametable => {
-                            let nametable = state.fetch_nametable::<R>(
-                                &self.memory_access_table,
-                                self.ppu_address_space,
-                            );
+                            let nametable =
+                                state.fetch_nametable::<R>(&access_table, self.ppu_address_space);
 
                             state.drawing_state = DrawingState::FetchingAttribute { nametable };
                         }
                         DrawingState::FetchingAttribute { nametable } => {
-                            let attribute = state.fetch_attribute::<R>(
-                                &self.memory_access_table,
-                                self.ppu_address_space,
-                            );
+                            let attribute =
+                                state.fetch_attribute::<R>(&access_table, self.ppu_address_space);
 
                             // TODO: Placeholder
                             state.drawing_state = DrawingState::FetchingPatternTableLow {
@@ -107,7 +107,7 @@ impl Driver {
                             attribute,
                         } => {
                             let pattern_table_low = state.fetch_pattern_table_low::<R>(
-                                &self.memory_access_table,
+                                &access_table,
                                 self.ppu_address_space,
                                 nametable,
                             );
@@ -124,7 +124,7 @@ impl Driver {
                             pattern_table_low,
                         } => {
                             let pattern_table_high = state.fetch_pattern_table_high::<R>(
-                                &self.memory_access_table,
+                                &access_table,
                                 self.ppu_address_space,
                                 nametable,
                             );
@@ -140,7 +140,7 @@ impl Driver {
                                 let color = color_bits.load::<u8>();
 
                                 let color = state.calculate_color::<R>(
-                                    &self.memory_access_table,
+                                    &access_table,
                                     self.ppu_address_space,
                                     attribute,
                                     color,
@@ -213,7 +213,7 @@ impl State {
         let tile_position = self.get_modified_cycle_counter::<R>(8) / 8;
         let attribute_position = tile_position / 4;
 
-        let attribute_base = self.nametable_base + 0x3C0;
+        let attribute_base = self.nametable_base + 0x3c0;
         let address = attribute_base + attribute_position.y * 8 + attribute_position.x;
 
         memory_access_table
@@ -267,7 +267,7 @@ impl State {
     ) -> Srgb<u8> {
         let tile_position = self.get_modified_cycle_counter::<R>(8) / 8;
 
-        let quadrant = Point2::new(tile_position.x % 4, tile_position.y % 4) / 2;
+        let quadrant = Point2::new(tile_position.x % 2, tile_position.y % 2) / 2;
         let shift = (quadrant.y * 2 + quadrant.x) * 2;
 
         let color_bits = color & 0b11; // lowest 2 bits

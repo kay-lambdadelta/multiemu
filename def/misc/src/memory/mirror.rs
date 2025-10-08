@@ -2,12 +2,12 @@ use multiemu::{
     component::{BuildError, Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
-        WriteMemoryRecord,
+        Address, AddressSpaceId, MemoryAccessTable, PreviewMemoryError, ReadMemoryError,
+        WriteMemoryError,
     },
     platform::Platform,
 };
-use std::ops::RangeInclusive;
+use std::{ops::RangeInclusive, sync::Arc};
 
 #[derive(Debug)]
 pub struct MirrorMemoryConfig {
@@ -22,6 +22,7 @@ pub struct MirrorMemoryConfig {
 #[derive(Debug)]
 pub struct MirrorMemory {
     pub config: MirrorMemoryConfig,
+    pub access_table: Arc<MemoryAccessTable>,
 }
 
 impl Component for MirrorMemory {
@@ -30,18 +31,15 @@ impl Component for MirrorMemory {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
-        let affected_range = address..=(address + (buffer.len() - 1));
+    ) -> Result<(), ReadMemoryError> {
         let adjusted_destination_address = self.config.destination_addresses.start()
             + (address - self.config.source_addresses.start());
 
-        Err(MemoryOperationError::from_iter([(
-            affected_range,
-            ReadMemoryRecord::Redirect {
-                address: adjusted_destination_address,
-                address_space: self.config.destination_address_space,
-            },
-        )]))
+        self.access_table.read(
+            adjusted_destination_address,
+            self.config.destination_address_space,
+            buffer,
+        )
     }
 
     fn preview_memory(
@@ -49,18 +47,15 @@ impl Component for MirrorMemory {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
-        let affected_range = address..=(address + (buffer.len() - 1));
+    ) -> Result<(), PreviewMemoryError> {
         let adjusted_destination_address = self.config.destination_addresses.start()
             + (address - self.config.source_addresses.start());
 
-        Err(MemoryOperationError::from_iter(std::iter::once((
-            affected_range,
-            PreviewMemoryRecord::Redirect {
-                address: adjusted_destination_address,
-                address_space: self.config.destination_address_space,
-            },
-        ))))
+        self.access_table.preview(
+            adjusted_destination_address,
+            self.config.destination_address_space,
+            buffer,
+        )
     }
 
     fn write_memory(
@@ -68,18 +63,15 @@ impl Component for MirrorMemory {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
-        let affected_range = address..=(address + (buffer.len() - 1));
+    ) -> Result<(), WriteMemoryError> {
         let adjusted_destination_address = self.config.destination_addresses.start()
             + (address - self.config.source_addresses.start());
 
-        Err(MemoryOperationError::from_iter(std::iter::once((
-            affected_range,
-            WriteMemoryRecord::Redirect {
-                address: adjusted_destination_address,
-                address_space: self.config.destination_address_space,
-            },
-        ))))
+        self.access_table.write(
+            adjusted_destination_address,
+            self.config.destination_address_space,
+            buffer,
+        )
     }
 }
 
@@ -88,8 +80,8 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
 
     fn build_component(
         self,
-        mut component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+        component_builder: ComponentBuilder<'_, P, Self::Component>,
+    ) -> Result<Self::Component, BuildError> {
         if self.source_addresses.clone().count() != self.destination_addresses.clone().count() {
             return Err(BuildError::InvalidConfig(
                 "Source and destination ranges must be the same length".into(),
@@ -102,25 +94,28 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
             ));
         }
 
+        let access_table = component_builder.memory_access_table();
+
         match (self.readable, self.writable) {
             (true, true) => {
-                component_builder = component_builder
+                component_builder
                     .memory_map(self.source_address_space, self.source_addresses.clone());
             }
             (true, false) => {
-                component_builder = component_builder
+                component_builder
                     .memory_map_read(self.source_address_space, self.source_addresses.clone());
             }
             (false, true) => {
-                component_builder = component_builder
+                component_builder
                     .memory_map_write(self.source_address_space, self.source_addresses.clone());
             }
             (false, false) => {}
         }
 
-        component_builder.build(MirrorMemory { config: self });
-
-        Ok(())
+        Ok(MirrorMemory {
+            config: self,
+            access_table,
+        })
     }
 }
 
@@ -167,13 +162,62 @@ mod test {
             },
         );
 
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         let mut buffer = [0; 8];
 
         machine
             .memory_access_table
             .read(8, cpu_address_space, &mut buffer)
+            .unwrap();
+        assert_eq!(buffer, [0, 1, 2, 3, 4, 5, 6, 7]);
+    }
+
+    #[test]
+    fn basic_read_cross_space() {
+        set_main_thread();
+
+        let mut address_spaces = Vec::default();
+        let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
+        address_spaces.push(address_space);
+        let (machine, address_space) = machine.insert_address_space(16);
+        address_spaces.push(address_space);
+
+        let (machine, _) = machine.insert_component(
+            "workram",
+            StandardMemoryConfig {
+                readable: true,
+                writable: true,
+                assigned_range: 0..=7,
+                assigned_address_space: address_spaces[1],
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0..=7,
+                    StandardMemoryInitialContents::Array(Cow::Owned(
+                        (0..=7).map(|i| i as u8).collect(),
+                    )),
+                )]),
+                sram: false,
+            },
+        );
+        let (machine, _) = machine.insert_component(
+            "workram-mirror",
+            MirrorMemoryConfig {
+                readable: true,
+                writable: true,
+                source_addresses: 8..=15,
+                source_address_space: address_spaces[0],
+                destination_addresses: 0..=7,
+                destination_address_space: address_spaces[1],
+            },
+        );
+
+        let machine = machine.build(Default::default(), false);
+
+        let mut buffer = [0; 8];
+
+        machine
+            .memory_access_table
+            .read(8, address_spaces[0], &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0, 1, 2, 3, 4, 5, 6, 7]);
     }
@@ -210,7 +254,7 @@ mod test {
             },
         );
 
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         let buffer = [0; 8];
 
@@ -271,7 +315,7 @@ mod test {
                 destination_address_space: cpu_address_space,
             },
         );
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         let mut buffer = [0u8; 8];
 

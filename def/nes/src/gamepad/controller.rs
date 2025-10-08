@@ -6,10 +6,7 @@ use multiemu::{
         builder::ComponentBuilder,
         virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
     },
-    memory::{
-        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
-        WriteMemoryRecord,
-    },
+    memory::{Address, AddressSpaceId, PreviewMemoryError, ReadMemoryError, WriteMemoryError},
     platform::Platform,
 };
 use std::{
@@ -48,7 +45,7 @@ impl Component for NesController {
         _address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         let mut state_guard = self.state.lock().unwrap();
         let buffer_bits = buffer.view_bits_mut::<Lsb0>();
 
@@ -78,7 +75,7 @@ impl Component for NesController {
         _address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
+    ) -> Result<(), WriteMemoryError> {
         let mut state = self.state.lock().unwrap();
         state.strobe = buffer.view_bits::<Lsb0>()[0];
 
@@ -94,7 +91,7 @@ impl Component for NesController {
         _address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
+    ) -> Result<(), PreviewMemoryError> {
         let state_guard = self.state.lock().unwrap();
         let buffer_bits = buffer.view_bits_mut::<Lsb0>();
 
@@ -119,7 +116,7 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let gamepad = create_gamepad();
 
         let (component_builder, _) = component_builder
@@ -132,15 +129,13 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
         );
 
         // FIXME: The two controllers need to share this state
-        let component_builder =
-            component_builder.memory_map_write(self.cpu_address_space, CONTROLLER_0..=CONTROLLER_0);
 
-        component_builder.build(NesController {
+        component_builder.memory_map_write(self.cpu_address_space, CONTROLLER_0..=CONTROLLER_0);
+
+        Ok(NesController {
             gamepad,
             state: Mutex::default(),
-        });
-
-        Ok(())
+        })
     }
 }
 

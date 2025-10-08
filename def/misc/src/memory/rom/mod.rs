@@ -1,7 +1,7 @@
 use multiemu::{
     component::{BuildError, Component, ComponentConfig},
     machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord},
+    memory::{Address, AddressSpaceId, ReadMemoryError},
     platform::Platform,
     rom::{RomId, RomRequirement},
 };
@@ -48,7 +48,7 @@ impl Component for RomMemory {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         let adjusted_offset =
             (address - self.config.assigned_range.start()) + self.config.rom_range.start();
 
@@ -64,7 +64,7 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         if self.assigned_range.is_empty() {
             return Err(BuildError::InvalidConfig(
                 "Memory assigned must be non-empty".into(),
@@ -90,15 +90,12 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
             .1
             .clone();
 
-        let component_builder =
-            component_builder.memory_map_read(assigned_address_space, assigned_range);
+        component_builder.memory_map_read(assigned_address_space, assigned_range);
 
-        component_builder.build(RomMemory {
+        Ok(RomMemory {
             config: self,
             backend,
-        });
-
-        Ok(())
+        })
     }
 }
 

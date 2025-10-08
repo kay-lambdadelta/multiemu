@@ -1,11 +1,7 @@
-use super::Address;
 use crate::machine::registry::ComponentRegistry;
 use address_space::AddressSpace;
-use nohash::BuildNoHashHasher;
 use std::{
-    collections::HashMap,
     fmt::Debug,
-    ops::RangeInclusive,
     sync::{Arc, OnceLock},
 };
 
@@ -17,26 +13,10 @@ pub use address_space::{AddressSpaceId, MappingPermissions, MemoryRemappingComma
 pub use read::*;
 pub use write::*;
 
-#[allow(clippy::type_complexity)]
-/// Error type from componenents
-#[derive(Debug)]
-pub struct MemoryOperationError<R> {
-    /// Records the memory translation table should handle
-    pub records: Vec<(RangeInclusive<Address>, R)>,
-}
-
-impl<R> FromIterator<(RangeInclusive<Address>, R)> for MemoryOperationError<R> {
-    fn from_iter<T: IntoIterator<Item = (RangeInclusive<Address>, R)>>(iter: T) -> Self {
-        Self {
-            records: iter.into_iter().collect(),
-        }
-    }
-}
-
 #[derive(Default)]
 /// The main structure representing the devices memory address spaces
 pub struct MemoryAccessTable {
-    address_spaces: HashMap<AddressSpaceId, AddressSpace, BuildNoHashHasher<u16>>,
+    address_spaces: Vec<AddressSpace>,
     current_address_space: u16,
     registry: OnceLock<Arc<ComponentRegistry>>,
 }
@@ -63,18 +43,20 @@ impl MemoryAccessTable {
             .expect("Too many address spaces");
 
         self.address_spaces
-            .insert(id, AddressSpace::new(address_space_width));
+            .push(AddressSpace::new(address_space_width));
 
         id
     }
 
     /// Iter over present spaces
     pub fn address_spaces(&self) -> impl Iterator<Item = AddressSpaceId> {
-        self.address_spaces.keys().copied()
+        (0..self.address_spaces.len()).map(|space| AddressSpaceId(space as u16))
     }
 
     pub fn force_remap_commit(&self, address_space: AddressSpaceId) {
-        drop(self.address_spaces[&address_space].get_members(self.registry.get().unwrap()));
+        drop(
+            self.address_spaces[address_space.0 as usize].get_members(self.registry.get().unwrap()),
+        );
     }
 
     /// Adds a command to the remap queue
@@ -85,14 +67,7 @@ impl MemoryAccessTable {
         address_space: AddressSpaceId,
         commands: impl IntoIterator<Item = MemoryRemappingCommand>,
     ) {
-        let address_space = &self.address_spaces[&address_space];
+        let address_space = &self.address_spaces[address_space.0 as usize];
         address_space.remap(commands);
     }
-}
-
-#[derive(Debug)]
-struct QueueEntry {
-    address: Address,
-    address_space: AddressSpaceId,
-    buffer_subrange: RangeInclusive<Address>,
 }

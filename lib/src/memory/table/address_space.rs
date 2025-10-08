@@ -204,7 +204,7 @@ impl MemoryMappingTable {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
-pub struct AddressSpaceId(u16);
+pub struct AddressSpaceId(pub(crate) u16);
 
 impl AddressSpaceId {
     pub fn new(id: u16) -> Self {

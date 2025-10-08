@@ -275,7 +275,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             windowing.graphics_runtime.display_resized();
             self.previous_window_size = new_window_dimensions;
         }
-        let maybe_machine_guard = self.maybe_machine.read().unwrap();
 
         self.collected_frame_rates
             .enqueue(Instant::now() - self.previous_frame_timestamp);
@@ -283,25 +282,30 @@ impl<P: PlatformExt> FrontendRuntime<P> {
 
         match self.mode {
             Mode::Machine => {
-                let frame_timing: Duration = if self.collected_frame_rates.is_empty() {
-                    Duration::from_secs(1) / 60
+                let mut maybe_machine_guard = self.maybe_machine.write().unwrap();
+                let maybe_machine = maybe_machine_guard.as_mut().unwrap();
+
+                // If the scheduler state is here, we must manually drive it
+                if maybe_machine.scheduler_state.is_some() {
+                    let frame_timing: Duration = if self.collected_frame_rates.is_empty() {
+                        Duration::from_secs(1) / 60
+                    } else {
+                        self.collected_frame_rates.iter().sum::<Duration>()
+                            / self.collected_frame_rates.len() as u32
+                    };
+
+                    let render_frame_start_timestamp = Instant::now();
+                    windowing.graphics_runtime.redraw(maybe_machine);
+                    let render_frame_time_taken = Instant::now() - render_frame_start_timestamp;
+
+                    maybe_machine.scheduler_state.as_mut().unwrap().run(
+                        frame_timing
+                            .checked_sub(render_frame_time_taken)
+                            .unwrap_or(frame_timing),
+                    );
                 } else {
-                    self.collected_frame_rates.iter().sum::<Duration>()
-                        / self.collected_frame_rates.len() as u32
-                };
-
-                let maybe_machine_guard = self.maybe_machine.read().unwrap();
-                let maybe_machine = maybe_machine_guard.as_ref().unwrap();
-
-                let render_frame_start_timestamp = Instant::now();
-                windowing.graphics_runtime.redraw(maybe_machine);
-                let render_frame_time_taken = Instant::now() - render_frame_start_timestamp;
-
-                maybe_machine.scheduler.lock().unwrap().run(
-                    frame_timing
-                        .checked_sub(render_frame_time_taken)
-                        .unwrap_or(frame_timing),
-                );
+                    windowing.graphics_runtime.redraw(maybe_machine);
+                }
             }
             Mode::Gui => {
                 let mut ui_output = None;
@@ -314,6 +318,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                         ui_output = ui_output.take().or(self.menu_state.run_menu(context));
                     },
                 );
+                let maybe_machine_guard = self.maybe_machine.read().unwrap();
 
                 match ui_output {
                     None => {}
@@ -482,7 +487,8 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         )
         .unwrap();
 
-        let machine = machine_builder.build(graphics_runtime.component_initialization_data());
+        let machine =
+            machine_builder.build(graphics_runtime.component_initialization_data(), false);
 
         let windowing = WindowingContext {
             display_api_handle,
@@ -519,6 +525,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                 );
         }
 
+        machine.scheduler_handle.play();
         *maybe_machine_guard = Some(machine);
         self.mode = Mode::Machine;
     }

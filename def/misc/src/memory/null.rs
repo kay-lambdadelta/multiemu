@@ -22,14 +22,14 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         if self.assigned_range.is_empty() {
             return Err(BuildError::InvalidConfig(
                 "Memory assigned must be non-empty".into(),
             ));
         }
 
-        let component_builder = match (self.readable, self.writable) {
+        match (self.readable, self.writable) {
             (true, true) => component_builder
                 .memory_map(self.assigned_address_space, self.assigned_range.clone()),
             (true, false) => component_builder
@@ -39,9 +39,7 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
             (false, false) => component_builder,
         };
 
-        component_builder.build(NullMemory);
-
-        Ok(())
+        Ok(NullMemory)
     }
 }
 

@@ -31,7 +31,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
         mode: &mut Chip8Mode,
         instruction: Chip8InstructionSet,
     ) {
-        tracing::debug!("Interpreting instruction: {:x?}", instruction);
+        tracing::trace!("Interpreting instruction: {:x?}", instruction);
 
         match instruction {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Clr) => {

@@ -36,14 +36,14 @@ fn criterion_benchmark(c: &mut Criterion) {
         Ratio::from_integer(44100),
         Arc::new(DirectMainThreadExecutor),
     );
-    let machine: Machine<TestPlatform> = Chip8.construct(machine).build(Default::default());
-
-    let mut scheduler_guard = machine.scheduler.lock().unwrap();
-    let full_cycle = scheduler_guard.full_cycle();
+    let mut machine: Machine<TestPlatform> =
+        Chip8.construct(machine).build(Default::default(), false);
+    let scheduler_state = machine.scheduler_state.as_mut().unwrap();
+    let full_cycle = scheduler_state.timeline_length();
 
     c.bench_function("chip8_full_machine_cycle", |b| {
         b.iter(|| {
-            scheduler_guard.run_for_cycles(full_cycle);
+            scheduler_state.run_for_cycles(full_cycle);
         })
     });
 }

@@ -1,7 +1,7 @@
 use multiemu::{
     component::{BuildError, Component, ComponentConfig},
     machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, MemoryOperationError, ReadMemoryRecord},
+    memory::{Address, AddressSpaceId, ReadMemoryError},
     platform::Platform,
     rom::{RomId, RomRequirement},
 };
@@ -35,7 +35,7 @@ impl Component for Atari2600Cartridge {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         match self.cart_type {
             CartType::Raw => {
                 let adjusted_offset = (address - 0x1000) % self.rom.len();
@@ -58,7 +58,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let rom_manager = component_builder.rom_manager();
 
         let mut rom = rom_manager
@@ -77,13 +77,11 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
             }
         });
 
-        component_builder
-            .memory_map_read(self.cpu_address_space, 0x1000..=0x1fff)
-            .build(Atari2600Cartridge {
-                cart_type,
-                rom: rom_bytes,
-            });
+        component_builder.memory_map_read(self.cpu_address_space, 0x1000..=0x1fff);
 
-        Ok(())
+        Ok(Atari2600Cartridge {
+            cart_type,
+            rom: rom_bytes,
+        })
     }
 }

@@ -38,5 +38,9 @@ fn instruction_test_boilerplate() -> (Machine<TestPlatform>, ComponentPath, Addr
         },
     );
 
-    (machine.build(()), cpu, cpu_address_space)
+    (
+        machine.build(Default::default(), false),
+        cpu,
+        cpu_address_space,
+    )
 }

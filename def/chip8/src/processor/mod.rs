@@ -152,7 +152,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let memory_access_table = component_builder.memory_access_table();
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Mode::Chip8)));
         let state = ProcessorState::default();
@@ -181,12 +181,11 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             .insert_task_mut("driver", frequency, driver)
             .set_lazy_component_initializer(|component, data| {
                 component.registry = Some(data.component_registry.clone())
-            })
-            .build(Chip8Processor {
-                state,
-                registry: None,
             });
 
-        Ok(())
+        Ok(Chip8Processor {
+            state,
+            registry: None,
+        })
     }
 }

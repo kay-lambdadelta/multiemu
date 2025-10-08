@@ -8,7 +8,9 @@ pub mod software;
 #[cfg(feature = "vulkan")]
 pub mod vulkan;
 
-pub(crate) trait TiaDisplayBackend<R: Region>: Debug + Sized + 'static {
+pub(crate) trait TiaDisplayBackend<R: Region>:
+    Send + Sync + Debug + Sized + 'static
+{
     type GraphicsApi: GraphicsApi;
 
     fn new(initialization_data: <Self::GraphicsApi as GraphicsApi>::InitializationData) -> Self;

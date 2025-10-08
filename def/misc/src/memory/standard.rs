@@ -1,10 +1,7 @@
 use multiemu::{
     component::{BuildError, Component, ComponentConfig, ComponentVersion, SaveError},
     machine::builder::ComponentBuilder,
-    memory::{
-        Address, AddressSpaceId, MemoryOperationError, PreviewMemoryRecord, ReadMemoryRecord,
-        WriteMemoryRecord,
-    },
+    memory::{Address, AddressSpaceId, PreviewMemoryError, ReadMemoryError, WriteMemoryError},
     platform::Platform,
     rom::{RomId, RomMetadata, RomRequirement},
 };
@@ -88,7 +85,7 @@ impl Component for StandardMemory {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
@@ -102,7 +99,7 @@ impl Component for StandardMemory {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<PreviewMemoryRecord>> {
+    ) -> Result<(), PreviewMemoryError> {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
@@ -116,7 +113,7 @@ impl Component for StandardMemory {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
+    ) -> Result<(), WriteMemoryError> {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
@@ -132,7 +129,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         if self.assigned_range.is_empty() {
             return Err(BuildError::InvalidConfig(
                 "Memory assigned must be non-empty".into(),
@@ -163,7 +160,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
             }
         }
 
-        let component_builder = match (self.readable, self.writable) {
+        match (self.readable, self.writable) {
             (true, true) => component_builder.memory_map(assigned_address_space, assigned_range),
             (true, false) => {
                 component_builder.memory_map_read(assigned_address_space, assigned_range)
@@ -174,9 +171,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
             (false, false) => component_builder,
         };
 
-        component_builder.build(component);
-
-        Ok(())
+        Ok(component)
     }
 }
 
@@ -244,7 +239,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         let mut buffer = [0; 4];
 
@@ -270,7 +265,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         let mut buffer = [0; 4];
 
@@ -301,7 +296,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         let mut buffer = [0; 8];
 
@@ -332,7 +327,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         let buffer = [0; 8];
 
@@ -362,7 +357,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         let mut buffer = [0xff; 8];
 
@@ -398,7 +393,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default());
+        let machine = machine.build(Default::default(), false);
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];

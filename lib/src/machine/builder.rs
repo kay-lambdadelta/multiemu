@@ -12,7 +12,7 @@ use crate::{
     persistence::{SaveManager, SnapshotManager},
     platform::Platform,
     rom::{RomMetadata, System},
-    scheduler::{ErasedTask, Scheduler, Task, TaskMut},
+    scheduler::{ErasedTask, SchedulerState, Task, TaskMut, scheduler_thread},
     utils::MainThreadQueue,
 };
 use indexmap::IndexMap;
@@ -28,7 +28,7 @@ use std::{
     ops::RangeInclusive,
     path::PathBuf,
     str::FromStr,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 /// Overall data extracted from components needed for machine initialization
@@ -96,8 +96,8 @@ impl<P: Platform> MachineBuilder<P> {
         sample_rate: Ratio<u32>,
         main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
-        let main_thread_queue = MainThreadQueue::new(main_thread_executor);
-        let registry = ComponentRegistry::new(main_thread_queue.clone());
+        let _main_thread_queue = MainThreadQueue::new(main_thread_executor);
+        let registry = ComponentRegistry::default();
         let save_manager = SaveManager::new(save_path);
         let snapshot_manager = SnapshotManager::new(snapshot_path);
 
@@ -147,9 +147,10 @@ impl<P: Platform> MachineBuilder<P> {
             _phantom: PhantomData,
         };
 
-        config
+        let component = config
             .build_component(component_builder)
             .expect("Failed to build component");
+        self.registry.insert_component(path.clone(), component);
 
         self.component_metadata.insert(path, component_metadata);
     }
@@ -212,6 +213,8 @@ impl<P: Platform> MachineBuilder<P> {
     pub fn build(
         mut self,
         component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
+        // NOTE: EVERY test should set this to false
+        scheduler_dedicated_thread: bool,
     ) -> Machine<P> {
         let registry = Arc::new(self.registry);
         self.memory_access_table.set_registry(registry.clone());
@@ -247,17 +250,29 @@ impl<P: Platform> MachineBuilder<P> {
 
         for (component_id, initializer) in component_initializers {
             registry
-                .interact_dyn_local_mut(component_id, |component| {
+                .interact_dyn_mut(component_id, |component| {
                     initializer(component, &late_initialized_data)
                 })
                 .unwrap();
         }
 
         // Create the scheduler
-        let scheduler = Scheduler::new(tasks, registry.clone());
+        let scheduler_state = SchedulerState::new(tasks, registry.clone());
+        let scheduler_handle = scheduler_state.handle();
+
+        let scheduler_state = if scheduler_dedicated_thread {
+            std::thread::spawn(|| {
+                scheduler_thread(scheduler_state);
+            });
+
+            None
+        } else {
+            Some(scheduler_state)
+        };
 
         Machine {
-            scheduler: Mutex::new(scheduler),
+            scheduler_handle,
+            scheduler_state,
             memory_access_table: self.memory_access_table.clone(),
             virtual_gamepads,
             component_registry: registry,
@@ -330,29 +345,6 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         }
     }
 
-    /// Insert this component in the main thread's store, slowing down interactions but ensuring thread safety
-    pub fn build_local(self, component: C) {
-        let path = self.path.clone();
-
-        self.machine_builder
-            .registry
-            .insert_component_local(path, component);
-    }
-
-    /// Insert this component in the global store, ensuring quick access for all other components
-    ///
-    /// Use this if unsure
-    pub fn build(self, component: C)
-    where
-        C: Send + Sync,
-    {
-        let path = self.path.clone();
-
-        self.machine_builder
-            .registry
-            .insert_component(path, component);
-    }
-
     /// Insert a component into the machine
     #[inline]
     pub fn insert_child_component<B: ComponentConfig<P>>(
@@ -380,9 +372,12 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             _phantom: PhantomData,
         };
 
-        config
+        let component = config
             .build_component(component_builder)
             .expect("Failed to build component");
+        self.machine_builder
+            .registry
+            .insert_component(path.clone(), component);
 
         self.machine_builder
             .component_metadata

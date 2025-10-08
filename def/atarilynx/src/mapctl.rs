@@ -6,8 +6,8 @@ use multiemu::{
     component::{BuildError, Component, ComponentConfig, ComponentPath},
     machine::builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceId, MappingPermissions, MemoryAccessTable, MemoryOperationError,
-        MemoryRemappingCommand, ReadMemoryRecord, WriteMemoryRecord,
+        Address, AddressSpaceId, MappingPermissions, MemoryAccessTable, MemoryRemappingCommand,
+        ReadMemoryError, WriteMemoryError,
     },
     platform::Platform,
 };
@@ -28,7 +28,7 @@ impl Component for Mapctl {
         _address: Address,
         _address_space: AddressSpaceId,
         buffer: &mut [u8],
-    ) -> Result<(), MemoryOperationError<ReadMemoryRecord>> {
+    ) -> Result<(), ReadMemoryError> {
         self.status.to_slice(buffer).unwrap();
 
         Ok(())
@@ -39,7 +39,7 @@ impl Component for Mapctl {
         _address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), MemoryOperationError<WriteMemoryRecord>> {
+    ) -> Result<(), WriteMemoryError> {
         self.status = MapctlStatus::from_bytes((buffer, 0)).unwrap().1;
 
         let mut remapping_commands = Vec::default();
@@ -109,7 +109,7 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let my_path = component_builder.path().clone();
 
         let component_builder =
@@ -117,14 +117,12 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
 
         let mat = component_builder.memory_access_table();
 
-        component_builder.build(Mapctl {
+        Ok(Mapctl {
             config: self,
             status: Default::default(),
             my_path,
             mat,
-        });
-
-        Ok(())
+        })
     }
 }
 

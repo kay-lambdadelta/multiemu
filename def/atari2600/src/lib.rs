@@ -245,7 +245,7 @@ mod tests {
         );
 
         let machine = MachineFactory::<TestPlatform>::construct(&Atari2600, machine)
-            .build(Default::default());
+            .build(Default::default(), false);
 
         let cpu_address_space = machine.memory_access_table.address_spaces().next().unwrap();
 

@@ -30,10 +30,10 @@ codes-iso-3166 = { workspace = true }
 bincode = { workspace = true }
 data-encoding = { workspace = true }
 rangetools = { workspace = true }
-smallvec = { workspace = true }
 rangemap = { workspace = true }
 bitvec = { workspace = true }
 rayon = { workspace = true }
+crossbeam = { workspace = true }
 egui_extras = { version = "0.32", default-features = false, features = [
     "image",
 ] }

@@ -55,7 +55,7 @@ impl TaskMut<Mos6502> for Driver {
                         {
                             component.state.interrupt(IRQ_VECTOR, true);
                         } else {
-                            tracing::debug!(
+                            tracing::trace!(
                                 "Fetching and decoding instruction from {:#04x}",
                                 component.state.program
                             );
@@ -66,7 +66,7 @@ impl TaskMut<Mos6502> for Driver {
                             );
                         }
                     } else {
-                        tracing::debug!(
+                        tracing::trace!(
                             "Fetching and decoding instruction from {:#04x}",
                             component.state.program
                         );
@@ -201,7 +201,7 @@ impl Mos6502 {
             instruction,
         );
 
-        tracing::debug!("Decoded instruction: {:#?}", instruction);
+        tracing::trace!("Decoded instruction: {:#?}", instruction);
 
         self.state.address_bus = self
             .state

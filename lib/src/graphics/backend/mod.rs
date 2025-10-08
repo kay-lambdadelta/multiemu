@@ -7,7 +7,7 @@ pub mod software;
 pub mod vulkan;
 
 /// Trait for marker structs representing rendering backends
-pub trait GraphicsApi: Default + Debug + Any + Sized + 'static {
+pub trait GraphicsApi: Default + Debug + Any + Sized + Send + Sync + 'static {
     /// Data components need to do their graphics operations
     type InitializationData: Clone + Debug + 'static;
     /// The component framebuffer type

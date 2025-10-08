@@ -27,7 +27,7 @@ impl<'a, P: Platform> ComponentConfig<P> for Mapper000Config<'a> {
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Self::Component, BuildError> {
         let component_builder = match self.ines.prg_bank_count() {
             // NROM-128
             1 => {
@@ -74,7 +74,7 @@ impl<'a, P: Platform> ComponentConfig<P> for Mapper000Config<'a> {
             }
         };
 
-        let (component_builder, _) = component_builder.insert_child_component(
+        component_builder.insert_child_component(
             "chr",
             RomMemoryConfig {
                 rom: self.rom_id,
@@ -84,8 +84,6 @@ impl<'a, P: Platform> ComponentConfig<P> for Mapper000Config<'a> {
             },
         );
 
-        component_builder.build(Mapper000);
-
-        Ok(())
+        Ok(Mapper000)
     }
 }
