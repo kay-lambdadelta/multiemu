@@ -1,4 +1,3 @@
-#[cfg(feature = "vulkan")]
 use multiemu::frontend::MachineFactories;
 use multiemu::{
     graphics::software::Software,
