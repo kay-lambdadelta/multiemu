@@ -150,13 +150,13 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
 
             Ok(())
         } else {
-            return Err(ReadMemoryError(
+            Err(ReadMemoryError(
                 std::iter::once((
                     address..=(address + (buffer.len() - 1)),
                     ReadMemoryErrorType::Denied,
                 ))
                 .collect(),
-            ));
+            ))
         }
     }
 
@@ -176,13 +176,13 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
 
             Ok(())
         } else {
-            return Err(WriteMemoryError(
+            Err(WriteMemoryError(
                 std::iter::once((
                     address..=(address + (buffer.len() - 1)),
                     WriteMemoryErrorType::Denied,
                 ))
                 .collect(),
-            ));
+            ))
         }
     }
 

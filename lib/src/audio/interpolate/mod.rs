@@ -17,7 +17,7 @@ pub trait Interpolator<
     INTERMEDIATE: Float + SampleFormat + ComplexField,
 >
 {
-    /// Interpolates a sequence of samples from a source rate to a target rate given a interpolator
+    /// Interpolates a sequence of samples from a source rate to a target rate given an interpolator
     fn interpolate(
         self,
         source_rate: Ratio<u32>,

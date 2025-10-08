@@ -22,8 +22,10 @@ impl BitOr for Features {
     }
 }
 
+/// Software as a requirement does not have any initialization data
 pub type InitializationData = ();
 
+/// Render target
 pub type FramebufferTexture = DMatrix<Srgba<u8>>;
 
 impl GraphicsApi for Software {

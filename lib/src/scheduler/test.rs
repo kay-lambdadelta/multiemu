@@ -1,10 +1,9 @@
-use num::rational::Ratio;
-
 use crate::{
     component::{Component, ComponentConfig},
     machine::{Machine, builder::ComponentBuilder},
     platform::Platform,
 };
+use num::rational::Ratio;
 use std::{num::NonZero, time::Duration};
 
 #[test]
@@ -27,7 +26,7 @@ fn basic_operation() {
         fn build_component(
             self,
             component_builder: ComponentBuilder<P, Self::Component>,
-        ) -> Result<Self::Component, crate::component::BuildError> {
+        ) -> Result<Self::Component, Box<dyn std::error::Error>> {
             component_builder.insert_task_mut(
                 "task",
                 self.frequency,
@@ -53,7 +52,7 @@ fn basic_operation() {
         },
     );
 
-    let mut machine = machine.build(Default::default(), false);
+    let mut machine = machine.build((), false);
 
     machine
         .scheduler_state

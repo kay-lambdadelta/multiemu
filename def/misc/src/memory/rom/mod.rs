@@ -1,5 +1,5 @@
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig},
+    component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, ReadMemoryError},
     platform::Platform,
@@ -64,11 +64,9 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         if self.assigned_range.is_empty() {
-            return Err(BuildError::InvalidConfig(
-                "Memory assigned must be non-empty".into(),
-            ));
+            return Err("Memory assigned must be non-empty".into());
         }
 
         let rom_manager = component_builder.rom_manager();

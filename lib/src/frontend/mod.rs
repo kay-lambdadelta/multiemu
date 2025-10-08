@@ -10,4 +10,5 @@ pub use machine_factories::MachineFactories;
 pub use platform::*;
 pub use runtime::*;
 
-pub const EGUI_WGSL_SHADER: &'static str = include_str!("egui.wgsl");
+/// Canonical shader for egui rendering
+pub const EGUI_WGSL_SHADER: &str = include_str!("egui.wgsl");

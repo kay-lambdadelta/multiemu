@@ -27,7 +27,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         },
     );
 
-    let machine = machine.build(Default::default(), false);
+    let machine = machine.build((), false);
 
     c.bench_function("read1", |b| {
         b.iter(|| {

@@ -40,7 +40,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 Arc::new(DirectMainThreadExecutor),
             );
 
-            let _: Machine<TestPlatform> = Nes.construct(machine).build(Default::default(), false);
+            let _: Machine<TestPlatform> = Nes.construct(machine).build((), false);
         })
     });
 }

@@ -3,7 +3,7 @@ use crate::{
 };
 use deku::{DekuContainerRead, DekuContainerWrite, DekuRead, DekuWrite};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentPath},
+    component::{Component, ComponentConfig, ComponentPath},
     machine::builder::ComponentBuilder,
     memory::{
         Address, AddressSpaceId, MappingPermissions, MemoryAccessTable, MemoryRemappingCommand,
@@ -109,7 +109,7 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let my_path = component_builder.path().clone();
 
         let component_builder =

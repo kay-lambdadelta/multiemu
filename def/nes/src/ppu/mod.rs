@@ -8,7 +8,7 @@ use crate::{
 };
 use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentPath, ResourcePath},
+    component::{Component, ComponentConfig, ComponentPath, ResourcePath},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, MemoryAccessTable, ReadMemoryError, WriteMemoryError},
     platform::Platform,
@@ -307,7 +307,7 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let access_table = component_builder.memory_access_table();
 
         let (component_builder, _) = component_builder.insert_display("tv");

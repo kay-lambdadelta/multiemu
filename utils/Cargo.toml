@@ -22,7 +22,7 @@ scc = { workspace = true }
 ron = { workspace = true }
 tempfile = { workspace = true }
 quick-xml = { version = "0.38", features = ["serialize"] }
-zip = { version = "5.0", default-features = false, features = [
+zip = { version = "5.1", default-features = false, features = [
     "zstd",
     "bzip2",
     "deflate64",

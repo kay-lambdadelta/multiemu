@@ -4,7 +4,7 @@ use arrayvec::ArrayVec;
 use input::{Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentPath, ComponentVersion},
+    component::{Component, ComponentConfig, ComponentPath, ComponentVersion},
     machine::{
         builder::ComponentBuilder,
         registry::ComponentRegistry,
@@ -152,7 +152,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let memory_access_table = component_builder.memory_access_table();
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Mode::Chip8)));
         let state = ProcessorState::default();

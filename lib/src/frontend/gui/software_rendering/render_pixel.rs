@@ -34,7 +34,7 @@ pub(super) fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
             (texture_dimensions.y * interpolated_uv.y) as usize,
         );
 
-        // Inaccuraries that lead outside the texture we will read off with black
+        // Inaccuracies that lead outside the texture we will read off with black
         let pixel = texture
             .get((pixel_coords.x, pixel_coords.y))
             .copied()

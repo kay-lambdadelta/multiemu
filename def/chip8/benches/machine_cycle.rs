@@ -37,7 +37,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         Arc::new(DirectMainThreadExecutor),
     );
     let mut machine: Machine<TestPlatform> =
-        Chip8.construct(machine).build(Default::default(), false);
+        Chip8.construct(machine).build((), false);
     let scheduler_state = machine.scheduler_state.as_mut().unwrap();
     let full_cycle = scheduler_state.timeline_length();
 

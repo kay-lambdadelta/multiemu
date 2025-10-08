@@ -1,7 +1,7 @@
 use super::{Tia, region::Region, task::TiaTask};
 use crate::tia::backend::{SupportedGraphicsApiTia, TiaDisplayBackend};
 use multiemu::{
-    component::{BuildError, ComponentConfig, ComponentPath},
+    component::{ComponentConfig, ComponentPath},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
@@ -24,7 +24,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let (component_builder, _) = component_builder.insert_display("tv");
         let component_builder = component_builder.memory_map(self.cpu_address_space, 0x000..=0x03f);
 

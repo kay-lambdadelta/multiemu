@@ -57,12 +57,14 @@ impl Triangle {
 }
 
 #[derive(Debug, Default)]
+/// A somewhat fast egui software renderer
 pub struct SoftwareEguiRenderer {
     textures: HashMap<TextureId, DMatrix<Srgba<f32>>>,
 }
 
 impl SoftwareEguiRenderer {
     #[allow(clippy::toplevel_ref_arg)]
+    /// Render to a surface given the pixel order
     pub fn render<P: ComponentOrder<Srgba<u8>, u32> + Scalar + Send + Sync>(
         &mut self,
         context: &egui::Context,
@@ -158,6 +160,7 @@ impl SoftwareEguiRenderer {
 
                         for x in min.x..=max.x {
                             for y in min.y..=max.y {
+                                // TODO: Prove this unsafe actually helps performance
                                 let destination_pixel = unsafe {
                                     bounding_box.get_unchecked_mut((x - min.x, y - min.y))
                                 };

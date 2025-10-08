@@ -244,14 +244,14 @@ mod tests {
             Arc::new(DirectMainThreadExecutor),
         );
 
-        let machine = MachineFactory::<TestPlatform>::construct(&Atari2600, machine)
-            .build(Default::default(), false);
+        let machine =
+            MachineFactory::<TestPlatform>::construct(&Atari2600, machine).build((), false);
 
         let cpu_address_space = machine.memory_access_table.address_spaces().next().unwrap();
 
         let _: u8 = machine
             .memory_access_table
             .read_le_value(0x180, cpu_address_space)
-            .expect(&format!("{:#04x?}", machine));
+            .unwrap_or_else(|_| panic!("{:#04x?}", machine));
     }
 }

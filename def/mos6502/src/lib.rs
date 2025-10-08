@@ -3,7 +3,7 @@ use bitvec::{prelude::Lsb0, view::BitView};
 use decoder::Mos6502InstructionDecoder;
 use instruction::Mos6502InstructionSet;
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentVersion},
+    component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
@@ -335,7 +335,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let memory_access_table = component_builder.memory_access_table();
 
         component_builder.insert_task_mut(
@@ -348,9 +348,9 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
         );
 
         Ok(Mos6502 {
-            rdy: Arc::new(RdyFlag::new()),
-            irq: Arc::new(IrqFlag::new()),
-            nmi: Arc::new(NmiFlag::new()),
+            rdy: Arc::default(),
+            irq: Arc::default(),
+            nmi: Arc::default(),
             state: ProcessorState::default(),
             config: self,
         })
@@ -366,11 +366,13 @@ pub struct Snapshot {
 #[derive(Debug)]
 pub struct RdyFlag(AtomicBool);
 
-impl RdyFlag {
-    pub fn new() -> Self {
+impl Default for RdyFlag {
+    fn default() -> Self {
         Self(AtomicBool::new(true))
     }
+}
 
+impl RdyFlag {
     pub fn store(&self, rdy: bool) {
         if rdy {
             tracing::debug!("RDY went high, resuming execution");
@@ -389,11 +391,13 @@ impl RdyFlag {
 #[derive(Debug)]
 pub struct IrqFlag(AtomicBool);
 
-impl IrqFlag {
-    pub fn new() -> Self {
+impl Default for IrqFlag {
+    fn default() -> Self {
         Self(AtomicBool::new(true))
     }
+}
 
+impl IrqFlag {
     pub fn store(&self, irq: bool) {
         self.0.store(irq, Ordering::Release);
     }
@@ -404,14 +408,10 @@ impl IrqFlag {
 }
 
 /// NMI is falling edge
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct NmiFlag(AtomicBool);
 
 impl NmiFlag {
-    pub fn new() -> Self {
-        Self(AtomicBool::new(false))
-    }
-
     pub fn store(&self, nmi: bool) {
         if nmi {
             self.0.store(true, Ordering::Release);

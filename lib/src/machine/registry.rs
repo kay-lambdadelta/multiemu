@@ -42,7 +42,7 @@ impl ComponentRegistry {
     }
 
     pub fn get_id(&self, path: &ComponentPath) -> Option<ComponentId> {
-        self.component_ids.get(path).as_deref().copied()
+        self.component_ids.get(path).copied()
     }
 
     pub(crate) fn interact_all(&self, mut callback: impl FnMut(&ComponentPath, &dyn Component)) {

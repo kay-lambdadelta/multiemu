@@ -73,100 +73,93 @@ impl Driver {
         backend: &mut <G as SupportedGraphicsApiPpu>::Backend<R>,
         access_table: &MemoryAccessTable,
     ) {
-        match state.cycle_counter.x {
-            1..=FINAL_VISIBLE_CYCLE => {
-                if state.cycle_counter.x == 1 {
-                    state.entered_vblank.store(false, Ordering::Release);
-                }
+        if let 1..=FINAL_VISIBLE_CYCLE = state.cycle_counter.x {
+            if state.cycle_counter.x == 1 {
+                state.entered_vblank.store(false, Ordering::Release);
+            }
 
-                // Steps wait a cycle inbetween for memory access realism
-                if !state.awaiting_memory_access {
-                    // Swap out the pipeline state with a placeholder for a moment
-                    match std::mem::replace(
-                        &mut state.drawing_state,
-                        DrawingState::FetchingNametable,
-                    ) {
-                        DrawingState::FetchingNametable => {
-                            let nametable =
-                                state.fetch_nametable::<R>(&access_table, self.ppu_address_space);
+            // Steps wait a cycle inbetween for memory access realism
+            if !state.awaiting_memory_access {
+                // Swap out the pipeline state with a placeholder for a moment
+                match std::mem::replace(&mut state.drawing_state, DrawingState::FetchingNametable) {
+                    DrawingState::FetchingNametable => {
+                        let nametable =
+                            state.fetch_nametable::<R>(access_table, self.ppu_address_space);
 
-                            state.drawing_state = DrawingState::FetchingAttribute { nametable };
-                        }
-                        DrawingState::FetchingAttribute { nametable } => {
-                            let attribute =
-                                state.fetch_attribute::<R>(&access_table, self.ppu_address_space);
+                        state.drawing_state = DrawingState::FetchingAttribute { nametable };
+                    }
+                    DrawingState::FetchingAttribute { nametable } => {
+                        let attribute =
+                            state.fetch_attribute::<R>(access_table, self.ppu_address_space);
 
-                            // TODO: Placeholder
-                            state.drawing_state = DrawingState::FetchingPatternTableLow {
-                                nametable,
-                                attribute,
-                            };
-                        }
-                        DrawingState::FetchingPatternTableLow {
+                        // TODO: Placeholder
+                        state.drawing_state = DrawingState::FetchingPatternTableLow {
                             nametable,
                             attribute,
-                        } => {
-                            let pattern_table_low = state.fetch_pattern_table_low::<R>(
-                                &access_table,
-                                self.ppu_address_space,
-                                nametable,
-                            );
+                        };
+                    }
+                    DrawingState::FetchingPatternTableLow {
+                        nametable,
+                        attribute,
+                    } => {
+                        let pattern_table_low = state.fetch_pattern_table_low::<R>(
+                            access_table,
+                            self.ppu_address_space,
+                            nametable,
+                        );
 
-                            state.drawing_state = DrawingState::FetchingPatternTableHigh {
-                                nametable,
-                                attribute,
-                                pattern_table_low,
-                            };
-                        }
-                        DrawingState::FetchingPatternTableHigh {
+                        state.drawing_state = DrawingState::FetchingPatternTableHigh {
                             nametable,
                             attribute,
                             pattern_table_low,
-                        } => {
-                            let pattern_table_high = state.fetch_pattern_table_high::<R>(
-                                &access_table,
+                        };
+                    }
+                    DrawingState::FetchingPatternTableHigh {
+                        nametable,
+                        attribute,
+                        pattern_table_low,
+                    } => {
+                        let pattern_table_high = state.fetch_pattern_table_high::<R>(
+                            access_table,
+                            self.ppu_address_space,
+                            nametable,
+                        );
+
+                        let pattern_low_bits = pattern_table_low.view_bits::<Msb0>();
+                        let pattern_high_bits = pattern_table_high.view_bits::<Msb0>();
+
+                        for (low, high) in pattern_low_bits.into_iter().zip(pattern_high_bits) {
+                            let mut color_bits: BitArray<u8, Lsb0> = Default::default();
+                            color_bits.set(0, *low);
+                            color_bits.set(1, *high);
+
+                            let color = color_bits.load::<u8>();
+
+                            let color = state.calculate_color::<R>(
+                                access_table,
                                 self.ppu_address_space,
-                                nametable,
+                                attribute,
+                                color,
                             );
 
-                            let pattern_low_bits = pattern_table_low.view_bits::<Msb0>();
-                            let pattern_high_bits = pattern_table_high.view_bits::<Msb0>();
-
-                            for (low, high) in pattern_low_bits.into_iter().zip(pattern_high_bits) {
-                                let mut color_bits: BitArray<u8, Lsb0> = Default::default();
-                                color_bits.set(0, *low);
-                                color_bits.set(1, *high);
-
-                                let color = color_bits.load::<u8>();
-
-                                let color = state.calculate_color::<R>(
-                                    &access_table,
-                                    self.ppu_address_space,
-                                    attribute,
-                                    color,
-                                );
-
-                                // TODO: this just renders in greyscale
-                                state.pixel_queue.push_back(color.into());
-                            }
+                            // TODO: this just renders in greyscale
+                            state.pixel_queue.push_back(color.into());
                         }
                     }
                 }
-
-                let color = state.pixel_queue.pop_front().expect("Pixel queue ran dry");
-
-                backend.modify_staging_buffer(|mut staging_buffer_guard| {
-                    staging_buffer_guard[(
-                        // Offset for idle cycle
-                        state.cycle_counter.x as usize - 1,
-                        state.cycle_counter.y as usize,
-                    )] = color.into();
-                });
-
-                state.awaiting_memory_access = !state.awaiting_memory_access;
             }
 
-            _ => {}
+            let color = state.pixel_queue.pop_front().expect("Pixel queue ran dry");
+
+            backend.modify_staging_buffer(|mut staging_buffer_guard| {
+                staging_buffer_guard[(
+                    // Offset for idle cycle
+                    state.cycle_counter.x as usize - 1,
+                    state.cycle_counter.y as usize,
+                )] = color;
+            });
+
+            state.awaiting_memory_access = !state.awaiting_memory_access;
         }
     }
 }

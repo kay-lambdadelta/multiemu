@@ -14,4 +14,5 @@ pub struct GraphicsVersion {
     pub minor: u32,
 }
 
+/// Boolean type shaders use
 pub type ShaderBool = u32;

@@ -6,7 +6,7 @@ use cpal::{
 use itertools::Itertools;
 use multiemu::{
     audio::{FrameIterator, FromSample, SampleFormat},
-    frontend::{AudioContext, MaybeMachine},
+    frontend::{AudioRuntime, MaybeMachine},
     platform::Platform,
 };
 use nalgebra::SVector;
@@ -29,7 +29,7 @@ impl<P: Platform> Debug for CpalAudioRuntime<P> {
     }
 }
 
-impl<P: Platform> AudioContext<P> for CpalAudioRuntime<P> {
+impl<P: Platform> AudioRuntime<P> for CpalAudioRuntime<P> {
     fn new(maybe_machine: Arc<MaybeMachine<P>>) -> Self {
         let host = cpal::default_host();
         tracing::info!("Selecting audio api {:?}", host.id());

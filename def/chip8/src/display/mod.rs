@@ -1,6 +1,6 @@
 use bitvec::{order::Msb0, view::BitView};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentVersion, ResourcePath},
+    component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
     graphics::GraphicsApi,
     machine::builder::ComponentBuilder,
     platform::Platform,
@@ -258,7 +258,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         component_builder
             .insert_task_mut(
                 "driver",

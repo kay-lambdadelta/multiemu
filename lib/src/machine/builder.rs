@@ -38,6 +38,7 @@ pub struct ComponentMetadata<P: Platform> {
     pub graphics_requirements: GraphicsRequirements<P::GraphicsApi>,
     pub audio_outputs: HashSet<ResourcePath>,
     pub gamepads: HashMap<ResourcePath, Arc<VirtualGamepad>>,
+    #[allow(clippy::type_complexity)]
     pub late_initializer: Option<Box<dyn FnOnce(&mut dyn Component, &LateInitializedData<P>)>>,
 }
 
@@ -295,7 +296,7 @@ pub struct ComponentBuilder<'a, P: Platform, C: Component> {
 
 impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     pub fn path(&self) -> &'a ComponentPath {
-        &self.path
+        self.path
     }
 
     pub fn rom_manager(&self) -> &Arc<RomMetadata> {
@@ -348,7 +349,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     /// Insert a component into the machine
     #[inline]
     pub fn insert_child_component<B: ComponentConfig<P>>(
-        mut self,
+        self,
         name: &str,
         config: B,
     ) -> (Self, ComponentPath) {
@@ -366,7 +367,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         let mut component_metadata = ComponentMetadata::default();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
-            machine_builder: &mut self.machine_builder,
+            machine_builder: self.machine_builder,
             component_metadata: &mut component_metadata,
             path: &path,
             _phantom: PhantomData,
@@ -503,7 +504,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             panic!("Task with path {} already exists", resource_path);
         }
 
-        let component_id = self.machine_builder.registry.get_id(&self.path).unwrap();
+        let component_id = self.machine_builder.registry.get_id(self.path).unwrap();
 
         self.component_metadata.tasks.insert(
             resource_path,
@@ -541,7 +542,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             panic!("Task with path {} already exists", resource_path);
         }
 
-        let component_id = self.machine_builder.registry.get_id(&self.path).unwrap();
+        let component_id = self.machine_builder.registry.get_id(self.path).unwrap();
 
         self.component_metadata.tasks.insert(
             resource_path,

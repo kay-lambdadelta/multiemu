@@ -1,6 +1,6 @@
 use multiemu::{
     audio::SquareWave,
-    component::{BuildError, Component, ComponentConfig, ComponentVersion, ResourcePath},
+    component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
     machine::builder::ComponentBuilder,
     platform::Platform,
     scheduler::TaskMut,
@@ -70,7 +70,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let host_sample_rate = component_builder.host_sample_rate();
         let register_change_frequency = Ratio::from_integer(60);
 
@@ -78,6 +78,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
             host_sample_rate,
             register_change_frequency,
         };
+
 
         component_builder
             .insert_audio_output("audio-output")

@@ -28,8 +28,8 @@ pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
 
             match ev.event {
                 EventType::AxisChanged(axis, value, _) => {
-                    if let Some((input, state)) = gilrs_axis2input(axis, value) {
-                        if sender
+                    if let Some((input, state)) = gilrs_axis2input(axis, value)
+                        && sender
                             .send_event(RuntimeBoundMessage::Input {
                                 id: gamepad_id,
                                 input,
@@ -39,11 +39,10 @@ pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
                         {
                             return;
                         }
-                    }
                 }
                 EventType::ButtonChanged(button, value, _) => {
-                    if let Some(input) = gilrs_button2input(button) {
-                        if sender
+                    if let Some(input) = gilrs_button2input(button)
+                        && sender
                             .send_event(RuntimeBoundMessage::Input {
                                 id: gamepad_id,
                                 input,
@@ -53,7 +52,6 @@ pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
                         {
                             return;
                         }
-                    }
                 }
                 EventType::Disconnected => {
                     non_stable_controller_identification.remove(&ev.id);

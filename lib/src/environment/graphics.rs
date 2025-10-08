@@ -11,6 +11,7 @@ pub enum GraphicsApi {
         )),
         default
     )]
+    /// Software rendering
     Software,
     #[cfg_attr(
         all(
@@ -19,7 +20,9 @@ pub enum GraphicsApi {
         ),
         default
     )]
+    /// Vulkan rendering
     Vulkan,
+    /// Opengl rendering, completely unimplemented
     Opengl,
 }
 

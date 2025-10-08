@@ -1,5 +1,5 @@
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig},
+    component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{
         Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
@@ -188,7 +188,7 @@ impl<P: Platform> ComponentConfig<P> for SuzyConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         component_builder.memory_map(self.cpu_address_space, SUZY_ADDRESSES);
 
         Ok(Suzy {})

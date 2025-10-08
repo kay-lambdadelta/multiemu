@@ -1,6 +1,6 @@
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentPath},
+    component::{Component, ComponentConfig, ComponentPath},
     input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput},
     machine::{
         builder::ComponentBuilder,
@@ -25,7 +25,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let player1_gamepad = create_gamepad();
         let player2_gamepad = create_gamepad();
 

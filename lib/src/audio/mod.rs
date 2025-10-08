@@ -1,3 +1,5 @@
+//! Audio utilities
+
 mod frame;
 mod generation;
 mod interpolate;

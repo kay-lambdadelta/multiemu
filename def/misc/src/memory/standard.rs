@@ -1,5 +1,5 @@
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentVersion, SaveError},
+    component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, PreviewMemoryError, ReadMemoryError, WriteMemoryError},
     platform::Platform,
@@ -117,7 +117,7 @@ impl Component for StandardMemory {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
-        self.buffer[requested_range].copy_from_slice(&buffer);
+        self.buffer[requested_range].copy_from_slice(buffer);
 
         Ok(())
     }
@@ -129,11 +129,9 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         if self.assigned_range.is_empty() {
-            return Err(BuildError::InvalidConfig(
-                "Memory assigned must be non-empty".into(),
-            ));
+            return Err("Memory assigned must be non-empty".into());
         }
 
         let rom_manager = component_builder.rom_manager();
@@ -154,7 +152,7 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
                 // snapshot and save format are the exact same
                 component.load_snapshot(0, save).unwrap();
             }
-            Some(_) => return Err(BuildError::LoadingSave(SaveError::InvalidVersion)),
+            Some(_) => return Err("Invalid save version".into()),
             None => {
                 component.initialize_buffer();
             }
@@ -190,7 +188,7 @@ impl StandardMemory {
                     rand::rng().fill_bytes(&mut self.buffer[range.clone()]);
                 }
                 StandardMemoryInitialContents::Array(value) => {
-                    self.buffer[range.clone()].copy_from_slice(&value);
+                    self.buffer[range.clone()].copy_from_slice(value);
                 }
                 StandardMemoryInitialContents::Rom(rom_id) => {
                     let mut rom_file = self
@@ -239,7 +237,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let mut buffer = [0; 4];
 
@@ -265,7 +263,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let mut buffer = [0; 4];
 
@@ -296,7 +294,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let mut buffer = [0; 8];
 
@@ -327,7 +325,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let buffer = [0; 8];
 
@@ -357,7 +355,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let mut buffer = [0xff; 8];
 
@@ -393,7 +391,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];

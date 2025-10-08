@@ -9,19 +9,18 @@ use crate::{
 };
 use nalgebra::SVector;
 use nohash::IsEnabled;
+pub use path::{ComponentPath, ResourcePath};
 use ringbuffer::AllocRingBuffer;
 use serde::{Deserialize, Serialize};
 use std::{
     any::Any,
-    borrow::Cow,
+    error::Error,
     fmt::Debug,
     hash::Hash,
     io::{Read, Write},
     num::NonZero,
     sync::Arc,
 };
-
-pub use path::{ComponentPath, ResourcePath};
 
 mod path;
 
@@ -31,18 +30,22 @@ pub trait Component: Send + Sync + Debug + Any {
     /// Reset state
     fn reset(&mut self) {}
 
+    /// Tell the runtime what save version is current for this component
     fn save_version(&self) -> Option<ComponentVersion> {
         None
     }
 
+    /// Tell the runtime what snapshot version is current for this component
     fn snapshot_version(&self) -> Option<ComponentVersion> {
         None
     }
 
+    /// Write the save
     fn store_save(&self, writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 
+    /// Read the snapshot
     fn load_snapshot(
         &mut self,
         version: ComponentVersion,
@@ -51,6 +54,7 @@ pub trait Component: Send + Sync + Debug + Any {
         Ok(())
     }
 
+    /// Store the snapshot
     fn store_snapshot(&self, writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
@@ -100,6 +104,7 @@ pub trait Component: Send + Sync + Debug + Any {
             })
     }
 
+    /// Writes memory at the specified address in the specified address space
     fn write_memory(
         &mut self,
         address: Address,
@@ -115,9 +120,9 @@ pub trait Component: Send + Sync + Debug + Any {
         ))
     }
 
-    /// TODO: If we can figure out a non nightmarish way to have the platform generic references with these I
-    /// would be happy for this
+    // TODO: Find out a non nightmarish way to have the platform generic here
 
+    #[allow(clippy::type_complexity)]
     /// The [Any] needs to be cast to a &[GraphicsApi::FramebufferTexture]
     fn access_framebuffer<'a>(
         &'a mut self,
@@ -126,6 +131,7 @@ pub trait Component: Send + Sync + Debug + Any {
     ) {
     }
 
+    /// Give the runtime the audio sample ring buffer
     fn drain_samples(
         &mut self,
         audio_output_path: &ResourcePath,
@@ -137,20 +143,22 @@ pub trait Component: Send + Sync + Debug + Any {
 #[allow(unused)]
 /// Factory config to construct a component
 pub trait ComponentConfig<P: Platform>: Debug + Sized {
-    /// Paramters to create this component
+    /// The component that this config will create
     type Component: Component;
 
     /// Make a new component from the config
-    #[must_use]
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) -> Result<Self::Component, BuildError>;
+    ) -> Result<Self::Component, Box<dyn Error>>;
 }
 
+/// Data that the runtime will provide at the end of the initialization sequence
 #[derive(Debug)]
 pub struct LateInitializedData<P: Platform> {
+    /// Graphics related data
     pub component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
+    /// Registry for components
     pub component_registry: Arc<ComponentRegistry>,
 }
 
@@ -177,32 +185,6 @@ impl Hash for ComponentId {
 }
 
 impl IsEnabled for ComponentId {}
-
-#[derive(thiserror::Error, Debug)]
-pub enum SaveError {
-    #[error("Invalid version")]
-    InvalidVersion,
-    #[error("Invalid data")]
-    InvalidData,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum SnapshotError {
-    #[error("Invalid version")]
-    InvalidVersion,
-    #[error("Invalid data")]
-    InvalidData,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum BuildError {
-    #[error("Save error: {0:#?}")]
-    LoadingSave(#[from] SaveError),
-    #[error("Invalid config {0:}")]
-    InvalidConfig(Cow<'static, str>),
-    #[error("IO error: {0:#?}")]
-    IoError(#[from] std::io::Error),
-}
 
 /// Version that components use
 pub type ComponentVersion = u64;

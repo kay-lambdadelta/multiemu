@@ -1,6 +1,6 @@
 use crate::{INes, cartridge::ines::RomType};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig},
+    component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
@@ -27,7 +27,7 @@ impl<'a, P: Platform> ComponentConfig<P> for Mapper000Config<'a> {
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let component_builder = match self.ines.prg_bank_count() {
             // NROM-128
             1 => {

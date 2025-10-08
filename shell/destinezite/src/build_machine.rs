@@ -1,5 +1,5 @@
-use multiemu::frontend::MachineFactories;
 use multiemu::{
+    frontend::MachineFactories,
     graphics::software::Software,
     platform::Platform,
     rom::{AtariSystem, NintendoSystem, OtherSystem, System},

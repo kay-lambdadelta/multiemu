@@ -81,11 +81,7 @@ fn find_reasonable_sleep_resolution() -> Duration {
             sleep(duration);
             let time_taken = start.elapsed();
 
-            let error = if time_taken > duration {
-                time_taken - duration
-            } else {
-                duration - time_taken
-            };
+            let error = time_taken.abs_diff(duration);
             total_error += error;
         }
 

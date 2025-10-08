@@ -113,8 +113,7 @@ fn guess_by_extension(rom: &Path) -> Option<System> {
     if let Some(file_extension) = rom
         .extension()
         .map(|ext| ext.to_string_lossy().to_lowercase())
-    {
-        if let Some(system) = match file_extension.as_str() {
+        && let Some(system) = match file_extension.as_str() {
             "gb" => Some(System::Nintendo(NintendoSystem::GameBoy)),
             "gbc" => Some(System::Nintendo(NintendoSystem::GameBoyColor)),
             "gba" => Some(System::Nintendo(NintendoSystem::GameBoyAdvance)),
@@ -132,15 +131,15 @@ fn guess_by_extension(rom: &Path) -> Option<System> {
             "a52" => Some(System::Atari(AtariSystem::Atari5200)),
             "a78" => Some(System::Atari(AtariSystem::Atari7800)),
             _ => None,
-        } {
-            tracing::info!(
-                "Guessed system of ROM at {} from file extension {} as {}",
-                rom.display(),
-                file_extension,
-                system
-            );
-            return Some(system);
         }
+    {
+        tracing::info!(
+            "Guessed system of ROM at {} from file extension {} as {}",
+            rom.display(),
+            file_extension,
+            system
+        );
+        return Some(system);
     }
 
     None

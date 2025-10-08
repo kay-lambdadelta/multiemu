@@ -1,6 +1,6 @@
 use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentVersion},
+    component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     memory::{
         Address, AddressSpaceId, PreviewMemoryError, PreviewMemoryErrorType, ReadMemoryError,
@@ -288,7 +288,7 @@ impl Component for Mos6532Riot {
                         .write_register(*buffer_section);
                 }
                 0x1 => {
-                    self.registers.swacnt = if *buffer_section == 0 { false } else { true };
+                    self.registers.swacnt = *buffer_section != 0;
                 }
                 0x2 if !self.registers.swbcnt => {
                     self.registers
@@ -298,7 +298,7 @@ impl Component for Mos6532Riot {
                         .write_register(*buffer_section);
                 }
                 0x3 => {
-                    self.registers.swbcnt = if *buffer_section == 0 { false } else { true };
+                    self.registers.swbcnt = *buffer_section != 0;
                 }
                 0x14 => {
                     self.registers.tim1t = *buffer_section;
@@ -334,7 +334,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let registers = Registers {
             swcha: OnceLock::new(),
             swchb: OnceLock::new(),

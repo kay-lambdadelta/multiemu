@@ -64,7 +64,7 @@ impl SnapshotManager {
         let metadata: SnapshotMetadata = ron::de::from_reader(File::open(metadata_path)?)?;
 
         registry.interact_all_mut(|path, component| {
-            let component_info = match metadata.components.get(&path) {
+            let component_info = match metadata.components.get(path) {
                 Some(info) => info,
                 None => return,
             };
@@ -125,7 +125,7 @@ impl SnapshotManager {
 
         registry.interact_all(|path, component| {
             // Only write the ones that declared versions
-            if component_metadata.contains_key(&path) {
+            if component_metadata.contains_key(path) {
                 let mut snapshot_file_path = snapshot_directory.clone();
                 snapshot_file_path.extend(path.iter());
                 snapshot_file_path.set_extension("bin");

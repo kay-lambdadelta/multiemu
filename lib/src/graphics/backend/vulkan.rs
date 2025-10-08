@@ -22,7 +22,9 @@ pub use vulkano;
 /// Marker train for vulkan rendering, supported on major desktop platforms
 pub struct Vulkan;
 
+/// Vulkan features
 pub type VulkanFeatures = DeviceExtensions;
+/// Render target
 pub type FramebufferTexture = Arc<Image>;
 
 impl GraphicsApi for Vulkan {
@@ -58,8 +60,11 @@ impl InitializationData {
     }
 }
 
+/// Extensions for the vulkano subbuffer trait
 pub trait SubbufferExt<T: ?Sized + 'static> {
+    /// Take a owned read guard for the [Subbuffer]
     fn owned_read(&self) -> Result<OwnedBufferReadGuard<T>, HostAccessError>;
+    /// Take a owned write guard for the [Subbuffer]
     fn owned_write(&self) -> Result<OwnedBufferWriteGuard<T>, HostAccessError>;
 }
 
@@ -90,6 +95,7 @@ impl<T: ?Sized + BufferContents + 'static> SubbufferExt<T> for Subbuffer<T> {
 }
 
 #[derive(Debug)]
+/// Owned read guard for a [Subbuffer]
 pub struct OwnedBufferReadGuard<T: ?Sized + 'static> {
     _buffer: Box<Subbuffer<T>>,
     guard: Option<BufferReadGuard<'static, T>>,
@@ -110,6 +116,7 @@ impl<T: ?Sized + 'static> Deref for OwnedBufferReadGuard<T> {
 }
 
 #[derive(Debug)]
+/// Owned write guard for a [Subbuffer]
 pub struct OwnedBufferWriteGuard<T: ?Sized + 'static> {
     _buffer: Box<Subbuffer<T>>,
     guard: Option<BufferWriteGuard<'static, T>>,

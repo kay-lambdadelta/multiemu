@@ -3,7 +3,7 @@ use crate::{
     environment::Environment,
     frontend::{
         DisplayApiHandle, EguiPlatformIntegration, GraphicsRuntime, MachineFactories, PlatformExt,
-        backend::AudioContext,
+        backend::AudioRuntime,
         gui::menu::{MenuState, UiOutput},
     },
     graphics::GraphicsApi,
@@ -53,6 +53,7 @@ struct PendingMachineResources {
 }
 
 #[derive(Debug)]
+/// Windowing dependent types
 pub struct WindowingContext<P: PlatformExt> {
     display_api_handle: <P::GraphicsRuntime as GraphicsRuntime<P>>::DisplayApiHandle,
     graphics_runtime: P::GraphicsRuntime,
@@ -65,9 +66,11 @@ enum Mode {
     Machine,
 }
 
+/// A machine that may be there
 pub type MaybeMachine<P> = RwLock<Option<Machine<P>>>;
 
 #[derive(Debug)]
+/// Frontend for the emulator
 pub struct FrontendRuntime<P: PlatformExt> {
     /// Main swappable machine
     maybe_machine: Arc<MaybeMachine<P>>,
@@ -108,6 +111,7 @@ pub struct FrontendRuntime<P: PlatformExt> {
 }
 
 impl<P: PlatformExt> FrontendRuntime<P> {
+    /// Denote that some kind of focus change occured
     pub fn focus_change(&mut self, focused: bool) {
         self.collected_frame_rates.clear();
         self.previous_frame_timestamp = Instant::now();
@@ -115,10 +119,12 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         self.in_focus = focused;
     }
 
+    /// Get the [MaybeMachine]
     pub fn maybe_machine(&self) -> Arc<MaybeMachine<P>> {
         self.maybe_machine.clone()
     }
 
+    /// Get access to the inner egui platform integration type
     pub fn egui_platform_integration(&mut self) -> &mut P::EguiPlatformIntegration {
         &mut self
             .windowing_context
@@ -175,6 +181,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         }
     }
 
+    /// Inserts a input into the frontend
     pub fn insert_input(&mut self, id: GamepadId, input: Input, state: InputState) {
         self.current_key_states
             .entry(id)
@@ -239,30 +246,29 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                 let machine = maybe_machine_guard.as_ref().unwrap();
                 let system = machine.system().unwrap();
 
-                if let Some(path) = self.gamepad_mapping.get(&id) {
-                    if let Some(virtual_gamepad) = machine.virtual_gamepads.get(path) {
-                        if let Some(transformed_input) = enviroment_guard
-                            .gamepad_configs
-                            .get(&system)
-                            .and_then(|gamepad_types| gamepad_types.get(&path))
-                            .and_then(|gamepad_transformer| gamepad_transformer.get(&input))
-                        {
-                            tracing::debug!(
-                                "Transformed input: {:?} -> {:?} to state {:?}",
-                                input,
-                                transformed_input,
-                                state
-                            );
+                if let Some(path) = self.gamepad_mapping.get(&id)
+                    && let Some(virtual_gamepad) = machine.virtual_gamepads.get(path)
+                    && let Some(transformed_input) = enviroment_guard
+                        .gamepad_configs
+                        .get(&system)
+                        .and_then(|gamepad_types| gamepad_types.get(path))
+                        .and_then(|gamepad_transformer| gamepad_transformer.get(&input))
+                {
+                    tracing::debug!(
+                        "Transformed input: {:?} -> {:?} to state {:?}",
+                        input,
+                        transformed_input,
+                        state
+                    );
 
-                            virtual_gamepad.set(*transformed_input, state);
-                        }
-                    }
+                    virtual_gamepad.set(*transformed_input, state);
                 }
             }
             Mode::Gui => {}
         }
     }
 
+    /// Redraw for the runtime
     pub fn redraw(&mut self) {
         if !self.in_focus {
             return;
@@ -380,6 +386,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
 }
 
 impl<P: PlatformExt> FrontendRuntime<P> {
+    /// Create a new runtime
     pub fn new(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomMetadata>,
@@ -424,6 +431,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         }
     }
 
+    /// Create a new runtime a machine that needs to be built
     pub fn new_with_machine(
         environment: Arc<RwLock<Environment>>,
         rom_manager: Arc<RomMetadata>,
@@ -451,7 +459,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     ) {
         let mut maybe_machine_guard = self.maybe_machine.write().unwrap();
 
-        // Drop old machine otherwise it will segfault when we try to use the new video context
+        // HACK: Drop old machine otherwise it will segfault when we try to use the new video context
         // I dunno how we could prevent this unsafety but beware future programmers
 
         maybe_machine_guard.take();

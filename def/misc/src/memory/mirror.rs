@@ -1,5 +1,5 @@
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig},
+    component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{
         Address, AddressSpaceId, MemoryAccessTable, PreviewMemoryError, ReadMemoryError,
@@ -81,17 +81,13 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         if self.source_addresses.clone().count() != self.destination_addresses.clone().count() {
-            return Err(BuildError::InvalidConfig(
-                "Source and destination ranges must be the same length".into(),
-            ));
+            return Err("Source and destination ranges must be the same length".into());
         }
 
         if self.source_addresses.is_empty() {
-            return Err(BuildError::InvalidConfig(
-                "Memory assigned must be non-empty".into(),
-            ));
+            return Err("Memory assigned must be non-empty".into());
         }
 
         let access_table = component_builder.memory_access_table();
@@ -162,7 +158,7 @@ mod test {
             },
         );
 
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let mut buffer = [0; 8];
 
@@ -211,7 +207,7 @@ mod test {
             },
         );
 
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let mut buffer = [0; 8];
 
@@ -254,7 +250,7 @@ mod test {
             },
         );
 
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let buffer = [0; 8];
 
@@ -315,7 +311,7 @@ mod test {
                 destination_address_space: cpu_address_space,
             },
         );
-        let machine = machine.build(Default::default(), false);
+        let machine = machine.build((), false);
 
         let mut buffer = [0u8; 8];
 

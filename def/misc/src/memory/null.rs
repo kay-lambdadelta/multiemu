@@ -1,5 +1,5 @@
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig},
+    component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId},
     platform::Platform,
@@ -22,11 +22,9 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         if self.assigned_range.is_empty() {
-            return Err(BuildError::InvalidConfig(
-                "Memory assigned must be non-empty".into(),
-            ));
+            return Err("Memory assigned must be non-empty".into());
         }
 
         match (self.readable, self.writable) {

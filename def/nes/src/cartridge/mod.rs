@@ -1,7 +1,7 @@
 use crate::cartridge::mapper::mapper_000::Mapper000Config;
 use ines::INes;
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig},
+    component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
@@ -44,7 +44,7 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let rom_manager = component_builder.rom_manager();
 
         let mut rom_file = BufReader::new(

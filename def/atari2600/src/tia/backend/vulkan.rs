@@ -82,7 +82,7 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
             .get_or_insert_with(|| self.staging_buffer.owned_write().unwrap());
 
         callback(DMatrixViewMut::from_slice(
-            &mut staging_buffer_guard,
+            staging_buffer_guard,
             VISIBLE_SCANLINE_LENGTH as usize,
             R::TOTAL_SCANLINES as usize,
         ));

@@ -221,7 +221,28 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             DefaultExpansionDevice::泽诚Keyboard => todo!(),
         };
 
-        let machine = match ines.timing_mode {
+        
+
+        /*
+        let (machine, _) = machine.insert_component(
+            "forced-execution-vector",
+            StandardMemoryConfig {
+                readable: true,
+                writable: true,
+                assigned_range: 0xfffc..=0xfffd,
+                assigned_address_space: cpu_address_space,
+                initial_contents: RangeInclusiveMap::from_iter([(
+                    0xfffc..=0xfffd,
+                    StandardMemoryInitialContents::Array(Cow::Owned(
+                        (0xc000u16).to_le_bytes().to_vec(),
+                    )),
+                )]),
+                sram: false,
+            },
+        );
+        */
+
+        match ines.timing_mode {
             TimingMode::Ntsc => {
                 let processor_frequency = Ntsc::master_clock() / 12;
 
@@ -251,28 +272,7 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             TimingMode::Pal => todo!(),
             TimingMode::Multi => todo!(),
             TimingMode::Dendy => todo!(),
-        };
-
-        /*
-        let (machine, _) = machine.insert_component(
-            "forced-execution-vector",
-            StandardMemoryConfig {
-                readable: true,
-                writable: true,
-                assigned_range: 0xfffc..=0xfffd,
-                assigned_address_space: cpu_address_space,
-                initial_contents: RangeInclusiveMap::from_iter([(
-                    0xfffc..=0xfffd,
-                    StandardMemoryInitialContents::Array(Cow::Owned(
-                        (0xc000u16).to_le_bytes().to_vec(),
-                    )),
-                )]),
-                sram: false,
-            },
-        );
-        */
-
-        machine
+        }
     }
 }
 

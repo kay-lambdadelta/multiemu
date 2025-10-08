@@ -6,6 +6,7 @@ use strum::EnumIter;
     Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
 /// Inputs that a keyboard could give
+#[allow(missing_docs)]
 pub enum KeyboardInput {
     Backquote,
     Backslash,

@@ -1,6 +1,6 @@
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig},
+    component::{Component, ComponentConfig},
     input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput},
     machine::{
         builder::ComponentBuilder,
@@ -52,12 +52,9 @@ impl Component for NesController {
         buffer_bits.set(
             0,
             if (0..READ_ORDER.len() as u8).contains(&state_guard.current_read) {
-                let pressed = self
-                    .gamepad
+                self.gamepad
                     .get(READ_ORDER[state_guard.current_read as usize])
-                    .as_digital(None);
-
-                pressed
+                    .as_digital(None)
             } else {
                 true
             },
@@ -116,7 +113,7 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let gamepad = create_gamepad();
 
         let (component_builder, _) = component_builder

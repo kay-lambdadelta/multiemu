@@ -5,6 +5,7 @@ use strum::EnumIter;
     Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
 )]
 /// Inputs that a gamepad could give
+#[allow(missing_docs)]
 pub enum GamepadInput {
     FPadUp,
     FPadDown,

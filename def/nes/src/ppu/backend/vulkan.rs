@@ -80,12 +80,12 @@ impl<R: Region> PpuDisplayBackend<R> for VulkanState {
     }
 
     fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>)) {
-        let mut staging_buffer_guard = self
+        let staging_buffer_guard = self
             .staging_buffer_guard
             .get_or_insert_with(|| self.staging_buffer.owned_write().unwrap());
 
         callback(DMatrixViewMut::from_slice(
-            &mut staging_buffer_guard,
+            staging_buffer_guard,
             VISIBLE_SCANLINE_LENGTH as usize,
             R::VISIBLE_SCANLINES as usize,
         ));

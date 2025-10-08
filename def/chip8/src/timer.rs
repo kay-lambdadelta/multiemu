@@ -1,5 +1,5 @@
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig, ComponentVersion},
+    component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     platform::Platform,
 };
@@ -61,7 +61,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         component_builder.insert_task_mut(
             "driver",
             Ratio::from_integer(60),

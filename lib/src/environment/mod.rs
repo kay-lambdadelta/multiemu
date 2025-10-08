@@ -18,9 +18,10 @@ use std::{
     path::PathBuf,
     sync::LazyLock,
 };
-use strum::{Display, EnumIter};
 
+/// Audio related config types
 pub mod audio;
+/// Graphics related config types
 pub mod graphics;
 
 cfg_if::cfg_if! {
@@ -33,6 +34,7 @@ cfg_if::cfg_if! {
     } else if #[cfg(target_os = "psp")] {
         pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("ms0:/multiemu"));
     } else if #[cfg(any(target_family = "unix", target_os = "windows"))] {
+        /// Directory that multiemu will use as a "home" folder
         pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| dirs::data_dir().unwrap().join("multiemu"));
     } else {
         compile_error!("Unsupported target");
@@ -43,17 +45,12 @@ cfg_if::cfg_if! {
 pub static ENVIRONMENT_LOCATION: LazyLock<PathBuf> =
     LazyLock::new(|| STORAGE_DIRECTORY.join("config.ron"));
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, EnumIter, Display, PartialEq, Eq, Default)]
-/// Processor execution mode, if your platform supports JIT
-pub enum ProcessorExecutionMode {
-    #[default]
-    Interpret,
-}
-
 #[serde_as]
 #[serde_inline_default]
 #[derive(Serialize, Deserialize, Debug)]
-/// Miscillaneous settings that the runtime and machine must obey
+/// Miscellaneous settings that the runtime and machine must obey
+///
+/// The canonical on-disk representation for this config is RON but any type will do
 pub struct Environment {
     #[serde(default)]
     /// Gamepad configs populated by machines or edited by the user
@@ -69,9 +66,6 @@ pub struct Environment {
     #[serde(default)]
     /// Audio settings
     pub audio_settings: AudioSettings,
-    #[serde(default)]
-    /// Processor execution mode
-    pub processor_execution_mode: ProcessorExecutionMode,
     #[serde_inline_default(Environment::default().file_browser_home_directory)]
     /// The folder that the gui will show initially
     pub file_browser_home_directory: PathBuf,
@@ -93,14 +87,12 @@ pub struct Environment {
 }
 
 impl Environment {
+    /// Store the config from a file
     pub fn save(&self, writer: impl Write) -> Result<(), ron::Error> {
-        ron::Options::default().to_io_writer_pretty(
-            writer,
-            self,
-            PrettyConfig::new().struct_names(false),
-        )
+        ron::Options::default().to_io_writer_pretty(writer, self, PrettyConfig::new())
     }
 
+    /// Load the config from a file
     pub fn load(reader: impl Read) -> Result<Self, ron::Error> {
         Ok(ron::de::from_reader(reader)?)
     }
@@ -113,7 +105,6 @@ impl Default for Environment {
             hotkeys: Default::default(),
             graphics_setting: Default::default(),
             audio_settings: Default::default(),
-            processor_execution_mode: ProcessorExecutionMode::Interpret,
             file_browser_home_directory: STORAGE_DIRECTORY.clone(),
             log_location: STORAGE_DIRECTORY.join("log"),
             database_location: STORAGE_DIRECTORY.join("database.redb"),

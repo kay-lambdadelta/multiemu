@@ -1,9 +1,12 @@
 use std::{any::Any, fmt::Debug, ops::BitOr};
 
 #[cfg(feature = "opengl")]
+/// Opengl
 pub mod opengl;
+/// Software
 pub mod software;
 #[cfg(feature = "vulkan")]
+/// Vulkan
 pub mod vulkan;
 
 /// Trait for marker structs representing rendering backends

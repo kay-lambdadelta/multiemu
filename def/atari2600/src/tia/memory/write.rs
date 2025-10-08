@@ -22,11 +22,10 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
                     self.state.electron_beam = Point2::new(0, 0);
                     self.state.cycles_waiting_for_vsync = Some(SCANLINE_LENGTH * 3);
                 } else {
-                    if let Some(cycles) = self.state.cycles_waiting_for_vsync {
-                        if cycles != 0 {
+                    if let Some(cycles) = self.state.cycles_waiting_for_vsync
+                        && cycles != 0 {
                             tracing::warn!("Vsync exited early");
                         }
-                    }
 
                     self.state.cycles_waiting_for_vsync = None;
                 }

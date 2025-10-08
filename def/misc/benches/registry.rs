@@ -25,7 +25,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             sram: false,
         },
     );
-    let machine = machine.build(Default::default(), false);
+    let machine = machine.build((), false);
     let component_id = machine.component_registry.get_id(&memory).unwrap();
 
     c.bench_function("registry_read", |b| {

@@ -48,7 +48,7 @@ impl SaveManager {
             None => return Ok(None),
         };
 
-        let save_directory = save_directory.join(rom_id.to_string()).join(&rom_name);
+        let save_directory = save_directory.join(rom_id.to_string()).join(rom_name);
 
         let metadata_path = save_directory.join(SAVE_METADATA_FILE_NAME);
         if !metadata_path.exists() {
@@ -114,7 +114,7 @@ impl SaveManager {
 
         registry.interact_all(|path, component| {
             // Only write the ones that declared versions
-            if component_metadata.contains_key(&path) {
+            if component_metadata.contains_key(path) {
                 let mut save_file_path = save_directory.clone();
                 save_file_path.extend(path.iter());
                 save_file_path.set_extension("bin");

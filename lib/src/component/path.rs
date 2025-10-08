@@ -3,6 +3,8 @@ use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt::Display, str::FromStr};
 
+// TODO: The parser could be more rigorous
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 /// Error for invalid component names
 pub enum Error {
@@ -43,7 +45,7 @@ impl Value for ComponentPath {
     where
         Self: 'a,
     {
-        String::from_utf8_lossy(&data).parse().unwrap()
+        String::from_utf8_lossy(data).parse().unwrap()
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
@@ -60,11 +62,12 @@ impl Value for ComponentPath {
 
 impl Key for ComponentPath {
     fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
-        String::from_utf8_lossy(&data1).cmp(&String::from_utf8_lossy(&data2))
+        String::from_utf8_lossy(data1).cmp(&String::from_utf8_lossy(data2))
     }
 }
 
 impl ComponentPath {
+    /// Path seperator
     pub const SEPERATOR: char = '/';
 
     /// Checks if a string is a valid component name
@@ -88,6 +91,7 @@ impl ComponentPath {
         None
     }
 
+    /// Get the parent component, if any
     pub fn parent(&self) -> Option<ComponentPath> {
         let mut segments: Vec<&str> = self.iter().collect();
 
@@ -99,14 +103,21 @@ impl ComponentPath {
         Some(ComponentPath(Cow::Owned(segments.join("/"))))
     }
 
+    /// Iter over path components
     pub fn iter(&self) -> impl Iterator<Item = &str> {
         self.0.split(Self::SEPERATOR).filter(|s| !s.is_empty())
     }
 
+    /// Get the number of path components that exist
     pub fn len(&self) -> usize {
         self.iter().count()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Check for overlapping
     pub fn contains(&self, other: &ComponentPath) -> bool {
         if self.0 == other.0 {
             return true;
@@ -115,6 +126,7 @@ impl ComponentPath {
         self.iter().zip(other.iter()).all(|(a, b)| a == b) && self.len() >= other.len()
     }
 
+    /// Push a new component onto this path
     pub fn push(&mut self, segment: &str) -> Result<(), Error> {
         if let Some(err) = Self::validate_path_component(segment) {
             return Err(err);
@@ -177,8 +189,11 @@ impl<'de> Deserialize<'de> for ComponentPath {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
+/// Path denoting a resource, like an audio output or a display
 pub struct ResourcePath {
+    /// Component that owns this resource
     pub component_path: ComponentPath,
+    /// Unique resource name
     pub name: Cow<'static, str>,
 }
 

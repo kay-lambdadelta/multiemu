@@ -5,6 +5,7 @@ use crate::{
 };
 use std::{collections::HashMap, fmt::Debug};
 
+/// Factory storage for frontend machine generation automation
 pub struct MachineFactories<P: Platform>(HashMap<System, Box<dyn MachineFactory<P>>>);
 
 impl<P: Platform> Debug for MachineFactories<P> {
@@ -14,10 +15,12 @@ impl<P: Platform> Debug for MachineFactories<P> {
 }
 
 impl<P: Platform> MachineFactories<P> {
+    /// Register a factory
     pub fn insert_factory<M: MachineFactory<P> + Default>(&mut self, system: System) {
         self.0.insert(system, Box::new(M::default()));
     }
 
+    /// Spit out a machine based upon the factories
     pub fn construct_machine(&self, machine_builder: MachineBuilder<P>) -> MachineBuilder<P> {
         let system = machine_builder.system().unwrap();
 

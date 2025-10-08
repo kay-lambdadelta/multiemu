@@ -1,5 +1,5 @@
 use multiemu::{
-    component::{BuildError, Component, ComponentConfig},
+    component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, ReadMemoryError},
     platform::Platform,
@@ -58,7 +58,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
-    ) -> Result<Self::Component, BuildError> {
+    ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let rom_manager = component_builder.rom_manager();
 
         let mut rom = rom_manager
