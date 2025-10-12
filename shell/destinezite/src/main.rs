@@ -31,9 +31,6 @@ mod input;
 mod windowing;
 
 fn main() {
-    // Set our current thread as our main thread
-    multiemu_base::utils::set_main_thread();
-
     create_dir_all(STORAGE_DIRECTORY.deref()).unwrap();
 
     let environment = File::open(ENVIRONMENT_LOCATION.deref())

@@ -8,8 +8,6 @@ use rangemap::RangeInclusiveMap;
 use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    multiemu_base::utils::set_main_thread();
-
     let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
     let (machine, _) = machine.insert_component(

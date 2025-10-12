@@ -13,7 +13,6 @@ use multiemu_base::{
     input::{GamepadId, Input, InputState},
     platform::Platform,
     program::{ProgramMetadata, ProgramSpecification},
-    utils::{MainThreadCallback, MainThreadExecutor},
 };
 use multiemu_frontend::{
     DisplayApiHandle, EguiPlatformIntegration, FrontendRuntime, GraphicsRuntime, MachineFactories,
@@ -21,17 +20,16 @@ use multiemu_frontend::{
 };
 use nalgebra::Vector2;
 use std::{
-    any::Any,
     cell::OnceCell,
     fmt::Debug,
     fs::File,
     ops::Deref,
-    sync::{Arc, Condvar, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
+    event_loop::{ActiveEventLoop, EventLoop},
     raw_window_handle::{
         DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
     },
@@ -43,11 +41,6 @@ pub enum RuntimeBoundMessage {
         id: GamepadId,
         input: Input,
         state: InputState,
-    },
-    ExecuteCallback {
-        callback: MainThreadCallback,
-        return_slot: Arc<Mutex<Option<Box<dyn Any + Send>>>>,
-        condvar: Arc<Condvar>,
     },
 }
 
@@ -132,7 +125,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
     for DesktopPlatform<G, GR>
 {
     type GraphicsApi = G;
-    type MainThreadExecutor = WinitMainThreadExecutor;
 }
 
 impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> PlatformExt
@@ -238,16 +230,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             RuntimeBoundMessage::Input { id, input, state } => {
                 self.runtime.insert_input(id, input, state);
             }
-            RuntimeBoundMessage::ExecuteCallback {
-                callback,
-                return_slot,
-                condvar,
-            } => {
-                let result = callback();
-                let mut return_slot_guard = return_slot.lock().unwrap();
-                *return_slot_guard = Some(result);
-                condvar.notify_one();
-            }
         }
     }
 
@@ -293,25 +275,15 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
                 })?;
         }
 
-        let main_thread_executor = Arc::new(WinitMainThreadExecutor {
-            event_loop_proxy: event_loop.create_proxy(),
-        });
-
         let runtime = if let Some(program_specification) = program_specification {
             FrontendRuntime::new_with_machine(
                 environment.clone(),
                 program_manager,
                 machine_factories,
-                main_thread_executor,
                 program_specification,
             )
         } else {
-            FrontendRuntime::new(
-                environment.clone(),
-                program_manager,
-                machine_factories,
-                main_thread_executor,
-            )
+            FrontendRuntime::new(environment.clone(), program_manager, machine_factories)
         };
 
         let mut me = DesktopPlatform {
@@ -335,35 +307,4 @@ fn setup_window(event_loop: &ActiveEventLoop) -> WinitWindow {
     WinitWindow(Arc::new(
         event_loop.create_window(window_attributes).unwrap(),
     ))
-}
-
-#[derive(Debug)]
-pub struct WinitMainThreadExecutor {
-    event_loop_proxy: EventLoopProxy<RuntimeBoundMessage>,
-}
-
-impl MainThreadExecutor for WinitMainThreadExecutor {
-    fn execute(&self, callback: MainThreadCallback) -> Box<dyn Any + Send> {
-        let return_slot = Arc::new(Mutex::new(None));
-        let condvar = Arc::new(Condvar::new());
-
-        self.event_loop_proxy
-            .send_event(RuntimeBoundMessage::ExecuteCallback {
-                callback,
-                return_slot: return_slot.clone(),
-                condvar: condvar.clone(),
-            })
-            .unwrap();
-
-        let mut return_slot_guard = return_slot.lock().unwrap();
-
-        // Wait for our returned value
-        return_slot_guard = condvar
-            .wait_while(return_slot_guard, |return_slot_guard| {
-                return_slot_guard.is_none()
-            })
-            .unwrap();
-
-        return_slot_guard.take().unwrap()
-    }
 }

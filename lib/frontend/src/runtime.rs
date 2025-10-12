@@ -75,8 +75,6 @@ pub struct FrontendRuntime<P: PlatformExt> {
     pending_machine_resources: Option<PendingMachineResources>,
     /// The runtime for audio
     audio_runtime: P::AudioRuntime,
-    /// Way to execute on the main thread
-    main_thread_executor: Arc<P::MainThreadExecutor>,
     /// The previous framerates we observed
     collected_frame_rates: ConstGenericRingBuffer<Duration, 5>,
     /// The timestamp previous frame
@@ -346,7 +344,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         environment: Arc<RwLock<Environment>>,
         program_manager: Arc<ProgramMetadata>,
         machine_factories: MachineFactories<P>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
         let maybe_machine = Arc::new(MaybeMachine::default());
         let egui_context = egui::Context::default();
@@ -378,7 +375,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             machine_factories,
             pending_machine_resources: None,
             audio_runtime,
-            main_thread_executor,
             collected_frame_rates: ConstGenericRingBuffer::default(),
             previous_frame_timestamp: Instant::now(),
             in_focus: true,
@@ -391,14 +387,12 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         environment: Arc<RwLock<Environment>>,
         program_manager: Arc<ProgramMetadata>,
         machine_factories: MachineFactories<P>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
         program_specification: ProgramSpecification,
     ) -> Self {
         let mut me = Self::new(
             environment.clone(),
             program_manager.clone(),
             machine_factories,
-            main_thread_executor,
         );
         me.pending_machine_resources = Some(PendingMachineResources {
             program_specification,
@@ -425,7 +419,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
             Some(environment_guard.save_directory.clone()),
             Some(environment_guard.snapshot_directory.clone()),
             self.audio_runtime.sample_rate(),
-            self.main_thread_executor.clone(),
         );
 
         let machine_builder = self.machine_factories.construct_machine(machine_builder);

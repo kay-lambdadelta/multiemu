@@ -209,14 +209,12 @@ impl StandardMemory {
 
 #[cfg(test)]
 mod test {
-    use multiemu_base::{machine::Machine, utils::set_main_thread};
+    use multiemu_base::machine::Machine;
 
     use super::*;
 
     #[test]
     fn initialization() {
-        set_main_thread();
-
         let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
@@ -272,8 +270,6 @@ mod test {
 
     #[test]
     fn basic_read() {
-        set_main_thread();
-
         let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
@@ -303,8 +299,6 @@ mod test {
 
     #[test]
     fn basic_write() {
-        set_main_thread();
-
         let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
@@ -333,8 +327,6 @@ mod test {
 
     #[test]
     fn basic_read_write() {
-        set_main_thread();
-
         let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
@@ -369,8 +361,6 @@ mod test {
 
     #[test]
     fn extensive() {
-        set_main_thread();
-
         let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(

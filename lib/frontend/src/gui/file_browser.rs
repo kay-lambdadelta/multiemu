@@ -1,7 +1,7 @@
 use super::UiOutput;
 use egui::{Align, Layout};
 use egui_extras::{Column, TableBuilder};
-use multiemu_base::program::{ProgramMetadata, RomId};
+use multiemu_base::program::ProgramMetadata;
 use std::{fs::read_dir, path::PathBuf, sync::Arc};
 use strum::{Display, EnumIter};
 
@@ -19,8 +19,6 @@ pub struct FileBrowserState {
     reverse_sorting: bool,
     show_hidden: bool,
     program_manager: Arc<ProgramMetadata>,
-    // The first rom will be considered the main rom and should be highlighted in the editor
-    selected_roms: Vec<RomId>,
 }
 
 impl FileBrowserState {
@@ -32,7 +30,6 @@ impl FileBrowserState {
             reverse_sorting: false,
             show_hidden: false,
             program_manager,
-            selected_roms: Vec::default(),
         };
         me.change_directory(home_directory);
         me

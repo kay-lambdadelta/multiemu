@@ -205,7 +205,6 @@ mod tests {
         machine::{Machine, MachineFactory},
         platform::TestPlatform,
         program::{ProgramMetadata, RomId},
-        utils::{DirectMainThreadExecutor, set_main_thread},
     };
     use num::rational::Ratio;
     use std::{
@@ -217,17 +216,15 @@ mod tests {
 
     #[test]
     fn riot_ram_access() {
-        set_main_thread();
-
         let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
         let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
 
         let program_manager =
             Arc::new(ProgramMetadata::new(Arc::new(RwLock::new(environment))).unwrap());
         let program_specification = program_manager
-            .identify_program([
-                RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap(),
-            ])
+            .identify_program(
+                [RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()],
+            )
             .unwrap()
             .expect("You need a copy of \"Donkey Kong (USA)\" to run this test");
 
@@ -237,7 +234,6 @@ mod tests {
             None,
             None,
             Ratio::from_integer(44100),
-            Arc::new(DirectMainThreadExecutor),
         );
 
         let machine =

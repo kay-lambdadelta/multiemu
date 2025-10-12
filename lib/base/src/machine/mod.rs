@@ -13,7 +13,6 @@ use crate::{
     platform::{Platform, TestPlatform},
     program::{ProgramMetadata, ProgramSpecification},
     scheduler::{SchedulerHandle, SchedulerState},
-    utils::DirectMainThreadExecutor,
 };
 use num::rational::Ratio;
 use rustc_hash::FxBuildHasher;
@@ -76,7 +75,6 @@ impl Machine<TestPlatform> {
             save_path,
             snapshot_path,
             Ratio::from_integer(44100),
-            Arc::new(DirectMainThreadExecutor),
         )
     }
 
@@ -92,7 +90,6 @@ impl Machine<TestPlatform> {
             None,
             None,
             Ratio::from_integer(44100),
-            Arc::new(DirectMainThreadExecutor),
         )
     }
 }
@@ -104,7 +101,6 @@ impl<P: Platform> Machine<P> {
         save_path: Option<PathBuf>,
         snapshot_path: Option<PathBuf>,
         sample_rate: Ratio<u32>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> MachineBuilder<P> {
         MachineBuilder::new(
             program_specification,
@@ -112,7 +108,6 @@ impl<P: Platform> Machine<P> {
             save_path,
             snapshot_path,
             sample_rate,
-            main_thread_executor,
         )
     }
 }

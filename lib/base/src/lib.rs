@@ -25,5 +25,3 @@ pub mod scheduler;
 #[cfg(any(feature = "vulkan", feature = "opengl"))]
 /// WGSL shader compilers
 pub mod shader;
-/// Various bits and pieces of useful utilities
-pub mod utils;

@@ -118,7 +118,7 @@ impl<P: Platform> ComponentConfig<P> for MirrorMemoryConfig {
 #[cfg(test)]
 mod test {
     use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
-    use multiemu_base::{machine::Machine, utils::set_main_thread};
+    use multiemu_base::machine::Machine;
     use rangemap::RangeInclusiveMap;
     use std::borrow::Cow;
 
@@ -126,8 +126,6 @@ mod test {
 
     #[test]
     fn basic_read() {
-        set_main_thread();
-
         let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
@@ -171,8 +169,6 @@ mod test {
 
     #[test]
     fn basic_read_cross_space() {
-        set_main_thread();
-
         let mut address_spaces = Vec::default();
         let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
         address_spaces.push(address_space);
@@ -220,8 +216,6 @@ mod test {
 
     #[test]
     fn basic_write() {
-        set_main_thread();
-
         let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
@@ -262,8 +256,6 @@ mod test {
 
     #[test]
     fn extensive_read_test() {
-        set_main_thread();
-
         let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(

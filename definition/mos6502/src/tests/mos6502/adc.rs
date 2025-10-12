@@ -1,11 +1,8 @@
 use crate::{ExecutionStep, FlagRegister, Mos6502, tests::mos6502::instruction_test_boilerplate};
 use bitvec::{order::Lsb0, view::BitView};
-use multiemu_base::utils::set_main_thread;
 
 #[test]
 pub fn adc_immediate() {
-    set_main_thread();
-
     for value in 0x00..=0xff {
         let (mut machine, cpu, cpu_address_space) = instruction_test_boilerplate();
         let component_id = machine.component_registry.get_id(&cpu).unwrap();
@@ -58,8 +55,6 @@ pub fn adc_immediate() {
 
 #[test]
 pub fn adc_absolute() {
-    set_main_thread();
-
     for value in 0x00..=0xff {
         let (mut machine, cpu, cpu_address_space) = instruction_test_boilerplate();
         let component_id = machine.component_registry.get_id(&cpu).unwrap();

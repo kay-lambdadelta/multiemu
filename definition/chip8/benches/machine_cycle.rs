@@ -4,7 +4,6 @@ use multiemu_base::{
     machine::{Machine, MachineFactory},
     platform::TestPlatform,
     program::{ProgramMetadata, RomId},
-    utils::DirectMainThreadExecutor,
 };
 use multiemu_definition_chip8::Chip8;
 use num::rational::Ratio;
@@ -16,7 +15,6 @@ use std::{
 };
 
 fn criterion_benchmark(c: &mut Criterion) {
-    multiemu_base::utils::set_main_thread();
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
     let program_manager =
@@ -24,9 +22,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     // Some FOSS chip8 games: https://johnearnest.github.io/chip8Archive/?sort=platform
     let program_specification = program_manager
-        .identify_program([
-            RomId::from_str("8263bac7d98d94097171f0a5dc6f210f77543080").unwrap(),
-        ])
+        .identify_program([RomId::from_str("8263bac7d98d94097171f0a5dc6f210f77543080").unwrap()])
         .unwrap()
         .expect("You need a copy of \"OctoRancher\" to run this benchmark");
 
@@ -36,7 +32,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         None,
         None,
         Ratio::from_integer(44100),
-        Arc::new(DirectMainThreadExecutor),
     );
     let mut machine: Machine<TestPlatform> = Chip8.construct(machine).build((), false);
     let scheduler_state = machine.scheduler_state.as_mut().unwrap();

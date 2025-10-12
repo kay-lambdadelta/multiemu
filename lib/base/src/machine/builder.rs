@@ -13,7 +13,6 @@ use crate::{
     platform::Platform,
     program::{MachineId, ProgramMetadata, ProgramSpecification},
     scheduler::{ErasedTask, SchedulerState, Task, TaskMut, scheduler_thread},
-    utils::MainThreadQueue,
 };
 use indexmap::IndexMap;
 use num::rational::Ratio;
@@ -95,9 +94,7 @@ impl<P: Platform> MachineBuilder<P> {
         save_path: Option<PathBuf>,
         snapshot_path: Option<PathBuf>,
         sample_rate: Ratio<u32>,
-        main_thread_executor: Arc<P::MainThreadExecutor>,
     ) -> Self {
-        let _main_thread_queue = MainThreadQueue::new(main_thread_executor);
         let registry = ComponentRegistry::default();
         let save_manager = SaveManager::new(save_path);
         let snapshot_manager = SnapshotManager::new(snapshot_path);

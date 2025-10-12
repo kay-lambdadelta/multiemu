@@ -4,7 +4,6 @@ use multiemu_base::{
     machine::{Machine, MachineFactory},
     platform::TestPlatform,
     program::{ProgramMetadata, RomId},
-    utils::DirectMainThreadExecutor,
 };
 use multiemu_definition_atari2600::Atari2600;
 use num::rational::Ratio;
@@ -17,7 +16,6 @@ use std::{
 };
 
 fn criterion_benchmark(c: &mut Criterion) {
-    multiemu_base::utils::set_main_thread();
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
 
@@ -34,7 +32,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         None,
         None,
         Ratio::from_integer(44100),
-        Arc::new(DirectMainThreadExecutor),
     );
     let mut machine: Machine<TestPlatform> = Atari2600.construct(machine).build((), false);
 
