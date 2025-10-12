@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
-use multiemu::rom::{RomId, System};
-use std::path::PathBuf;
+use multiemu_base::program::MachineId;
+use std::ffi::OsString;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -12,18 +12,10 @@ pub struct Cli {
 
 #[derive(Clone, Subcommand)]
 pub enum CliAction {
-    /// Run a ROM(s) according to their ID (sha1 hash)
     Run {
         #[clap(required=true, num_args=1..)]
-        roms: Vec<RomId>,
+        roms: Vec<OsString>,
         #[clap(short, long)]
-        forced_system: Option<System>,
-    },
-    /// Run a ROM(s) according to their path on your filesystem
-    RunExternal {
-        #[clap(required=true, num_args=1..)]
-        roms: Vec<PathBuf>,
-        #[clap(short, long)]
-        forced_system: Option<System>,
+        forced_machine_id: Option<MachineId>,
     },
 }

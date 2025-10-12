@@ -1,0 +1,38 @@
+[package]
+name = "multiemu-definition-chip8"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+multiemu-base = { workspace = true }
+multiemu-definition-misc = { workspace = true }
+num = { workspace = true }
+bytemuck = { workspace = true }
+serde = { workspace = true }
+arrayvec = { workspace = true }
+tracing = { workspace = true }
+bitvec = { workspace = true }
+nalgebra = { workspace = true }
+strum = { workspace = true }
+rangemap = { workspace = true }
+rand = { workspace = true }
+palette = { workspace = true }
+bincode = { workspace = true }
+ringbuffer = { workspace = true }
+
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
+ron = { workspace = true }
+criterion = { workspace = true }
+
+[features]
+vulkan = ["multiemu-base/vulkan"]
+opengl = ["multiemu-base/opengl"]
+
+[[bench]]
+name = "instruction_decode"
+harness = false
+
+[[bench]]
+name = "machine_cycle"
+harness = false

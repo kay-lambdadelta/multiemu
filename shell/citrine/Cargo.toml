@@ -7,7 +7,7 @@ authors = ["Kay <lambdadeltakay@proton.me>"]
 description = "A multi system emulator"
 
 [dependencies]
-multiemu = { workspace = true }
+multiemu-base = { workspace = true }
 multiemu-definition-chip8 = { workspace = true }
 multiemu-definition-nes = { workspace = true }
 multiemu-definition-atari2600 = { workspace = true }

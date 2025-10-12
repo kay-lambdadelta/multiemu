@@ -1,7 +1,7 @@
 use clap::Subcommand;
-use multiemu::{
+use multiemu_base::{
     environment::Environment,
-    rom::{NintendoSystem, RomMetadata, SegaSystem, SonySystem, System},
+    program::{MachineId, NintendoSystem, ProgramMetadata, SegaSystem, SonySystem},
 };
 use std::{
     error::Error,
@@ -24,18 +24,18 @@ pub enum RedumpSystem {
     Mcd,
 }
 
-impl TryFrom<System> for RedumpSystem {
+impl TryFrom<MachineId> for RedumpSystem {
     type Error = ();
 
-    fn try_from(value: System) -> Result<Self, Self::Error> {
+    fn try_from(value: MachineId) -> Result<Self, Self::Error> {
         match value {
-            System::Nintendo(NintendoSystem::GameCube) => Ok(Self::Gc),
-            System::Nintendo(NintendoSystem::Wii) => Ok(Self::Wii),
-            System::Sony(SonySystem::Playstation) => Ok(Self::Psx),
-            System::Sony(SonySystem::Playstation2) => Ok(Self::Ps2),
-            System::Sony(SonySystem::Playstation3) => Ok(Self::Ps3),
-            System::Sony(SonySystem::PlaystationPortable) => Ok(Self::Psp),
-            System::Sega(SegaSystem::SegaCD) => Ok(Self::Mcd),
+            MachineId::Nintendo(NintendoSystem::GameCube) => Ok(Self::Gc),
+            MachineId::Nintendo(NintendoSystem::Wii) => Ok(Self::Wii),
+            MachineId::Sony(SonySystem::Playstation) => Ok(Self::Psx),
+            MachineId::Sony(SonySystem::Playstation2) => Ok(Self::Ps2),
+            MachineId::Sony(SonySystem::Playstation3) => Ok(Self::Ps3),
+            MachineId::Sony(SonySystem::PlaystationPortable) => Ok(Self::Psp),
+            MachineId::Sega(SegaSystem::SegaCD) => Ok(Self::Mcd),
             _ => Err(()),
         }
     }
@@ -45,16 +45,16 @@ impl TryFrom<System> for RedumpSystem {
 pub enum RedumpAction {
     Download {
         #[clap(required=true, num_args=1..)]
-        systems: Vec<System>,
+        systems: Vec<MachineId>,
     },
     DownloadAll,
 }
 
 pub fn database_redump_download(
-    systems: impl IntoIterator<Item = System>,
+    systems: impl IntoIterator<Item = MachineId>,
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let rom_manager = Arc::new(RomMetadata::new(environment).unwrap());
+    let program_manager = Arc::new(ProgramMetadata::new(environment).unwrap());
 
     for system in systems {
         if let Ok(redump_system) = RedumpSystem::try_from(system) {
@@ -75,7 +75,7 @@ pub fn database_redump_download(
             for index in 0..archive.len() {
                 let file = BufReader::new(archive.by_index(index)?);
 
-                crate::logiqx::import(&rom_manager, file)?;
+                crate::logiqx::import(&program_manager, file)?;
             }
         }
     }

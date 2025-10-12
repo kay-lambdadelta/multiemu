@@ -1,0 +1,66 @@
+[package]
+name = "multiemu-base"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+multiemu-locale = { workspace = true }
+nalgebra = { workspace = true }
+num = { workspace = true }
+ringbuffer = { workspace = true }
+sealed = { workspace = true }
+naga = { workspace = true, optional = true }
+scc = { workspace = true }
+palette = { workspace = true }
+serde = { workspace = true }
+rustc-hash = { workspace = true }
+tracing = { workspace = true }
+serde_with = { workspace = true }
+serde-inline-default = { workspace = true }
+strum = { workspace = true }
+ron = { workspace = true }
+cfg-if = { workspace = true }
+redb = { workspace = true }
+uuid = { workspace = true }
+itertools = { workspace = true }
+thiserror = { workspace = true }
+bincode = { workspace = true }
+data-encoding = { workspace = true }
+rangetools = { workspace = true }
+rangemap = { workspace = true }
+bitvec = { workspace = true }
+rayon = { workspace = true }
+crossbeam = { workspace = true }
+versions = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["webp"] }
+flate2 = "1.1"
+sha1 = "0.10"
+indexmap = "2.11"
+nohash = "0.2"
+
+# Vulkan support
+vulkano = { version = "0.35", default-features = false, optional = true }
+# Opengl support
+glow = { version = "0.16", optional = true }
+
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
+criterion = { workspace = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
+dirs = "6.0"
+
+[features]
+vulkan = ["dep:vulkano", "dep:naga", "naga/spv-out"]
+opengl = ["dep:glow", "dep:naga", "naga/glsl-out"]
+
+[[bench]]
+name = "conversion"
+harness = false
+
+[[bench]]
+name = "resample"
+harness = false
+
+[[bench]]
+name = "remix"
+harness = false

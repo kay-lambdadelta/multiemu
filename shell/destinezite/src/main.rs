@@ -6,18 +6,16 @@
 use crate::{backend::software::SoftwareGraphicsRuntime, windowing::DesktopPlatform};
 use clap::Parser;
 use cli::{Cli, CliAction};
-use multiemu::{
+use multiemu_base::{
     environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY},
-    frontend::PlatformExt,
     graphics::software::Software,
-    machine::{RomSpecification, UserSpecifiedRoms},
-    rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata},
+    program::ProgramMetadata,
 };
-use redb::ReadableDatabase;
+use multiemu_frontend::PlatformExt;
 use std::{
-    borrow::Cow,
     fs::{File, create_dir_all},
     ops::Deref,
+    path::PathBuf,
     sync::{Arc, RwLock},
 };
 use tracing::level_filters::LevelFilter;
@@ -34,7 +32,7 @@ mod windowing;
 
 fn main() {
     // Set our current thread as our main thread
-    multiemu::utils::set_main_thread();
+    multiemu_base::utils::set_main_thread();
 
     create_dir_all(STORAGE_DIRECTORY.deref()).unwrap();
 
@@ -64,118 +62,60 @@ fn main() {
     tracing::info!("MultiEMU v{}", env!("CARGO_PKG_VERSION"));
 
     let environment = Arc::new(RwLock::new(environment));
-    let rom_manager = Arc::new(RomMetadata::new(environment.clone()).unwrap());
+    let program_manager = Arc::new(ProgramMetadata::new(environment.clone()).unwrap());
 
     let cli = Cli::parse();
 
     // TODO: Move this somewhere else
     if let Some(action) = cli.action {
-        let user_specified_roms = match action {
+        let program_specification = match action {
             CliAction::Run {
                 roms,
-                forced_system,
+                forced_machine_id,
             } => {
-                let mut roms: Vec<_> = roms
-                    .into_iter()
-                    .map(|rom| {
-                        let database_transaction =
-                            rom_manager.rom_information.begin_read().unwrap();
-                        let database_table = database_transaction
-                            .open_multimap_table(ROM_INFORMATION_TABLE)
-                            .unwrap();
+                let main_rom_as_path = PathBuf::from(roms[0].clone());
+                let mut program_specification = if main_rom_as_path.is_file() {
+                    // Interpret them all as paths
 
-                        RomSpecification {
-                            id: rom,
-                            identity: database_table
-                                .get(&rom)
-                                .unwrap()
-                                .next()
-                                .unwrap()
-                                .unwrap()
-                                .value(),
-                        }
-                    })
-                    .collect();
-                let mut main_rom = roms.remove(0);
+                    program_manager
+                        .identify_program_from_paths(roms.into_iter().map(PathBuf::from))
+                        .unwrap()
+                        .unwrap()
+                } else {
+                    // program id launching needs to be done here
+                    todo!()
+                };
 
-                if let Some(forced_system) = forced_system {
-                    match &mut main_rom.identity {
-                        RomInfo::V0 { system, .. } => *system = forced_system,
-                    }
+                if let Some(forced_machine_id) = forced_machine_id {
+                    program_specification.id.machine = forced_machine_id;
                 }
 
-                UserSpecifiedRoms {
-                    main: main_rom,
-                    sub: Cow::Owned(roms),
-                }
-            }
-            CliAction::RunExternal {
-                roms,
-                forced_system,
-            } => {
-                let roms: Vec<RomId> = roms
-                    .into_iter()
-                    .map(|rom| rom_manager.identify_rom(rom).unwrap().unwrap())
-                    .collect();
-
-                let mut roms: Vec<_> = roms
-                    .into_iter()
-                    .map(|rom| {
-                        let database_transaction =
-                            rom_manager.rom_information.begin_read().unwrap();
-                        let database_table = database_transaction
-                            .open_multimap_table(ROM_INFORMATION_TABLE)
-                            .unwrap();
-
-                        RomSpecification {
-                            id: rom,
-                            identity: database_table
-                                .get(&rom)
-                                .unwrap()
-                                .next()
-                                .unwrap()
-                                .unwrap()
-                                .value(),
-                        }
-                    })
-                    .collect();
-                let mut main_rom = roms.remove(0);
-
-                if let Some(forced_system) = forced_system {
-                    match &mut main_rom.identity {
-                        RomInfo::V0 { system, .. } => *system = forced_system,
-                    }
-                }
-
-                UserSpecifiedRoms {
-                    main: main_rom,
-                    sub: Cow::Owned(roms),
-                }
+                program_specification
             }
         };
 
         let api = environment.read().unwrap().graphics_setting.api;
 
         match api {
-            multiemu::environment::graphics::GraphicsApi::Software => {
-                DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run_with_machine(
+            multiemu_base::environment::graphics::GraphicsApi::Software => {
+                DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run_with_program(
                     environment.clone(),
-                    rom_manager.clone(),
+                    program_manager.clone(),
                     build_machine::get_software_factories(),
-                    user_specified_roms,
+                    program_specification,
                 )
                 .unwrap();
             }
             #[cfg(feature = "vulkan")]
-            multiemu::environment::graphics::GraphicsApi::Vulkan => {
+            multiemu_base::environment::graphics::GraphicsApi::Vulkan => {
                 use crate::backend::vulkan::VulkanGraphicsRuntime;
-                use multiemu::graphics::vulkan::Vulkan;
+                use multiemu_base::graphics::vulkan::Vulkan;
 
-                DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run_with_machine(
+                DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run_with_program(
                     environment.clone(),
-                    rom_manager.clone(),
+                    program_manager.clone(),
                     build_machine::get_vulkan_factories(),
-                    user_specified_roms,
+                    program_specification,
                 )
                 .unwrap();
             }
@@ -188,22 +128,22 @@ fn main() {
     let api = environment.read().unwrap().graphics_setting.api;
 
     match api {
-        multiemu::environment::graphics::GraphicsApi::Software => {
+        multiemu_base::environment::graphics::GraphicsApi::Software => {
             DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run(
                 environment.clone(),
-                rom_manager.clone(),
+                program_manager.clone(),
                 build_machine::get_software_factories(),
             )
             .unwrap();
         }
         #[cfg(feature = "vulkan")]
-        multiemu::environment::graphics::GraphicsApi::Vulkan => {
+        multiemu_base::environment::graphics::GraphicsApi::Vulkan => {
             use crate::backend::vulkan::VulkanGraphicsRuntime;
-            use multiemu::graphics::vulkan::Vulkan;
+            use multiemu_base::graphics::vulkan::Vulkan;
 
             DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run(
                 environment.clone(),
-                rom_manager.clone(),
+                program_manager.clone(),
                 build_machine::get_vulkan_factories(),
             )
             .unwrap();

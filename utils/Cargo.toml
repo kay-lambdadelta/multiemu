@@ -7,7 +7,8 @@ authors = ["Kay <lambdadeltakay@proton.me>"]
 description = "A command line utility interface for multiemu, but has tools generically useful for rom organization"
 
 [dependencies]
-multiemu = { workspace = true }
+multiemu-base = { workspace = true }
+multiemu-locale = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 rayon = { workspace = true }
@@ -15,14 +16,15 @@ clap = { workspace = true }
 serde = { workspace = true }
 serde_with = { workspace = true }
 redb = { workspace = true }
-codes-iso-639 = { workspace = true }
-codes-iso-3166 = { workspace = true }
 strum = { workspace = true }
 scc = { workspace = true }
 ron = { workspace = true }
 tempfile = { workspace = true }
+data-encoding = { workspace = true }
+regex = { workspace = true }
+itertools = { workspace = true }
 quick-xml = { version = "0.38", features = ["serialize"] }
-zip = { version = "5.1", default-features = false, features = [
+zip = { version = "6.0", default-features = false, features = [
     "zstd",
     "bzip2",
     "deflate64",
@@ -33,6 +35,11 @@ strsim = "0.11"
 nod = "2.0.0-alpha.3"
 ureq = { version = "3.1", features = ["socks-proxy", "charset"] }
 num_cpus = "1.17"
+
+# HACK: Trying to keep this nod prerelease compiling
+cipher = "=0.5.0-rc.0"
+inout = "=0.2.0-rc.6"
+block-padding = "=0.4.0-rc.4"
 
 [package.metadata.deb]
 maintainer = "Kay <lambdadeltakay@proton.me>"

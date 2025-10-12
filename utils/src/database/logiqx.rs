@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use multiemu::{environment::Environment, rom::RomMetadata};
+use multiemu_base::{environment::Environment, program::ProgramMetadata};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
     fs::File,
@@ -20,12 +20,12 @@ pub fn database_logiqx_import(
     files: Vec<PathBuf>,
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let rom_manager = Arc::new(RomMetadata::new(environment).unwrap());
+    let program_manager = Arc::new(ProgramMetadata::new(environment).unwrap());
 
     files.into_par_iter().try_for_each(|path| {
         let file = BufReader::new(File::open(&path)?);
 
-        crate::logiqx::import(&rom_manager, file)
+        crate::logiqx::import(&program_manager, file)
     })?;
 
     Ok(())

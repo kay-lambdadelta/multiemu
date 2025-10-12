@@ -1,9 +1,8 @@
 use crate::windowing::{DesktopPlatform, WinitWindow};
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
-use multiemu::{
+use multiemu_base::{
     environment::Environment,
-    frontend::{DisplayApiHandle, GraphicsRuntime},
     graphics::{
         GraphicsApi,
         vulkan::{
@@ -34,11 +33,17 @@ use multiemu::{
     machine::Machine,
     shader::{ShaderCache, SpirvShader},
 };
+use multiemu_frontend::{DisplayApiHandle, GraphicsRuntime};
 use nalgebra::Vector2;
-use std::sync::{Arc, RwLock};
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicBool, Ordering},
+};
 
 mod create;
 mod gui;
+
+static EXISTING_INSTANCE: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 pub struct VulkanGraphicsRuntime {
@@ -67,6 +72,13 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         preferred_features: <Vulkan as GraphicsApi>::Features,
         environment: Arc<RwLock<Environment>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        if EXISTING_INSTANCE
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return Err("Cannot create more than one vulkan runtime at a time".into());
+        }
+
         let window_dimensions = display_api_handle.dimensions();
         let shader_cache: ShaderCache<SpirvShader> = ShaderCache::default();
 
@@ -407,5 +419,11 @@ impl VulkanGraphicsRuntime {
         let swapchain_image = self.swapchain_images[image_index as usize].clone();
 
         (image_index, acquire_future, swapchain_image)
+    }
+}
+
+impl Drop for VulkanGraphicsRuntime {
+    fn drop(&mut self) {
+        EXISTING_INSTANCE.store(false, Ordering::SeqCst);
     }
 }

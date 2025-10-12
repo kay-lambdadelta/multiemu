@@ -1,7 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use egui::{TextureId, epaint::Primitive};
-use multiemu::{
-    frontend::EGUI_WGSL_SHADER,
+use multiemu_base::{
     graphics::{
         GraphicsVersion,
         vulkan::vulkano::{
@@ -59,6 +58,7 @@ use multiemu::{
     },
     shader::{ShaderCache, SpirvShader},
 };
+use multiemu_frontend::EGUI_WGSL_SHADER;
 use nalgebra::{Point2, Vector2};
 use palette::Srgba;
 use std::{

@@ -1,6 +1,6 @@
 use crate::windowing::RuntimeBoundMessage;
 use gilrs::{Axis, Button, EventType, GilrsBuilder};
-use multiemu::input::{GamepadId, Input, InputState, gamepad::GamepadInput};
+use multiemu_base::input::{GamepadId, Input, InputState, gamepad::GamepadInput};
 use std::collections::HashMap;
 use uuid::Uuid;
 use winit::event_loop::EventLoopProxy;
@@ -36,9 +36,9 @@ pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
                                 state,
                             })
                             .is_err()
-                        {
-                            return;
-                        }
+                    {
+                        return;
+                    }
                 }
                 EventType::ButtonChanged(button, value, _) => {
                     if let Some(input) = gilrs_button2input(button)
@@ -49,9 +49,9 @@ pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
                                 state: InputState::Analog(value),
                             })
                             .is_err()
-                        {
-                            return;
-                        }
+                    {
+                        return;
+                    }
                 }
                 EventType::Disconnected => {
                     non_stable_controller_identification.remove(&ev.id);

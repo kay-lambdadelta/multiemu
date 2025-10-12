@@ -1,31 +1,35 @@
-use codes_iso_639::part_3::LanguageCode;
-use codes_iso_3166::part_1::CountryCode;
-use multiemu::rom::{ROM_INFORMATION_TABLE, RomId, RomInfo, RomMetadata, System};
-use serde::Deserialize;
+use multiemu_base::program::{
+    Filesystem, HASH_ALIAS_TABLE, MachineId, PROGRAM_INFORMATION_TABLE, ProgramId, ProgramInfo,
+    ProgramMetadata, RomId,
+};
+use multiemu_locale::{Iso639Alpha2, Iso639Alpha3};
+use serde::{Deserialize, Deserializer};
 use serde_with::{DisplayFromStr, serde_as};
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     error::Error,
     io::BufRead,
     str::FromStr,
+    sync::LazyLock,
 };
 
 #[derive(Debug, Deserialize)]
 pub struct Datafile {
     pub header: Header,
-    #[serde(alias = "game")]
-    pub machine: Vec<Machine>,
+    #[serde(alias = "machine")]
+    pub game: Vec<Game>,
 }
 
 #[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct Header {
-    #[serde_as(as = "DisplayFromStr")]
-    pub name: System,
+    #[serde(deserialize_with = "deserialize_nointro_machine_id")]
+    #[serde(rename = "name")]
+    pub machine_id: MachineId,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Machine {
+pub struct Game {
     #[serde(rename = "@name")]
     pub name: String,
     pub rom: Vec<Rom>,
@@ -35,17 +39,17 @@ pub struct Machine {
 #[derive(Debug, Deserialize)]
 pub struct Rom {
     #[serde(rename = "@name")]
-    pub name: String,
+    pub path: String,
     #[serde_as(as = "DisplayFromStr")]
     #[serde(rename = "@sha1")]
-    pub id: RomId,
+    pub sha1: RomId,
 }
 
 fn get_data_in_parentheses(input: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut stack = Vec::new();
 
-    for (i, c) in input.chars().enumerate() {
+    for (i, c) in input.char_indices() {
         match c {
             '(' => {
                 stack.push(i);
@@ -64,16 +68,14 @@ fn get_data_in_parentheses(input: &str) -> Vec<String> {
 }
 
 struct NameMetadataExtractor {
-    pub languages: HashSet<LanguageCode>,
-    pub regions: HashSet<CountryCode>,
+    pub languages: BTreeSet<Iso639Alpha3>,
 }
 
 impl FromStr for NameMetadataExtractor {
-    type Err = Box<dyn std::error::Error>;
+    type Err = Box<dyn std::error::Error + Send + Sync>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut languages = HashSet::new();
-        let mut regions = HashSet::new();
+        let mut languages = BTreeSet::new();
 
         // Split the string into parts based on parentheses
         let parts = get_data_in_parentheses(s);
@@ -85,70 +87,22 @@ impl FromStr for NameMetadataExtractor {
             for part in part {
                 let part = part.trim();
 
-                if let Ok(language) = codes_iso_639::part_1::LanguageCode::from_str(part) {
-                    match language {
-                        codes_iso_639::part_1::LanguageCode::En => {
-                            languages.insert(LanguageCode::Eng);
-                        }
-                        codes_iso_639::part_1::LanguageCode::Ja => {
-                            languages.insert(LanguageCode::Jpn);
-                        }
-                        codes_iso_639::part_1::LanguageCode::Fr => {
-                            languages.insert(LanguageCode::Fra);
-                        }
-                        codes_iso_639::part_1::LanguageCode::De => {
-                            languages.insert(LanguageCode::Deu);
-                        }
-                        codes_iso_639::part_1::LanguageCode::Es => {
-                            languages.insert(LanguageCode::Spa);
-                        }
-                        codes_iso_639::part_1::LanguageCode::It => {
-                            languages.insert(LanguageCode::Ita);
-                        }
-                        codes_iso_639::part_1::LanguageCode::Zh => {
-                            languages.insert(LanguageCode::Zho);
-                        }
-                        codes_iso_639::part_1::LanguageCode::Ko => {
-                            languages.insert(LanguageCode::Kor);
-                        }
-                        _ => {}
-                    }
+                if let Ok(lang) = Iso639Alpha2::from_str(part) {
+                    languages.insert(lang.to_alpha3());
                 }
 
-                if let Some(region) = match part {
-                    "usa" => Some(CountryCode::US),
-                    "japan" => Some(CountryCode::JP),
-                    // FIXME: Is this what they mean?
-                    "europe" => Some(CountryCode::EU),
-                    "china" => Some(CountryCode::CN),
-                    "korea" => Some(CountryCode::KR),
-                    "australia" => Some(CountryCode::AU),
-                    "canada" => Some(CountryCode::CA),
-                    "united kingdom" => Some(CountryCode::GB),
-                    "france" => Some(CountryCode::FR),
-                    "brazil" => Some(CountryCode::BR),
-                    "italy" => Some(CountryCode::IT),
-                    "germany" => Some(CountryCode::DE),
-                    "spain" => Some(CountryCode::ES),
-                    "taiwan" => Some(CountryCode::TW),
-                    _ => None,
-                } {
-                    regions.insert(region);
-
-                    // No-Intro doesn't seem to mark language when its the """default""" language of the region so we will do this hack
-                    if let Some(administrative_language) = region.administrative_language() {
-                        languages.insert(administrative_language);
-                    }
+                if let Some(lang) = LANGUAGE_OVERRIDES.get(part) {
+                    languages.insert(lang.to_alpha3());
                 }
             }
         }
 
-        Ok(NameMetadataExtractor { languages, regions })
+        Ok(NameMetadataExtractor { languages })
     }
 }
 
 pub fn import(
-    rom_manager: &RomMetadata,
+    program_manager: &ProgramMetadata,
     file: impl BufRead,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     // Parse XML based data file
@@ -162,43 +116,90 @@ pub fn import(
 
     tracing::info!(
         "Found {} entries in XML logiqx database for the system {}",
-        data_file.machine.len(),
-        data_file.header.name
+        data_file.game.len(),
+        data_file.header.machine_id
     );
 
-    let database_transaction = rom_manager.rom_information.begin_write()?;
-    let mut database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
+    let database_transaction = program_manager.database.begin_write()?;
+    let mut program_information =
+        database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
+    let mut hash_alias = database_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;
 
-    for machine in data_file.machine {
-        let mut dependencies = BTreeSet::default();
+    for game in data_file.game {
+        let program_id = ProgramId {
+            machine: data_file.header.machine_id,
+            name: game.name,
+        };
 
-        // Extract dependency roms
-        for rom in machine.rom {
-            let mut languages = HashSet::default();
-            let mut regions = HashSet::default();
+        if !game.rom.is_empty() {
+            let first_rom_path: Vec<_> = game.rom[0].path.split('\\').map(String::from).collect();
 
-            if let Ok(name_metadata) = NameMetadataExtractor::from_str(&rom.name) {
-                languages.extend(name_metadata.languages);
-                regions.extend(name_metadata.regions);
-            }
+            // If the rom is a single file like for most early game systems
+            let filesystem = if game.rom.len() == 1 && first_rom_path.len() == 1 {
+                let rom = &game.rom[0];
+                hash_alias.insert(rom.sha1, program_id.clone())?;
 
-            let info = RomInfo::V0 {
-                name: machine.name.clone(),
-                path: rom.name.split('\\').map(String::from).collect(),
-                system: data_file.header.name,
-                languages,
-                regions,
+                Filesystem::Single {
+                    rom_id: rom.sha1,
+                    file_name: rom.path.clone(),
+                }
+            } else {
+                let mut filesystem: BTreeMap<_, BTreeSet<_>> = BTreeMap::default();
+
+                for rom in game.rom {
+                    hash_alias.insert(rom.sha1, program_id.clone())?;
+                    filesystem
+                        .entry(rom.sha1)
+                        .or_default()
+                        .insert(rom.path.replace('\\', "/"));
+                }
+
+                Filesystem::Complex(filesystem)
             };
 
-            tracing::debug!("Full ROM info: {:#?}", info);
+            let name = first_rom_path[0].clone();
+            let name_metadata_extractor = NameMetadataExtractor::from_str(&name)?;
 
-            database_table.insert(rom.id, info)?;
-            dependencies.insert(rom.id);
+            let info = ProgramInfo::V0 {
+                names: BTreeSet::from([name]),
+                filesystem,
+                languages: name_metadata_extractor.languages,
+                version: None,
+            };
+
+            program_information.insert(program_id.clone(), info)?;
         }
     }
 
-    drop(database_table);
+    drop(program_information);
+    drop(hash_alias);
     database_transaction.commit()?;
 
     Ok(())
 }
+
+pub fn deserialize_nointro_machine_id<'de, D>(deserializer: D) -> Result<MachineId, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    MachineId::from_nointro_str(&s).map_err(serde::de::Error::custom)
+}
+
+static LANGUAGE_OVERRIDES: LazyLock<HashMap<&'static str, Iso639Alpha2>> = LazyLock::new(|| {
+    HashMap::from([
+        ("usa", Iso639Alpha2::EN),
+        ("japan", Iso639Alpha2::JA),
+        ("china", Iso639Alpha2::ZH),
+        ("korea", Iso639Alpha2::KO),
+        ("australia", Iso639Alpha2::EN),
+        ("canada", Iso639Alpha2::EN),
+        ("united kingdom", Iso639Alpha2::EN),
+        ("france", Iso639Alpha2::FR),
+        ("brazil", Iso639Alpha2::PT),
+        ("italy", Iso639Alpha2::IT),
+        ("germany", Iso639Alpha2::DE),
+        ("spain", Iso639Alpha2::ES),
+        ("taiwan", Iso639Alpha2::ZH),
+    ])
+});

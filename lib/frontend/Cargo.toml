@@ -1,0 +1,22 @@
+[package]
+name = "multiemu-frontend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+multiemu-base = { workspace = true }
+nalgebra = { workspace = true }
+num = { workspace = true }
+ringbuffer = { workspace = true }
+tracing = { workspace = true }
+palette = { workspace = true }
+versions = { workspace = true }
+strum = { workspace = true }
+egui = { workspace = true }
+egui_extras = { version = "0.32", default-features = false, features = [
+    "image",
+] }
+egui_infinite_scroll = "0.8"
+egui_dnd = "0.13"
+egui-phosphor = "0.10"
+sysinfo = "0.37"

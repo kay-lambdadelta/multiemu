@@ -3,10 +3,15 @@ use crate::{
     rom::RomAction,
 };
 use clap::Parser;
+use data_encoding::HEXLOWER_PERMISSIVE;
 use database::redump::RedumpAction;
-use multiemu::{environment::ENVIRONMENT_LOCATION, rom::System};
+use multiemu_base::{
+    environment::{ENVIRONMENT_LOCATION, STORAGE_DIRECTORY},
+    program::MachineId,
+};
+use serde::{Deserialize, Deserializer};
 use std::{
-    fs::File,
+    fs::{File, create_dir_all},
     ops::Deref,
     sync::{Arc, RwLock},
 };
@@ -37,6 +42,8 @@ fn main() {
 
     let args = Cli::parse();
 
+    let _ = create_dir_all(STORAGE_DIRECTORY.deref());
+
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment = Arc::new(RwLock::new(
         ron::de::from_reader(environment_file).unwrap_or_default(),
@@ -66,7 +73,7 @@ fn main() {
         Cli::Database(DatabaseAction::Redump {
             action: RedumpAction::DownloadAll,
         }) => {
-            database::redump::database_redump_download(System::iter(), environment).unwrap();
+            database::redump::database_redump_download(MachineId::iter(), environment).unwrap();
         }
         Cli::Database(DatabaseAction::ScreenScraper {}) => {}
         Cli::Rom(RomAction::Import { paths, symlink }) => {
@@ -83,4 +90,28 @@ fn main() {
             rom::verify::rom_verify(environment).unwrap();
         }
     }
+}
+
+pub fn deserialize_hex_array<'de, D, const N: usize>(
+    deserializer: D,
+) -> Result<Option<[u8; N]>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer)?
+        .map(|s| {
+            let bytes = HEXLOWER_PERMISSIVE
+                .decode(s.as_bytes())
+                .map_err(serde::de::Error::custom)?;
+
+            if bytes.len() != N {
+                return Err(serde::de::Error::invalid_length(
+                    bytes.len(),
+                    &format!("{}", N).as_str(),
+                ));
+            }
+
+            Ok(bytes.try_into().unwrap())
+        })
+        .transpose()
 }

@@ -1,0 +1,32 @@
+[package]
+name = "multiemu-definition-atari2600"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+multiemu-base = { workspace = true }
+multiemu-definition-misc = { workspace = true }
+multiemu-definition-mos6502 = { workspace = true }
+rangemap = { workspace = true }
+tracing = { workspace = true }
+bitvec = { workspace = true }
+strum = { workspace = true }
+serde = { workspace = true }
+num = { workspace = true }
+nalgebra = { workspace = true }
+palette = { workspace = true }
+bytemuck = { workspace = true }
+bincode = { workspace = true }
+
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
+ron = { workspace = true }
+criterion = { workspace = true }
+
+[features]
+vulkan = ["multiemu-base/vulkan"]
+opengl = ["multiemu-base/opengl"]
+
+[[bench]]
+name = "machine_cycle"
+harness = false

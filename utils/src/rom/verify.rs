@@ -1,6 +1,6 @@
-use multiemu::{
+use multiemu_base::{
     environment::Environment,
-    rom::{RomId, RomMetadata},
+    program::{ProgramMetadata, RomId},
 };
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use std::{
@@ -12,14 +12,14 @@ pub fn rom_verify(
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment_guard = environment.read().unwrap();
-    let rom_manager = RomMetadata::new(environment.clone())?;
+    let program_manager = ProgramMetadata::new(environment.clone())?;
 
     fs::create_dir_all(&environment_guard.rom_store_directory)?;
 
-    let loaded_roms_guard = rom_manager.loaded_roms.read().unwrap();
+    let loaded_roms_guard = program_manager.loaded_roms.read().unwrap();
 
     loaded_roms_guard.par_iter().for_each(|(rom_id, _)| {
-        let rom_path = rom_manager.get_rom_path(*rom_id).unwrap();
+        let rom_path = program_manager.get_rom_path(*rom_id).unwrap();
         let mut rom_file = File::open(&rom_path).unwrap();
         let calculated_rom_id = RomId::calculate_id(&mut rom_file).unwrap();
 

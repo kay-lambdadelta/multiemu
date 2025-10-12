@@ -1,10 +1,11 @@
 use super::ExportStyle;
-use multiemu::{
+use multiemu_base::{
     environment::Environment,
-    rom::{ROM_INFORMATION_TABLE, RomMetadata},
+    program::{Filesystem, PROGRAM_INFORMATION_TABLE, ProgramMetadata},
 };
 use redb::{ReadableDatabase, ReadableMultimapTable};
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -18,65 +19,100 @@ pub fn rom_export(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment_guard = environment.read().unwrap();
 
-    let rom_manager = Arc::new(RomMetadata::new(environment.clone()).unwrap());
+    let program_manager = Arc::new(ProgramMetadata::new(environment.clone()).unwrap());
 
     fs::create_dir_all(&environment_guard.rom_store_directory)?;
     fs::create_dir_all(&path)?;
 
-    let database_transaction = rom_manager.rom_information.begin_read().unwrap();
-    let database_table = database_transaction.open_multimap_table(ROM_INFORMATION_TABLE)?;
+    let database_transaction = program_manager.database.begin_read().unwrap();
+    let database_table = database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
 
     for database_entry in database_table.iter()? {
         let (rom_id, rom_infos) = database_entry?;
 
-        for rom_info in rom_infos {
-            let (rom_id, rom_info) = (rom_id.value(), rom_info?.value());
+        for program_info in rom_infos {
+            let (program_id, program_info) = (rom_id.value(), program_info?.value());
 
-            let rom_path = environment_guard
-                .rom_store_directory
-                .join(rom_id.to_string());
+            let mut roms_to_export: HashMap<PathBuf, HashSet<_>> = HashMap::new();
 
-            if rom_path.is_file() {
-                tracing::info!(
-                    "ROM {:?} found to be exported",
-                    PathBuf::from_iter(rom_info.path().iter())
-                );
-            } else {
-                continue;
-            }
+            match program_info.filesystem() {
+                Filesystem::Single { rom_id, file_name } => {
+                    let rom_path = environment_guard
+                        .rom_store_directory
+                        .join(rom_id.to_string());
 
-            let target_rom_path = match style {
-                ExportStyle::NoIntro => {
-                    let system_folder_name = rom_info.system().to_string();
-                    let system_folder = path.join(system_folder_name);
-                    let game_folder = system_folder.join(rom_info.name());
-                    let final_path = game_folder.join(PathBuf::from_iter(rom_info.path().iter()));
+                    if rom_path.is_file() {
+                        tracing::info!("ROM for program {} found to be exported", program_id);
+                    } else {
+                        continue;
+                    }
 
-                    fs::create_dir_all(final_path.parent().unwrap())?;
-
-                    final_path
+                    roms_to_export
+                        .entry(rom_path)
+                        .or_default()
+                        .insert(PathBuf::from(file_name));
                 }
-                ExportStyle::Native => path.join(rom_id.to_string()),
-                ExportStyle::EmulationStation => todo!(),
-            };
+                Filesystem::Complex(fs) => {
+                    for (rom_id, path) in fs
+                        .iter()
+                        .flat_map(|(rom_id, paths)| paths.iter().map(|path| (*rom_id, path)))
+                    {
+                        let rom_path = environment_guard
+                            .rom_store_directory
+                            .join(rom_id.to_string());
 
-            if !target_rom_path.starts_with(&path) {
-                tracing::error!("Export path is outside of the target directory");
-                continue;
+                        if rom_path.is_file() {
+                            tracing::info!("ROM for program {} found to be exported", program_id);
+                        } else {
+                            continue;
+                        }
+
+                        roms_to_export
+                            .entry(rom_path)
+                            .or_default()
+                            .insert(PathBuf::from_iter(path.split('/')));
+                    }
+                }
             }
 
-            let _ = fs::remove_file(&target_rom_path);
-            if symlink {
-                #[cfg(unix)]
-                std::os::unix::fs::symlink(rom_path, target_rom_path)?;
+            for (import_path, export_paths) in roms_to_export {
+                for export_path in export_paths {
+                    let target_rom_path = match style {
+                        ExportStyle::NoIntro => {
+                            let machine_folder_name = program_id.machine.to_nointro_string();
+                            let machine_folder = path.join(machine_folder_name);
+                            let game_folder = machine_folder.join(&program_id.name);
+                            let final_path = game_folder.join(&export_path);
 
-                #[cfg(windows)]
-                std::os::windows::fs::symlink_file(rom_path, target_rom_path)?;
+                            fs::create_dir_all(final_path.parent().unwrap())?;
 
-                #[cfg(not(any(unix, windows)))]
-                panic!("Unsupported runtime for symlinking");
-            } else {
-                fs::copy(rom_path, target_rom_path)?;
+                            final_path
+                        }
+                        ExportStyle::Native => todo!(),
+                        ExportStyle::EmulationStation => todo!(),
+                    };
+
+                    if !target_rom_path.starts_with(&path) {
+                        tracing::error!("Export path is outside of the target directory");
+                        continue;
+                    }
+
+                    tracing::info!("Exporting {:?} to {:?}", import_path, export_path);
+
+                    let _ = fs::remove_file(&target_rom_path);
+                    if symlink {
+                        #[cfg(unix)]
+                        std::os::unix::fs::symlink(&import_path, target_rom_path)?;
+
+                        #[cfg(windows)]
+                        std::os::windows::fs::symlink_file(&import_path, target_rom_path)?;
+
+                        #[cfg(not(any(unix, windows)))]
+                        panic!("Unsupported runtime for symlinking");
+                    } else {
+                        fs::copy(&import_path, target_rom_path)?;
+                    }
+                }
             }
         }
     }

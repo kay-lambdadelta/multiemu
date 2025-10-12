@@ -7,23 +7,19 @@ use crate::{
 };
 use egui::RawInput;
 use egui_winit::egui::ViewportId;
-use multiemu::{
+use multiemu_base::{
     environment::{ENVIRONMENT_LOCATION, Environment},
-    frontend::{
-        DisplayApiHandle, EguiPlatformIntegration, FrontendRuntime, GraphicsRuntime,
-        MachineFactories, PlatformExt,
-    },
     graphics::GraphicsApi,
     input::{GamepadId, Input, InputState},
-    machine::UserSpecifiedRoms,
     platform::Platform,
-    rom::RomMetadata,
+    program::{ProgramMetadata, ProgramSpecification},
     utils::{MainThreadCallback, MainThreadExecutor},
 };
-use nalgebra::Vector2;
-use raw_window_handle::{
-    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
+use multiemu_frontend::{
+    DisplayApiHandle, EguiPlatformIntegration, FrontendRuntime, GraphicsRuntime, MachineFactories,
+    PlatformExt,
 };
+use nalgebra::Vector2;
 use std::{
     any::Any,
     cell::OnceCell,
@@ -36,6 +32,9 @@ use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
+    raw_window_handle::{
+        DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
+    },
     window::{Window, WindowId},
 };
 
@@ -145,25 +144,25 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
 
     fn run(
         environment: Arc<RwLock<Environment>>,
-        rom_manager: Arc<RomMetadata>,
+        program_manager: Arc<ProgramMetadata>,
         machine_factories: MachineFactories<Self>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        Self::run_common(environment, rom_manager, machine_factories, None)?;
+        Self::run_common(environment, program_manager, machine_factories, None)?;
 
         Ok(())
     }
 
-    fn run_with_machine(
+    fn run_with_program(
         environment: Arc<RwLock<Environment>>,
-        rom_manager: Arc<RomMetadata>,
+        program_manager: Arc<ProgramMetadata>,
         machine_factories: MachineFactories<Self>,
-        user_specified_roms: UserSpecifiedRoms,
+        program_specification: ProgramSpecification,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Self::run_common(
             environment,
-            rom_manager,
+            program_manager,
             machine_factories,
-            Some(user_specified_roms),
+            Some(program_specification),
         )?;
 
         Ok(())
@@ -274,9 +273,9 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
 {
     fn run_common(
         environment: Arc<RwLock<Environment>>,
-        rom_manager: Arc<RomMetadata>,
+        program_manager: Arc<ProgramMetadata>,
         machine_factories: MachineFactories<Self>,
-        machine_setup_stuff: Option<UserSpecifiedRoms>,
+        program_specification: Option<ProgramSpecification>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let event_loop = EventLoop::with_user_event().build()?;
 
@@ -298,18 +297,18 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             event_loop_proxy: event_loop.create_proxy(),
         });
 
-        let runtime = if let Some(user_specified_roms) = machine_setup_stuff {
+        let runtime = if let Some(program_specification) = program_specification {
             FrontendRuntime::new_with_machine(
                 environment.clone(),
-                rom_manager,
+                program_manager,
                 machine_factories,
                 main_thread_executor,
-                user_specified_roms,
+                program_specification,
             )
         } else {
             FrontendRuntime::new(
                 environment.clone(),
-                rom_manager,
+                program_manager,
                 machine_factories,
                 main_thread_executor,
             )
