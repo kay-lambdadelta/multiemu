@@ -365,11 +365,11 @@ impl Driver {
                     }
                     Mos6502Opcode::Jsr => {
                         // We load the byte BEFORE the program counter
-                        let program_bytes = (state.program.wrapping_sub(1)).to_be_bytes();
+                        let program_bytes = (state.program.wrapping_sub(1)).to_le_bytes();
 
                         state.execution_queue.extend([
-                            ExecutionStep::PushStack(program_bytes[0]),
                             ExecutionStep::PushStack(program_bytes[1]),
+                            ExecutionStep::PushStack(program_bytes[0]),
                             ExecutionStep::AddressBusToProgramPointer,
                         ]);
                     }
@@ -456,6 +456,8 @@ impl Driver {
                             .push_back(ExecutionStep::PushStack(flags.to_byte()));
                     }
                     Mos6502Opcode::Pla => {
+                        state.stack = state.stack.wrapping_add(1);
+
                         state.a = self
                             .memory_access_table
                             .read_le_value(
@@ -466,10 +468,10 @@ impl Driver {
 
                         state.flags.negative = state.a.view_bits::<Lsb0>()[7];
                         state.flags.zero = state.a == 0;
-
-                        state.stack = state.stack.wrapping_add(1);
                     }
                     Mos6502Opcode::Plp => {
+                        state.stack = state.stack.wrapping_add(1);
+
                         let value = self
                             .memory_access_table
                             .read_le_value(
@@ -479,7 +481,6 @@ impl Driver {
                             .unwrap_or_default();
 
                         state.flags = FlagRegister::from_byte(value);
-                        state.stack = state.stack.wrapping_add(1);
                     }
                     Mos6502Opcode::Rla => todo!(),
                     Mos6502Opcode::Rol => {
@@ -528,6 +529,7 @@ impl Driver {
                     }
                     Mos6502Opcode::Rra => todo!(),
                     Mos6502Opcode::Rti => {
+                        state.stack = state.stack.wrapping_add(1);
                         let flags = self
                             .memory_access_table
                             .read_le_value::<u8>(
@@ -536,9 +538,9 @@ impl Driver {
                             )
                             .unwrap_or_default();
 
-                        state.stack = state.stack.wrapping_add(1);
                         state.flags = FlagRegister::from_byte(flags);
 
+                        state.stack = state.stack.wrapping_add(1);
                         let program_pointer_low = self
                             .memory_access_table
                             .read_le_value::<u8>(
@@ -546,8 +548,8 @@ impl Driver {
                                 config.assigned_address_space,
                             )
                             .unwrap_or_default();
-                        state.stack = state.stack.wrapping_add(1);
 
+                        state.stack = state.stack.wrapping_add(1);
                         let program_pointer_high = self
                             .memory_access_table
                             .read_le_value::<u8>(
@@ -555,12 +557,12 @@ impl Driver {
                                 config.assigned_address_space,
                             )
                             .unwrap_or_default();
-                        state.stack = state.stack.wrapping_add(1);
 
                         state.program =
                             u16::from_le_bytes([program_pointer_low, program_pointer_high]);
                     }
                     Mos6502Opcode::Rts => {
+                        state.stack = state.stack.wrapping_add(1);
                         let program_pointer_low = self
                             .memory_access_table
                             .read_le_value::<u8>(
@@ -568,8 +570,8 @@ impl Driver {
                                 config.assigned_address_space,
                             )
                             .unwrap_or_default();
-                        state.stack = state.stack.wrapping_add(1);
 
+                        state.stack = state.stack.wrapping_add(1);
                         let program_pointer_high = self
                             .memory_access_table
                             .read_le_value::<u8>(
@@ -577,7 +579,6 @@ impl Driver {
                                 config.assigned_address_space,
                             )
                             .unwrap_or_default();
-                        state.stack = state.stack.wrapping_add(1);
 
                         state.program =
                             u16::from_le_bytes([program_pointer_low, program_pointer_high]);

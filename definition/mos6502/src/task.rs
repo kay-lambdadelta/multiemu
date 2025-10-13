@@ -26,13 +26,14 @@ impl TaskMut<Mos6502> for Driver {
 
             match component.state.execution_queue.pop_front().unwrap() {
                 ExecutionStep::Reset => {
-                    component.state.interrupt(RESET_VECTOR, false);
+                    component.state.interrupt(RESET_VECTOR, false, false);
 
                     time_slice -= 1;
                 }
                 ExecutionStep::Jammed => {
                     time_slice -= 1;
 
+                    component.state.execution_queue.clear();
                     component
                         .state
                         .execution_queue
@@ -49,28 +50,18 @@ impl TaskMut<Mos6502> for Driver {
                 ExecutionStep::FetchAndDecode => {
                     if component.config.kind.supports_interrupts() {
                         if component.nmi.interrupt_required() {
-                            component.state.interrupt(NMI_VECTOR, false);
+                            component.state.interrupt(NMI_VECTOR, false, true);
                         } else if component.irq.interrupt_required()
                             && !component.state.flags.interrupt_disable
                         {
-                            component.state.interrupt(IRQ_VECTOR, true);
+                            component.state.interrupt(IRQ_VECTOR, true, true);
                         } else {
-                            tracing::trace!(
-                                "Fetching and decoding instruction from {:#04x}",
-                                component.state.program
-                            );
-
                             component.fetch_and_decode(
                                 &self.instruction_decoder,
                                 &self.memory_access_table,
                             );
                         }
                     } else {
-                        tracing::trace!(
-                            "Fetching and decoding instruction from {:#04x}",
-                            component.state.program
-                        );
-
                         component
                             .fetch_and_decode(&self.instruction_decoder, &self.memory_access_table);
                     }
@@ -106,12 +97,12 @@ impl TaskMut<Mos6502> for Driver {
                     time_slice -= 1;
                 }
                 ExecutionStep::PushStack(data) => {
-                    component.state.stack = component.state.stack.wrapping_sub(1);
                     let _ = self.memory_access_table.write_le_value(
                         STACK_BASE_ADDRESS + component.state.stack as usize,
                         component.config.assigned_address_space,
                         data,
                     );
+                    component.state.stack = component.state.stack.wrapping_sub(1);
 
                     time_slice -= 1;
                 }
@@ -148,14 +139,23 @@ impl TaskMut<Mos6502> for Driver {
                         component.state.program.wrapping_add_signed(value as i16);
                     time_slice -= 1;
                 }
-                ExecutionStep::ModifyAddressBus(offset) => {
-                    let offset = match offset {
+                ExecutionStep::ModifyAddressBus {
+                    modification,
+                    zero_page,
+                } => {
+                    let modification = match modification {
                         AddressBusModification::X => component.state.x,
                         AddressBusModification::Y => component.state.y,
                     };
 
-                    component.state.address_bus =
-                        component.state.address_bus.wrapping_add(offset as u16);
+                    component.state.address_bus = component
+                        .state
+                        .address_bus
+                        .wrapping_add(modification as u16);
+
+                    if zero_page {
+                        component.state.address_bus %= 0x100;
+                    }
                 }
                 ExecutionStep::Interpret { instruction } => {
                     self.interpret_instruction(
@@ -201,8 +201,6 @@ impl Mos6502 {
             instruction,
         );
 
-        tracing::trace!("Decoded instruction: {:#?}", instruction);
-
         self.state.address_bus = self
             .state
             .program
@@ -215,6 +213,8 @@ impl Mos6502 {
                     .unwrap_or(0),
         );
         self.state.latch.clear();
+
+        tracing::trace!("{:?} {:04x?}", instruction, self.state);
 
         if let Some(addressing_mode) = instruction.addressing_mode {
             match addressing_mode {
@@ -231,7 +231,10 @@ impl Mos6502 {
                         ExecutionStep::LoadData,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                        ExecutionStep::ModifyAddressBus {
+                            modification: AddressBusModification::X,
+                            zero_page: false,
+                        },
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute) => {
@@ -239,7 +242,10 @@ impl Mos6502 {
                         ExecutionStep::LoadData,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                        ExecutionStep::ModifyAddressBus {
+                            modification: AddressBusModification::Y,
+                            zero_page: false,
+                        },
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::AbsoluteIndirect) => {
@@ -256,7 +262,10 @@ impl Mos6502 {
                     self.state.execution_queue.extend([
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                        ExecutionStep::ModifyAddressBus {
+                            modification: AddressBusModification::X,
+                            zero_page: true,
+                        },
                         ExecutionStep::LoadData,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
@@ -269,21 +278,30 @@ impl Mos6502 {
                         ExecutionStep::LoadData,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                        ExecutionStep::ModifyAddressBus {
+                            modification: AddressBusModification::Y,
+                            zero_page: false,
+                        },
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage) => {
                     self.state.execution_queue.extend([
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                        ExecutionStep::ModifyAddressBus {
+                            modification: AddressBusModification::X,
+                            zero_page: true,
+                        },
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage) => {
                     self.state.execution_queue.extend([
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                        ExecutionStep::ModifyAddressBus {
+                            modification: AddressBusModification::Y,
+                            zero_page: true,
+                        },
                     ]);
                 }
 
@@ -313,8 +331,7 @@ impl Mos6502 {
 }
 
 impl ProcessorState {
-    pub fn interrupt(&mut self, vector: u16, break_status: bool) {
-        let program_pointer = self.program.to_le_bytes();
+    pub fn interrupt(&mut self, vector: u16, break_status: bool, save_current_state: bool) {
         let vector = vector.to_le_bytes();
         let mut flags = self.flags;
 
@@ -322,10 +339,17 @@ impl ProcessorState {
         flags.undocumented = true;
         flags.interrupt_disable = true;
 
+        if save_current_state {
+            let program_pointer = self.program.to_le_bytes();
+
+            self.execution_queue.extend([
+                ExecutionStep::PushStack(program_pointer[1]),
+                ExecutionStep::PushStack(program_pointer[0]),
+                ExecutionStep::PushStack(flags.to_byte()),
+            ]);
+        }
+
         self.execution_queue.extend([
-            ExecutionStep::PushStack(program_pointer[1]),
-            ExecutionStep::PushStack(program_pointer[0]),
-            ExecutionStep::PushStack(flags.to_byte()),
             ExecutionStep::LoadDataFromConstant(vector[0]),
             ExecutionStep::LoadDataFromConstant(vector[1]),
             ExecutionStep::LatchToAddressBus,
