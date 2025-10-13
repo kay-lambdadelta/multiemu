@@ -160,10 +160,8 @@ impl SoftwareEguiRenderer {
 
                         for x in min.x..=max.x {
                             for y in min.y..=max.y {
-                                // TODO: Prove this unsafe actually helps performance
-                                let destination_pixel = unsafe {
-                                    bounding_box.get_unchecked_mut((x - min.x, y - min.y))
-                                };
+                                let destination_pixel =
+                                    bounding_box.get_mut((x - min.x, y - min.y)).unwrap();
 
                                 render_pixel::render_pixel(
                                     Point2::new(x as f32, y as f32),

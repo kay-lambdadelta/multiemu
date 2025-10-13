@@ -269,17 +269,17 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     data
                 );
 
-                // Redirect into the ppu address space
-                self.state.ppuaddr = self
-                    .state
-                    .ppuaddr
-                    .wrapping_add(self.state.ppuaddr_increment_amount as u16);
-
                 self.access_table.write(
                     self.state.ppuaddr as usize,
                     self.ppu_address_space,
                     buffer,
                 )?;
+
+                // Redirect into the ppu address space
+                self.state.ppuaddr = self
+                    .state
+                    .ppuaddr
+                    .wrapping_add(self.state.ppuaddr_increment_amount as u16);
             }
             CpuAccessibleRegister::OamDma => todo!(),
         }

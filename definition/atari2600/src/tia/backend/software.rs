@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
 use crate::tia::{VISIBLE_SCANLINE_LENGTH, region::Region};
 use multiemu_base::graphics::{
@@ -8,6 +6,7 @@ use multiemu_base::graphics::{
 };
 use nalgebra::DMatrix;
 use palette::{Srgba, named::BLACK};
+use std::fmt::Debug;
 
 pub struct SoftwareState {
     pub staging_buffer: DMatrix<Srgba<u8>>,

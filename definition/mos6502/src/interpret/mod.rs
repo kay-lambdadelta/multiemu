@@ -16,6 +16,11 @@ const INTERRUPT_VECTOR: Address = 0xfffe;
 
 // NOTE: https://www.pagetable.com/c64ref/6502
 
+// FIXME: Many instructions involving the stack here are totally wrong
+// FIXME: Page crossing cycle penalties are not emulated
+// FIXME: Many undocumented instructions are either incorrect or not emulated at all
+// FIXME: Decimal mode is not implemented
+
 impl Driver {
     pub(super) fn interpret_instruction(
         &self,
@@ -746,6 +751,7 @@ impl Driver {
 #[inline]
 fn adc(state: &mut ProcessorState, config: &Mos6502Config, value: u8) {
     if state.flags.decimal && config.kind.supports_decimal() {
+        todo!()
     } else {
         let carry = state.flags.carry as u8;
 

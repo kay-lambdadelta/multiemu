@@ -16,7 +16,6 @@ pub struct Driver {
 
 impl TaskMut<Mos6502> for Driver {
     fn run(&mut self, component: &mut Mos6502, time_slice: NonZero<u32>) {
-        // Keep the guard like this so doing a full load of the guard only happens occasionally
         let mut time_slice = time_slice.get();
 
         while time_slice != 0 {

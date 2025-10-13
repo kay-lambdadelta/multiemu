@@ -320,7 +320,7 @@ impl VulkanEguiRenderer {
                 panic!("Texture not found: {:?}", new_texture_id);
             }
 
-            let texture_dimensions = Vector2::from(new_texture.image.size());
+            let new_texture_dimensions = Vector2::from(new_texture.image.size());
 
             let (destination_texture, _) =
                 self.textures.entry(new_texture_id).or_insert_with(|| {
@@ -329,7 +329,11 @@ impl VulkanEguiRenderer {
                         ImageCreateInfo {
                             image_type: ImageType::Dim2d,
                             format: Format::R8G8B8A8_SRGB,
-                            extent: [texture_dimensions.x as u32, texture_dimensions.y as u32, 1],
+                            extent: [
+                                new_texture_dimensions.x as u32,
+                                new_texture_dimensions.y as u32,
+                                1,
+                            ],
                             usage: ImageUsage::TRANSFER_SRC
                                 | ImageUsage::TRANSFER_DST
                                 | ImageUsage::SAMPLED,
@@ -389,7 +393,11 @@ impl VulkanEguiRenderer {
                 .copy_buffer_to_image(CopyBufferToImageInfo {
                     regions: [BufferImageCopy {
                         image_offset: [texture_update_offset.x, texture_update_offset.y, 0],
-                        image_extent: [texture_dimensions.x as u32, texture_dimensions.y as u32, 1],
+                        image_extent: [
+                            new_texture_dimensions.x as u32,
+                            new_texture_dimensions.y as u32,
+                            1,
+                        ],
                         image_subresource: ImageSubresourceLayers::from_parameters(
                             destination_texture.format(),
                             1,

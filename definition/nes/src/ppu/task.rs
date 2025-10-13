@@ -263,7 +263,7 @@ impl State {
     ) -> Srgb<u8> {
         let tile_position = self.get_modified_cycle_counter::<R>(8) / 8;
 
-        let quadrant = Point2::new(tile_position.x % 2, tile_position.y % 2) / 2;
+        let quadrant = Point2::new(tile_position.x % 4, tile_position.y % 4) / 2;
         let shift = (quadrant.y * 2 + quadrant.x) * 2;
 
         let color_bits = color & 0b11; // lowest 2 bits

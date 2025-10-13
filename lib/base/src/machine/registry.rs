@@ -17,7 +17,7 @@ pub enum ComponentStoreError {
 
 #[derive(Debug)]
 struct ComponentInfo {
-    component: Arc<RwLock<dyn Component + Send + Sync>>,
+    component: Arc<RwLock<dyn Component>>,
     path: ComponentPath,
 }
 
@@ -183,5 +183,13 @@ impl ComponentRegistry {
             .get_id(path)
             .ok_or(ComponentStoreError::ComponentNotFound)?;
         self.interact_dyn_mut(id, callback)
+    }
+
+    pub(crate) fn get(&self, component_id: ComponentId) -> Arc<RwLock<dyn Component>> {
+        let component_info = self.components[component_id.get() as usize]
+            .as_ref()
+            .unwrap();
+
+        component_info.component.clone()
     }
 }

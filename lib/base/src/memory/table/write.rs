@@ -68,23 +68,11 @@ impl MemoryAccessTable {
                 let buffer_subrange =
                     (access_range.start() - address)..=(access_range.end() - address);
 
-                self.registry
-                    .get()
-                    .unwrap()
-                    .interact_dyn_mut(
-                        component,
-                        #[inline(always)]
-                        |component| {
-                            component.write_memory(
-                                *access_range.start(),
-                                address_space,
-                                &buffer[buffer_subrange.clone()],
-                            )?;
-
-                            Ok(())
-                        },
-                    )
-                    .unwrap()
+                component.write_memory(
+                    *access_range.start(),
+                    address_space,
+                    &buffer[buffer_subrange.clone()],
+                )
             },
         )?;
 

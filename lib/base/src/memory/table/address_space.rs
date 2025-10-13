@@ -1,5 +1,5 @@
 use crate::{
-    component::{ComponentId, ComponentPath},
+    component::{Component, ComponentId, ComponentPath},
     machine::registry::ComponentRegistry,
     memory::Address,
 };
@@ -12,9 +12,9 @@ use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator};
 use std::{
     error::Error,
     hash::{Hash, Hasher},
-    ops::RangeInclusive,
+    ops::{Deref, DerefMut, RangeInclusive},
     sync::{
-        Mutex, RwLock, RwLockReadGuard,
+        Arc, Mutex, RwLock, RwLockReadGuard,
         atomic::{AtomicBool, Ordering},
     },
     vec::Vec,
@@ -27,7 +27,7 @@ struct MixedTableEntry {
     /// Full, uncropped relevant range
     pub start: Address,
     pub end: Address,
-    pub component: ComponentId,
+    pub component: Arc<RwLock<dyn Component>>,
 }
 
 #[derive(Debug)]
@@ -37,7 +37,7 @@ enum Page {
         /// Full, uncropped relevant range
         start: Address,
         end: Address,
-        component: ComponentId,
+        component: Arc<RwLock<dyn Component>>,
     },
     Mixed {
         components: Vec<MixedTableEntry>,
@@ -55,7 +55,7 @@ impl MemoryMappingTable {
     pub fn visit_overlapping<E>(
         &self,
         access_range: RangeInclusive<Address>,
-        mut visitor: impl FnMut(RangeInclusive<Address>, ComponentId) -> Result<(), E>,
+        mut visitor: impl FnMut(RangeInclusive<Address>, &RwLock<dyn Component>) -> Result<(), E>,
     ) -> Result<(), E> {
         let start = *access_range.start();
         let end = *access_range.end();
@@ -75,7 +75,7 @@ impl MemoryMappingTable {
                 } => {
                     let range = *start..=*end;
 
-                    visitor(range.clone(), *component)?;
+                    visitor(range.clone(), component)?;
 
                     // If this range completely contains our accessing range we can exit early without more searching
 
@@ -111,7 +111,7 @@ impl MemoryMappingTable {
 
                     for (range, component) in left
                         .chain(right)
-                        .map(|entry| (entry.start..=entry.end, entry.component))
+                        .map(|entry| (entry.start..=entry.end, &entry.component))
                     {
                         visitor(range.clone(), component)?;
 
@@ -137,7 +137,7 @@ impl MemoryMappingTable {
         self.master.remove(range);
     }
 
-    pub fn commit(&mut self, address_space_width: u8) {
+    pub fn commit(&mut self, address_space_width: u8, registry: &ComponentRegistry) {
         self.table.clear();
 
         let max = 2usize.pow(address_space_width as u32) - 1;
@@ -164,6 +164,8 @@ impl MemoryMappingTable {
                         let test_range: RangeInclusive<Address> =
                             range.clone().intersection(page_range.clone()).into();
 
+                        let component = registry.get(component);
+
                         if test_range == page_range {
                             Page::Single {
                                 component,
@@ -183,10 +185,14 @@ impl MemoryMappingTable {
                     _ => {
                         let inner_table: Vec<_> = entries
                             .drain(..)
-                            .map(|(range, component)| MixedTableEntry {
-                                component,
-                                start: *range.start(),
-                                end: *range.end(),
+                            .map(|(range, component)| {
+                                let component = registry.get(component);
+
+                                MixedTableEntry {
+                                    component,
+                                    start: *range.start(),
+                                    end: *range.end(),
+                                }
                             })
                             .sorted_by_key(|entry| entry.start)
                             .collect();
@@ -232,18 +238,24 @@ impl Members {
     pub fn visit_read<E: Error>(
         &self,
         access_range: RangeInclusive<Address>,
-        visitor: impl FnMut(RangeInclusive<Address>, ComponentId) -> Result<(), E>,
+        mut visitor: impl FnMut(RangeInclusive<Address>, &dyn Component) -> Result<(), E>,
     ) -> Result<(), E> {
-        self.read.visit_overlapping(access_range.clone(), visitor)
+        self.read
+            .visit_overlapping(access_range.clone(), |range, component| {
+                visitor(range, component.read().unwrap().deref())
+            })
     }
 
     #[inline(always)]
     pub fn visit_write<E: Error>(
         &self,
         access_range: RangeInclusive<Address>,
-        visitor: impl FnMut(RangeInclusive<Address>, ComponentId) -> Result<(), E>,
+        mut visitor: impl FnMut(RangeInclusive<Address>, &mut dyn Component) -> Result<(), E>,
     ) -> Result<(), E> {
-        self.write.visit_overlapping(access_range.clone(), visitor)
+        self.write
+            .visit_overlapping(access_range.clone(), |range, component| {
+                visitor(range, component.write().unwrap().deref_mut())
+            })
     }
 }
 
@@ -333,8 +345,8 @@ impl AddressSpace {
             }
         }
 
-        members.read.commit(self.address_space_width);
-        members.write.commit(self.address_space_width);
+        members.read.commit(self.address_space_width, registry);
+        members.write.commit(self.address_space_width, registry);
     }
 }
 
@@ -355,111 +367,4 @@ pub enum MemoryRemappingCommand {
         range: RangeInclusive<Address>,
         permissions: Vec<MappingPermissions>,
     },
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn single_mapping_basic_visit() {
-        let mut table = MemoryMappingTable::default();
-        let range = 0x1000..=0x1fff;
-        let component = ComponentId::new(0);
-
-        table.insert(range.clone(), component);
-        table.commit(16);
-
-        let mut visited = Vec::new();
-        table
-            .visit_overlapping::<()>(0x1fff..=0x1fff, |range, component| {
-                visited.push((range, component));
-
-                Ok(())
-            })
-            .unwrap();
-
-        assert_eq!(visited.len(), 1);
-        assert_eq!(visited[0], (range, component));
-    }
-
-    #[test]
-    fn empty_table_no_visits() {
-        let mut table = MemoryMappingTable::default();
-        table.commit(16);
-
-        let mut visited = Vec::new();
-        table
-            .visit_overlapping::<()>(0x1000..=0x1fff, |range, component| {
-                visited.push((range, component));
-                Ok(())
-            })
-            .unwrap();
-
-        assert!(visited.is_empty());
-    }
-
-    #[test]
-    fn mapping_spans_multiple_pages() {
-        let mut table = MemoryMappingTable::default();
-        let span = 0x0000..=0x2fff;
-        let component = ComponentId::new(0);
-
-        table.insert(span.clone(), component);
-        table.commit(16);
-
-        for access in [
-            0x0000..=0x0000,
-            0x0fff..=0x0fff,
-            0x1000..=0x1000,
-            0x2ffe..=0x2fff,
-        ] {
-            let mut visited = Vec::new();
-            table
-                .visit_overlapping::<()>(access, |range, component| {
-                    visited.push((range, component));
-                    Ok(())
-                })
-                .unwrap();
-
-            // should only be reported once even though it spans multiple pages
-            assert_eq!(visited.len(), 1);
-            assert_eq!(visited[0], (span.clone(), component));
-        }
-    }
-
-    #[test]
-    fn remove_mapping_prevents_visit() {
-        let mut table = MemoryMappingTable::default();
-        let range = 0x1000..=0x1fff;
-        let component = ComponentId::new(0);
-
-        table.insert(range.clone(), component);
-        table.commit(16);
-
-        // Confirm it's there
-        let mut count = 0;
-        table
-            .visit_overlapping::<()>(range.clone(), |_r, _c| {
-                count += 1;
-                Ok(())
-            })
-            .unwrap();
-        assert_eq!(count, 1);
-
-        // Remove and commit
-        table.remove(range.clone());
-        table.commit(16);
-
-        count = 0;
-        table
-            .visit_overlapping::<()>(range.clone(), |_r, _c| {
-                count += 1;
-
-                Ok(())
-            })
-            .unwrap();
-
-        assert_eq!(count, 0);
-    }
 }

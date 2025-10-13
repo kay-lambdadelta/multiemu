@@ -2,9 +2,7 @@
 perf.data.old
 perf.data
 flamegraph.svg
-/old
 /roms
 /.idea
 /.vscode
-sync.sh
 callgrind*

@@ -85,23 +85,11 @@ impl MemoryAccessTable {
                 let buffer_subrange =
                     (access_range.start() - address)..=(access_range.end() - address);
 
-                self.registry
-                    .get()
-                    .unwrap()
-                    .interact_dyn(
-                        component,
-                        #[inline(always)]
-                        |component| {
-                            component.read_memory(
-                                *access_range.start(),
-                                address_space,
-                                &mut buffer[buffer_subrange.clone()],
-                            )?;
-
-                            Ok(())
-                        },
-                    )
-                    .unwrap()
+                component.read_memory(
+                    *access_range.start(),
+                    address_space,
+                    &mut buffer[buffer_subrange.clone()],
+                )
             },
         )?;
 
@@ -180,23 +168,11 @@ impl MemoryAccessTable {
                 let buffer_subrange =
                     (access_range.start() - address)..=(access_range.end() - address);
 
-                self.registry
-                    .get()
-                    .unwrap()
-                    .interact_dyn(
-                        component,
-                        #[inline(always)]
-                        |component| {
-                            component.preview_memory(
-                                *access_range.start(),
-                                address_space,
-                                &mut buffer[buffer_subrange.clone()],
-                            )?;
-
-                            Ok(())
-                        },
-                    )
-                    .unwrap()
+                component.preview_memory(
+                    *access_range.start(),
+                    address_space,
+                    &mut buffer[buffer_subrange.clone()],
+                )
             },
         )?;
 

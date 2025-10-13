@@ -45,7 +45,7 @@ impl FileBrowserState {
                     ui.label(std::path::MAIN_SEPARATOR_STR);
                 }
 
-                if ui.button(path_segment.to_str().unwrap()).clicked() {
+                if ui.button(path_segment.to_string_lossy()).clicked() {
                     new_dir = Some(PathBuf::from_iter(
                         self.current_directory.iter().take(index + 1),
                     ));
