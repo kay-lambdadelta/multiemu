@@ -74,3 +74,6 @@ ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }
 
 [profile.bench]
 debug = true
+
+[profile.dev]
+opt-level = 1
