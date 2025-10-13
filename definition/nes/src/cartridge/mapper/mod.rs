@@ -1,1 +1,2 @@
-pub mod mapper_000;
+pub mod nrom;
+pub mod mmc1;

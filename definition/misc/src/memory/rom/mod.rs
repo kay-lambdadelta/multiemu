@@ -42,6 +42,18 @@ pub struct RomMemory {
     backend: Arc<DefaultRomMemoryBackend>,
 }
 
+impl RomMemory {
+    pub fn set_rom_range(&mut self, range: RangeInclusive<Address>) {
+        assert_eq!(
+            self.config.rom_range.clone().count(),
+            range.clone().count(),
+            "New range does not represent the same space as the old range"
+        );
+
+        self.config.rom_range = range;
+    }
+}
+
 impl Component for RomMemory {
     fn read_memory(
         &self,

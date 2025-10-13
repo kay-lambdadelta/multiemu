@@ -9,20 +9,20 @@ use multiemu_base::{
 use multiemu_definition_misc::memory::{mirror::MirrorMemoryConfig, rom::RomMemoryConfig};
 
 #[derive(Debug)]
-pub struct Mapper000;
+pub struct NRom;
 
-impl Component for Mapper000 {}
+impl Component for NRom {}
 
 #[derive(Debug)]
-pub struct Mapper000Config<'a> {
+pub struct NRomConfig<'a> {
     pub ines: &'a INes,
     pub rom_id: RomId,
     pub cpu_address_space: AddressSpaceId,
     pub ppu_address_space: AddressSpaceId,
 }
 
-impl<'a, P: Platform> ComponentConfig<P> for Mapper000Config<'a> {
-    type Component = Mapper000;
+impl<'a, P: Platform> ComponentConfig<P> for NRomConfig<'a> {
+    type Component = NRom;
 
     fn build_component(
         self,
@@ -84,6 +84,6 @@ impl<'a, P: Platform> ComponentConfig<P> for Mapper000Config<'a> {
             },
         );
 
-        Ok(Mapper000)
+        Ok(NRom)
     }
 }

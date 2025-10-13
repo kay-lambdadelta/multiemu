@@ -1,4 +1,4 @@
-use crate::cartridge::mapper::mapper_000::Mapper000Config;
+use crate::cartridge::mapper::{nrom::NRomConfig, mmc1::Mmc1Config};
 use ines::INes;
 use multiemu_base::{
     component::{Component, ComponentConfig},
@@ -61,12 +61,26 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
 
         tracing::info!("Loaded INES ROM: {:?}", ines);
 
+        #[allow(clippy::zero_prefixed_literal)]
         match ines.mapper {
             000 => {
                 component_builder
                     .insert_child_component(
-                        "mapper_000",
-                        Mapper000Config {
+                        "nrom",
+                        NRomConfig {
+                            ines: &ines,
+                            rom_id: self.rom,
+                            cpu_address_space: self.cpu_address_space,
+                            ppu_address_space: self.ppu_address_space,
+                        },
+                    )
+                    .0
+            }
+            001 | 155 => {
+                component_builder
+                    .insert_child_component(
+                        "mmc1",
+                        Mmc1Config {
                             ines: &ines,
                             rom_id: self.rom,
                             cpu_address_space: self.cpu_address_space,

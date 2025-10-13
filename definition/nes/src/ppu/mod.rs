@@ -216,7 +216,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
             }
             CpuAccessibleRegister::OamDma => todo!(),
             _ => {
-                unreachable!()
+                unreachable!("{:?}", register);
             }
         }
 
@@ -334,7 +334,7 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                     ))
                     .unwrap();
             })
-            .memory_map(
+            .memory_map_write(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuCtrl as usize..=CpuAccessibleRegister::PpuCtrl as usize,
             )
