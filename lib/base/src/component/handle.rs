@@ -17,12 +17,8 @@ impl<'a, C: Component> Deref for ComponentHandleReadGuard<'a, C> {
     fn deref(&self) -> &Self::Target {
         debug_assert!((self.component.deref() as &dyn Any).is::<C>());
 
-        /// # SAFETY
-        ///
-        /// The component must match the type of the generic
-        unsafe {
-            &*(self.component.deref() as &dyn Any as *const dyn Any as *const C)
-        }
+        // The component must match the type of the generic
+        unsafe { &*(self.component.deref() as &dyn Any as *const dyn Any as *const C) }
     }
 }
 

@@ -19,6 +19,8 @@ mod group1;
 mod group2;
 mod group3;
 mod undocumented;
+#[cfg(test)]
+mod test;
 
 // https://www.pagetable.com/c64ref/6502/
 

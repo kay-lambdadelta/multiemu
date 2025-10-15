@@ -138,10 +138,9 @@ pub enum ExecutionStep {
     /// Adding this value to the program pointer
     ModifyProgramPointer(i8),
     /// Adding this value to the address bus
-    ModifyAddressBus {
-        modification: AddressBusModification,
-        zero_page: bool,
-    },
+    ModifyAddressBus(AddressBusModification),
+    /// Make sure the address bus is within the zero page
+    MaskAddressBusToZeroPage,
     /// Execute this instruction
     Interpret { instruction: Mos6502InstructionSet },
 }

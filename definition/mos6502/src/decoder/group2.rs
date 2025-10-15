@@ -141,10 +141,21 @@ pub fn decode_group2_space_instruction(
                     (Opcode::Mos6502(Mos6502Opcode::Jam), None)
                 }
             }
-            0b001 | 0b011 | 0b101 => (
-                Opcode::Mos6502(Mos6502Opcode::Stx),
-                Some(addressing_mode.unwrap()),
-            ),
+            0b001 | 0b011 | 0b101 => {
+                // STX uses YIndexedZeroPage instead of XIndexedZeroPage
+                let fixed_mode = if addressing_mode
+                    == Some(AddressingMode::Mos6502(
+                        Mos6502AddressingMode::XIndexedZeroPage,
+                    )) {
+                    Some(AddressingMode::Mos6502(
+                        Mos6502AddressingMode::YIndexedZeroPage,
+                    ))
+                } else {
+                    addressing_mode
+                };
+
+                (Opcode::Mos6502(Mos6502Opcode::Stx), fixed_mode)
+            }
             0b010 => (Opcode::Mos6502(Mos6502Opcode::Txa), None),
             0b110 => (Opcode::Mos6502(Mos6502Opcode::Txs), None),
             0b111 => (
@@ -154,10 +165,20 @@ pub fn decode_group2_space_instruction(
             _ => unreachable!(),
         },
         0b101 => match argument {
-            0b000 | 0b001 | 0b011 | 0b101 | 0b111 => (
-                Opcode::Mos6502(Mos6502Opcode::Ldx),
-                Some(addressing_mode.unwrap()),
-            ),
+            0b000 | 0b001 | 0b011 | 0b101 | 0b111 => {
+                // Ldx uses YIndexedZeroPage instead of XIndexedZeroPage
+                let fixed_mode = match addressing_mode {
+                    Some(AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage)) => Some(
+                        AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage),
+                    ),
+                    Some(AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedAbsolute)) => Some(
+                        AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute),
+                    ),
+                    _ => addressing_mode,
+                };
+
+                (Opcode::Mos6502(Mos6502Opcode::Ldx), fixed_mode)
+            }
             0b100 => {
                 if kind == Mos6502Kind::Wdc65C02 {
                     (

@@ -1,6 +1,6 @@
 use crate::{
-    AddressBusModification, ExecutionStep, IRQ_VECTOR, Mos6502, NMI_VECTOR, ProcessorState,
-    RESET_VECTOR,
+    AddressBusModification, ExecutionStep, IRQ_VECTOR, Mos6502, NMI_VECTOR, PAGE_SIZE,
+    ProcessorState, RESET_VECTOR,
     decoder::Mos6502InstructionDecoder,
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,
@@ -139,10 +139,10 @@ impl TaskMut<Mos6502> for Driver {
                         component.state.program.wrapping_add_signed(value as i16);
                     time_slice -= 1;
                 }
-                ExecutionStep::ModifyAddressBus {
-                    modification,
-                    zero_page,
-                } => {
+                ExecutionStep::MaskAddressBusToZeroPage => {
+                    component.state.address_bus %= PAGE_SIZE as u16;
+                }
+                ExecutionStep::ModifyAddressBus(modification) => {
                     let modification = match modification {
                         AddressBusModification::X => component.state.x,
                         AddressBusModification::Y => component.state.y,
@@ -152,10 +152,6 @@ impl TaskMut<Mos6502> for Driver {
                         .state
                         .address_bus
                         .wrapping_add(modification as u16);
-
-                    if zero_page {
-                        component.state.address_bus %= 0x100;
-                    }
                 }
                 ExecutionStep::Interpret { instruction } => {
                     self.interpret_instruction(
@@ -231,10 +227,7 @@ impl Mos6502 {
                         ExecutionStep::LoadData,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus {
-                            modification: AddressBusModification::X,
-                            zero_page: false,
-                        },
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute) => {
@@ -242,10 +235,7 @@ impl Mos6502 {
                         ExecutionStep::LoadData,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus {
-                            modification: AddressBusModification::Y,
-                            zero_page: false,
-                        },
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::AbsoluteIndirect) => {
@@ -262,11 +252,10 @@ impl Mos6502 {
                     self.state.execution_queue.extend([
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus {
-                            modification: AddressBusModification::X,
-                            zero_page: true,
-                        },
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                        ExecutionStep::MaskAddressBusToZeroPage,
                         ExecutionStep::LoadData,
+                        ExecutionStep::MaskAddressBusToZeroPage,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
                     ]);
@@ -276,32 +265,26 @@ impl Mos6502 {
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
                         ExecutionStep::LoadData,
+                        ExecutionStep::MaskAddressBusToZeroPage,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus {
-                            modification: AddressBusModification::Y,
-                            zero_page: false,
-                        },
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage) => {
                     self.state.execution_queue.extend([
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus {
-                            modification: AddressBusModification::X,
-                            zero_page: true,
-                        },
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                        ExecutionStep::MaskAddressBusToZeroPage,
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage) => {
                     self.state.execution_queue.extend([
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::ModifyAddressBus {
-                            modification: AddressBusModification::Y,
-                            zero_page: true,
-                        },
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                        ExecutionStep::MaskAddressBusToZeroPage,
                     ]);
                 }
 
@@ -317,6 +300,7 @@ impl Mos6502 {
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
                         ExecutionStep::LoadData,
+                        ExecutionStep::MaskAddressBusToZeroPage,
                         ExecutionStep::LoadData,
                         ExecutionStep::LatchToAddressBus,
                     ]);
