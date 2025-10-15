@@ -1,27 +1,27 @@
 use crate::memory::rom::RomMemoryBackend;
 use std::fs::File;
-#[cfg(not(unix))]
+#[cfg(not(target_family = "unix"))]
 use std::sync::Mutex;
 
-#[cfg(not(unix))]
+#[cfg(not(target_family = "unix"))]
 #[derive(Debug)]
 pub struct FileBackend(Mutex<File>);
 
-#[cfg(unix)]
+#[cfg(target_family = "unix")]
 #[derive(Debug)]
 pub struct FileBackend(File);
 
 impl RomMemoryBackend for FileBackend {
     fn new(file: File) -> Self {
-        #[cfg(unix)]
+        #[cfg(target_family = "unix")]
         return FileBackend(file);
 
-        #[cfg(not(unix))]
+        #[cfg(not(target_family = "unix"))]
         return FileBackend(Mutex::new(file));
     }
 
     #[inline]
-    #[cfg(not(unix))]
+    #[cfg(not(target_family = "unix"))]
     fn read(&self, offset: usize, buffer: &mut [u8]) {
         use std::io::{Read, Seek, SeekFrom};
 
@@ -31,7 +31,7 @@ impl RomMemoryBackend for FileBackend {
     }
 
     #[inline]
-    #[cfg(unix)]
+    #[cfg(target_family = "unix")]
     fn read(&self, offset: usize, buffer: &mut [u8]) {
         use std::os::unix::fs::FileExt;
 

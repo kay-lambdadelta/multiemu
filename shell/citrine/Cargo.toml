@@ -14,7 +14,7 @@ multiemu-definition-atari2600 = { workspace = true }
 multiemu-definition-atarilynx = { workspace = true }
 tracing = { workspace = true }
 strum = { workspace = true }
-nalgebra = { workspace = true, features = ["rayon"] }
+nalgebra = { workspace = true }
 bytemuck = { workspace = true }
 num = { workspace = true }
 tracing-subscriber = { workspace = true }

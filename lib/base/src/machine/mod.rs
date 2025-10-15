@@ -79,8 +79,12 @@ impl Machine<TestPlatform> {
     }
 
     pub fn build_test_minimal() -> MachineBuilder<TestPlatform> {
-        let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
-        let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
+        let environment: Environment =
+            if let Ok(environment_file) = File::create(ENVIRONMENT_LOCATION.deref()) {
+                ron::de::from_reader(environment_file).unwrap_or_default()
+            } else {
+                Default::default()
+            };
 
         let environment = Arc::new(RwLock::new(environment));
 

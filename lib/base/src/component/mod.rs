@@ -7,7 +7,9 @@ use crate::{
     },
     platform::Platform,
 };
+pub use handle::*;
 use nalgebra::SVector;
+pub use path::{ComponentPath, ResourcePath};
 use ringbuffer::AllocRingBuffer;
 use std::{
     any::Any,
@@ -15,11 +17,9 @@ use std::{
     fmt::Debug,
     io::{Read, Write},
 };
-pub use path::{ComponentPath, ResourcePath};
-pub use handle::*;
 
-mod path;
 mod handle;
+mod path;
 
 #[allow(unused)]
 /// Basic supertrait for all components

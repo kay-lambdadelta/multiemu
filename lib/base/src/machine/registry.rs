@@ -109,8 +109,10 @@ impl ComponentRegistry {
     pub fn get<C: Component>(&self, path: &ComponentPath) -> Option<ComponentHandle<C>> {
         self.components.read_sync(path, |_, component_info| {
             let component = component_info.component.clone();
+            // Ensure the component actually matches the generic
             assert_eq!(component_info.type_id, TypeId::of::<C>());
-            ComponentHandle::new(component)
+
+            unsafe { ComponentHandle::new(component) }
         })
     }
 }

@@ -2,6 +2,8 @@
 name = "multiemu-locale"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["Kay <lambdadeltakay@proton.me>"]
 
 [dependencies]
 serde = { workspace = true }

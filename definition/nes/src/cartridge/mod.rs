@@ -1,4 +1,4 @@
-use crate::cartridge::mapper::{nrom::NRomConfig, mmc1::Mmc1Config};
+use crate::cartridge::mapper::{mmc1::Mmc1Config, nrom::NRomConfig};
 use ines::INes;
 use multiemu_base::{
     component::{Component, ComponentConfig},

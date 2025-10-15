@@ -270,7 +270,7 @@ fn process_file_internal(
             match entry {
                 SearchEntry::File(path) => {
                     if symlink {
-                        #[cfg(unix)]
+                        #[cfg(target_family = "unix")]
                         {
                             std::os::unix::fs::symlink(&path, &internal_rom_path)?;
                         }

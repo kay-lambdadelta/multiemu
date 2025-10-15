@@ -1,5 +1,5 @@
 use super::UiOutput;
-use egui::{ComboBox, Ui};
+use egui::{ComboBox, RichText, Ui};
 use multiemu_base::environment::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
 use std::{
     fs::File,
@@ -21,8 +21,10 @@ impl OptionsState {
     pub fn run(&mut self, _output: &mut Option<UiOutput>, ui: &mut Ui) {
         let mut environment_guard = self.environment.write().unwrap();
 
-        ui.horizontal(|ui| {
-            if ui.button("Save Environment").clicked() {
+        ui.horizontal_top(|ui| {
+            let button_text = RichText::new(egui_phosphor::regular::FLOPPY_DISK).size(32.0);
+
+            if ui.button(button_text).on_hover_text("Save environment to disk").clicked() {
                 let file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
 
                 environment_guard.save(file).unwrap();

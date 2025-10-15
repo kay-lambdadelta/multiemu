@@ -31,6 +31,7 @@ rayon = "1.11"
 nalgebra = { version = "0.34", features = [
     "serde-serialize",
     "convert-bytemuck",
+    "rayon",
 ] }
 bytemuck = { version = "1.24", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
@@ -58,7 +59,11 @@ data-encoding = "2.9"
 scc = "3.3"
 sealed = "0.6"
 crossbeam = "0.8"
-egui = { version = "0.32", features = ["default_fonts", "rayon", "log"] }
+egui = { version = "0.32", default-features = false, features = [
+    "rayon",
+    "log",
+    "default_fonts"
+] }
 naga = { version = "27.0", features = ["wgsl-in", "serialize", "deserialize"] }
 itertools = "0.14"
 rangetools = "0.1"
@@ -68,6 +73,7 @@ bytes = "1.10"
 tempfile = "3.21"
 versions = "7.0"
 regex = "1.12"
+indexmap = "2.11"
 
 # 3DS stuff
 ctru-rs = { git = "https://github.com/rust3ds/ctru-rs" }

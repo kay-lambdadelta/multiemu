@@ -50,7 +50,9 @@ pub struct ComponentHandle<C: Component> {
 }
 
 impl<C: Component> ComponentHandle<C> {
-    pub(crate) fn new(component: Arc<RwLock<dyn Component>>) -> Self {
+    /// # SAFETY
+    ///     The component must match the type of the generic, this struct does not do type checking in release mode
+    pub(crate) unsafe fn new(component: Arc<RwLock<dyn Component>>) -> Self {
         Self {
             component,
             _phantom: PhantomData,

@@ -12,7 +12,7 @@ use multiemu_base::{
     program::{ProgramMetadata, ProgramSpecification},
 };
 use options::OptionsState;
-use palette::Srgb;
+use palette::Srgba;
 use std::{
     fmt::Display,
     sync::{Arc, RwLock},
@@ -50,7 +50,7 @@ impl Display for MenuItem {
             match self {
                 MenuItem::Home => "Home",
                 MenuItem::FileBrowser => "File Browser",
-                MenuItem::Options => "Options",
+                MenuItem::Options => "Options/Environment",
                 MenuItem::Controller => "Controller",
                 MenuItem::About => "About",
             }
@@ -175,8 +175,8 @@ pub fn setup_theme(egui_context: &egui::Context) {
 }
 
 /// I'm not operating two color libraries at once especially since eguis is far less powerful
-fn to_egui_color(color: impl Into<Srgb<u8>>) -> Color32 {
+fn to_egui_color(color: impl Into<Srgba<u8>>) -> Color32 {
     let color = color.into();
 
-    Color32::from_rgb(color.red, color.green, color.blue)
+    Color32::from_rgba_unmultiplied(color.red, color.green, color.blue, color.alpha)
 }

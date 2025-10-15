@@ -2,6 +2,8 @@
 name = "multiemu-frontend"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["Kay <lambdadeltakay@proton.me>"]
 
 [dependencies]
 multiemu-base = { workspace = true }
@@ -13,10 +15,12 @@ palette = { workspace = true }
 versions = { workspace = true }
 strum = { workspace = true }
 egui = { workspace = true }
+indexmap = { workspace = true }
+cfg-if = { workspace = true }
 egui_extras = { version = "0.32", default-features = false, features = [
     "image",
 ] }
 egui_infinite_scroll = "0.8"
-egui_dnd = "0.13"
 egui-phosphor = "0.10"
 sysinfo = "0.37"
+byte-unit = "5.1"

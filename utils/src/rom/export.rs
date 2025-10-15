@@ -101,7 +101,7 @@ pub fn rom_export(
 
                     let _ = fs::remove_file(&target_rom_path);
                     if symlink {
-                        #[cfg(unix)]
+                        #[cfg(target_family = "unix")]
                         std::os::unix::fs::symlink(&import_path, target_rom_path)?;
 
                         #[cfg(windows)]

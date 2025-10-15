@@ -2,6 +2,8 @@
 name = "multiemu-base"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-or-later"
+authors = ["Kay <lambdadeltakay@proton.me>"]
 
 [dependencies]
 multiemu-locale = { workspace = true }
@@ -32,10 +34,10 @@ bitvec = { workspace = true }
 rayon = { workspace = true }
 crossbeam = { workspace = true }
 versions = { workspace = true }
+indexmap = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["webp"] }
 flate2 = "1.1"
 sha1 = "0.10"
-indexmap = "2.11"
 nohash = "0.2"
 
 # Vulkan support

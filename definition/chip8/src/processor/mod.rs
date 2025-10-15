@@ -174,8 +174,6 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             .0
             .insert_task_mut("driver", frequency, driver);
 
-        Ok(Chip8Processor {
-            state,
-        })
+        Ok(Chip8Processor { state })
     }
 }
