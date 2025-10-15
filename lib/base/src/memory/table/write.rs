@@ -51,11 +51,7 @@ impl MemoryAccessTable {
             ..=(buffer_subrange.end() + address) & address_space_info.width_mask;
         let address = address & address_space_info.width_mask;
 
-        let members = address_space_info.get_members(
-            self.registry
-                .get()
-                .expect("Cannot do reads until machine is finished building"),
-        );
+        let members = address_space_info.get_members(&self.registry);
 
         members.visit_write::<WriteMemoryError>(
             access_range.clone(),

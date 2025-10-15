@@ -96,7 +96,6 @@ impl MenuState {
         }
     }
 
-    /// TODO: barely does anything
     pub fn run_menu(&mut self, ctx: &Context) -> Option<UiOutput> {
         let mut output = None;
 

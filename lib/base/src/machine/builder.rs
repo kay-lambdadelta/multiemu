@@ -24,7 +24,7 @@ use std::{
     fmt::Debug,
     io::Read,
     marker::PhantomData,
-    ops::RangeInclusive,
+    ops::{Deref, DerefMut, RangeInclusive},
     path::PathBuf,
     str::FromStr,
     sync::Arc,
@@ -67,7 +67,7 @@ pub struct MachineBuilder<P: Platform> {
     /// Selected sample rate
     sample_rate: Ratio<u32>,
     /// The store for components
-    registry: ComponentRegistry,
+    registry: Arc<ComponentRegistry>,
     /// Component metadata
     component_metadata: IndexMap<ComponentPath, ComponentMetadata<P>, FxBuildHasher>,
     /// Program we were opened with
@@ -95,12 +95,12 @@ impl<P: Platform> MachineBuilder<P> {
         snapshot_path: Option<PathBuf>,
         sample_rate: Ratio<u32>,
     ) -> Self {
-        let registry = ComponentRegistry::default();
+        let registry = Arc::new(ComponentRegistry::default());
         let save_manager = SaveManager::new(save_path);
         let snapshot_manager = SnapshotManager::new(snapshot_path);
 
         MachineBuilder::<P> {
-            memory_access_table: Arc::new(MemoryAccessTable::default()),
+            memory_access_table: Arc::new(MemoryAccessTable::new(registry.clone())),
             save_manager,
             snapshot_manager,
             registry,
@@ -135,7 +135,6 @@ impl<P: Platform> MachineBuilder<P> {
         path: ComponentPath,
         config: B,
     ) {
-        self.registry.reserve_component(path.clone());
         let mut component_metadata = ComponentMetadata::default();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
@@ -214,9 +213,6 @@ impl<P: Platform> MachineBuilder<P> {
         // NOTE: EVERY test should set this to false
         scheduler_dedicated_thread: bool,
     ) -> Machine<P> {
-        let registry = Arc::new(self.registry);
-        self.memory_access_table.set_registry(registry.clone());
-
         let mut tasks = HashMap::default();
         let mut virtual_gamepads = HashMap::default();
         let mut audio_outputs = HashSet::new();
@@ -225,8 +221,7 @@ impl<P: Platform> MachineBuilder<P> {
 
         for (path, component_metadata) in self.component_metadata.drain(..) {
             if let Some(initializer) = component_metadata.late_initializer {
-                let id = registry.get_id(&path).unwrap();
-                component_initializers.insert(id, initializer);
+                component_initializers.insert(path, initializer);
             }
 
             displays.extend(component_metadata.displays);
@@ -243,19 +238,18 @@ impl<P: Platform> MachineBuilder<P> {
 
         let late_initialized_data = LateInitializedData::<P> {
             component_graphics_initialization_data,
-            component_registry: registry.clone(),
         };
 
-        for (component_id, initializer) in component_initializers {
-            registry
-                .interact_dyn_mut(component_id, |component| {
+        for (component_path, initializer) in component_initializers {
+            self.registry
+                .interact_dyn_mut(&component_path, |component| {
                     initializer(component, &late_initialized_data)
                 })
                 .unwrap();
         }
 
         // Create the scheduler
-        let scheduler_state = SchedulerState::new(tasks, registry.clone());
+        let scheduler_state = SchedulerState::new(tasks, self.registry.clone());
         let scheduler_handle = scheduler_state.handle();
 
         let scheduler_state = if scheduler_dedicated_thread {
@@ -273,7 +267,7 @@ impl<P: Platform> MachineBuilder<P> {
             scheduler_state,
             memory_access_table: self.memory_access_table.clone(),
             virtual_gamepads,
-            component_registry: registry,
+            component_registry: self.registry,
             displays,
             save_manager: self.save_manager,
             snapshot_manager: self.snapshot_manager,
@@ -345,10 +339,6 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
         let mut path = self.path.clone();
         path.push(name).unwrap();
-
-        self.machine_builder
-            .registry
-            .reserve_component(path.clone());
         let mut component_metadata = ComponentMetadata::default();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
@@ -489,22 +479,21 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             panic!("Task with path {} already exists", resource_path);
         }
 
-        let component_id = self.machine_builder.registry.get_id(self.path).unwrap();
+        let mut component = None;
+        let component_path = self.path.clone();
 
         self.component_metadata.tasks.insert(
             resource_path,
             StoredTask {
                 period: frequency.reduced().recip(),
                 task: Box::new(move |component_registry, slice| {
-                    component_registry
-                        .interact(
-                            component_id,
-                            #[inline]
-                            |component| {
-                                callback.run(component, slice);
-                            },
-                        )
-                        .unwrap();
+                    let component = component.get_or_insert_with(|| {
+                        component_registry.get::<C>(&component_path).unwrap()
+                    });
+
+                    let component_guard = component.read();
+
+                    callback.run(component_guard.deref(), slice);
                 }),
             },
         );
@@ -527,22 +516,21 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             panic!("Task with path {} already exists", resource_path);
         }
 
-        let component_id = self.machine_builder.registry.get_id(self.path).unwrap();
+        let mut component = None;
+        let component_path = self.path.clone();
 
         self.component_metadata.tasks.insert(
             resource_path,
             StoredTask {
                 period: frequency.reduced().recip(),
                 task: Box::new(move |component_registry, slice| {
-                    component_registry
-                        .interact_mut(
-                            component_id,
-                            #[inline]
-                            |component| {
-                                callback.run(component, slice);
-                            },
-                        )
-                        .unwrap();
+                    let component = component.get_or_insert_with(|| {
+                        component_registry.get::<C>(&component_path).unwrap()
+                    });
+
+                    let mut component_guard = component.write();
+
+                    callback.run(component_guard.deref_mut(), slice);
                 }),
             },
         );

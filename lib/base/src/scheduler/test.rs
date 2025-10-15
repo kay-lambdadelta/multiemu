@@ -62,14 +62,14 @@ fn basic_operation() {
 
     machine
         .component_registry
-        .interact_by_path::<Counter, _>(&counter1000, |component| {
+        .interact::<Counter, _>(&counter1000, |component| {
             assert_eq!(component.counter, 1000);
         })
         .unwrap();
 
     machine
         .component_registry
-        .interact_by_path::<Counter, _>(&counter10000, |component| {
+        .interact::<Counter, _>(&counter10000, |component| {
             assert_eq!(component.counter, 10000);
         })
         .unwrap();

@@ -65,8 +65,8 @@ pub(crate) fn scheduler_thread(mut state: SchedulerState) {
 }
 
 fn find_reasonable_sleep_resolution() -> Duration {
-    // ~32 milliseconds, if the system can't keep up with this, oh well
     let min_exponent = 10;
+    // ~32 milliseconds, if the system can't keep up with this, oh well
     let max_exponent = 25;
     let trials = 5;
 

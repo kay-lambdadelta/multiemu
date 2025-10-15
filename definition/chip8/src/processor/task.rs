@@ -1,12 +1,13 @@
 use super::{Chip8KeyCode, Chip8ProcessorConfig, ExecutionState, decoder::Chip8InstructionDecoder};
 use crate::{
     Chip8Mode,
+    audio::Chip8Audio,
     display::{Chip8Display, SupportedGraphicsApiChip8Display},
     processor::Chip8Processor,
+    timer::Chip8Timer,
 };
 use multiemu_base::{
-    component::ComponentId, machine::virtual_gamepad::VirtualGamepad, memory::MemoryAccessTable,
-    processor::InstructionDecoder, scheduler::TaskMut,
+    component::ComponentHandle, machine::virtual_gamepad::VirtualGamepad, memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::TaskMut
 };
 use std::{
     num::NonZero,
@@ -22,9 +23,9 @@ pub(crate) struct Driver<G: SupportedGraphicsApiChip8Display> {
     pub memory_access_table: Arc<MemoryAccessTable>,
     // What chip8 mode we are currently in
     pub mode: Arc<Mutex<Chip8Mode>>,
-    pub display: ComponentId,
-    pub audio: ComponentId,
-    pub timer: ComponentId,
+    pub display: ComponentHandle<Chip8Display<G>>,
+    pub audio: ComponentHandle<Chip8Audio>,
+    pub timer: ComponentHandle<Chip8Timer>,
     pub config: Chip8ProcessorConfig<G>,
 }
 
@@ -57,7 +58,6 @@ impl<G: SupportedGraphicsApiChip8Display> TaskMut<Chip8Processor> for Driver<G> 
 
                         self.interpret_instruction(
                             &mut component.state,
-                            component.registry.as_ref().unwrap(),
                             &mut mode_guard,
                             decompiled_instruction,
                         );
@@ -104,14 +104,7 @@ impl<G: SupportedGraphicsApiChip8Display> TaskMut<Chip8Processor> for Driver<G> 
                         }
                     }
                     ExecutionState::AwaitingVsync => {
-                        let vsync_occured = component
-                            .registry
-                            .as_ref()
-                            .unwrap()
-                            .interact::<Chip8Display<G>, _>(self.display, |display| {
-                                display.vsync_occurred
-                            })
-                            .unwrap();
+                        let vsync_occured = self.display.read().vsync_occurred;
 
                         if vsync_occured {
                             component.state.execution_state = ExecutionState::Normal;

@@ -29,8 +29,6 @@ mod task;
 #[cfg(test)]
 mod test;
 
-// TODO: Future me, make this deterministically multithreaded
-
 pub type TaskId = u16;
 pub type ErasedTask = Box<dyn FnMut(&ComponentRegistry, NonZero<u32>) + Send + Sync>;
 

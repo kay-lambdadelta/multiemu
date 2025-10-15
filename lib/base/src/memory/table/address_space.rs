@@ -1,5 +1,5 @@
 use crate::{
-    component::{Component, ComponentId, ComponentPath},
+    component::{Component, ComponentPath},
     machine::registry::ComponentRegistry,
     memory::Address,
 };
@@ -46,7 +46,7 @@ enum Page {
 
 #[derive(Debug, Default)]
 pub struct MemoryMappingTable {
-    master: RangeInclusiveMap<Address, ComponentId>,
+    master: RangeInclusiveMap<Address, ComponentPath>,
     table: Vec<Page>,
 }
 
@@ -129,7 +129,7 @@ impl MemoryMappingTable {
         Ok(())
     }
 
-    pub fn insert(&mut self, range: RangeInclusive<Address>, component: ComponentId) {
+    pub fn insert(&mut self, range: RangeInclusive<Address>, component: ComponentPath) {
         self.master.insert(range, component);
     }
 
@@ -154,7 +154,7 @@ impl MemoryMappingTable {
                 let mut entries: Vec<_> = self
                     .master
                     .overlapping(page_range.clone())
-                    .map(|(range, component)| (range.clone(), *component))
+                    .map(|(range, component)| (range.clone(), component))
                     .collect();
 
                 match entries.len() {
@@ -164,7 +164,7 @@ impl MemoryMappingTable {
                         let test_range: RangeInclusive<Address> =
                             range.clone().intersection(page_range.clone()).into();
 
-                        let component = registry.get(component);
+                        let component = registry.get_direct(component).unwrap();
 
                         if test_range == page_range {
                             Page::Single {
@@ -186,7 +186,7 @@ impl MemoryMappingTable {
                         let inner_table: Vec<_> = entries
                             .drain(..)
                             .map(|(range, component)| {
-                                let component = registry.get(component);
+                                let component = registry.get_direct(component).unwrap();
 
                                 MixedTableEntry {
                                     component,
@@ -323,14 +323,13 @@ impl AddressSpace {
                             range, max, component
                         );
                     }
-                    let id = registry.get_id(&component).unwrap();
 
                     if permissions.contains(&MappingPermissions::Read) {
-                        members.read.insert(range.clone(), id);
+                        members.read.insert(range.clone(), component.clone());
                     }
 
                     if permissions.contains(&MappingPermissions::Write) {
-                        members.write.insert(range, id);
+                        members.write.insert(range, component);
                     }
                 }
                 MemoryRemappingCommand::Unmap { range, permissions } => {

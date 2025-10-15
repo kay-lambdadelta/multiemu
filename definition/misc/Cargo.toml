@@ -30,7 +30,3 @@ harness = false
 [[bench]]
 name = "write"
 harness = false
-
-[[bench]]
-name = "registry"
-harness = false

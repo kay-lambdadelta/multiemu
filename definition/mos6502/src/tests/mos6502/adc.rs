@@ -5,12 +5,11 @@ use bitvec::{order::Lsb0, view::BitView};
 pub fn adc_immediate() {
     for value in 0x00..=0xff {
         let (mut machine, cpu, cpu_address_space) = instruction_test_boilerplate();
-        let component_id = machine.component_registry.get_id(&cpu).unwrap();
 
         // Enable carry
         machine
             .component_registry
-            .interact_mut::<Mos6502, _>(component_id, |component| {
+            .interact_mut::<Mos6502, _>(&cpu, |component| {
                 component.state.flags.carry = true;
                 component.state.execution_queue.clear();
                 component
@@ -30,7 +29,7 @@ pub fn adc_immediate() {
 
         machine
             .component_registry
-            .interact::<Mos6502, _>(component_id, |component| {
+            .interact::<Mos6502, _>(&cpu, |component| {
                 let modified_value = value.wrapping_add(1);
 
                 assert_eq!(component.state.a, modified_value);
@@ -57,7 +56,6 @@ pub fn adc_immediate() {
 pub fn adc_absolute() {
     for value in 0x00..=0xff {
         let (mut machine, cpu, cpu_address_space) = instruction_test_boilerplate();
-        let component_id = machine.component_registry.get_id(&cpu).unwrap();
 
         machine
             .memory_access_table
@@ -67,7 +65,7 @@ pub fn adc_absolute() {
         // Enable carry
         machine
             .component_registry
-            .interact_mut::<Mos6502, _>(component_id, |component| {
+            .interact_mut::<Mos6502, _>(&cpu, |component| {
                 component.state.flags.carry = true;
                 component.state.execution_queue.clear();
                 component
@@ -92,7 +90,7 @@ pub fn adc_absolute() {
 
         machine
             .component_registry
-            .interact::<Mos6502, _>(component_id, |component| {
+            .interact::<Mos6502, _>(&cpu, |component| {
                 let modified_value = value.wrapping_add(1);
 
                 assert_eq!(component.state.a, modified_value);

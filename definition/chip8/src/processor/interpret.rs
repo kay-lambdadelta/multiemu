@@ -5,11 +5,8 @@ use super::{
     task::Driver,
 };
 use crate::{
-    CHIP8_FONT, Chip8Mode,
-    audio::Chip8Audio,
-    display::{Chip8Display, SupportedGraphicsApiChip8Display},
+    CHIP8_FONT, Chip8Mode, display::SupportedGraphicsApiChip8Display,
     processor::instruction::InstructionSetSuperChip8,
-    timer::Chip8Timer,
 };
 use arrayvec::ArrayVec;
 use bitvec::{
@@ -17,7 +14,6 @@ use bitvec::{
     prelude::{Lsb0, Msb0},
     view::BitView,
 };
-use multiemu_base::machine::registry::ComponentRegistry;
 use nalgebra::Point2;
 use rand::Rng;
 
@@ -27,7 +23,6 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,
-        registry: &ComponentRegistry,
         mode: &mut Chip8Mode,
         instruction: Chip8InstructionSet,
     ) {
@@ -35,11 +30,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
 
         match instruction {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Clr) => {
-                registry
-                    .interact_mut::<Chip8Display<G>, _>(self.display, |component| {
-                        component.clear_display();
-                    })
-                    .unwrap();
+                self.display.write().clear_display();
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Rtrn) => {
                 if let Some(address) = state.stack.pop() {
@@ -235,6 +226,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                     state.registers.work_registers[coordinates.y as usize],
                 );
                 let mut cursor = 0;
+                let mut display_component_guard = self.display.write();
 
                 // SuperChip8 specializes a 16x16 sprite here
                 if height == 0 && *mode == Chip8Mode::SuperChip8 || *mode == Chip8Mode::XoChip {
@@ -251,12 +243,8 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                         cursor += buffer_section.len();
                     }
 
-                    registry
-                        .interact_mut::<Chip8Display<G>, _>(self.display, |display_component| {
-                            state.registers.work_registers[0xf] =
-                                display_component.draw_supersized_sprite(position, buffer) as u8;
-                        })
-                        .unwrap();
+                    state.registers.work_registers[0xf] =
+                        display_component_guard.draw_supersized_sprite(position, buffer) as u8;
                 } else {
                     let mut buffer =
                         ArrayVec::<_, 16>::from_iter(std::iter::repeat_n(0, height as usize));
@@ -272,12 +260,8 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                         cursor += buffer_section.len();
                     }
 
-                    registry
-                        .interact_mut::<Chip8Display<G>, _>(self.display, |display_component| {
-                            state.registers.work_registers[0xf] =
-                                display_component.draw_sprite(position, &buffer) as u8;
-                        })
-                        .unwrap();
+                    state.registers.work_registers[0xf] =
+                        display_component_guard.draw_sprite(position, &buffer) as u8;
                 }
 
                 state.execution_state = ExecutionState::AwaitingVsync;
@@ -301,9 +285,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                 }
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Moved { register }) => {
-                let delay_timer_value = registry
-                    .interact_mut::<Chip8Timer, _>(self.timer, |component| component.get())
-                    .unwrap();
+                let delay_timer_value = self.timer.read().get();
 
                 state.registers.work_registers[register as usize] = delay_timer_value;
             }
@@ -313,20 +295,12 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loadd { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                registry
-                    .interact_mut::<Chip8Timer, _>(self.timer, |component| {
-                        component.set(register_value);
-                    })
-                    .unwrap();
+                self.timer.write().set(register_value);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loads { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                registry
-                    .interact_mut::<Chip8Audio, _>(self.audio, |component| {
-                        component.set(register_value);
-                    })
-                    .unwrap();
+                self.audio.write().set(register_value);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Addi { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
@@ -401,18 +375,10 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
 
                 match subinstruction {
                     InstructionSetSuperChip8::Lores => {
-                        registry
-                            .interact_mut::<Chip8Display<G>, _>(self.display, |display_component| {
-                                display_component.set_hires(false);
-                            })
-                            .unwrap();
+                        self.display.write().set_hires(false);
                     }
                     InstructionSetSuperChip8::Hires => {
-                        registry
-                            .interact_mut::<Chip8Display<G>, _>(self.display, |display_component| {
-                                display_component.set_hires(true);
-                            })
-                            .unwrap();
+                        self.display.write().set_hires(true);
                     }
                     InstructionSetSuperChip8::Scroll { direction } => todo!(),
                     InstructionSetSuperChip8::Scrd { amount } => todo!(),

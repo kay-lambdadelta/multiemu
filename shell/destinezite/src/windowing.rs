@@ -240,9 +240,6 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        // Forcefully drop the machine to stop it from being dropped on the audio thread and causing a panic
-        self.runtime.maybe_machine().write().unwrap().take();
-
         // Save the config
         let environment_guard = self.environment.read().unwrap();
         let file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();

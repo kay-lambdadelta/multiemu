@@ -36,7 +36,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
 
         component_builder
             .registry()
-            .interact_by_path::<Mos6532Riot, _>(&self.mos6532_riot, |riot| {
+            .interact::<Mos6532Riot, _>(&self.mos6532_riot, |riot| {
                 riot.install_swcha(JoystickSwchaCallback {
                     gamepads: [player1_gamepad, player2_gamepad],
                 });

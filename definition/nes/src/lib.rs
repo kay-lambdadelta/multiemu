@@ -138,7 +138,7 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
 
         let ines = machine
             .registry()
-            .interact_by_path::<NesCartridge, _>(&cartridge, |cart| cart.rom())
+            .interact::<NesCartridge, _>(&cartridge, |cart| cart.rom())
             .unwrap();
 
         let machine = setup_ppu_nametables(machine, ppu_address_space, &ines);

@@ -1,9 +1,6 @@
 use crate::machine::registry::ComponentRegistry;
 use address_space::AddressSpace;
-use std::{
-    fmt::Debug,
-    sync::{Arc, OnceLock},
-};
+use std::{fmt::Debug, sync::Arc};
 
 mod address_space;
 mod read;
@@ -13,12 +10,21 @@ pub use address_space::{AddressSpaceId, MappingPermissions, MemoryRemappingComma
 pub use read::*;
 pub use write::*;
 
-#[derive(Default)]
 /// The main structure representing the devices memory address spaces
 pub struct MemoryAccessTable {
     address_spaces: Vec<AddressSpace>,
     current_address_space: u16,
-    registry: OnceLock<Arc<ComponentRegistry>>,
+    registry: Arc<ComponentRegistry>,
+}
+
+impl MemoryAccessTable {
+    pub fn new(registry: Arc<ComponentRegistry>) -> Self {
+        Self {
+            address_spaces: Vec::default(),
+            current_address_space: 0,
+            registry,
+        }
+    }
 }
 
 impl Debug for MemoryAccessTable {
@@ -30,10 +36,6 @@ impl Debug for MemoryAccessTable {
 }
 
 impl MemoryAccessTable {
-    pub(crate) fn set_registry(&self, registry: Arc<ComponentRegistry>) {
-        self.registry.set(registry).unwrap();
-    }
-
     pub(crate) fn insert_address_space(&mut self, address_space_width: u8) -> AddressSpaceId {
         let id = AddressSpaceId::new(self.current_address_space);
 
@@ -54,9 +56,7 @@ impl MemoryAccessTable {
     }
 
     pub fn force_remap_commit(&self, address_space: AddressSpaceId) {
-        drop(
-            self.address_spaces[address_space.0 as usize].get_members(self.registry.get().unwrap()),
-        );
+        drop(self.address_spaces[address_space.0 as usize].get_members(&self.registry));
     }
 
     /// Adds a command to the remap queue

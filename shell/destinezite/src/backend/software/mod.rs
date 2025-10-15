@@ -86,14 +86,10 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
             .graphics_setting
             .integer_scaling;
         for display_path in machine.displays.iter() {
-            let id = machine
-                .component_registry
-                .get_id(&display_path.component_path)
-                .unwrap();
-
+            
             machine
                 .component_registry
-                .interact_dyn_mut(id, |component| {
+                .interact_dyn_mut(&display_path.component_path, |component| {
                     component.access_framebuffer(
                         display_path,
                         Box::new(|display| {

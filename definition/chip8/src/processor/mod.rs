@@ -7,7 +7,6 @@ use multiemu_base::{
     component::{Component, ComponentConfig, ComponentPath, ComponentVersion},
     machine::{
         builder::ComponentBuilder,
-        registry::ComponentRegistry,
         virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
     },
     memory::AddressSpaceId,
@@ -84,7 +83,6 @@ impl Default for ProcessorState {
 #[derive(Debug)]
 pub struct Chip8Processor {
     state: ProcessorState,
-    registry: Option<Arc<ComponentRegistry>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -165,23 +163,19 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             virtual_gamepad: virtual_gamepad.clone(),
             memory_access_table,
             mode,
-            display: registry.get_id(&self.display).unwrap(),
-            audio: registry.get_id(&self.audio).unwrap(),
-            timer: registry.get_id(&self.timer).unwrap(),
+            display: registry.get(&self.display).unwrap(),
+            audio: registry.get(&self.audio).unwrap(),
+            timer: registry.get(&self.timer).unwrap(),
             config: self,
         };
 
         component_builder
             .insert_gamepad("chip8-keypad", virtual_gamepad)
             .0
-            .insert_task_mut("driver", frequency, driver)
-            .set_lazy_component_initializer(|component, data| {
-                component.registry = Some(data.component_registry.clone())
-            });
+            .insert_task_mut("driver", frequency, driver);
 
         Ok(Chip8Processor {
             state,
-            registry: None,
         })
     }
 }

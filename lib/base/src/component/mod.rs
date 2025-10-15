@@ -1,6 +1,6 @@
 use crate::{
     graphics::GraphicsApi,
-    machine::{builder::ComponentBuilder, registry::ComponentRegistry},
+    machine::builder::ComponentBuilder,
     memory::{
         Address, AddressSpaceId, PreviewMemoryError, PreviewMemoryErrorType, ReadMemoryError,
         ReadMemoryErrorType, WriteMemoryError, WriteMemoryErrorType,
@@ -8,21 +8,18 @@ use crate::{
     platform::Platform,
 };
 use nalgebra::SVector;
-use nohash::IsEnabled;
-pub use path::{ComponentPath, ResourcePath};
 use ringbuffer::AllocRingBuffer;
-use serde::{Deserialize, Serialize};
 use std::{
     any::Any,
     error::Error,
     fmt::Debug,
-    hash::Hash,
     io::{Read, Write},
-    num::NonZero,
-    sync::Arc,
 };
+pub use path::{ComponentPath, ResourcePath};
+pub use handle::*;
 
 mod path;
+mod handle;
 
 #[allow(unused)]
 /// Basic supertrait for all components
@@ -155,33 +152,7 @@ pub trait ComponentConfig<P: Platform>: Debug + Sized {
 pub struct LateInitializedData<P: Platform> {
     /// Graphics related data
     pub component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
-    /// Registry for components
-    pub component_registry: Arc<ComponentRegistry>,
 }
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
-/// A reference to a component
-///
-/// The guts are [NonZero] for layout optimization
-pub struct ComponentId(NonZero<u16>);
-
-impl ComponentId {
-    pub(crate) fn new(id: u16) -> Self {
-        Self(id.checked_add(1).and_then(NonZero::new).unwrap())
-    }
-
-    pub(crate) fn get(&self) -> u16 {
-        self.0.get() - 1
-    }
-}
-
-impl Hash for ComponentId {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_u16(self.0.get());
-    }
-}
-
-impl IsEnabled for ComponentId {}
 
 /// Version that components use
 pub type ComponentVersion = u64;

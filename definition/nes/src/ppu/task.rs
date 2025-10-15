@@ -145,7 +145,6 @@ impl Driver {
                                 color,
                             );
 
-                            // TODO: this just renders in greyscale
                             state.pixel_queue.push_back(color.into());
                         }
                     }

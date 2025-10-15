@@ -314,7 +314,7 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
 
         let processor_nmi = component_builder
             .registry()
-            .interact_by_path::<Mos6502, _>(&self.processor, |component| component.nmi())
+            .interact::<Mos6502, _>(&self.processor, |component| component.nmi())
             .unwrap();
 
         component_builder

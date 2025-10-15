@@ -30,7 +30,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
 
         let cpu_rdy = component_builder
             .registry()
-            .interact_by_path::<Mos6502, _>(&self.cpu, |cpu| cpu.rdy())
+            .interact::<Mos6502, _>(&self.cpu, |cpu| cpu.rdy())
             .unwrap();
 
         let component_builder = component_builder.insert_task_mut(
