@@ -8,6 +8,9 @@ pub struct MmapBackend(Mmap);
 
 impl RomMemoryBackend for MmapBackend {
     fn new(file: File) -> Self {
+        // Modifying files on disk that are memmapped is UB, so we attempt to acquire a file lock to prevent such a thing
+        let _ = file.lock_shared();
+
         Self(unsafe { Mmap::map(&file).unwrap() })
     }
 

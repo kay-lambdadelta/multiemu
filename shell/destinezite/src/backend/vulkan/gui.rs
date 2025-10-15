@@ -126,7 +126,7 @@ impl VulkanEguiRenderer {
             .get(EGUI_WGSL_SHADER, GraphicsVersion { major: 1, minor: 0 })
             .unwrap();
 
-        // SAFETY: These shaders are pre validated by naga so this should be safe
+        // These shaders are pre validated by naga so this should be safe
         let vertex_shader = unsafe {
             ShaderModule::new(device.clone(), ShaderModuleCreateInfo::new(&shader.vertex)).unwrap()
         };
@@ -526,6 +526,8 @@ impl VulkanEguiRenderer {
                         .bind_index_buffer(index_buffer_view.clone())
                         .unwrap();
 
+                    // This is safe as long as egui gives valid indexes
+                    // The actual process to verify this would consume too much cpu time to be done
                     unsafe {
                         command_buffer
                             .draw_indexed(index_buffer_view.len() as u32, 1, 0, 0, 0)

@@ -17,7 +17,12 @@ impl<'a, C: Component> Deref for ComponentHandleReadGuard<'a, C> {
     fn deref(&self) -> &Self::Target {
         debug_assert!((self.component.deref() as &dyn Any).is::<C>());
 
-        unsafe { &*(self.component.deref() as &dyn Any as *const dyn Any as *const C) }
+        /// # SAFETY
+        ///
+        /// The component must match the type of the generic
+        unsafe {
+            &*(self.component.deref() as &dyn Any as *const dyn Any as *const C)
+        }
     }
 }
 
@@ -51,7 +56,8 @@ pub struct ComponentHandle<C: Component> {
 
 impl<C: Component> ComponentHandle<C> {
     /// # SAFETY
-    ///     The component must match the type of the generic, this struct does not do type checking in release mode
+    ///
+    /// The component must match the type of the generic, this struct does not do type checking in release mode
     pub(crate) unsafe fn new(component: Arc<RwLock<dyn Component>>) -> Self {
         Self {
             component,

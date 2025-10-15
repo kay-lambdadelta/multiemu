@@ -73,6 +73,7 @@ impl<T: ?Sized + BufferContents + 'static> SubbufferExt<T> for Subbuffer<T> {
         let buffer = Box::new(self.clone());
         let guard = buffer.read()?;
 
+        // We are erasing the lifetime here
         let guard: BufferReadGuard<'static, T> = unsafe { transmute(guard) };
 
         Ok(OwnedBufferReadGuard {
@@ -85,6 +86,7 @@ impl<T: ?Sized + BufferContents + 'static> SubbufferExt<T> for Subbuffer<T> {
         let buffer = Box::new(self.clone());
         let guard = buffer.write()?;
 
+        // We are erasing the lifetime here
         let guard: BufferWriteGuard<'static, T> = unsafe { transmute(guard) };
 
         Ok(OwnedBufferWriteGuard {
