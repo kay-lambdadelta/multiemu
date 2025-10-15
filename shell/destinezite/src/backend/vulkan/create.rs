@@ -4,6 +4,7 @@ use multiemu_base::graphics::vulkan::vulkano::{
         Device, DeviceExtensions, QueueFlags,
         physical::{PhysicalDevice, PhysicalDeviceType},
     },
+    format::Format,
     image::{Image, ImageUsage},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     swapchain::{PresentMode, Surface, Swapchain, SwapchainCreateInfo},
@@ -119,10 +120,22 @@ pub fn create_vulkan_swapchain(
             .physical_device()
             .surface_capabilities(&surface, Default::default())
             .unwrap();
-        let (image_format, _) = device
+        let surface_formats = device
             .physical_device()
             .surface_formats(&surface, Default::default())
-            .unwrap()[0];
+            .unwrap();
+        let image_format = surface_formats
+            .iter()
+            .find_map(|(format, _)| {
+                if *format == Format::B8G8R8A8_SRGB || *format == Format::R8G8B8A8_SRGB {
+                    Some(*format)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(surface_formats[0].0);
+
+        tracing::info!("Choosing swapchain format {:?}", image_format);
 
         Swapchain::new(
             device.clone(),

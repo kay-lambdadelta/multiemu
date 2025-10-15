@@ -48,9 +48,8 @@ fn linear_to_srgba(rgba: vec4<f32>) -> vec4<f32> {
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color_linear = textureSample(texture, texture_sampler, input.uv);
     let tex_color_srgb = linear_to_srgba(tex_color_linear);
-    let vertex_color_srgb = linear_to_srgba(input.color);
 
-    let blended_srgb = tex_color_srgb * vertex_color_srgb;
+    let blended_srgb = tex_color_srgb * input.color;
 
     return vec4<f32>(
         srgb_to_linear(blended_srgb.rgb),
