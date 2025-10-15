@@ -15,7 +15,7 @@ use multiemu_base::{
     scheduler::TaskMut,
 };
 use multiemu_definition_mos6502::NmiFlag;
-use nalgebra::Point2;
+use nalgebra::{Point2, Vector2};
 use palette::Srgb;
 use std::{
     num::NonZero,
@@ -131,10 +131,14 @@ impl Driver {
                         let pattern_low_bits = pattern_table_low.view_bits::<Msb0>();
                         let pattern_high_bits = pattern_table_high.view_bits::<Msb0>();
 
-                        for (low, high) in pattern_low_bits.into_iter().zip(pattern_high_bits) {
+                        for index in 0..8 {
+                            let bit_index = (index + state.fine_scroll.x as usize) % 8;
+                            let low = pattern_low_bits[bit_index];
+                            let high = pattern_high_bits[bit_index];
+
                             let mut color_bits: BitArray<u8, Lsb0> = Default::default();
-                            color_bits.set(0, *low);
-                            color_bits.set(1, *high);
+                            color_bits.set(0, low);
+                            color_bits.set(1, high);
 
                             let color = color_bits.load::<u8>();
 
@@ -190,9 +194,17 @@ impl State {
         memory_access_table: &MemoryAccessTable,
         ppu_address_space: AddressSpaceId,
     ) -> u8 {
-        let tile_position = self.get_modified_cycle_counter::<R>(8) / 8;
+        let scrolled = self.scrolled(); // in pixels
 
-        let address = self.nametable_base + tile_position.y * 32 + tile_position.x;
+        let nametable = scrolled.component_div(&Vector2::new(256, 240));
+        let nametable_index = nametable.x + nametable.y * 2;
+
+        let base_address = self.nametable_base + nametable_index * 0x400;
+
+        // Tile coordinates within the nametable
+        let tile_position = Point2::new(scrolled.x % 256, scrolled.y % 240) / 8;
+
+        let address = base_address + tile_position.y * 32 + tile_position.x;
 
         memory_access_table
             .read_le_value(address as usize, ppu_address_space)
@@ -205,7 +217,7 @@ impl State {
         memory_access_table: &MemoryAccessTable,
         ppu_address_space: AddressSpaceId,
     ) -> u8 {
-        let tile_position = self.get_modified_cycle_counter::<R>(8) / 8;
+        let tile_position = self.tile_position();
         let attribute_position = tile_position / 4;
 
         let attribute_base = self.nametable_base + 0x3c0;
@@ -223,9 +235,7 @@ impl State {
         ppu_address_space: AddressSpaceId,
         nametable: u8,
     ) -> u8 {
-        let cycle_counter = self.get_modified_cycle_counter::<R>(8);
-
-        let row = cycle_counter.y % 8;
+        let row = self.scrolled().y % 8;
         let address = self.background_pattern_table_base + (nametable as u16) * 16 + row;
 
         memory_access_table
@@ -240,9 +250,7 @@ impl State {
         ppu_address_space: AddressSpaceId,
         nametable: u8,
     ) -> u8 {
-        let cycle_counter = self.get_modified_cycle_counter::<R>(8);
-
-        let row = cycle_counter.y % 8;
+        let row = self.scrolled().y % 8;
         let address = self.background_pattern_table_base + (nametable as u16) * 16 + row + 8;
 
         memory_access_table
@@ -260,13 +268,12 @@ impl State {
         attribute_byte: u8,
         color: u8,
     ) -> Srgb<u8> {
-        let tile_position = self.get_modified_cycle_counter::<R>(8) / 8;
+        let tile_position = self.tile_position();
 
-        let quadrant = Point2::new(tile_position.x % 4, tile_position.y % 4) / 2;
-        let shift = (quadrant.y * 2 + quadrant.x) * 2;
-
-        let color_bits = color & 0b11; // lowest 2 bits
-        let attribute_bits = (attribute_byte >> shift) & 0b11; // 2 bits from attribute byte
+        let attribute_quadrant = Point2::new(tile_position.x % 2, tile_position.y % 2);
+        let shift = (attribute_quadrant.y * 2 + attribute_quadrant.x) * 2;
+        let color_bits = color & 0b11;
+        let attribute_bits = (attribute_byte >> shift) & 0b11;
 
         // Combine into a 4-bit palette index
         let palette_index = color_bits | (attribute_bits << 2);
@@ -284,5 +291,21 @@ impl State {
         };
 
         R::color_to_srgb(color)
+    }
+
+    #[inline]
+    pub fn scrolled(&self) -> Vector2<u16> {
+        self.coarse_scroll.cast() * 8
+            + self.fine_scroll.cast()
+            + Vector2::new(self.cycle_counter.x - 1, self.cycle_counter.y)
+    }
+
+    #[inline]
+    pub fn tile_position(&self) -> Point2<u16> {
+        let scrolled = self.scrolled();
+
+        let tile_position = Vector2::new(scrolled.x % 256, scrolled.y % 240) / 8;
+
+        tile_position.into()
     }
 }

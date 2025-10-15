@@ -65,11 +65,14 @@ const TOTAL_SCANLINE_LENGTH: u16 = VISIBLE_SCANLINE_LENGTH + HBLANK_LENGTH;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct ColorEmphasis {
+    /// This actually means green on pal/dendy
     pub red: bool,
+    /// This actually means red on pal/dendy
     pub green: bool,
     pub blue: bool,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum DrawingState {
     FetchingNametable,
@@ -87,30 +90,6 @@ pub enum DrawingState {
     },
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Debug, Default)]
-enum PpuAddrWritePhase {
-    #[default]
-    Upper,
-    Lower,
-}
-
-impl PpuAddrWritePhase {
-    fn index(self) -> usize {
-        self as usize
-    }
-}
-
-impl Not for PpuAddrWritePhase {
-    type Output = Self;
-
-    fn not(self) -> Self::Output {
-        match self {
-            PpuAddrWritePhase::Upper => PpuAddrWritePhase::Lower,
-            PpuAddrWritePhase::Lower => PpuAddrWritePhase::Upper,
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 struct State {
     nametable_base: u16,
@@ -126,10 +105,13 @@ struct State {
     background_rendering_enabled: bool,
     sprite_rendering_enabled: bool,
     ppuaddr: u16,
-    ppuaddr_write_phase: PpuAddrWritePhase,
+    // NES documents tend to call this w
+    ppuaddr_ppuscroll_write_phase: bool,
     ppuaddr_increment_amount: u8,
     color_emphasis: ColorEmphasis,
     cycle_counter: Point2<u16>,
+    fine_scroll: Vector2<u8>,
+    coarse_scroll: Vector2<u8>,
     awaiting_memory_access: bool,
     drawing_state: DrawingState,
     pixel_queue: VecDeque<Srgba<u8>>,
@@ -160,8 +142,10 @@ impl Default for State {
             drawing_state: DrawingState::FetchingNametable,
             awaiting_memory_access: true,
             ppuaddr: 0,
-            ppuaddr_write_phase: Default::default(),
+            ppuaddr_ppuscroll_write_phase: false,
             ppuaddr_increment_amount: 1,
+            fine_scroll: Vector2::default(),
+            coarse_scroll: Vector2::default(),
             pixel_queue: VecDeque::from_iter([BLACK.into(); 8]),
         }
     }
@@ -251,15 +235,47 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
 
                 self.state.vblank_nmi_enabled = data_bits[7];
             }
-            CpuAccessibleRegister::PpuMask => todo!(),
+            CpuAccessibleRegister::PpuMask => {
+                let data_bits = data.view_bits::<Lsb0>();
+
+                self.state.greyscale = data_bits[0];
+
+                self.state.show_background_leftmost_pixels = data_bits[1];
+                self.state.show_sprites_leftmost_pixels = data_bits[2];
+
+                self.state.background_rendering_enabled = data_bits[3];
+                self.state.sprite_rendering_enabled = data_bits[4];
+
+                self.state.color_emphasis.red = data_bits[5];
+                self.state.color_emphasis.green = data_bits[6];
+                self.state.color_emphasis.blue = data_bits[7];
+            }
             CpuAccessibleRegister::PpuStatus => todo!(),
             CpuAccessibleRegister::OamAddr => todo!(),
             CpuAccessibleRegister::OamData => todo!(),
-            CpuAccessibleRegister::PpuScroll => todo!(),
+            CpuAccessibleRegister::PpuScroll => {
+                // Convert the byte into a bit slice
+                let bits = data.view_bits::<Lsb0>();
+
+                let fine_scroll = bits[0..=2].load::<u8>();
+                let coarse_scroll = bits[3..=7].load::<u8>();
+
+                if !self.state.ppuaddr_ppuscroll_write_phase {
+                    self.state.fine_scroll.x = fine_scroll;
+                    self.state.coarse_scroll.x = coarse_scroll;
+                } else {
+                    self.state.fine_scroll.y = fine_scroll;
+                    self.state.coarse_scroll.y = coarse_scroll;
+                }
+
+                self.state.ppuaddr_ppuscroll_write_phase =
+                    !self.state.ppuaddr_ppuscroll_write_phase;
+            }
             CpuAccessibleRegister::PpuAddr => {
                 let mut unpacked_address = self.state.ppuaddr.to_be_bytes();
-                unpacked_address[self.state.ppuaddr_write_phase.index()] = data;
-                self.state.ppuaddr_write_phase = !self.state.ppuaddr_write_phase;
+                unpacked_address[self.state.ppuaddr_ppuscroll_write_phase as usize] = data;
+                self.state.ppuaddr_ppuscroll_write_phase =
+                    !self.state.ppuaddr_ppuscroll_write_phase;
                 self.state.ppuaddr = u16::from_be_bytes(unpacked_address);
             }
             CpuAccessibleRegister::PpuData => {
@@ -337,6 +353,15 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
             .memory_map_write(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuCtrl as usize..=CpuAccessibleRegister::PpuCtrl as usize,
+            )
+            .memory_map_write(
+                self.cpu_address_space,
+                CpuAccessibleRegister::PpuScroll as usize
+                    ..=CpuAccessibleRegister::PpuScroll as usize,
+            )
+            .memory_map_write(
+                self.cpu_address_space,
+                CpuAccessibleRegister::PpuMask as usize..=CpuAccessibleRegister::PpuMask as usize,
             )
             .memory_map_read(
                 self.cpu_address_space,
