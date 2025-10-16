@@ -106,6 +106,7 @@ impl ProgramMetadata {
         let mut loaded_roms = BTreeMap::new();
         let database_transaction = rom_information.begin_write()?;
         database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
+        database_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;
         database_transaction.commit()?;
 
         let _ = create_dir_all(&environment_guard.rom_store_directory);
@@ -275,52 +276,88 @@ impl ProgramMetadata {
         let hash_alias_table = read_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;
         let program_info_table = read_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
 
-        Ok(roms.iter().find_map(|rom| {
-            hash_alias_table
-                .get(rom)
-                .into_iter()
-                .flatten()
-                .flatten()
-                .find_map(|program_id| {
-                    let program_id: ProgramId = program_id.value();
+        Ok(roms
+            .iter()
+            .find_map(|rom| {
+                hash_alias_table
+                    .get(rom)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .find_map(|program_id| {
+                        let program_id: ProgramId = program_id.value();
 
-                    program_info_table
-                        .get(&program_id)
-                        .into_iter()
-                        .flatten()
-                        .flatten()
-                        .find_map(|info| {
-                            let info = info.value();
+                        program_info_table
+                            .get(&program_id)
+                            .into_iter()
+                            .flatten()
+                            .flatten()
+                            .find_map(|info| {
+                                let info = info.value();
 
-                            match info.filesystem() {
-                                Filesystem::Single {
-                                    rom_id,
-                                    file_name: _,
-                                } => {
-                                    if roms.len() == 1 && roms[0] == *rom_id {
-                                        return Some(ProgramSpecification {
-                                            id: program_id.clone(),
-                                            info,
-                                        });
+                                match info.filesystem() {
+                                    Filesystem::Single {
+                                        rom_id,
+                                        file_name: _,
+                                    } => {
+                                        if roms.len() == 1 && roms[0] == *rom_id {
+                                            return Some(ProgramSpecification {
+                                                id: program_id.clone(),
+                                                info,
+                                            });
+                                        }
+                                    }
+                                    // TODO: match on subpaths also
+                                    Filesystem::Complex(fs) => {
+                                        let found_all = roms.iter().all(|id| fs.contains_key(id));
+
+                                        if found_all {
+                                            return Some(ProgramSpecification {
+                                                id: program_id.clone(),
+                                                info,
+                                            });
+                                        }
                                     }
                                 }
-                                // TODO: match on subpaths also
-                                Filesystem::Complex(fs) => {
-                                    let found_all = roms.iter().all(|id| fs.contains_key(id));
 
-                                    if found_all {
-                                        return Some(ProgramSpecification {
-                                            id: program_id.clone(),
-                                            info,
-                                        });
-                                    }
-                                }
-                            }
+                                None
+                            })
+                    })
+            })
+            .or_else(|| {
+                if roms.len() == 1
+                    && let Some(rom_location) = self.loaded_roms.read().unwrap().get(&roms[0])
+                {
+                    let rom_id = roms[0];
 
-                            None
-                        })
-                })
-        }))
+                    let internal_path = self.get_rom_path(rom_id)?;
+
+                    let name = match rom_location {
+                        LoadedRomLocation::Internal => rom_id.to_string(),
+                        LoadedRomLocation::External(path) => path
+                            .with_extension("")
+                            .file_name()
+                            .map(|string| string.to_string_lossy().to_string())?,
+                    };
+
+                    let machine = MachineId::guess(internal_path)?;
+
+                    Some(ProgramSpecification {
+                        info: ProgramInfo::V0 {
+                            names: BTreeSet::from_iter([name.clone()]),
+                            filesystem: Filesystem::Single {
+                                rom_id,
+                                file_name: name.clone(),
+                            },
+                            languages: Default::default(),
+                            version: None,
+                        },
+                        id: ProgramId { machine, name },
+                    })
+                } else {
+                    None
+                }
+            }))
     }
 
     /// Get the path of a ROM on disk, if we have it

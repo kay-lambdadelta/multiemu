@@ -158,14 +158,17 @@ pub enum Mos6502Kind {
 }
 
 impl Mos6502Kind {
+    #[inline]
     pub fn original_instruction_set(&self) -> bool {
         matches!(self, Self::Mos6502 | Self::Mos6507 | Self::Ricoh2A0x)
     }
 
+    #[inline]
     pub fn supports_decimal(&self) -> bool {
         !matches!(self, Mos6502Kind::Ricoh2A0x)
     }
 
+    #[inline]
     pub fn supports_interrupts(&self) -> bool {
         !matches!(self, Mos6502Kind::Mos6507)
     }

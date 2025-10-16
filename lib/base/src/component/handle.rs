@@ -14,6 +14,7 @@ pub struct ComponentHandleReadGuard<'a, C> {
 impl<'a, C: Component> Deref for ComponentHandleReadGuard<'a, C> {
     type Target = C;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         debug_assert!((self.component.deref() as &dyn Any).is::<C>());
 
@@ -30,6 +31,7 @@ pub struct ComponentHandleWriteGuard<'a, C> {
 impl<'a, C: Component> Deref for ComponentHandleWriteGuard<'a, C> {
     type Target = C;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         debug_assert!((self.component.deref() as &dyn Any).is::<C>());
 
@@ -38,6 +40,7 @@ impl<'a, C: Component> Deref for ComponentHandleWriteGuard<'a, C> {
 }
 
 impl<'a, C: Component> DerefMut for ComponentHandleWriteGuard<'a, C> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         debug_assert!((self.component.deref() as &dyn Any).is::<C>());
 
@@ -61,6 +64,7 @@ impl<C: Component> ComponentHandle<C> {
         }
     }
 
+    #[inline]
     pub fn read(&self) -> ComponentHandleReadGuard<'_, C> {
         let guard = self.component.read().unwrap();
 
@@ -70,6 +74,7 @@ impl<C: Component> ComponentHandle<C> {
         }
     }
 
+    #[inline]
     pub fn write(&self) -> ComponentHandleWriteGuard<'_, C> {
         let guard = self.component.write().unwrap();
 

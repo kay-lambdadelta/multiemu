@@ -92,7 +92,7 @@ impl MemoryAccessTable {
         Ok(())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn read_le_value<T: FromBytes>(
         &self,
         address: Address,
@@ -106,7 +106,7 @@ impl MemoryAccessTable {
         Ok(T::from_le_bytes(&buffer))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn read_be_value<T: FromBytes>(
         &self,
         address: Address,

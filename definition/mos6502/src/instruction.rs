@@ -48,6 +48,7 @@ impl AddressingMode {
 }
 
 impl AddressingMode {
+    #[inline]
     pub fn added_instruction_length(&self) -> u16 {
         match self {
             AddressingMode::Mos6502(Mos6502AddressingMode::Immediate) => 1,

@@ -291,9 +291,9 @@ impl AddressSpace {
         self.queue_modified.store(true, Ordering::Release);
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn get_members(&self, registry: &ComponentRegistry) -> RwLockReadGuard<'_, Members> {
-        if !self.queue_modified.swap(false, Ordering::Acquire) {
+        if !self.queue_modified.load(Ordering::Acquire) {
             self.members.read().unwrap()
         } else {
             self.update_members(registry);
@@ -304,6 +304,7 @@ impl AddressSpace {
     #[cold]
     fn update_members(&self, registry: &ComponentRegistry) {
         let mut queue_guard = self.queue.lock().unwrap();
+        self.queue_modified.store(false, Ordering::Release);
 
         let max = 2usize.pow(self.address_space_width as u32) - 1;
 

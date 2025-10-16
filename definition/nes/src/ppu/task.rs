@@ -95,7 +95,6 @@ impl Driver {
                         let attribute =
                             state.fetch_attribute::<R>(access_table, self.ppu_address_space);
 
-                        // TODO: Placeholder
                         state.drawing_state = DrawingState::FetchingPatternTableLow {
                             nametable,
                             attribute,

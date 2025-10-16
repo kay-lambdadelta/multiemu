@@ -38,6 +38,7 @@ impl Mos6502InstructionDecoder {
 impl InstructionDecoder for Mos6502InstructionDecoder {
     type InstructionSet = Mos6502InstructionSet;
 
+    #[inline]
     fn decode(
         &self,
         address: Address,

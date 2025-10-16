@@ -22,6 +22,7 @@ const INTERRUPT_VECTOR: Address = 0xfffe;
 // FIXME: Decimal mode is not implemented
 
 impl Driver {
+    #[inline]
     pub(super) fn interpret_instruction(
         &self,
         state: &mut ProcessorState,

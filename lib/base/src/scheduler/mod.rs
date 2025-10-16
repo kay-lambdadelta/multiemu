@@ -232,12 +232,6 @@ impl SchedulerState {
         }
     }
 
-    #[inline]
-    fn update_current_tick(&mut self, amount: u32) {
-        self.current_tick =
-            self.current_tick.checked_add(amount).unwrap() % self.timeline.len() as u32;
-    }
-
     pub fn handle(&self) -> Arc<SchedulerHandle> {
         self.handle.clone()
     }

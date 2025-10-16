@@ -75,7 +75,7 @@ impl MemoryAccessTable {
         Ok(())
     }
 
-    #[inline]
+    #[inline(always)]
     /// Helper function to write with a little endian value
     pub fn write_le_value<T: ToBytes>(
         &self,
@@ -86,7 +86,7 @@ impl MemoryAccessTable {
         self.write(address, address_space, value.to_le_bytes().as_ref())
     }
 
-    #[inline]
+    #[inline(always)]
     /// Helper function to write with a big endian value
     pub fn write_be_value<T: ToBytes>(
         &self,

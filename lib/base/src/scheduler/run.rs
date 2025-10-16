@@ -19,7 +19,8 @@ impl SchedulerState {
                 (task_info.task)(&self.registry, *time_slice);
             }
 
-            self.update_current_tick(1);
+            self.current_tick =
+                self.current_tick.checked_add(1).unwrap() % self.timeline.len() as u32;
         }
     }
 
