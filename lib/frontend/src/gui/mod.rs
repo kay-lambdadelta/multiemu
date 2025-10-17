@@ -7,7 +7,7 @@ use egui::{
     TopBottomPanel,
 };
 use file_browser::FileBrowserState;
-use multiemu_base::{
+use multiemu_runtime::{
     environment::Environment,
     program::{ProgramMetadata, ProgramSpecification},
 };

@@ -12,17 +12,16 @@ use crate::{
 };
 pub use cartridge::ines::INes;
 use cartridge::{NesCartridgeConfig, ines::TimingMode};
-use multiemu_base::{
+use multiemu_definition_misc::memory::standard::{
+    StandardMemoryConfig, StandardMemoryInitialContents,
+};
+use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
+use multiemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     memory::AddressSpaceId,
     platform::Platform,
     program::Filesystem,
 };
-use multiemu_definition_misc::memory::{
-    mirror::MirrorMemoryConfig,
-    standard::{StandardMemoryConfig, StandardMemoryInitialContents},
-};
-use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
 use std::marker::PhantomData;
@@ -61,54 +60,17 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
                 sram: false,
             },
         );
-        let (machine, _) = machine.insert_component(
-            "workram-mirror-0",
-            MirrorMemoryConfig {
-                readable: true,
-                writable: true,
-                source_addresses: 0x0800..=0x0fff,
-                source_address_space: cpu_address_space,
-                destination_addresses: 0x0000..=0x07ff,
-                destination_address_space: cpu_address_space,
-            },
-        );
-        let (machine, _) = machine.insert_component(
-            "workram-mirror-1",
-            MirrorMemoryConfig {
-                readable: true,
-                writable: true,
-                source_addresses: 0x1000..=0x17ff,
-                source_address_space: cpu_address_space,
-                destination_addresses: 0x0000..=0x07ff,
-                destination_address_space: cpu_address_space,
-            },
-        );
-        let (mut machine, _) = machine.insert_component(
-            "workram-mirror-2",
-            MirrorMemoryConfig {
-                readable: true,
-                writable: true,
-                source_addresses: 0x1800..=0x1fff,
-                source_address_space: cpu_address_space,
-                destination_addresses: 0x0000..=0x07ff,
-                destination_address_space: cpu_address_space,
-            },
-        );
+        let mut machine = machine
+            .memory_map_mirror(0x0800..=0x0fff, 0x0000..=0x07ff, cpu_address_space)
+            .memory_map_mirror(0x1000..=0x17ff, 0x0000..=0x07ff, cpu_address_space)
+            .memory_map_mirror(0x1800..=0x1fff, 0x0000..=0x07ff, cpu_address_space);
 
-        for (index, address) in (0x2000..=0x3fff).step_by(8).skip(1).enumerate() {
-            machine = machine
-                .insert_component(
-                    &format!("ppu-register-mirror-{}", index),
-                    MirrorMemoryConfig {
-                        readable: true,
-                        writable: true,
-                        source_addresses: address..=address + 7,
-                        source_address_space: cpu_address_space,
-                        destination_addresses: 0x2000..=0x2007,
-                        destination_address_space: cpu_address_space,
-                    },
-                )
-                .0;
+        for address in (0x2000..=0x3fff).step_by(8).skip(1) {
+            machine = machine.memory_map_mirror(
+                address..=address + 7,
+                0x2000..=0x2007,
+                cpu_address_space,
+            );
         }
 
         let (machine, cartridge) = machine.insert_component(
@@ -318,31 +280,17 @@ fn setup_ppu_nametables<P: Platform>(
                 },
             );
 
-            let (machine, _) = machine.insert_component(
-                "nametable-2",
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    source_addresses: NAMETABLE_ADDRESSES[2].clone(),
-                    source_address_space: ppu_address_space,
-                    destination_addresses: NAMETABLE_ADDRESSES[0].clone(),
-                    destination_address_space: ppu_address_space,
-                },
-            );
-
-            let (machine, _) = machine.insert_component(
-                "nametable-3",
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    source_addresses: NAMETABLE_ADDRESSES[3].clone(),
-                    source_address_space: ppu_address_space,
-                    destination_addresses: NAMETABLE_ADDRESSES[1].clone(),
-                    destination_address_space: ppu_address_space,
-                },
-            );
-
             machine
+                .memory_map_mirror(
+                    NAMETABLE_ADDRESSES[2].clone(),
+                    NAMETABLE_ADDRESSES[0].clone(),
+                    ppu_address_space,
+                )
+                .memory_map_mirror(
+                    NAMETABLE_ADDRESSES[3].clone(),
+                    NAMETABLE_ADDRESSES[1].clone(),
+                    ppu_address_space,
+                )
         }
         Mirroring::Horizontal => {
             let (machine, _) = machine.insert_component(
@@ -361,18 +309,6 @@ fn setup_ppu_nametables<P: Platform>(
             );
 
             let (machine, _) = machine.insert_component(
-                "nametable-1",
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    source_addresses: NAMETABLE_ADDRESSES[1].clone(),
-                    source_address_space: ppu_address_space,
-                    destination_addresses: NAMETABLE_ADDRESSES[0].clone(),
-                    destination_address_space: ppu_address_space,
-                },
-            );
-
-            let (machine, _) = machine.insert_component(
                 "nametable-2",
                 StandardMemoryConfig {
                     assigned_address_space: ppu_address_space,
@@ -387,19 +323,17 @@ fn setup_ppu_nametables<P: Platform>(
                 },
             );
 
-            let (machine, _) = machine.insert_component(
-                "nametable-3",
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    source_addresses: NAMETABLE_ADDRESSES[3].clone(),
-                    source_address_space: ppu_address_space,
-                    destination_addresses: NAMETABLE_ADDRESSES[2].clone(),
-                    destination_address_space: ppu_address_space,
-                },
-            );
-
             machine
+                .memory_map_mirror(
+                    NAMETABLE_ADDRESSES[1].clone(),
+                    NAMETABLE_ADDRESSES[0].clone(),
+                    ppu_address_space,
+                )
+                .memory_map_mirror(
+                    NAMETABLE_ADDRESSES[3].clone(),
+                    NAMETABLE_ADDRESSES[2].clone(),
+                    ppu_address_space,
+                )
         }
     }
 }

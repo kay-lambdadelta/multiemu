@@ -1,5 +1,5 @@
 use crate::tia::region::Region;
-use multiemu_base::graphics::GraphicsApi;
+use multiemu_runtime::graphics::GraphicsApi;
 use nalgebra::DMatrixViewMut;
 use palette::Srgba;
 use std::fmt::Debug;

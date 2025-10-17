@@ -5,7 +5,8 @@ edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-multiemu-base = { workspace = true }
+multiemu-runtime = { workspace = true }
+multiemu-audio = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 num = { workspace = true }
 bytemuck = { workspace = true }
@@ -26,8 +27,8 @@ ron = { workspace = true }
 criterion = { workspace = true }
 
 [features]
-vulkan = ["multiemu-base/vulkan"]
-opengl = ["multiemu-base/opengl"]
+vulkan = ["multiemu-runtime/vulkan"]
+opengl = ["multiemu-runtime/opengl"]
 
 [[bench]]
 name = "instruction_decode"

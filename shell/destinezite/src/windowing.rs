@@ -7,16 +7,16 @@ use crate::{
 };
 use egui::RawInput;
 use egui_winit::egui::ViewportId;
-use multiemu_base::{
+use multiemu_frontend::{
+    DisplayApiHandle, EguiPlatformIntegration, FrontendRuntime, GraphicsRuntime, MachineFactories,
+    PlatformExt,
+};
+use multiemu_runtime::{
     environment::{ENVIRONMENT_LOCATION, Environment},
     graphics::GraphicsApi,
     input::{GamepadId, Input, InputState},
     platform::Platform,
     program::{ProgramMetadata, ProgramSpecification},
-};
-use multiemu_frontend::{
-    DisplayApiHandle, EguiPlatformIntegration, FrontendRuntime, GraphicsRuntime, MachineFactories,
-    PlatformExt,
 };
 use nalgebra::Vector2;
 use std::{

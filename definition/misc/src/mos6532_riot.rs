@@ -1,10 +1,10 @@
 use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceId, PreviewMemoryError, PreviewMemoryErrorType, ReadMemoryError,
-        ReadMemoryErrorType, WriteMemoryError, WriteMemoryErrorType,
+        Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
+        WriteMemoryErrorType,
     },
     platform::Platform,
 };
@@ -131,6 +131,7 @@ impl Component for Mos6532Riot {
         &self,
         address: Address,
         _address_space: AddressSpaceId,
+        avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
         for (address, buffer_section) in
@@ -139,6 +140,15 @@ impl Component for Mos6532Riot {
             let adjusted_address = address - self.config.registers_assigned_address;
 
             match adjusted_address {
+                0x0 | 0x2 if avoid_side_effects => {
+                    return Err(ReadMemoryError(
+                        std::iter::once((
+                            address..=(address + (buffer.len() - 1)),
+                            ReadMemoryErrorType::Denied,
+                        ))
+                        .collect(),
+                    ));
+                }
                 0x0 if self.registers.swacnt => {
                     *buffer_section = self
                         .registers
@@ -184,66 +194,6 @@ impl Component for Mos6532Riot {
                         std::iter::once((
                             address..=(address + (buffer.len() - 1)),
                             ReadMemoryErrorType::Denied,
-                        ))
-                        .collect(),
-                    ));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn preview_memory(
-        &self,
-        address: Address,
-        _address_space: AddressSpaceId,
-        buffer: &mut [u8],
-    ) -> Result<(), PreviewMemoryError> {
-        for (address, buffer_section) in
-            (address..=(address + (buffer.len() - 1))).zip(buffer.iter_mut())
-        {
-            let adjusted_address = address - self.config.registers_assigned_address;
-
-            match adjusted_address {
-                0x0 | 0x2 => {
-                    return Err(PreviewMemoryError(
-                        std::iter::once((
-                            address..=(address + (buffer.len() - 1)),
-                            PreviewMemoryErrorType::Denied,
-                        ))
-                        .collect(),
-                    ));
-                }
-                0x1 => {
-                    *buffer_section = if self.registers.swacnt { 1 } else { 0 };
-                }
-                0x3 => {
-                    *buffer_section = if self.registers.swbcnt { 1 } else { 0 };
-                }
-                0x4 => {
-                    *buffer_section = self.registers.intim;
-                }
-                0x5 => {
-                    *buffer_section = self.registers.instat;
-                }
-                0x14 => {
-                    *buffer_section = self.registers.tim1t;
-                }
-                0x15 => {
-                    *buffer_section = self.registers.tim8t;
-                }
-                0x16 => {
-                    *buffer_section = self.registers.tim64t;
-                }
-                0x17 => {
-                    *buffer_section = self.registers.t1024t;
-                }
-                _ => {
-                    return Err(PreviewMemoryError(
-                        std::iter::once((
-                            address..=(address + (buffer.len() - 1)),
-                            PreviewMemoryErrorType::Denied,
                         ))
                         .collect(),
                     ));
@@ -338,8 +288,8 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
             self.ram_assigned_address..=self.ram_assigned_address.checked_add(0x7f).unwrap();
 
         let component_builder = component_builder.memory_map(
-            self.assigned_address_space,
             self.registers_assigned_address..=self.registers_assigned_address + 0x1f,
+            self.assigned_address_space,
         );
 
         let (component_builder, _) = component_builder.insert_child_component(

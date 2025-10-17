@@ -5,7 +5,9 @@ use crate::{
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,
 };
-use multiemu_base::{memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::TaskMut};
+use multiemu_runtime::{
+    memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::TaskMut,
+};
 use std::{num::NonZero, sync::Arc};
 
 #[derive(Debug)]
@@ -74,6 +76,7 @@ impl TaskMut<Mos6502> for Driver {
                         .read_le_value(
                             component.state.address_bus as usize,
                             component.config.assigned_address_space,
+                            false,
                         )
                         .unwrap_or_default();
 

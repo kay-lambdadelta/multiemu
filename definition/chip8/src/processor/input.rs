@@ -1,4 +1,4 @@
-use multiemu_base::input::{Input, keyboard::KeyboardInput};
+use multiemu_runtime::input::{Input, keyboard::KeyboardInput};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 

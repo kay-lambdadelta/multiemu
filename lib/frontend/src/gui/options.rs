@@ -1,6 +1,6 @@
 use super::UiOutput;
 use egui::{ComboBox, RichText, Ui};
-use multiemu_base::environment::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
+use multiemu_runtime::environment::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
 use std::{
     fs::File,
     ops::Deref,
@@ -24,7 +24,11 @@ impl OptionsState {
         ui.horizontal_top(|ui| {
             let button_text = RichText::new(egui_phosphor::regular::FLOPPY_DISK).size(32.0);
 
-            if ui.button(button_text).on_hover_text("Save environment to disk").clicked() {
+            if ui
+                .button(button_text)
+                .on_hover_text("Save environment to disk")
+                .clicked()
+            {
                 let file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
 
                 environment_guard.save(file).unwrap();

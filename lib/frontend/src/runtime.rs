@@ -3,7 +3,7 @@ use crate::{
     backend::AudioRuntime,
     gui::{MenuState, UiOutput, setup_theme},
 };
-use multiemu_base::{
+use multiemu_runtime::{
     component::ResourcePath,
     environment::Environment,
     graphics::GraphicsApi,

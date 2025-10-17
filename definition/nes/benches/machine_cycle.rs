@@ -1,11 +1,11 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_base::{
+use multiemu_definition_nes::Nes;
+use multiemu_runtime::{
     environment::{ENVIRONMENT_LOCATION, Environment},
     machine::{Machine, MachineFactory},
     platform::TestPlatform,
     program::{ProgramMetadata, RomId},
 };
-use multiemu_definition_nes::Nes;
 use num::rational::Ratio;
 use std::{
     fs::File,

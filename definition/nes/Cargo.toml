@@ -5,7 +5,7 @@ edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-multiemu-base = { workspace = true }
+multiemu-runtime = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }
@@ -27,8 +27,8 @@ ron = { workspace = true }
 criterion = { workspace = true }
 
 [features]
-vulkan = ["multiemu-base/vulkan"]
-opengl = ["multiemu-base/opengl"]
+vulkan = ["multiemu-runtime/vulkan"]
+opengl = ["multiemu-runtime/opengl"]
 
 [[bench]]
 name = "machine_cycle"

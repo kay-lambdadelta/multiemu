@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use multiemu_base::program::MachineId;
+use multiemu_runtime::program::MachineId;
 use std::ffi::OsString;
 
 #[derive(Parser)]

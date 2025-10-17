@@ -1,5 +1,5 @@
 use egui::RawInput;
-use multiemu_base::{
+use multiemu_runtime::{
     environment::Environment,
     platform::Platform,
     program::{ProgramMetadata, ProgramSpecification},

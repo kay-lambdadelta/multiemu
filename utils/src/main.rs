@@ -5,7 +5,7 @@ use crate::{
 use clap::Parser;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use database::redump::RedumpAction;
-use multiemu_base::{
+use multiemu_runtime::{
     environment::{ENVIRONMENT_LOCATION, STORAGE_DIRECTORY},
     program::MachineId,
 };

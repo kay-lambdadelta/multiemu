@@ -1,6 +1,6 @@
 use crate::cartridge::mapper::{mmc1::Mmc1Config, nrom::NRomConfig};
 use ines::INes;
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,

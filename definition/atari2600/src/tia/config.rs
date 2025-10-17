@@ -1,12 +1,12 @@
 use super::{Tia, region::Region, task::TiaTask};
 use crate::tia::backend::{SupportedGraphicsApiTia, TiaDisplayBackend};
-use multiemu_base::{
+use multiemu_definition_mos6502::Mos6502;
+use multiemu_runtime::{
     component::{ComponentConfig, ComponentPath},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
 };
-use multiemu_definition_mos6502::Mos6502;
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
@@ -26,7 +26,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let (component_builder, _) = component_builder.insert_display("tv");
-        let component_builder = component_builder.memory_map(self.cpu_address_space, 0x000..=0x03f);
+        let component_builder = component_builder.memory_map(0x000..=0x03f, self.cpu_address_space);
 
         let cpu_rdy = component_builder
             .registry()

@@ -1,5 +1,5 @@
 use crate::{INes, cartridge::ines::INesVersion};
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,

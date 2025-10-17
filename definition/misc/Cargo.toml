@@ -5,7 +5,8 @@ edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-multiemu-base = { workspace = true }
+multiemu-runtime = { workspace = true }
+multiemu-range = { workspace = true }
 rangemap = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
@@ -14,7 +15,6 @@ num = { workspace = true }
 tracing = { workspace = true }
 bincode = { workspace = true }
 scc = { workspace = true }
-rangetools = { workspace = true }
 bytes = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dependencies]

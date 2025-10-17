@@ -535,9 +535,9 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 
 [[package]]
 name = "bzip2"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bea8dcd42434048e4f7a304411d9273a411f647446c1234a65ce0554923f4cff"
+checksum = "f3a53fac24f34a81bc9954b5d6cfce0c21e18ec6959f44f56e8e90e4bb7c346c"
 dependencies = [
  "bzip2-sys",
  "libbz2-rs-sys",
@@ -1049,21 +1049,21 @@ dependencies = [
 
 [[package]]
 name = "csv"
-version = "1.3.1"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acdc4883a9c96732e4733212c01447ebd805833b7275a73ca3ee080fd77afdaf"
+checksum = "52cd9d68cf7efc6ddfaaee42e7288d3a99d613d4b50f76ce9827ae0c6e14f938"
 dependencies = [
  "csv-core",
  "itoa",
  "ryu",
- "serde",
+ "serde_core",
 ]
 
 [[package]]
 name = "csv-core"
-version = "0.1.12"
+version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d02f3b0da4c6504f86e9cd789d8dbafab48c2321be74e9987593de5a894d93d"
+checksum = "704a3c26996a80471189265814dbc2c257598b96b8a7feae2d31ace646bb9782"
 dependencies = [
  "memchr",
 ]
@@ -2468,46 +2468,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "multiemu-base"
+name = "multiemu-audio"
 version = "0.1.0"
 dependencies = [
- "bincode",
- "bitvec 1.1.0",
- "cfg-if",
- "criterion",
- "crossbeam",
- "data-encoding",
- "dirs",
- "flate2",
- "glow",
- "image",
- "indexmap 2.11.4",
- "itertools 0.14.0",
- "multiemu-locale",
- "naga",
  "nalgebra",
- "nohash",
  "num",
- "palette",
- "rangemap",
- "rangetools",
- "rayon",
- "redb",
  "ringbuffer",
- "ron",
- "rustc-hash 2.1.1",
- "scc",
- "sealed",
- "serde",
- "serde-inline-default",
- "serde_with",
- "sha1 0.10.6",
- "strum",
- "thiserror 2.0.17",
- "tracing",
- "uuid",
- "versions",
- "vulkano",
 ]
 
 [[package]]
@@ -2518,9 +2484,9 @@ dependencies = [
  "bitvec 1.1.0",
  "bytemuck",
  "criterion",
- "multiemu-base",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2536,9 +2502,9 @@ name = "multiemu-definition-atarilynx"
 version = "0.1.0"
 dependencies = [
  "bitvec 1.1.0",
- "multiemu-base",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2558,8 +2524,9 @@ dependencies = [
  "bitvec 1.1.0",
  "bytemuck",
  "criterion",
- "multiemu-base",
+ "multiemu-audio",
  "multiemu-definition-misc",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2578,7 +2545,7 @@ version = "0.1.0"
 dependencies = [
  "bitvec 1.1.0",
  "bytemuck",
- "multiemu-base",
+ "multiemu-runtime",
  "num",
  "strum",
 ]
@@ -2591,11 +2558,11 @@ dependencies = [
  "bytes",
  "criterion",
  "memmap2",
- "multiemu-base",
+ "multiemu-range",
+ "multiemu-runtime",
  "num",
  "rand 0.9.2",
  "rangemap",
- "rangetools",
  "scc",
  "serde",
  "serde_with",
@@ -2610,8 +2577,8 @@ dependencies = [
  "bincode",
  "bitvec 1.1.0",
  "bytemuck",
- "multiemu-base",
  "multiemu-definition-misc",
+ "multiemu-runtime",
  "num",
  "rand 0.9.2",
  "rangemap",
@@ -2628,9 +2595,9 @@ dependencies = [
  "bytemuck",
  "criterion",
  "itertools 0.14.0",
- "multiemu-base",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2655,7 +2622,7 @@ dependencies = [
  "egui_extras",
  "egui_infinite_scroll",
  "indexmap 2.11.4",
- "multiemu-base",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2680,16 +2647,66 @@ dependencies = [
 ]
 
 [[package]]
+name = "multiemu-range"
+version = "0.1.0"
+dependencies = [
+ "num",
+ "rangemap",
+]
+
+[[package]]
+name = "multiemu-runtime"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bitvec 1.1.0",
+ "cfg-if",
+ "crossbeam",
+ "data-encoding",
+ "dirs",
+ "flate2",
+ "glow",
+ "image",
+ "indexmap 2.11.4",
+ "itertools 0.14.0",
+ "multiemu-locale",
+ "multiemu-range",
+ "naga",
+ "nalgebra",
+ "nohash",
+ "num",
+ "palette",
+ "rangemap",
+ "rayon",
+ "redb",
+ "ringbuffer",
+ "ron",
+ "rustc-hash 2.1.1",
+ "scc",
+ "sealed",
+ "serde",
+ "serde-inline-default",
+ "serde_with",
+ "sha1 0.10.6",
+ "strum",
+ "thiserror 2.0.17",
+ "tracing",
+ "uuid",
+ "versions",
+ "vulkano",
+]
+
+[[package]]
 name = "multiemu-shell-citrine"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
  "ctru-rs",
- "multiemu-base",
  "multiemu-definition-atari2600",
  "multiemu-definition-atarilynx",
  "multiemu-definition-chip8",
  "multiemu-definition-nes",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2711,12 +2728,13 @@ dependencies = [
  "egui-winit",
  "gilrs",
  "itertools 0.14.0",
- "multiemu-base",
+ "multiemu-audio",
  "multiemu-definition-atari2600",
  "multiemu-definition-atarilynx",
  "multiemu-definition-chip8",
  "multiemu-definition-nes",
  "multiemu-frontend",
+ "multiemu-runtime",
  "nalgebra",
  "num",
  "palette",
@@ -2738,8 +2756,8 @@ dependencies = [
  "data-encoding",
  "inout",
  "itertools 0.14.0",
- "multiemu-base",
  "multiemu-locale",
+ "multiemu-runtime",
  "nod",
  "num_cpus",
  "quick-xml 0.38.3",
@@ -3895,12 +3913,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rangetools"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6e97ca3dbabd81e6033cfe09f0cef37c89f34f2a9223cab7cf99305d46a9633"
-
-[[package]]
 name = "raw-window-handle"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4159,9 +4171,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.32"
+version = "0.23.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd3c25631629d034ce7cd9940adc9d45762d46de2b0f57193c4443b92c6d4d40"
+checksum = "751e04a496ca00bb97a5e043158d23d66b5aabf2e1d5aa2a0aaebb1aafe6f82c"
 dependencies = [
  "log",
  "once_cell",
@@ -4239,9 +4251,9 @@ dependencies = [
 
 [[package]]
 name = "scc"
-version = "3.3.1"
+version = "3.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70210ae462e438f41d3645a859eb9e5f5c63533a58dbc6291b451cd0b5524148"
+checksum = "fd0b9e1890c5b17833a779c68a974f04170dfa36e3789395d17845418cc779ac"
 dependencies = [
  "saa",
  "sdd",
@@ -4298,9 +4310,9 @@ dependencies = [
 
 [[package]]
 name = "sdd"
-version = "4.1.2"
+version = "4.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e232156d14cacaf98e2c2affe9c168e306123915143e179b0aa47503137023c"
+checksum = "8a8729f5224c38cb041e72fa9968dd4e379d3487b85359539d31d75ed95992d8"
 
 [[package]]
 name = "seahash"
@@ -5458,9 +5470,9 @@ dependencies = [
 
 [[package]]
 name = "webbrowser"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaf4f3c0ba838e82b4e5ccc4157003fb8c324ee24c058470ffb82820becbde98"
+checksum = "00f1243ef785213e3a32fa0396093424a3a6ea566f9948497e5a2309261a4c97"
 dependencies = [
  "core-foundation 0.10.1",
  "jni",

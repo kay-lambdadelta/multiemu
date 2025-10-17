@@ -1,4 +1,4 @@
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, ReadMemoryError},
@@ -59,6 +59,7 @@ impl Component for RomMemory {
         &self,
         address: Address,
         _address_space: AddressSpaceId,
+        _avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
         let adjusted_offset =
@@ -100,7 +101,7 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
             .1
             .clone();
 
-        component_builder.memory_map_read(assigned_address_space, assigned_range);
+        component_builder.memory_map_read(assigned_range, assigned_address_space);
 
         Ok(RomMemory {
             config: self,

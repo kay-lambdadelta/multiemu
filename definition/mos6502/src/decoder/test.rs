@@ -5,8 +5,8 @@ use crate::{
         AddressingMode, Mos6502AddressingMode, Mos6502InstructionSet, Mos6502Opcode, Opcode,
     },
 };
-use multiemu_base::{machine::Machine, processor::InstructionDecoder};
 use multiemu_definition_misc::memory::standard::StandardMemoryConfig;
+use multiemu_runtime::{machine::Machine, processor::InstructionDecoder};
 
 #[test]
 pub fn decoding_test() {

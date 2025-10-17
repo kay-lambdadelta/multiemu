@@ -1,5 +1,5 @@
 use crate::MaybeMachine;
-use multiemu_base::platform::Platform;
+use multiemu_runtime::platform::Platform;
 use num::rational::Ratio;
 use std::{fmt::Debug, sync::Arc};
 

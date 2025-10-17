@@ -1,6 +1,6 @@
 use super::{LORES, SupportedGraphicsApiChip8Display};
 use crate::display::Chip8DisplayBackend;
-use multiemu_base::graphics::{
+use multiemu_runtime::graphics::{
     GraphicsApi,
     vulkan::{
         InitializationData, Vulkan,

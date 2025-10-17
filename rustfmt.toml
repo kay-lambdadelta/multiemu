@@ -1,3 +1,0 @@
-# This is the only part of this project that requires nightly rust
-
-imports_granularity = "Crate"

@@ -6,12 +6,12 @@
 use crate::{backend::software::SoftwareGraphicsRuntime, windowing::DesktopPlatform};
 use clap::Parser;
 use cli::{Cli, CliAction};
-use multiemu_base::{
+use multiemu_frontend::PlatformExt;
+use multiemu_runtime::{
     environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY},
     graphics::software::Software,
     program::ProgramMetadata,
 };
-use multiemu_frontend::PlatformExt;
 use std::{
     fs::{File, create_dir_all},
     ops::Deref,
@@ -94,7 +94,7 @@ fn main() {
         let api = environment.read().unwrap().graphics_setting.api;
 
         match api {
-            multiemu_base::environment::graphics::GraphicsApi::Software => {
+            multiemu_runtime::environment::graphics::GraphicsApi::Software => {
                 DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run_with_program(
                     environment.clone(),
                     program_manager.clone(),
@@ -104,9 +104,9 @@ fn main() {
                 .unwrap();
             }
             #[cfg(feature = "vulkan")]
-            multiemu_base::environment::graphics::GraphicsApi::Vulkan => {
+            multiemu_runtime::environment::graphics::GraphicsApi::Vulkan => {
                 use crate::backend::vulkan::VulkanGraphicsRuntime;
-                use multiemu_base::graphics::vulkan::Vulkan;
+                use multiemu_runtime::graphics::vulkan::Vulkan;
 
                 DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run_with_program(
                     environment.clone(),
@@ -125,7 +125,7 @@ fn main() {
     let api = environment.read().unwrap().graphics_setting.api;
 
     match api {
-        multiemu_base::environment::graphics::GraphicsApi::Software => {
+        multiemu_runtime::environment::graphics::GraphicsApi::Software => {
             DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run(
                 environment.clone(),
                 program_manager.clone(),
@@ -134,9 +134,9 @@ fn main() {
             .unwrap();
         }
         #[cfg(feature = "vulkan")]
-        multiemu_base::environment::graphics::GraphicsApi::Vulkan => {
+        multiemu_runtime::environment::graphics::GraphicsApi::Vulkan => {
             use crate::backend::vulkan::VulkanGraphicsRuntime;
-            use multiemu_base::graphics::vulkan::Vulkan;
+            use multiemu_runtime::graphics::vulkan::Vulkan;
 
             DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run(
                 environment.clone(),

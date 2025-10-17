@@ -4,11 +4,9 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use itertools::Itertools;
-use multiemu_base::{
-    audio::{FrameIterator, FromSample, SampleFormat},
-    platform::Platform,
-};
+use multiemu_audio::{FrameIterator, FromSample, SampleFormat};
 use multiemu_frontend::{AudioRuntime, MaybeMachine};
+use multiemu_runtime::platform::Platform;
 use nalgebra::SVector;
 use num::rational::Ratio;
 use ringbuffer::RingBuffer;

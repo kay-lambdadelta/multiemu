@@ -1,11 +1,11 @@
 use crate::windowing::{DesktopPlatform, WinitWindow};
-use multiemu_base::{
+use multiemu_frontend::{
+    DisplayApiHandle, GraphicsRuntime, gui_software_rendering::SoftwareEguiRenderer,
+};
+use multiemu_runtime::{
     environment::Environment,
     graphics::{GraphicsApi, software::Software},
     machine::Machine,
-};
-use multiemu_frontend::{
-    DisplayApiHandle, GraphicsRuntime, gui_software_rendering::SoftwareEguiRenderer,
 };
 use nalgebra::{DMatrixViewMut, Vector2};
 use palette::{cast::Packed, named::BLACK, rgb::channels::Argb};

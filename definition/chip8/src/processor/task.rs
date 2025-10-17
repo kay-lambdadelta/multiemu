@@ -6,7 +6,7 @@ use crate::{
     processor::Chip8Processor,
     timer::Chip8Timer,
 };
-use multiemu_base::{
+use multiemu_runtime::{
     component::ComponentHandle, machine::virtual_gamepad::VirtualGamepad,
     memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::TaskMut,
 };

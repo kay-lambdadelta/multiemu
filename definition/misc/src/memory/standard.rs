@@ -1,13 +1,14 @@
-use multiemu_base::{
+use multiemu_range::ContiguousRange;
+use multiemu_range::RangeIntersection;
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, PreviewMemoryError, ReadMemoryError, WriteMemoryError},
+    memory::{Address, AddressSpaceId, ReadMemoryError, WriteMemoryError},
     platform::Platform,
     program::{ProgramMetadata, RomId, RomRequirement},
 };
 use rand::RngCore;
 use rangemap::RangeInclusiveMap;
-use rangetools::Rangetools;
 use std::{
     borrow::Cow,
     io::{Read, Write},
@@ -80,22 +81,9 @@ impl Component for StandardMemory {
         &self,
         address: Address,
         _address_space: AddressSpaceId,
+        _avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
-        let requested_range = address - self.config.assigned_range.start()
-            ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
-
-        buffer.copy_from_slice(&self.buffer[requested_range]);
-
-        Ok(())
-    }
-
-    fn preview_memory(
-        &self,
-        address: Address,
-        _address_space: AddressSpaceId,
-        buffer: &mut [u8],
-    ) -> Result<(), PreviewMemoryError> {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
@@ -155,12 +143,12 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         }
 
         match (self.readable, self.writable) {
-            (true, true) => component_builder.memory_map(assigned_address_space, assigned_range),
+            (true, true) => component_builder.memory_map(assigned_range, assigned_address_space),
             (true, false) => {
-                component_builder.memory_map_read(assigned_address_space, assigned_range)
+                component_builder.memory_map_read(assigned_range, assigned_address_space)
             }
             (false, true) => {
-                component_builder.memory_map_write(assigned_address_space, assigned_range)
+                component_builder.memory_map_write(assigned_range, assigned_address_space)
             }
             (false, false) => component_builder,
         };
@@ -194,10 +182,9 @@ impl StandardMemory {
 
                     let mut rom = Vec::new();
                     rom_file.read_to_end(&mut rom).unwrap();
-                    let actual_buffer_range: RangeInclusive<Address> = range
-                        .clone()
-                        .intersection(*range.start()..=(*range.start() + rom.len() - 1))
-                        .into();
+                    let actual_buffer_range = range.intersection(
+                        &RangeInclusive::from_start_and_length(*range.start(), rom.len()),
+                    );
                     let rom_range = 0..=(actual_buffer_range.end() - actual_buffer_range.start());
 
                     self.buffer[actual_buffer_range].copy_from_slice(&rom[rom_range]);
@@ -209,7 +196,7 @@ impl StandardMemory {
 
 #[cfg(test)]
 mod test {
-    use multiemu_base::machine::Machine;
+    use multiemu_runtime::machine::Machine;
 
     use super::*;
 
@@ -237,7 +224,7 @@ mod test {
 
         machine
             .memory_access_table
-            .read(0, cpu_address_space, &mut buffer)
+            .read(0, cpu_address_space, false, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
@@ -263,7 +250,7 @@ mod test {
 
         machine
             .memory_access_table
-            .read(0, cpu_address_space, &mut buffer)
+            .read(0, cpu_address_space, false, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 4]);
     }
@@ -292,7 +279,7 @@ mod test {
 
         machine
             .memory_access_table
-            .read(0, cpu_address_space, &mut buffer)
+            .read(0, cpu_address_space, false, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
@@ -354,79 +341,93 @@ mod test {
         buffer.fill(0);
         machine
             .memory_access_table
-            .read(0, cpu_address_space, &mut buffer)
+            .read(0, cpu_address_space, false, &mut buffer)
             .unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
 
     #[test]
     fn extensive() {
-        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
+        let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
             StandardMemoryConfig {
                 readable: true,
                 writable: true,
-                assigned_range: 0..=0xffff,
-                assigned_address_space: cpu_address_space,
+                assigned_range: 0x0000..=0xefff,
+                assigned_address_space: address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
-                    0..=0xffff,
+                    0x0000..=0xefff,
                     StandardMemoryInitialContents::Value(0xff),
                 )]),
                 sram: false,
             },
         );
+        let machine = machine.memory_map_mirror(0xf000..=0xffff, 0x0000..=0x0fff, address_space);
+
         let machine = machine.build((), false);
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];
             machine
                 .memory_access_table
-                .write(i, cpu_address_space, &buffer)
+                .write(i, address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
                 .memory_access_table
-                .read(i, cpu_address_space, &mut buffer)
+                .read(i, address_space, false, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 1]);
 
             let mut buffer = [0xff; 2];
             machine
                 .memory_access_table
-                .write(i, cpu_address_space, &buffer)
+                .write(i, address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
                 .memory_access_table
-                .read(i, cpu_address_space, &mut buffer)
+                .read(i, address_space, false, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 2]);
 
             let mut buffer = [0xff; 4];
             machine
                 .memory_access_table
-                .write(i, cpu_address_space, &buffer)
+                .write(i, address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
                 .memory_access_table
-                .read(i, cpu_address_space, &mut buffer)
+                .read(i, address_space, false, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 4]);
 
             let mut buffer = [0xff; 8];
             machine
                 .memory_access_table
-                .write(i, cpu_address_space, &buffer)
+                .write(i, address_space, &buffer)
                 .unwrap();
             buffer.fill(0x00);
             machine
                 .memory_access_table
-                .read(i, cpu_address_space, &mut buffer)
+                .read(i, address_space, false, &mut buffer)
                 .unwrap();
             assert_eq!(buffer, [0xff; 8]);
         }
+
+        let mut buffer = [0x00; 1];
+        machine
+            .memory_access_table
+            .write(0xf000, address_space, &buffer)
+            .unwrap();
+        buffer.fill(0xff);
+        machine
+            .memory_access_table
+            .read(0x0000, address_space, false, &mut buffer)
+            .unwrap();
+        assert_eq!(buffer, [0x00; 1]);
     }
 }

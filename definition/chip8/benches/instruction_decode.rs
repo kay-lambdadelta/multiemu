@@ -1,9 +1,9 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_base::{machine::Machine, processor::InstructionDecoder};
 use multiemu_definition_chip8::Chip8InstructionDecoder;
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
+use multiemu_runtime::{machine::Machine, processor::InstructionDecoder};
 use rangemap::RangeInclusiveMap;
 use std::hint::black_box;
 

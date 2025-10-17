@@ -1,5 +1,5 @@
 use super::ExportStyle;
-use multiemu_base::{
+use multiemu_runtime::{
     environment::Environment,
     program::{Filesystem, PROGRAM_INFORMATION_TABLE, ProgramMetadata},
 };

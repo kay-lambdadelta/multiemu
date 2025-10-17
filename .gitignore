@@ -1,8 +1,1 @@
 /target
-perf.data.old
-perf.data
-flamegraph.svg
-/roms
-/.idea
-/.vscode
-callgrind*

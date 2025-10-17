@@ -1,4 +1,4 @@
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, ReadMemoryError},
@@ -34,6 +34,7 @@ impl Component for Atari2600Cartridge {
         &self,
         address: Address,
         _address_space: AddressSpaceId,
+        _avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
         match self.cart_type {
@@ -77,7 +78,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
             }
         });
 
-        component_builder.memory_map_read(self.cpu_address_space, 0x1000..=0x1fff);
+        component_builder.memory_map_read(0x1000..=0x1fff, self.cpu_address_space);
 
         Ok(Atari2600Cartridge {
             cart_type,

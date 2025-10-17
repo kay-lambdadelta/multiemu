@@ -1,5 +1,6 @@
 use bitvec::{prelude::Lsb0, view::BitView};
-use multiemu_base::{
+use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath},
     input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput},
     machine::{
@@ -8,7 +9,6 @@ use multiemu_base::{
     },
     platform::Platform,
 };
-use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,

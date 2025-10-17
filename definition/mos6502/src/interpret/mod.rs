@@ -8,7 +8,7 @@ use crate::{
     task::Driver,
 };
 use bitvec::{prelude::Lsb0, view::BitView};
-use multiemu_base::memory::Address;
+use multiemu_runtime::memory::Address;
 use num::traits::{FromBytes, ToBytes};
 
 pub const STACK_BASE_ADDRESS: Address = 0x0100;
@@ -16,7 +16,6 @@ const INTERRUPT_VECTOR: Address = 0xfffe;
 
 // NOTE: https://www.pagetable.com/c64ref/6502
 
-// FIXME: Many instructions involving the stack here are totally wrong
 // FIXME: Page crossing cycle penalties are not emulated
 // FIXME: Many undocumented instructions are either incorrect or not emulated at all
 // FIXME: Decimal mode is not implemented
@@ -211,10 +210,18 @@ impl Driver {
 
                         let program = [
                             self.memory_access_table
-                                .read_le_value(INTERRUPT_VECTOR, config.assigned_address_space)
+                                .read_le_value(
+                                    INTERRUPT_VECTOR,
+                                    config.assigned_address_space,
+                                    false,
+                                )
                                 .unwrap_or_default(),
                             self.memory_access_table
-                                .read_le_value(INTERRUPT_VECTOR + 1, config.assigned_address_space)
+                                .read_le_value(
+                                    INTERRUPT_VECTOR + 1,
+                                    config.assigned_address_space,
+                                    false,
+                                )
                                 .unwrap_or_default(),
                         ];
                         state.program = u16::from_le_bytes(program);
@@ -464,6 +471,7 @@ impl Driver {
                             .read_le_value(
                                 state.stack as usize + STACK_BASE_ADDRESS,
                                 config.assigned_address_space,
+                                false,
                             )
                             .unwrap_or_default();
 
@@ -478,6 +486,7 @@ impl Driver {
                             .read_le_value(
                                 state.stack as usize + STACK_BASE_ADDRESS,
                                 config.assigned_address_space,
+                                false,
                             )
                             .unwrap_or_default();
 
@@ -536,6 +545,7 @@ impl Driver {
                             .read_le_value::<u8>(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 config.assigned_address_space,
+                                false,
                             )
                             .unwrap_or_default();
 
@@ -547,6 +557,7 @@ impl Driver {
                             .read_le_value::<u8>(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 config.assigned_address_space,
+                                false,
                             )
                             .unwrap_or_default();
 
@@ -556,6 +567,7 @@ impl Driver {
                             .read_le_value::<u8>(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 config.assigned_address_space,
+                                false,
                             )
                             .unwrap_or_default();
 
@@ -569,6 +581,7 @@ impl Driver {
                             .read_le_value::<u8>(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 config.assigned_address_space,
+                                false,
                             )
                             .unwrap_or_default();
 
@@ -578,6 +591,7 @@ impl Driver {
                             .read_le_value::<u8>(
                                 STACK_BASE_ADDRESS + state.stack as usize,
                                 config.assigned_address_space,
+                                false,
                             )
                             .unwrap_or_default();
 
@@ -719,7 +733,11 @@ impl Driver {
             None => unreachable!(),
             _ => self
                 .memory_access_table
-                .read_le_value(state.address_bus as usize, config.assigned_address_space)
+                .read_le_value(
+                    state.address_bus as usize,
+                    config.assigned_address_space,
+                    false,
+                )
                 .unwrap_or_default(),
         }
     }

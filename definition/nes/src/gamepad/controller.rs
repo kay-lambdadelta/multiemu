@@ -1,12 +1,12 @@
 use bitvec::{prelude::Lsb0, view::BitView};
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig},
     input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput},
     machine::{
         builder::ComponentBuilder,
         virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
     },
-    memory::{Address, AddressSpaceId, PreviewMemoryError, ReadMemoryError, WriteMemoryError},
+    memory::{Address, AddressSpaceId, ReadMemoryError, WriteMemoryError},
     platform::Platform,
 };
 use std::{
@@ -44,6 +44,7 @@ impl Component for NesController {
         &self,
         _address: Address,
         _address_space: AddressSpaceId,
+        avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
         let mut state_guard = self.state.lock().unwrap();
@@ -60,7 +61,10 @@ impl Component for NesController {
             },
         );
 
-        if !state_guard.strobe && state_guard.current_read < READ_ORDER.len() as u8 {
+        if !avoid_side_effects
+            && !state_guard.strobe
+            && state_guard.current_read < READ_ORDER.len() as u8
+        {
             state_guard.current_read += 1;
         }
 
@@ -82,29 +86,6 @@ impl Component for NesController {
 
         Ok(())
     }
-
-    fn preview_memory(
-        &self,
-        _address: Address,
-        _address_space: AddressSpaceId,
-        buffer: &mut [u8],
-    ) -> Result<(), PreviewMemoryError> {
-        let state_guard = self.state.lock().unwrap();
-        let buffer_bits = buffer.view_bits_mut::<Lsb0>();
-
-        buffer_bits.set(
-            0,
-            if (0..READ_ORDER.len() as u8).contains(&state_guard.current_read) {
-                self.gamepad
-                    .get(READ_ORDER[state_guard.current_read as usize])
-                    .as_digital(None)
-            } else {
-                true
-            },
-        );
-
-        Ok(())
-    }
 }
 
 impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
@@ -121,13 +102,13 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
 
         let register_location = CONTROLLER_0 + self.controller_index as usize;
         let component_builder = component_builder.memory_map_read(
-            self.cpu_address_space,
             register_location..=register_location,
+            self.cpu_address_space,
         );
 
         // FIXME: The two controllers need to share this state
 
-        component_builder.memory_map_write(self.cpu_address_space, CONTROLLER_0..=CONTROLLER_0);
+        component_builder.memory_map_write(CONTROLLER_0..=CONTROLLER_0, self.cpu_address_space);
 
         Ok(NesController {
             gamepad,

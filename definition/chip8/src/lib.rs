@@ -2,13 +2,13 @@ use crate::display::SupportedGraphicsApiChip8Display;
 use audio::Chip8AudioConfig;
 use display::Chip8DisplayConfig;
 use font::CHIP8_FONT;
-use multiemu_base::{
+use multiemu_definition_misc::memory::standard::{
+    StandardMemoryConfig, StandardMemoryInitialContents,
+};
+use multiemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     platform::Platform,
     program::Filesystem,
-};
-use multiemu_definition_misc::memory::standard::{
-    StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use num::rational::Ratio;
 use processor::Chip8ProcessorConfig;

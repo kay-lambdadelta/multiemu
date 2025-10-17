@@ -1,7 +1,8 @@
 use crate::windowing::{DesktopPlatform, WinitWindow};
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
-use multiemu_base::{
+use multiemu_frontend::{DisplayApiHandle, GraphicsRuntime};
+use multiemu_runtime::{
     environment::Environment,
     graphics::{
         GraphicsApi,
@@ -33,7 +34,6 @@ use multiemu_base::{
     machine::Machine,
     shader::{ShaderCache, SpirvShader},
 };
-use multiemu_frontend::{DisplayApiHandle, GraphicsRuntime};
 use nalgebra::Vector2;
 use std::sync::{
     Arc, RwLock,

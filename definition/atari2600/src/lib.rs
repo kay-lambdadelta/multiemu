@@ -1,16 +1,14 @@
 use cartridge::Atari2600CartridgeConfig;
 use gamepad::joystick::Atari2600JoystickConfig;
-use multiemu_base::{
+use multiemu_definition_misc::mos6532_riot::Mos6532RiotConfig;
+use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
+use multiemu_runtime::{
     component::ComponentPath,
     machine::{MachineFactory, builder::MachineBuilder},
     memory::{Address, AddressSpaceId},
     platform::Platform,
     program::Filesystem,
 };
-use multiemu_definition_misc::{
-    memory::mirror::MirrorMemoryConfig, mos6532_riot::Mos6532RiotConfig,
-};
-use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use num::rational::Ratio;
 use std::{marker::PhantomData, ops::RangeInclusive};
 use strum::Display;
@@ -58,52 +56,17 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
             },
         );
 
-        for (index, source_addresses) in tia_register_mirror_ranges().enumerate() {
-            let (machine_builder, _) = machine.insert_component(
-                &format!("tia_mirror_{}", index),
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    source_addresses,
-                    source_address_space: cpu_address_space,
-                    destination_addresses: 0x0000..=0x003f,
-                    destination_address_space: cpu_address_space,
-                },
-            );
-
-            machine = machine_builder;
+        for source_addresses in tia_register_mirror_ranges() {
+            machine =
+                machine.memory_map_mirror(source_addresses, 0x0000..=0x003f, cpu_address_space);
         }
 
-        for (index, source_addresses) in riot_register_mirror_ranges().enumerate() {
-            let (machine_builder, _) = machine.insert_component(
-                &format!("mos6532_riot_register_mirror_{}", index),
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    source_addresses,
-                    source_address_space: cpu_address_space,
-                    destination_addresses: 0x280..=0x29f,
-                    destination_address_space: cpu_address_space,
-                },
-            );
-
-            machine = machine_builder;
+        for source_addresses in riot_register_mirror_ranges() {
+            machine = machine.memory_map_mirror(source_addresses, 0x280..=0x29f, cpu_address_space);
         }
 
-        for (index, source_addresses) in riot_ram_mirror_ranges().enumerate() {
-            let (machine_builder, _) = machine.insert_component(
-                &format!("mos6532_riot_ram_mirror_{}", index),
-                MirrorMemoryConfig {
-                    readable: true,
-                    writable: true,
-                    source_addresses,
-                    source_address_space: cpu_address_space,
-                    destination_addresses: 0x80..=0xff,
-                    destination_address_space: cpu_address_space,
-                },
-            );
-
-            machine = machine_builder;
+        for source_addresses in riot_ram_mirror_ranges() {
+            machine = machine.memory_map_mirror(source_addresses, 0x80..=0xff, cpu_address_space);
         }
 
         let (machine, mos6532_riot) = match region {

@@ -2,7 +2,7 @@ use arrayvec::ArrayVec;
 use bitvec::{prelude::Lsb0, view::BitView};
 use decoder::Mos6502InstructionDecoder;
 use instruction::Mos6502InstructionSet;
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,

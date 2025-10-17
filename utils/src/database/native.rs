@@ -1,6 +1,6 @@
 use clap::Subcommand;
 use itertools::Itertools;
-use multiemu_base::{
+use multiemu_runtime::{
     environment::Environment,
     program::{PROGRAM_INFORMATION_TABLE, ProgramMetadata},
 };

@@ -7,13 +7,13 @@ use crate::{
     },
 };
 use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
-use multiemu_base::{
+use multiemu_definition_mos6502::Mos6502;
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath, ResourcePath},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, MemoryAccessTable, ReadMemoryError, WriteMemoryError},
     platform::Platform,
 };
-use multiemu_definition_mos6502::Mos6502;
 use nalgebra::{Point2, Vector2};
 use palette::{Srgba, named::BLACK};
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ use std::{
     any::Any,
     collections::VecDeque,
     marker::PhantomData,
-    ops::{Not, RangeInclusive},
+    ops::RangeInclusive,
     sync::{
         Arc, OnceLock,
         atomic::{AtomicBool, Ordering},
@@ -173,6 +173,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
         &self,
         address: Address,
         _address_space: AddressSpaceId,
+        avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
         let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
@@ -185,7 +186,11 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                 let buffer_bits = buffer.view_bits_mut::<Lsb0>();
 
                 // Currently in vblank
-                buffer_bits.set(7, self.state.entered_vblank.swap(false, Ordering::AcqRel));
+                if avoid_side_effects {
+                    buffer_bits.set(7, self.state.entered_vblank.load(Ordering::Acquire));
+                } else {
+                    buffer_bits.set(7, self.state.entered_vblank.swap(false, Ordering::AcqRel));
+                }
             }
             CpuAccessibleRegister::OamAddr => todo!(),
             CpuAccessibleRegister::OamData => todo!(),
@@ -195,6 +200,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                 self.access_table.read(
                     self.state.ppuaddr as usize,
                     self.ppu_address_space,
+                    avoid_side_effects,
                     buffer,
                 )?;
             }
@@ -351,30 +357,30 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                     .unwrap();
             })
             .memory_map_write(
-                self.cpu_address_space,
                 CpuAccessibleRegister::PpuCtrl as usize..=CpuAccessibleRegister::PpuCtrl as usize,
+                self.cpu_address_space,
             )
             .memory_map_write(
-                self.cpu_address_space,
                 CpuAccessibleRegister::PpuScroll as usize
                     ..=CpuAccessibleRegister::PpuScroll as usize,
+                self.cpu_address_space,
             )
             .memory_map_write(
-                self.cpu_address_space,
                 CpuAccessibleRegister::PpuMask as usize..=CpuAccessibleRegister::PpuMask as usize,
+                self.cpu_address_space,
             )
             .memory_map_read(
-                self.cpu_address_space,
                 CpuAccessibleRegister::PpuStatus as usize
                     ..=CpuAccessibleRegister::PpuStatus as usize,
+                self.cpu_address_space,
             )
             .memory_map(
-                self.cpu_address_space,
                 CpuAccessibleRegister::PpuAddr as usize..=CpuAccessibleRegister::PpuAddr as usize,
+                self.cpu_address_space,
             )
             .memory_map(
-                self.cpu_address_space,
                 CpuAccessibleRegister::PpuData as usize..=CpuAccessibleRegister::PpuData as usize,
+                self.cpu_address_space,
             );
 
         Ok(Ppu {

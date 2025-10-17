@@ -1,4 +1,4 @@
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     platform::Platform,

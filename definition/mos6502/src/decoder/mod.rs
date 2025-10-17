@@ -7,7 +7,7 @@ use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use group1::decode_group1_space_instruction;
 use group2::decode_group2_space_instruction;
 use group3::decode_group3_space_instruction;
-use multiemu_base::{
+use multiemu_runtime::{
     memory::{Address, AddressSpaceId, MemoryAccessTable},
     processor::InstructionDecoder,
 };
@@ -18,9 +18,9 @@ use undocumented::decode_undocumented_space_instruction;
 mod group1;
 mod group2;
 mod group3;
-mod undocumented;
 #[cfg(test)]
 mod test;
+mod undocumented;
 
 // https://www.pagetable.com/c64ref/6502/
 
@@ -46,7 +46,7 @@ impl InstructionDecoder for Mos6502InstructionDecoder {
         memory_access_table: &MemoryAccessTable,
     ) -> Option<(Self::InstructionSet, u8)> {
         let byte: u8 = memory_access_table
-            .read_le_value(address, address_space)
+            .read_le_value(address, address_space, false)
             .unwrap_or_default();
 
         let byte = byte.view_bits::<Msb0>();

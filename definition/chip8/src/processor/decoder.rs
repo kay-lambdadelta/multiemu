@@ -2,7 +2,7 @@ use super::instruction::{
     Chip8InstructionSet, InstructionSetChip8, InstructionSetSuperChip8, Register, ScrollDirection,
 };
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
-use multiemu_base::{
+use multiemu_runtime::{
     memory::{AddressSpaceId, MemoryAccessTable},
     processor::InstructionDecoder,
 };
@@ -22,7 +22,7 @@ impl InstructionDecoder for Chip8InstructionDecoder {
     ) -> Option<(Chip8InstructionSet, u8)> {
         let mut instruction = [0; 2];
         memory_access_table
-            .read(cursor, address_space, &mut instruction)
+            .read(cursor, address_space, false, &mut instruction)
             .unwrap();
 
         decode_instruction(instruction).map(|i| (i, 2))

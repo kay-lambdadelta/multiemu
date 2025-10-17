@@ -1,5 +1,5 @@
 use bitvec::{order::Msb0, view::BitView};
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
     graphics::GraphicsApi,
     machine::builder::ComponentBuilder,

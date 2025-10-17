@@ -1,8 +1,8 @@
-use multiemu_base::program::{
+use multiemu_locale::{Iso639Alpha2, Iso639Alpha3};
+use multiemu_runtime::program::{
     Filesystem, HASH_ALIAS_TABLE, MachineId, PROGRAM_INFORMATION_TABLE, ProgramId, ProgramInfo,
     ProgramMetadata, RomId,
 };
-use multiemu_locale::{Iso639Alpha2, Iso639Alpha3};
 use serde::{Deserialize, Deserializer};
 use serde_with::{DisplayFromStr, serde_as};
 use std::{

@@ -1,7 +1,7 @@
 use crate::display::LORES;
 
 use super::{Chip8DisplayBackend, SupportedGraphicsApiChip8Display};
-use multiemu_base::graphics::{
+use multiemu_runtime::graphics::{
     GraphicsApi,
     software::{InitializationData, Software},
 };

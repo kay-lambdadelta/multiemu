@@ -1,12 +1,12 @@
 use crate::{INes, cartridge::ines::RomType};
-use multiemu_base::{
+use multiemu_definition_misc::memory::rom::RomMemoryConfig;
+use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
     program::RomId,
 };
-use multiemu_definition_misc::memory::{mirror::MirrorMemoryConfig, rom::RomMemoryConfig};
 
 #[derive(Debug)]
 pub struct NRom;
@@ -41,19 +41,11 @@ impl<'a, P: Platform> ComponentConfig<P> for NRomConfig<'a> {
                     },
                 );
 
-                let (component_builder, _) = component_builder.insert_child_component(
-                    "prg-mirror",
-                    MirrorMemoryConfig {
-                        source_address_space: self.cpu_address_space,
-                        source_addresses: 0xc000..=0xffff,
-                        destination_address_space: self.cpu_address_space,
-                        destination_addresses: 0x8000..=0xbfff,
-                        readable: true,
-                        writable: false,
-                    },
-                );
-
-                component_builder
+                component_builder.memory_mirror_map_read(
+                    0xc000..=0xffff,
+                    0x8000..=0xbfff,
+                    self.cpu_address_space,
+                )
             }
             // NROM-256
             2 => {

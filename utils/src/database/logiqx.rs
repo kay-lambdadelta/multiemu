@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use multiemu_base::{environment::Environment, program::ProgramMetadata};
+use multiemu_runtime::{environment::Environment, program::ProgramMetadata};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
     fs::File,

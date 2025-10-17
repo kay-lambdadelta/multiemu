@@ -1,8 +1,8 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_base::machine::Machine;
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
+use multiemu_runtime::machine::Machine;
 use rangemap::RangeInclusiveMap;
 use std::hint::black_box;
 
@@ -31,7 +31,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             black_box(
                 machine
                     .memory_access_table
-                    .read_le_value::<u8>(0x1000, cpu_address_space)
+                    .read_le_value::<u8>(0x1000, cpu_address_space, false)
                     .unwrap(),
             );
         })
@@ -42,7 +42,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             black_box(
                 machine
                     .memory_access_table
-                    .read_le_value::<u16>(0x1000, cpu_address_space)
+                    .read_le_value::<u16>(0x1000, cpu_address_space, false)
                     .unwrap(),
             );
         })
@@ -53,7 +53,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             black_box(
                 machine
                     .memory_access_table
-                    .read_le_value::<u32>(0x1000, cpu_address_space)
+                    .read_le_value::<u32>(0x1000, cpu_address_space, false)
                     .unwrap(),
             );
         })
@@ -64,7 +64,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             black_box(
                 machine
                     .memory_access_table
-                    .read_le_value::<u64>(0x1000, cpu_address_space)
+                    .read_le_value::<u64>(0x1000, cpu_address_space, false)
                     .unwrap(),
             );
         })

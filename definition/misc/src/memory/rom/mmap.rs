@@ -1,6 +1,6 @@
 use crate::memory::rom::RomMemoryBackend;
 use memmap2::Mmap;
-use multiemu_base::memory::Address;
+use multiemu_runtime::memory::Address;
 use std::fs::File;
 
 #[derive(Debug)]

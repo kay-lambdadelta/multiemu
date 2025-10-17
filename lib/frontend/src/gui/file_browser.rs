@@ -3,7 +3,7 @@ use crate::gui::to_egui_color;
 use cfg_if::cfg_if;
 use egui::{Button, Frame, ScrollArea, Stroke, TextEdit};
 use indexmap::IndexMap;
-use multiemu_base::program::ProgramMetadata;
+use multiemu_runtime::program::ProgramMetadata;
 use palette::{
     WithAlpha,
     named::{GREEN, RED},

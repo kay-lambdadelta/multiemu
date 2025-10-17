@@ -1,4 +1,4 @@
-use multiemu_base::{
+use multiemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     platform::Platform,
     program::MachineId,

@@ -1,4 +1,4 @@
-use multiemu_base::{
+use multiemu_runtime::{
     environment::Environment,
     program::{HASH_ALIAS_TABLE, ProgramId, ProgramMetadata, RomId},
 };

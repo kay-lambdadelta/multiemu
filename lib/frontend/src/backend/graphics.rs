@@ -1,5 +1,5 @@
 use egui::FullOutput;
-use multiemu_base::{
+use multiemu_runtime::{
     environment::Environment, graphics::GraphicsApi, machine::Machine, platform::Platform,
 };
 use nalgebra::Vector2;

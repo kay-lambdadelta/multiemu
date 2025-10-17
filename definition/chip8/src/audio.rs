@@ -1,5 +1,5 @@
-use multiemu_base::{
-    audio::SquareWave,
+use multiemu_audio::SquareWave;
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
     machine::builder::ComponentBuilder,
     platform::Platform,

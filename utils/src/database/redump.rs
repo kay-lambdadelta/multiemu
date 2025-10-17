@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use multiemu_base::{
+use multiemu_runtime::{
     environment::Environment,
     program::{MachineId, NintendoSystem, ProgramMetadata, SegaSystem, SonySystem},
 };

@@ -7,8 +7,8 @@ use bitvec::{
     order::{Lsb0, Msb0},
     view::BitView,
 };
-use multiemu_base::scheduler::TaskMut;
 use multiemu_definition_mos6502::RdyFlag;
+use multiemu_runtime::scheduler::TaskMut;
 use std::{num::NonZero, sync::Arc};
 
 pub struct TiaTask {

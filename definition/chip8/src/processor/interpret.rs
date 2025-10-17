@@ -237,6 +237,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                             .read(
                                 state.registers.index as usize + cursor,
                                 self.config.cpu_address_space,
+                                false,
                                 buffer_section,
                             )
                             .unwrap();
@@ -254,6 +255,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                             .read(
                                 state.registers.index as usize + cursor,
                                 self.config.cpu_address_space,
+                                false,
                                 buffer_section,
                             )
                             .unwrap();
@@ -360,6 +362,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                         .read(
                             state.registers.index as usize + i as usize,
                             self.config.cpu_address_space,
+                            false,
                             &mut state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();

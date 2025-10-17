@@ -10,11 +10,11 @@ use bitvec::{
     prelude::{BitArray, Lsb0, Msb0},
     view::BitView,
 };
-use multiemu_base::{
+use multiemu_definition_mos6502::NmiFlag;
+use multiemu_runtime::{
     memory::{AddressSpaceId, MemoryAccessTable},
     scheduler::TaskMut,
 };
-use multiemu_definition_mos6502::NmiFlag;
 use nalgebra::{Point2, Vector2};
 use palette::Srgb;
 use std::{
@@ -206,7 +206,7 @@ impl State {
         let address = base_address + tile_position.y * 32 + tile_position.x;
 
         memory_access_table
-            .read_le_value(address as usize, ppu_address_space)
+            .read_le_value(address as usize, ppu_address_space, false)
             .unwrap()
     }
 
@@ -223,7 +223,7 @@ impl State {
         let address = attribute_base + attribute_position.y * 8 + attribute_position.x;
 
         memory_access_table
-            .read_le_value(address as usize, ppu_address_space)
+            .read_le_value(address as usize, ppu_address_space, false)
             .unwrap()
     }
 
@@ -238,7 +238,7 @@ impl State {
         let address = self.background_pattern_table_base + (nametable as u16) * 16 + row;
 
         memory_access_table
-            .read_le_value(address as usize, ppu_address_space)
+            .read_le_value(address as usize, ppu_address_space, false)
             .unwrap()
     }
 
@@ -253,7 +253,7 @@ impl State {
         let address = self.background_pattern_table_base + (nametable as u16) * 16 + row + 8;
 
         memory_access_table
-            .read_le_value(address as usize, ppu_address_space)
+            .read_le_value(address as usize, ppu_address_space, false)
             .unwrap()
     }
 
@@ -281,6 +281,7 @@ impl State {
             .read_le_value(
                 BACKGROUND_PALETTE_BASE_ADDRESS + palette_index as usize,
                 ppu_address_space,
+                false,
             )
             .unwrap();
 

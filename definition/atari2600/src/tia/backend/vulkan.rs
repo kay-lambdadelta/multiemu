@@ -1,6 +1,6 @@
 use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
 use crate::tia::{VISIBLE_SCANLINE_LENGTH, region::Region};
-use multiemu_base::graphics::{
+use multiemu_runtime::graphics::{
     GraphicsApi,
     vulkan::{
         InitializationData, OwnedBufferWriteGuard, SubbufferExt, Vulkan,

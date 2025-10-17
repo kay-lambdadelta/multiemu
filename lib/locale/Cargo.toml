@@ -11,7 +11,7 @@ serde = { workspace = true }
 [build-dependencies]
 rayon = { workspace = true }
 serde = { workspace = true }
-csv = "1.3"
+csv = "1.4"
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 prettyplease = "0.2"

@@ -1,4 +1,4 @@
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{
@@ -61,6 +61,7 @@ impl Component for Suzy {
         &self,
         address: Address,
         _address_space: AddressSpaceId,
+        _avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
         // TODO: Make this a match table when rust gets inline const patterns
@@ -190,7 +191,7 @@ impl<P: Platform> ComponentConfig<P> for SuzyConfig {
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        component_builder.memory_map(self.cpu_address_space, SUZY_ADDRESSES);
+        component_builder.memory_map(SUZY_ADDRESSES, self.cpu_address_space);
 
         Ok(Suzy {})
     }

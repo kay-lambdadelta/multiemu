@@ -5,14 +5,14 @@ use crate::tia::{
 pub(crate) use backend::SupportedGraphicsApiTia;
 use bitvec::{array::BitArray, order::Lsb0, view::BitView};
 use color::TiaColor;
-use multiemu_base::{
+use multiemu_definition_mos6502::RdyFlag;
+use multiemu_runtime::{
     component::{Component, ResourcePath},
     memory::{
         Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
         WriteMemoryErrorType,
     },
 };
-use multiemu_definition_mos6502::RdyFlag;
 use nalgebra::{DMatrix, Point2};
 use palette::Srgba;
 use region::Region;
@@ -139,6 +139,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         &self,
         address: Address,
         _address_space: AddressSpaceId,
+        _avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
         let data = &mut buffer[0];

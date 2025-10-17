@@ -1,9 +1,9 @@
 use crate::{Mos6502Config, Mos6502Kind};
-use multiemu_base::{
-    component::ComponentPath, machine::Machine, memory::AddressSpaceId, platform::TestPlatform,
-};
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
+};
+use multiemu_runtime::{
+    component::ComponentPath, machine::Machine, memory::AddressSpaceId, platform::TestPlatform,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;

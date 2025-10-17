@@ -3,7 +3,7 @@ use crate::{Chip8InstructionDecoder, display::SupportedGraphicsApiChip8Display};
 use arrayvec::ArrayVec;
 use input::{Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
-use multiemu_base::{
+use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath, ComponentVersion},
     machine::{
         builder::ComponentBuilder,

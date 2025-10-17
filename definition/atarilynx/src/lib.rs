@@ -1,14 +1,14 @@
 use mapctl::MapctlConfig;
-use multiemu_base::{
-    machine::{MachineFactory, builder::MachineBuilder},
-    memory::Address,
-    platform::Platform,
-    program::RomId,
-};
 use multiemu_definition_misc::memory::{
     null::NullMemoryConfig,
     rom::RomMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
+};
+use multiemu_runtime::{
+    machine::{MachineFactory, builder::MachineBuilder},
+    memory::Address,
+    platform::Platform,
+    program::RomId,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;

@@ -1,4 +1,4 @@
-use multiemu_base::processor::InstructionSet;
+use multiemu_runtime::processor::InstructionSet;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
