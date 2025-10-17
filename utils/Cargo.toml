@@ -32,14 +32,9 @@ zip = { version = "6.0", default-features = false, features = [
     "lzma",
 ] }
 strsim = "0.11"
-nod = "2.0.0-alpha.3"
+nod = "2.0.0-alpha.4"
 ureq = { version = "3.1", features = ["socks-proxy", "charset"] }
 num_cpus = "1.17"
-
-# HACK: Trying to keep this nod prerelease compiling
-cipher = "=0.5.0-rc.0"
-inout = "=0.2.0-rc.6"
-block-padding = "=0.4.0-rc.4"
 
 [package.metadata.deb]
 maintainer = "Kay <lambdadeltakay@proton.me>"

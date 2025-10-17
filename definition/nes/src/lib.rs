@@ -200,7 +200,7 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
                 assigned_address_space: cpu_address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
                     0xfffc..=0xfffd,
-                    StandardMemoryInitialContents::Array(Cow::Owned(
+                    StandardMemoryInitialContents::Array(std::borrow::Cow::Owned(
                         (0xc000u16).to_le_bytes().to_vec(),
                     )),
                 )]),

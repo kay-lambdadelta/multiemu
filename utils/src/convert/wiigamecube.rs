@@ -1,7 +1,7 @@
 use nod::{
     common::Format,
     read::{DiscOptions, DiscReader, PartitionEncryption},
-    write::{DiscWriter, FormatOptions, ProcessOptions},
+    write::{DiscWriter, FormatOptions, ProcessOptions, ScrubLevel},
 };
 use std::io::{Read, Seek, Write};
 
@@ -38,6 +38,7 @@ pub fn to_iso(
             digest_md5: false,
             digest_sha1: false,
             digest_xxh64: false,
+            scrub: ScrubLevel::None,
         },
     )?;
     tempfile.rewind()?;
