@@ -337,18 +337,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1bc2832c24239b0141d5674bb9174f9d68a8b5b3f2753311927c172ca46f7e9c"
 dependencies = [
  "funty",
- "radium 0.7.0",
- "tap",
- "wyz",
-]
-
-[[package]]
-name = "bitvec"
-version = "1.1.0"
-source = "git+https://github.com/kay-lambdadelta/ferrilab#78e3f8db397723886ffbce156c72860da63fd06c"
-dependencies = [
- "funty",
- "radium 1.1.1",
+ "radium",
  "serde",
  "tap",
  "wyz",
@@ -2368,7 +2357,7 @@ name = "multiemu-definition-atari2600"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "bitvec 1.1.0",
+ "bitvec",
  "bytemuck",
  "criterion",
  "multiemu-definition-misc",
@@ -2388,7 +2377,7 @@ dependencies = [
 name = "multiemu-definition-atarilynx"
 version = "0.1.0"
 dependencies = [
- "bitvec 1.1.0",
+ "bitvec",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
  "multiemu-runtime",
@@ -2408,7 +2397,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bincode",
- "bitvec 1.1.0",
+ "bitvec",
  "bytemuck",
  "criterion",
  "multiemu-audio",
@@ -2430,7 +2419,7 @@ dependencies = [
 name = "multiemu-definition-intel8080"
 version = "0.1.0"
 dependencies = [
- "bitvec 1.1.0",
+ "bitvec",
  "bytemuck",
  "multiemu-runtime",
  "num",
@@ -2462,7 +2451,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bincode",
- "bitvec 1.1.0",
+ "bitvec",
  "bytemuck",
  "multiemu-definition-misc",
  "multiemu-runtime",
@@ -2479,7 +2468,7 @@ name = "multiemu-definition-nes"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
- "bitvec 1.1.0",
+ "bitvec",
  "bytemuck",
  "criterion",
  "itertools 0.14.0",
@@ -2550,7 +2539,7 @@ name = "multiemu-runtime"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "bitvec 1.1.0",
+ "bitvec",
  "cfg-if",
  "crossbeam",
  "data-encoding",
@@ -3651,15 +3640,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
-name = "radium"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1775bc532a9bfde46e26eba441ca1171b91608d14a3bae71fea371f18a00cffe"
-dependencies = [
- "cfg-if",
-]
-
-[[package]]
 name = "rand"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3894,7 +3874,7 @@ version = "0.7.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9008cd6385b9e161d8229e1f6549dd23c3d022f132a2ea37ac3a10ac4935779b"
 dependencies = [
- "bitvec 1.0.1",
+ "bitvec",
  "bytecheck",
  "bytes",
  "hashbrown 0.12.3",
