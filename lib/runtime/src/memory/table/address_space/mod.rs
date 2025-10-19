@@ -144,7 +144,7 @@ impl AddressSpace {
         self.queue_modified.store(true, Ordering::Release);
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn get_members(&self) -> RwLockReadGuard<'_, Members> {
         if !self.queue_modified.load(Ordering::Acquire) {
             self.members.read().unwrap()

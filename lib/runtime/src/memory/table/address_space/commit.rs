@@ -9,10 +9,10 @@ use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use std::ops::RangeInclusive;
 
+// This function flattens and splits the memory map for faster lookups
+
 impl MemoryMappingTable {
     pub fn commit(&mut self) {
-        self.table.fill(Vec::default());
-
         // Process all pages in parallel
         self.table
             .par_iter_mut()

@@ -1,15 +1,10 @@
 use crate::ppu::{
-    BACKGROUND_PALETTE_BASE_ADDRESS, DrawingState, Ppu, State, TOTAL_SCANLINE_LENGTH,
-    VISIBLE_SCANLINE_LENGTH,
+    BACKGROUND_PALETTE_BASE_ADDRESS, PipelineState, Ppu, State, TOTAL_SCANLINE_LENGTH,
     backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
     color::PpuColor,
     region::Region,
 };
-use bitvec::{
-    field::BitField,
-    prelude::{BitArray, Lsb0, Msb0},
-    view::BitView,
-};
+use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
 use multiemu_definition_mos6502::NmiFlag;
 use multiemu_runtime::{
     memory::{AddressSpaceId, MemoryAccessTable},
@@ -22,45 +17,95 @@ use std::{
     sync::{Arc, atomic::Ordering},
 };
 
+const PIPELINE_PREFETCH: u16 = 16;
+
 pub struct Driver {
     pub processor_nmi: Arc<NmiFlag>,
     pub ppu_address_space: AddressSpaceId,
 }
 
-const FINAL_VISIBLE_CYCLE: u16 = VISIBLE_SCANLINE_LENGTH;
-
 impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
     fn run(&mut self, component: &mut Ppu<R, G>, time_slice: NonZero<u32>) {
-        let backend = component.backend.get_mut().unwrap();
+        let backend = component.backend.as_mut().unwrap();
 
         for _ in 0..time_slice.get() {
             if std::mem::replace(&mut component.state.reset_cpu_nmi, false) {
                 self.processor_nmi.store(false);
             }
 
-            if component.state.cycle_counter.x == 0 {
-                // Do nothing
+            if component.state.cycle_counter.x == 1 {
+                match component.state.cycle_counter.y {
+                    241 => {
+                        component
+                            .state
+                            .entered_vblank
+                            .store(true, Ordering::Release);
 
-                // Use this to present frame
-                if component.state.cycle_counter.y == 0 {
-                    backend.commit_staging_buffer();
+                        if component.state.vblank_nmi_enabled {
+                            self.processor_nmi.store(true);
+                            component.state.reset_cpu_nmi = true;
+                        }
+                    }
+                    261 => {
+                        component
+                            .state
+                            .entered_vblank
+                            .store(false, Ordering::Release);
+
+                        backend.commit_staging_buffer();
+                    }
+                    _ => {}
                 }
-            } else if (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y) {
-                self.handle_visible_cycles::<R, G>(
-                    &mut component.state,
-                    backend,
-                    &component.access_table,
-                );
-            } else if component.state.cycle_counter.y == 241 {
+            }
+
+            /*
+            if (matches!(component.state.cycle_counter.x, 321..=336)
+                && component.state.cycle_counter.y == 261)
+            {
                 component
                     .state
-                    .entered_vblank
-                    .store(true, Ordering::Release);
+                    .drive_pipeline::<R>(&component.memory_access_table, self.ppu_address_space);
+            }
+            */
 
-                if component.state.vblank_nmi_enabled {
-                    self.processor_nmi.store(true);
-                    component.state.reset_cpu_nmi = true;
+            if let 1..=256 = component.state.cycle_counter.x
+                && (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y)
+            {
+                component
+                    .state
+                    .drive_pipeline::<R>(&component.memory_access_table, self.ppu_address_space);
+
+                let mut color = 0u8;
+                {
+                    let pattern_low_bits = component.state.pattern_low_shift.view_bits::<Lsb0>();
+                    let pattern_high_bits = component.state.pattern_high_shift.view_bits::<Lsb0>();
+
+                    let color_bits = color.view_bits_mut::<Lsb0>();
+
+                    color_bits.set(0, pattern_low_bits[15]);
+                    color_bits.set(1, pattern_high_bits[15]);
                 }
+
+                let attribute_bits = component.state.attribute_shift.view_bits::<Lsb0>();
+                let attribute = attribute_bits[30..=31].load::<u8>();
+
+                component.state.attribute_shift <<= 2;
+                component.state.pattern_low_shift <<= 1;
+                component.state.pattern_high_shift <<= 1;
+
+                let color = component.state.calculate_color::<R>(
+                    &component.memory_access_table,
+                    self.ppu_address_space,
+                    attribute,
+                    color,
+                );
+
+                backend.modify_staging_buffer(|mut staging_buffer_guard| {
+                    staging_buffer_guard[(
+                        component.state.cycle_counter.x as usize - 1,
+                        component.state.cycle_counter.y as usize,
+                    )] = color.into();
+                });
             }
 
             component.state.cycle_counter = component.state.get_modified_cycle_counter::<R>(1);
@@ -68,120 +113,85 @@ impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
     }
 }
 
-impl Driver {
-    #[inline]
-    fn handle_visible_cycles<R: Region, G: SupportedGraphicsApiPpu>(
-        &self,
-        state: &mut State,
-        backend: &mut <G as SupportedGraphicsApiPpu>::Backend<R>,
+impl State {
+    fn drive_pipeline<R: Region>(
+        &mut self,
         access_table: &MemoryAccessTable,
+        ppu_address_space: AddressSpaceId,
     ) {
-        if let 1..=FINAL_VISIBLE_CYCLE = state.cycle_counter.x {
-            if state.cycle_counter.x == 1 {
-                state.entered_vblank.store(false, Ordering::Release);
-            }
+        // Steps wait a cycle inbetween for memory access realism
+        if !self.awaiting_memory_access {
+            // Swap out the pipeline state with a placeholder for a moment
+            match std::mem::replace(&mut self.pipeline_state, PipelineState::FetchingNametable) {
+                PipelineState::FetchingNametable => {
+                    let nametable = self.fetch_nametable::<R>(access_table, ppu_address_space);
 
-            // Steps wait a cycle inbetween for memory access realism
-            if !state.awaiting_memory_access {
-                // Swap out the pipeline state with a placeholder for a moment
-                match std::mem::replace(&mut state.drawing_state, DrawingState::FetchingNametable) {
-                    DrawingState::FetchingNametable => {
-                        let nametable =
-                            state.fetch_nametable::<R>(access_table, self.ppu_address_space);
+                    self.pipeline_state = PipelineState::FetchingAttribute { nametable };
+                }
+                PipelineState::FetchingAttribute { nametable } => {
+                    let attribute = self.fetch_attribute::<R>(access_table, ppu_address_space);
 
-                        state.drawing_state = DrawingState::FetchingAttribute { nametable };
-                    }
-                    DrawingState::FetchingAttribute { nametable } => {
-                        let attribute =
-                            state.fetch_attribute::<R>(access_table, self.ppu_address_space);
-
-                        state.drawing_state = DrawingState::FetchingPatternTableLow {
-                            nametable,
-                            attribute,
-                        };
-                    }
-                    DrawingState::FetchingPatternTableLow {
+                    self.pipeline_state = PipelineState::FetchingPatternTableLow {
                         nametable,
                         attribute,
-                    } => {
-                        let pattern_table_low = state.fetch_pattern_table_low::<R>(
-                            access_table,
-                            self.ppu_address_space,
-                            nametable,
-                        );
+                    };
+                }
+                PipelineState::FetchingPatternTableLow {
+                    nametable,
+                    attribute,
+                } => {
+                    let pattern_table_low = self.fetch_pattern_table_low::<R>(
+                        access_table,
+                        ppu_address_space,
+                        nametable,
+                    );
 
-                        state.drawing_state = DrawingState::FetchingPatternTableHigh {
-                            nametable,
-                            attribute,
-                            pattern_table_low,
-                        };
-                    }
-                    DrawingState::FetchingPatternTableHigh {
+                    self.pipeline_state = PipelineState::FetchingPatternTableHigh {
                         nametable,
                         attribute,
                         pattern_table_low,
-                    } => {
-                        let pattern_table_high = state.fetch_pattern_table_high::<R>(
-                            access_table,
-                            self.ppu_address_space,
-                            nametable,
-                        );
+                    };
+                }
+                PipelineState::FetchingPatternTableHigh {
+                    nametable,
+                    attribute,
+                    pattern_table_low,
+                } => {
+                    let pattern_table_high = self.fetch_pattern_table_high::<R>(
+                        access_table,
+                        ppu_address_space,
+                        nametable,
+                    );
 
-                        let pattern_low_bits = pattern_table_low.view_bits::<Msb0>();
-                        let pattern_high_bits = pattern_table_high.view_bits::<Msb0>();
+                    let pattern_low_shift_bits = self.pattern_low_shift.view_bits_mut::<Lsb0>();
+                    let pattern_high_shift_bits = self.pattern_high_shift.view_bits_mut::<Lsb0>();
+                    let attribute_shift_bits = self.attribute_shift.view_bits_mut::<Lsb0>();
 
-                        for index in 0..8 {
-                            let bit_index = (index + state.fine_scroll.x as usize) % 8;
-                            let low = pattern_low_bits[bit_index];
-                            let high = pattern_high_bits[bit_index];
+                    pattern_low_shift_bits[0..=7].store(pattern_table_low);
+                    pattern_high_shift_bits[0..=7].store(pattern_table_high);
 
-                            let mut color_bits: BitArray<u8, Lsb0> = Default::default();
-                            color_bits.set(0, low);
-                            color_bits.set(1, high);
-
-                            let color = color_bits.load::<u8>();
-
-                            let color = state.calculate_color::<R>(
-                                access_table,
-                                self.ppu_address_space,
-                                attribute,
-                                color,
-                            );
-
-                            state.pixel_queue.push_back(color.into());
-                        }
+                    for attribute_chunk in attribute_shift_bits[0..=15].chunks_mut(2) {
+                        attribute_chunk.store(attribute);
                     }
                 }
             }
-
-            let color = state.pixel_queue.pop_front().expect("Pixel queue ran dry");
-
-            backend.modify_staging_buffer(|mut staging_buffer_guard| {
-                staging_buffer_guard[(
-                    // Offset for idle cycle
-                    state.cycle_counter.x as usize - 1,
-                    state.cycle_counter.y as usize,
-                )] = color;
-            });
-
-            state.awaiting_memory_access = !state.awaiting_memory_access;
         }
-    }
-}
 
-impl State {
+        self.awaiting_memory_access = !self.awaiting_memory_access;
+    }
+
     #[inline]
     fn get_modified_cycle_counter<R: Region>(&self, amount: u16) -> Point2<u16> {
         let mut cycle_counter = self.cycle_counter;
         cycle_counter.x += amount;
 
-        if cycle_counter.x >= TOTAL_SCANLINE_LENGTH {
-            cycle_counter.x -= TOTAL_SCANLINE_LENGTH;
+        if cycle_counter.x > TOTAL_SCANLINE_LENGTH {
+            cycle_counter.x = 0;
             cycle_counter.y += 1;
         }
 
-        if cycle_counter.y >= R::TOTAL_SCANLINES {
-            cycle_counter.y -= R::TOTAL_SCANLINES;
+        if cycle_counter.y > R::TOTAL_SCANLINES {
+            cycle_counter.y = 0;
         }
 
         cycle_counter
@@ -193,15 +203,12 @@ impl State {
         memory_access_table: &MemoryAccessTable,
         ppu_address_space: AddressSpaceId,
     ) -> u8 {
-        let scrolled = self.scrolled(); // in pixels
+        let scrolled = self.scrolled();
 
         let nametable = scrolled.component_div(&Vector2::new(256, 240));
         let nametable_index = nametable.x + nametable.y * 2;
-
         let base_address = self.nametable_base + nametable_index * 0x400;
-
-        // Tile coordinates within the nametable
-        let tile_position = Point2::new(scrolled.x % 256, scrolled.y % 240) / 8;
+        let tile_position = self.tile_position();
 
         let address = base_address + tile_position.y * 32 + tile_position.x;
 
@@ -222,9 +229,14 @@ impl State {
         let attribute_base = self.nametable_base + 0x3c0;
         let address = attribute_base + attribute_position.y * 8 + attribute_position.x;
 
-        memory_access_table
+        let attribute: u8 = memory_access_table
             .read_le_value(address as usize, ppu_address_space, false)
-            .unwrap()
+            .unwrap();
+
+        let attribute_quadrant = Point2::new(tile_position.x % 4, tile_position.y % 4) / 2;
+        let shift = (attribute_quadrant.y * 2 + attribute_quadrant.x) * 2;
+
+        (attribute >> shift) & 0b11
     }
 
     #[inline]
@@ -264,18 +276,13 @@ impl State {
         &self,
         memory_access_table: &MemoryAccessTable,
         ppu_address_space: AddressSpaceId,
-        attribute_byte: u8,
+        attribute: u8,
         color: u8,
     ) -> Srgb<u8> {
-        let tile_position = self.tile_position();
-
-        let attribute_quadrant = Point2::new(tile_position.x % 2, tile_position.y % 2);
-        let shift = (attribute_quadrant.y * 2 + attribute_quadrant.x) * 2;
         let color_bits = color & 0b11;
-        let attribute_bits = (attribute_byte >> shift) & 0b11;
 
         // Combine into a 4-bit palette index
-        let palette_index = color_bits | (attribute_bits << 2);
+        let palette_index = color_bits | (attribute << 2);
 
         let color_value: u8 = memory_access_table
             .read_le_value(
@@ -297,7 +304,10 @@ impl State {
     pub fn scrolled(&self) -> Vector2<u16> {
         self.coarse_scroll.cast() * 8
             + self.fine_scroll.cast()
-            + Vector2::new(self.cycle_counter.x - 1, self.cycle_counter.y)
+            + Vector2::new(
+                self.cycle_counter.x - 1 + PIPELINE_PREFETCH,
+                self.cycle_counter.y,
+            )
     }
 
     #[inline]

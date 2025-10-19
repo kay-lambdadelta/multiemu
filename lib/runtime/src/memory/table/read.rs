@@ -28,7 +28,7 @@ impl MemoryAccessTable {
     ///
     /// Contents of the buffer upon failure are usually component specific
     ///
-    #[inline(always)]
+    #[inline]
     pub fn read(
         &self,
         address: Address,
@@ -58,6 +58,7 @@ impl MemoryAccessTable {
 
         members.read.visit_overlapping(
             access_range.clone(),
+            #[inline]
             |entry_assigned_range, mirror_start, component| {
                 let component_access_range = entry_assigned_range.intersection(&access_range);
                 let offset = (*component_access_range.start() - *entry_assigned_range.start())
@@ -83,7 +84,7 @@ impl MemoryAccessTable {
         Ok(())
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn read_le_value<T: FromBytes>(
         &self,
         address: Address,
@@ -98,7 +99,7 @@ impl MemoryAccessTable {
         Ok(T::from_le_bytes(&buffer))
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn read_be_value<T: FromBytes>(
         &self,
         address: Address,

@@ -8,12 +8,14 @@ license = "GPL-3.0-or-later"
 multiemu-runtime = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
+multiemu-range = { workspace = true }
 rangemap = { workspace = true }
 tracing = { workspace = true }
 bitvec = { workspace = true }
 strum = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+serde_with = { workspace = true }
 num = { workspace = true }
 nalgebra = { workspace = true }
 rustc-hash = { workspace = true }
@@ -21,6 +23,8 @@ bytemuck = { workspace = true }
 palette = { workspace = true }
 itertools = { workspace = true }
 ringbuffer = { workspace = true }
+rand = { workspace = true }
+arrayvec = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
 ron = { workspace = true }

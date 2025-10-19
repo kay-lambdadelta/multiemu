@@ -25,7 +25,7 @@ impl MemoryAccessTable {
     /// Step through the memory translation table to give a set of components the buffer
     ///
     /// Contents of the buffer upon failure are usually component specific
-    #[inline(always)]
+    #[inline]
     pub fn write(
         &self,
         address: Address,
@@ -54,6 +54,7 @@ impl MemoryAccessTable {
 
         members.write.visit_overlapping(
             access_range.clone(),
+            #[inline]
             |entry_assigned_range, mirror_start, component| {
                 let component_access_range = entry_assigned_range.intersection(&access_range);
                 let offset = (*component_access_range.start() - *entry_assigned_range.start())
@@ -78,7 +79,7 @@ impl MemoryAccessTable {
         Ok(())
     }
 
-    #[inline(always)]
+    #[inline]
     /// Helper function to write with a little endian value
     pub fn write_le_value<T: ToBytes>(
         &self,
@@ -89,7 +90,7 @@ impl MemoryAccessTable {
         self.write(address, address_space, value.to_le_bytes().as_ref())
     }
 
-    #[inline(always)]
+    #[inline]
     /// Helper function to write with a big endian value
     pub fn write_be_value<T: ToBytes>(
         &self,

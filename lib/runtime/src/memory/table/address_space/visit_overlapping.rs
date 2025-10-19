@@ -9,7 +9,7 @@ use multiemu_range::RangeIntersection;
 use std::ops::RangeInclusive;
 
 impl MemoryMappingTable {
-    #[inline(always)]
+    #[inline]
     pub fn visit_overlapping<E>(
         &self,
         access_range: RangeInclusive<Address>,

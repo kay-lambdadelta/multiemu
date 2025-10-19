@@ -1,4 +1,5 @@
 use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
+use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
@@ -16,6 +17,7 @@ use std::{
     fmt::Debug,
     io::{Read, Write},
     num::NonZero,
+    ops::RangeInclusive,
     sync::OnceLock,
 };
 
@@ -135,7 +137,7 @@ impl Component for Mos6532Riot {
         buffer: &mut [u8],
     ) -> Result<(), ReadMemoryError> {
         for (address, buffer_section) in
-            (address..=(address + (buffer.len() - 1))).zip(buffer.iter_mut())
+            RangeInclusive::from_start_and_length(address, buffer.len()).zip(buffer.iter_mut())
         {
             let adjusted_address = address - self.config.registers_assigned_address;
 
@@ -211,7 +213,7 @@ impl Component for Mos6532Riot {
         buffer: &[u8],
     ) -> Result<(), WriteMemoryError> {
         for (address, buffer_section) in
-            (address..=(address + (buffer.len() - 1))).zip(buffer.iter())
+            RangeInclusive::from_start_and_length(address, buffer.len()).zip(buffer.iter())
         {
             let adjusted_address = address - self.config.registers_assigned_address;
 
