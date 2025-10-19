@@ -56,7 +56,7 @@ impl MemoryMappingTable {
 
         Self {
             master: RangeInclusiveMap::new(),
-            table: vec![Vec::default(); total_pages],
+            table: vec![Default::default(); total_pages],
             registry,
         }
     }

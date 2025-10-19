@@ -3,7 +3,6 @@ use crate::{
     Mos6502Kind,
     instruction::{Mos6502AddressingMode, Wdc65C02AddressingMode},
 };
-use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use group1::decode_group1_space_instruction;
 use group2::decode_group2_space_instruction;
 use group3::decode_group3_space_instruction;
@@ -11,7 +10,6 @@ use multiemu_runtime::{
     memory::{Address, AddressSpaceId, MemoryAccessTable},
     processor::InstructionDecoder,
 };
-use std::ops::Range;
 use strum::FromRepr;
 use undocumented::decode_undocumented_space_instruction;
 
@@ -49,24 +47,29 @@ impl InstructionDecoder for Mos6502InstructionDecoder {
             .read_le_value(address, address_space, false)
             .unwrap_or_default();
 
-        let byte = byte.view_bits::<Msb0>();
-        let instruction_identifier =
-            InstructionGroup::from_repr(byte[INSTRUCTION_IDENTIFIER].load::<u8>()).unwrap();
-        let secondary_instruction_identifier = byte[SECONDARY_INSTRUCTION_IDENTIFIER].load::<u8>();
+        let instruction_identifier = InstructionGroup::from_repr(byte & 0b11).unwrap();
+        let secondary_instruction_identifier = (byte >> 5) & 0b111;
+        let argument = (byte >> 2) & 0b111;
 
         let result = Some(match instruction_identifier {
-            InstructionGroup::Group3 => {
-                decode_group3_space_instruction(secondary_instruction_identifier, byte, self.kind)
-            }
-            InstructionGroup::Group1 => {
-                decode_group1_space_instruction(secondary_instruction_identifier, byte, self.kind)
-            }
-            InstructionGroup::Group2 => {
-                decode_group2_space_instruction(secondary_instruction_identifier, byte, self.kind)
-            }
+            InstructionGroup::Group3 => decode_group3_space_instruction(
+                secondary_instruction_identifier,
+                argument,
+                self.kind,
+            ),
+            InstructionGroup::Group1 => decode_group1_space_instruction(
+                secondary_instruction_identifier,
+                argument,
+                self.kind,
+            ),
+            InstructionGroup::Group2 => decode_group2_space_instruction(
+                secondary_instruction_identifier,
+                argument,
+                self.kind,
+            ),
             InstructionGroup::Undocumented => decode_undocumented_space_instruction(
                 secondary_instruction_identifier,
-                byte,
+                argument,
                 self.kind,
             ),
         });
@@ -77,16 +80,11 @@ impl InstructionDecoder for Mos6502InstructionDecoder {
                     opcode,
                     addressing_mode,
                 },
-                // This is not how long the instruction is, but how many bytes were read to gather this information
-                1,
+                1, // number of bytes consumed
             )
         })
     }
 }
-
-const INSTRUCTION_IDENTIFIER: Range<usize> = 6..8;
-const SECONDARY_INSTRUCTION_IDENTIFIER: Range<usize> = 0..3;
-const ARGUMENT: Range<usize> = 3..6;
 
 #[derive(FromRepr)]
 #[repr(u8)]

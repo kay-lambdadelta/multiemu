@@ -1,3 +1,5 @@
+#![no_std]
+
 mod range_inclusive;
 mod range_inclusive_set;
 

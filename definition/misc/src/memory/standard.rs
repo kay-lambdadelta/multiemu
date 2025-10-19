@@ -430,4 +430,33 @@ mod test {
             .unwrap();
         assert_eq!(buffer, [0x00; 1]);
     }
+
+    #[test]
+    fn wraparound() {
+        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(8);
+
+        let (machine, _) = machine.insert_component(
+            "workram",
+            StandardMemoryConfig {
+                readable: true,
+                writable: true,
+                assigned_range: 0x00..=0xff,
+                assigned_address_space: cpu_address_space,
+                initial_contents: RangeInclusiveMap::from_iter([
+                    (0x00..=0x00, StandardMemoryInitialContents::Value(0xff)),
+                    (0x01..=0xff, StandardMemoryInitialContents::Value(0x00)),
+                ]),
+                sram: false,
+            },
+        );
+        let machine = machine.build((), false);
+
+        let mut buffer = [0; 2];
+
+        machine
+            .memory_access_table
+            .read(0xff, cpu_address_space, false, &mut buffer)
+            .unwrap();
+        assert_eq!(buffer, [0x00, 0xff]);
+    }
 }

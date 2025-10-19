@@ -1,7 +1,7 @@
 use crate::{ContiguousRange, RangeBase, RangeDifference, RangeIntersection};
+use core::ops::RangeInclusive;
 use num::{Integer, ToPrimitive};
 use rangemap::{RangeInclusiveSet, StepLite};
-use std::ops::RangeInclusive;
 
 impl<Idx: Integer + Clone> RangeBase<Idx> for RangeInclusive<Idx> {
     fn is_empty(&self) -> bool {
@@ -40,8 +40,8 @@ impl<Idx: Integer + Clone> RangeIntersection<Idx, Self> for RangeInclusive<Idx> 
 
     #[inline]
     fn intersection(&self, rhs: &Self) -> Self::Output {
-        let start = std::cmp::max(self.start(), rhs.start()).clone();
-        let end = std::cmp::min(self.end(), rhs.end()).clone();
+        let start = core::cmp::max(self.start(), rhs.start()).clone();
+        let end = core::cmp::min(self.end(), rhs.end()).clone();
 
         start..=end
     }

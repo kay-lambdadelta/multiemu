@@ -1,11 +1,6 @@
-use super::ARGUMENT;
 use crate::{
     Mos6502Kind,
     instruction::{AddressingMode, Mos6502AddressingMode, Mos6502Opcode, Opcode},
-};
-use bitvec::{
-    field::BitField,
-    prelude::{BitSlice, Msb0},
 };
 
 // This one is hellish to decode
@@ -13,10 +8,9 @@ use bitvec::{
 #[inline]
 pub fn decode_group3_space_instruction(
     instruction_identifier: u8,
-    instruction_first_byte: &BitSlice<u8, Msb0>,
+    argument: u8,
     _kind: Mos6502Kind,
 ) -> (Opcode, Option<AddressingMode>) {
-    let argument = instruction_first_byte[ARGUMENT].load::<u8>();
     let addressing_mode = AddressingMode::from_group1_addressing(argument);
 
     match instruction_identifier {

@@ -1,6 +1,6 @@
-#![no_std]
-
 //! Audio utilities
+
+#![no_std]
 
 mod frame;
 mod generation;

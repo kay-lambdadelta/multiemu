@@ -4,7 +4,6 @@ use crate::ppu::{
     color::PpuColor,
     region::Region,
 };
-use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
 use multiemu_definition_mos6502::NmiFlag;
 use multiemu_runtime::{
     memory::{AddressSpaceId, MemoryAccessTable},
@@ -75,20 +74,15 @@ impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
                     .state
                     .drive_pipeline::<R>(&component.memory_access_table, self.ppu_address_space);
 
-                let mut color = 0u8;
-                {
-                    let pattern_low_bits = component.state.pattern_low_shift.view_bits::<Lsb0>();
-                    let pattern_high_bits = component.state.pattern_high_shift.view_bits::<Lsb0>();
+                // Extract out and combine pattern bits
+                let high = (component.state.pattern_high_shift >> 15) & 1;
+                let low = (component.state.pattern_low_shift >> 15) & 1;
+                let color = (high << 1) | low;
 
-                    let color_bits = color.view_bits_mut::<Lsb0>();
+                // Extract out attribute bits
+                let attribute = (component.state.attribute_shift >> 30) & 0b11;
 
-                    color_bits.set(0, pattern_low_bits[15]);
-                    color_bits.set(1, pattern_high_bits[15]);
-                }
-
-                let attribute_bits = component.state.attribute_shift.view_bits::<Lsb0>();
-                let attribute = attribute_bits[30..=31].load::<u8>();
-
+                // Shift pipeline forward
                 component.state.attribute_shift <<= 2;
                 component.state.pattern_low_shift <<= 1;
                 component.state.pattern_high_shift <<= 1;
@@ -96,8 +90,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
                 let color = component.state.calculate_color::<R>(
                     &component.memory_access_table,
                     self.ppu_address_space,
-                    attribute,
-                    color,
+                    attribute as u8,
+                    color as u8,
                 );
 
                 backend.modify_staging_buffer(|mut staging_buffer_guard| {
@@ -163,16 +157,12 @@ impl State {
                         nametable,
                     );
 
-                    let pattern_low_shift_bits = self.pattern_low_shift.view_bits_mut::<Lsb0>();
-                    let pattern_high_shift_bits = self.pattern_high_shift.view_bits_mut::<Lsb0>();
-                    let attribute_shift_bits = self.attribute_shift.view_bits_mut::<Lsb0>();
-
-                    pattern_low_shift_bits[0..=7].store(pattern_table_low);
-                    pattern_high_shift_bits[0..=7].store(pattern_table_high);
-
-                    for attribute_chunk in attribute_shift_bits[0..=15].chunks_mut(2) {
-                        attribute_chunk.store(attribute);
-                    }
+                    self.pattern_low_shift =
+                        (self.pattern_low_shift & 0xff00) | pattern_table_low as u16;
+                    self.pattern_high_shift =
+                        (self.pattern_high_shift & 0xff00) | pattern_table_high as u16;
+                    self.attribute_shift =
+                        (self.attribute_shift & 0xffff0000) | (attribute as u32 * 0x5555);
                 }
             }
         }
