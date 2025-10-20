@@ -2,6 +2,8 @@ use crate::{
     INes,
     ppu::{
         backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
+        background::{BackgroundPipelineState, BackgroundState},
+        oam::{OamDmaTask, OamState, SpriteEvaluationState},
         region::Region,
         state::State,
         task::Driver,
@@ -9,7 +11,7 @@ use crate::{
 };
 use arrayvec::ArrayVec;
 use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
-use multiemu_definition_mos6502::Mos6502;
+use multiemu_definition_mos6502::{Mos6502, RdyFlag};
 use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath, ResourcePath},
@@ -31,6 +33,7 @@ use std::{
 use strum::FromRepr;
 
 pub mod backend;
+mod background;
 mod color;
 mod oam;
 pub mod region;
@@ -76,24 +79,6 @@ pub struct ColorEmphasis {
     pub blue: bool,
 }
 
-#[allow(clippy::enum_variant_names)]
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum PipelineState {
-    FetchingNametable,
-    FetchingAttribute {
-        nametable: u8,
-    },
-    FetchingPatternTableLow {
-        nametable: u8,
-        attribute: u8,
-    },
-    FetchingPatternTableHigh {
-        nametable: u8,
-        attribute: u8,
-        pattern_table_low: u8,
-    },
-}
-
 #[derive(Debug)]
 pub struct NesPpuConfig<'a, R: Region> {
     pub ines: &'a INes,
@@ -107,8 +92,10 @@ pub struct NesPpuConfig<'a, R: Region> {
 pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
     state: State,
     backend: Option<G::Backend<R>>,
+    cpu_address_space: AddressSpaceId,
     ppu_address_space: AddressSpaceId,
     memory_access_table: Arc<MemoryAccessTable>,
+    processor_rdy: Arc<RdyFlag>,
 }
 
 impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
@@ -138,10 +125,10 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     }
                 }
                 CpuAccessibleRegister::OamAddr => {
-                    *buffer = self.state.oam_addr;
+                    *buffer = self.state.oam.oam_addr;
                 }
                 CpuAccessibleRegister::OamData => {
-                    *buffer = self.state.oam_data[self.state.oam_addr as usize];
+                    *buffer = self.state.oam.data[self.state.oam.oam_addr as usize];
                 }
                 CpuAccessibleRegister::PpuScroll => todo!(),
                 CpuAccessibleRegister::PpuAddr => todo!(),
@@ -152,7 +139,6 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                         avoid_side_effects,
                     )?;
                 }
-                CpuAccessibleRegister::OamDma => todo!(),
                 _ => {
                     unreachable!("{:?}", register);
                 }
@@ -183,9 +169,9 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
 
                     self.state.ppu_addr_increment_amount = if data_bits[2] { 32 } else { 1 };
 
-                    self.state.sprite_8x8_pattern_table_address =
+                    self.state.oam.sprite_8x8_pattern_table_address =
                         if data_bits[3] { 0x1000 } else { 0x0000 };
-                    self.state.background_pattern_table_base =
+                    self.state.background.pattern_table_base =
                         if data_bits[4] { 0x1000 } else { 0x0000 };
 
                     self.state.vblank_nmi_enabled = data_bits[7];
@@ -196,22 +182,21 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     self.state.greyscale = data_bits[0];
 
                     self.state.show_background_leftmost_pixels = data_bits[1];
-                    self.state.show_sprites_leftmost_pixels = data_bits[2];
+                    self.state.oam.show_sprites_leftmost_pixels = data_bits[2];
 
-                    self.state.background_rendering_enabled = data_bits[3];
-                    self.state.sprite_rendering_enabled = data_bits[4];
+                    self.state.background.rendering_enabled = data_bits[3];
+                    self.state.oam.sprite_rendering_enabled = data_bits[4];
 
                     self.state.color_emphasis.red = data_bits[5];
                     self.state.color_emphasis.green = data_bits[6];
                     self.state.color_emphasis.blue = data_bits[7];
                 }
-                CpuAccessibleRegister::PpuStatus => todo!(),
                 CpuAccessibleRegister::OamAddr => {
-                    self.state.oam_addr = *buffer;
+                    self.state.oam.oam_addr = *buffer;
                 }
                 CpuAccessibleRegister::OamData => {
-                    self.state.oam_data[self.state.oam_addr as usize] = *buffer;
-                    self.state.oam_addr = self.state.oam_addr.wrapping_add(1);
+                    self.state.oam.data[self.state.oam.oam_addr as usize] = *buffer;
+                    self.state.oam.oam_addr = self.state.oam.oam_addr.wrapping_add(1);
                 }
                 CpuAccessibleRegister::PpuScroll => {
                     // Convert the byte into a bit slice
@@ -221,11 +206,11 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     let coarse_scroll = bits[3..=7].load::<u8>();
 
                     if !self.state.ppu_addr_ppu_scroll_write_phase {
-                        self.state.fine_scroll.x = fine_scroll;
-                        self.state.coarse_scroll.x = coarse_scroll;
+                        self.state.background.fine_scroll.x = fine_scroll;
+                        self.state.background.coarse_scroll.x = coarse_scroll;
                     } else {
-                        self.state.fine_scroll.y = fine_scroll;
-                        self.state.coarse_scroll.y = coarse_scroll;
+                        self.state.background.fine_scroll.y = fine_scroll;
+                        self.state.background.coarse_scroll.y = coarse_scroll;
                     }
 
                     self.state.ppu_addr_ppu_scroll_write_phase =
@@ -257,7 +242,23 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                         .ppu_addr
                         .wrapping_add(self.state.ppu_addr_increment_amount as u16);
                 }
-                CpuAccessibleRegister::OamDma => todo!(),
+                CpuAccessibleRegister::OamDma => {
+                    let page = (*buffer as u16) << 8;
+                    // Halt the processor
+                    self.processor_rdy.store(false);
+                    self.state.oam.cpu_dma_countdown = 514;
+
+                    // Read off OAM data immediately, this is done for performance and should not have any side effects
+                    let _ = self.memory_access_table.read(
+                        page as usize,
+                        self.cpu_address_space,
+                        false,
+                        &mut self.state.oam.data,
+                    );
+                }
+                _ => {
+                    unreachable!("{:?}", register);
+                }
             }
         }
 
@@ -294,6 +295,11 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
             .interact::<Mos6502, _>(&self.processor, |component| component.nmi())
             .unwrap();
 
+        let processor_rdy = component_builder
+            .registry()
+            .interact::<Mos6502, _>(&self.processor, |component| component.rdy())
+            .unwrap();
+
         component_builder
             .insert_task_mut(
                 "driver",
@@ -303,6 +309,8 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                     ppu_address_space: self.ppu_address_space,
                 },
             )
+            // At the same speed as the processor
+            .insert_task_mut("oam_dma_counter", R::master_clock() / 3, OamDmaTask)
             .set_lazy_component_initializer(|component, data| {
                 component.backend = Some(PpuDisplayBackend::new(
                     data.component_graphics_initialization_data.clone(),
@@ -341,22 +349,21 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
             .memory_map(
                 CpuAccessibleRegister::OamData as usize..=CpuAccessibleRegister::OamData as usize,
                 self.cpu_address_space,
+            )
+            .memory_map_write(
+                CpuAccessibleRegister::OamDma as usize..=CpuAccessibleRegister::OamDma as usize,
+                self.cpu_address_space,
             );
 
         Ok(Ppu {
             state: State {
                 nametable_base: 0x2000,
-                sprite_8x8_pattern_table_address: 0,
-                background_pattern_table_base: 0,
                 sprite_size: Vector2::new(8, 8),
                 vblank_nmi_enabled: false,
                 reset_cpu_nmi: false,
                 entered_vblank: AtomicBool::new(false),
                 greyscale: false,
                 show_background_leftmost_pixels: false,
-                show_sprites_leftmost_pixels: false,
-                background_rendering_enabled: false,
-                sprite_rendering_enabled: false,
                 color_emphasis: ColorEmphasis {
                     red: false,
                     green: false,
@@ -364,23 +371,36 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                 },
                 // Start it on the dummy scanline
                 cycle_counter: Point2::new(0, 261),
-                pipeline_state: PipelineState::FetchingNametable,
+                background_pipeline_state: BackgroundPipelineState::FetchingNametable,
                 awaiting_memory_access: true,
                 ppu_addr: 0,
-                oam_addr: 0,
                 ppu_addr_ppu_scroll_write_phase: false,
                 ppu_addr_increment_amount: 1,
-                fine_scroll: Vector2::default(),
-                coarse_scroll: Vector2::default(),
-                oam_data: rand::random(),
-                queued_sprites: ArrayVec::new(),
-                pattern_low_shift: 0,
-                pattern_high_shift: 0,
-                attribute_shift: 0,
+                background: BackgroundState {
+                    fine_scroll: Vector2::default(),
+                    coarse_scroll: Vector2::default(),
+                    pattern_table_base: 0x0000,
+                    rendering_enabled: true,
+                    pattern_low_shift: 0,
+                    pattern_high_shift: 0,
+                    attribute_shift: 0,
+                },
+                oam: OamState {
+                    data: rand::random(),
+                    oam_addr: 0x00,
+                    sprite_evaluation_state: SpriteEvaluationState::InspectingY,
+                    queued_sprites: ArrayVec::new(),
+                    show_sprites_leftmost_pixels: true,
+                    sprite_8x8_pattern_table_address: 0x0000,
+                    sprite_rendering_enabled: true,
+                    cpu_dma_countdown: 0,
+                },
             },
             backend: None,
             ppu_address_space: self.ppu_address_space,
+            cpu_address_space: self.cpu_address_space,
             memory_access_table: access_table,
+            processor_rdy,
         })
     }
 }

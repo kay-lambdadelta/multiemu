@@ -1,7 +1,9 @@
 use crate::ppu::{
-    BACKGROUND_PALETTE_BASE_ADDRESS, PipelineState, Ppu, State, TOTAL_SCANLINE_LENGTH,
+    BACKGROUND_PALETTE_BASE_ADDRESS, Ppu, State, TOTAL_SCANLINE_LENGTH,
     backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
+    background::BackgroundPipelineState,
     color::PpuColor,
+    oam::{OamSprite, SpriteEvaluationState},
     region::Region,
 };
 use multiemu_definition_mos6502::NmiFlag;
@@ -33,6 +35,9 @@ impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
             }
 
             if component.state.cycle_counter.x == 1 {
+                // Technically the NES does it over 64 cycles
+                component.state.oam.queued_sprites.clear();
+
                 match component.state.cycle_counter.y {
                     241 => {
                         component
@@ -67,39 +72,73 @@ impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
             }
             */
 
-            if let 1..=256 = component.state.cycle_counter.x
-                && (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y)
-            {
-                component
-                    .state
-                    .drive_pipeline::<R>(&component.memory_access_table, self.ppu_address_space);
+            if (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y) {
+                if let 1..=256 = component.state.cycle_counter.x {
+                    component.state.drive_background_pipeline::<R>(
+                        &component.memory_access_table,
+                        self.ppu_address_space,
+                    );
 
-                // Extract out and combine pattern bits
-                let high = (component.state.pattern_high_shift >> 15) & 1;
-                let low = (component.state.pattern_low_shift >> 15) & 1;
-                let color = (high << 1) | low;
+                    // Extract out and combine pattern bits
+                    let high = (component.state.background.pattern_high_shift >> 15) & 1;
+                    let low = (component.state.background.pattern_low_shift >> 15) & 1;
+                    let color = (high << 1) | low;
 
-                // Extract out attribute bits
-                let attribute = (component.state.attribute_shift >> 30) & 0b11;
+                    // Extract out attribute bits
+                    let attribute = (component.state.background.attribute_shift >> 30) & 0b11;
 
-                // Shift pipeline forward
-                component.state.attribute_shift <<= 2;
-                component.state.pattern_low_shift <<= 1;
-                component.state.pattern_high_shift <<= 1;
+                    // Shift pipeline forward
+                    component.state.background.attribute_shift <<= 2;
+                    component.state.background.pattern_low_shift <<= 1;
+                    component.state.background.pattern_high_shift <<= 1;
 
-                let color = component.state.calculate_color::<R>(
-                    &component.memory_access_table,
-                    self.ppu_address_space,
-                    attribute as u8,
-                    color as u8,
-                );
+                    let color = component.state.calculate_color::<R>(
+                        &component.memory_access_table,
+                        self.ppu_address_space,
+                        attribute as u8,
+                        color as u8,
+                    );
 
-                backend.modify_staging_buffer(|mut staging_buffer_guard| {
-                    staging_buffer_guard[(
-                        component.state.cycle_counter.x as usize - 1,
-                        component.state.cycle_counter.y as usize,
-                    )] = color.into();
-                });
+                    backend.modify_staging_buffer(|mut staging_buffer_guard| {
+                        staging_buffer_guard[(
+                            component.state.cycle_counter.x as usize - 1,
+                            component.state.cycle_counter.y as usize,
+                        )] = color.into();
+                    });
+                }
+
+                if let 65..=256 = component.state.cycle_counter.x {
+                    let oam_data_index = component.state.cycle_counter.x - 65;
+
+                    match component.state.oam.sprite_evaluation_state {
+                        SpriteEvaluationState::InspectingY => {
+                            let sprite_y = component.state.oam.data[oam_data_index as usize];
+
+                            component.state.oam.sprite_evaluation_state =
+                                SpriteEvaluationState::Evaluating { sprite_y };
+                        }
+                        SpriteEvaluationState::Evaluating { sprite_y } => {
+                            if sprite_y as u16 == component.state.cycle_counter.y + 1 {
+                                let mut bytes = [0; 4];
+
+                                #[allow(clippy::needless_range_loop)]
+                                for i in 0..4 {
+                                    bytes[i] =
+                                        component.state.oam.data[oam_data_index as usize + i];
+                                }
+
+                                let sprite = OamSprite::from_bytes(bytes);
+
+                                if component.state.oam.queued_sprites.try_push(sprite).is_err() {
+                                    // TODO: Handle sprite overflow flag
+                                }
+
+                                component.state.oam.sprite_evaluation_state =
+                                    SpriteEvaluationState::InspectingY;
+                            }
+                        }
+                    }
+                }
             }
 
             component.state.cycle_counter = component.state.get_modified_cycle_counter::<R>(1);
@@ -108,7 +147,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
 }
 
 impl State {
-    fn drive_pipeline<R: Region>(
+    fn drive_background_pipeline<R: Region>(
         &mut self,
         access_table: &MemoryAccessTable,
         ppu_address_space: AddressSpaceId,
@@ -116,21 +155,23 @@ impl State {
         // Steps wait a cycle inbetween for memory access realism
         if !self.awaiting_memory_access {
             // Swap out the pipeline state with a placeholder for a moment
-            match std::mem::replace(&mut self.pipeline_state, PipelineState::FetchingNametable) {
-                PipelineState::FetchingNametable => {
+            match self.background_pipeline_state {
+                BackgroundPipelineState::FetchingNametable => {
                     let nametable = self.fetch_nametable::<R>(access_table, ppu_address_space);
 
-                    self.pipeline_state = PipelineState::FetchingAttribute { nametable };
+                    self.background_pipeline_state =
+                        BackgroundPipelineState::FetchingAttribute { nametable };
                 }
-                PipelineState::FetchingAttribute { nametable } => {
+                BackgroundPipelineState::FetchingAttribute { nametable } => {
                     let attribute = self.fetch_attribute::<R>(access_table, ppu_address_space);
 
-                    self.pipeline_state = PipelineState::FetchingPatternTableLow {
-                        nametable,
-                        attribute,
-                    };
+                    self.background_pipeline_state =
+                        BackgroundPipelineState::FetchingPatternTableLow {
+                            nametable,
+                            attribute,
+                        };
                 }
-                PipelineState::FetchingPatternTableLow {
+                BackgroundPipelineState::FetchingPatternTableLow {
                     nametable,
                     attribute,
                 } => {
@@ -140,13 +181,14 @@ impl State {
                         nametable,
                     );
 
-                    self.pipeline_state = PipelineState::FetchingPatternTableHigh {
-                        nametable,
-                        attribute,
-                        pattern_table_low,
-                    };
+                    self.background_pipeline_state =
+                        BackgroundPipelineState::FetchingPatternTableHigh {
+                            nametable,
+                            attribute,
+                            pattern_table_low,
+                        };
                 }
-                PipelineState::FetchingPatternTableHigh {
+                BackgroundPipelineState::FetchingPatternTableHigh {
                     nametable,
                     attribute,
                     pattern_table_low,
@@ -157,12 +199,15 @@ impl State {
                         nametable,
                     );
 
-                    self.pattern_low_shift =
-                        (self.pattern_low_shift & 0xff00) | pattern_table_low as u16;
-                    self.pattern_high_shift =
-                        (self.pattern_high_shift & 0xff00) | pattern_table_high as u16;
-                    self.attribute_shift =
-                        (self.attribute_shift & 0xffff0000) | (attribute as u32 * 0x5555);
+                    self.background.pattern_low_shift =
+                        (self.background.pattern_low_shift & 0xff00) | pattern_table_low as u16;
+                    self.background.pattern_high_shift =
+                        (self.background.pattern_high_shift & 0xff00) | pattern_table_high as u16;
+                    self.background.attribute_shift = (self.background.attribute_shift
+                        & 0xffff0000)
+                        | (attribute as u32 * 0x5555);
+
+                    self.background_pipeline_state = BackgroundPipelineState::FetchingNametable;
                 }
             }
         }
@@ -237,7 +282,7 @@ impl State {
         nametable: u8,
     ) -> u8 {
         let row = self.scrolled().y % 8;
-        let address = self.background_pattern_table_base + (nametable as u16) * 16 + row;
+        let address = self.background.pattern_table_base + (nametable as u16) * 16 + row;
 
         memory_access_table
             .read_le_value(address as usize, ppu_address_space, false)
@@ -252,7 +297,7 @@ impl State {
         nametable: u8,
     ) -> u8 {
         let row = self.scrolled().y % 8;
-        let address = self.background_pattern_table_base + (nametable as u16) * 16 + row + 8;
+        let address = self.background.pattern_table_base + (nametable as u16) * 16 + row + 8;
 
         memory_access_table
             .read_le_value(address as usize, ppu_address_space, false)
@@ -292,8 +337,8 @@ impl State {
 
     #[inline]
     pub fn scrolled(&self) -> Vector2<u16> {
-        self.coarse_scroll.cast() * 8
-            + self.fine_scroll.cast()
+        self.background.coarse_scroll.cast() * 8
+            + self.background.fine_scroll.cast()
             + Vector2::new(
                 self.cycle_counter.x - 1 + PIPELINE_PREFETCH,
                 self.cycle_counter.y,

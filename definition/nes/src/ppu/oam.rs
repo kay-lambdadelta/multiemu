@@ -1,6 +1,14 @@
+use crate::ppu::Ppu;
+use crate::ppu::backend::SupportedGraphicsApiPpu;
+use crate::ppu::region::Region;
+use arrayvec::ArrayVec;
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
+use multiemu_runtime::scheduler::TaskMut;
 use nalgebra::{Point2, Vector2};
 use serde::{Deserialize, Serialize};
+use serde_with::Bytes;
+use serde_with::serde_as;
+use std::num::NonZero;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Copy)]
 pub struct OamSprite {
@@ -44,5 +52,45 @@ impl OamSprite {
         attribute_bits.set(7, self.flip.y);
 
         bytes
+    }
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum SpriteEvaluationState {
+    InspectingY,
+    Evaluating { sprite_y: u8 },
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct OamState {
+    #[serde_as(as = "Bytes")]
+    pub data: [u8; 256],
+    pub oam_addr: u8,
+    pub sprite_evaluation_state: SpriteEvaluationState,
+    pub queued_sprites: ArrayVec<OamSprite, 8>,
+    pub show_sprites_leftmost_pixels: bool,
+    pub sprite_8x8_pattern_table_address: u16,
+    pub sprite_rendering_enabled: bool,
+    // When this hits zero, the CPU is started back up again
+    pub cpu_dma_countdown: u16,
+}
+
+pub struct OamDmaTask;
+
+impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for OamDmaTask {
+    fn run(&mut self, component: &mut Ppu<R, G>, time_slice: NonZero<u32>) {
+        if component.state.oam.cpu_dma_countdown > 0 {
+            component.state.oam.cpu_dma_countdown = component
+                .state
+                .oam
+                .cpu_dma_countdown
+                .saturating_sub(time_slice.get() as u16);
+
+            if component.state.oam.cpu_dma_countdown == 0 {
+                component.processor_rdy.store(true);
+            }
+        }
     }
 }
