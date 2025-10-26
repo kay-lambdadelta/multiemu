@@ -8,7 +8,7 @@ use crate::{
 };
 use multiemu_runtime::{
     component::ComponentHandle, machine::virtual_gamepad::VirtualGamepad,
-    memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::TaskMut,
+    memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::Task,
 };
 use std::{
     num::NonZero,
@@ -30,7 +30,7 @@ pub(crate) struct Driver<G: SupportedGraphicsApiChip8Display> {
     pub config: Chip8ProcessorConfig<G>,
 }
 
-impl<G: SupportedGraphicsApiChip8Display> TaskMut<Chip8Processor> for Driver<G> {
+impl<G: SupportedGraphicsApiChip8Display> Task<Chip8Processor> for Driver<G> {
     fn run(&mut self, component: &mut Chip8Processor, time_slice: NonZero<u32>) {
         let mut time_slice = time_slice.get();
 
@@ -105,7 +105,8 @@ impl<G: SupportedGraphicsApiChip8Display> TaskMut<Chip8Processor> for Driver<G> 
                         }
                     }
                     ExecutionState::AwaitingVsync => {
-                        let vsync_occured = self.display.read().vsync_occurred;
+                        let vsync_occured =
+                            self.display.interact(|component| component.vsync_occurred);
 
                         if vsync_occured {
                             component.state.execution_state = ExecutionState::Normal;

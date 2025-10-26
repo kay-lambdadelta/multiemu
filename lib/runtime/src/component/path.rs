@@ -67,8 +67,8 @@ impl Key for ComponentPath {
 }
 
 impl ComponentPath {
-    /// Path seperator
-    pub const SEPERATOR: char = '/';
+    /// Path separator
+    pub const SEPARATOR: char = '/';
 
     /// Checks if a string is a valid component name
     fn validate_path_component(string: &str) -> Option<Error> {
@@ -105,7 +105,7 @@ impl ComponentPath {
 
     /// Iter over path components
     pub fn iter(&self) -> impl Iterator<Item = &str> {
-        self.0.split(Self::SEPERATOR).filter(|s| !s.is_empty())
+        self.0.split(Self::SEPARATOR).filter(|s| !s.is_empty())
     }
 
     /// Get the number of path components that exist
@@ -133,7 +133,7 @@ impl ComponentPath {
         }
 
         let owned = self.0.to_mut();
-        owned.push(Self::SEPERATOR);
+        owned.push(Self::SEPARATOR);
         owned.push_str(segment);
 
         Ok(())
@@ -151,7 +151,7 @@ impl FromStr for ComponentPath {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let segments: Vec<&str> = s
-            .split(Self::SEPERATOR)
+            .split(Self::SEPARATOR)
             .filter(|seg| !seg.is_empty())
             .collect();
 
@@ -192,14 +192,14 @@ impl<'de> Deserialize<'de> for ComponentPath {
 /// Path denoting a resource, like an audio output or a display
 pub struct ResourcePath {
     /// Component that owns this resource
-    pub component_path: ComponentPath,
+    pub component: ComponentPath,
     /// Unique resource name
     pub name: Cow<'static, str>,
 }
 
 impl Display for ResourcePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("{}:{}", self.component_path, self.name))
+        f.write_str(&format!("{}:{}", self.component, self.name))
     }
 }
 
@@ -220,7 +220,7 @@ impl FromStr for ResourcePath {
         }
 
         Ok(ResourcePath {
-            component_path,
+            component: component_path,
             name: Cow::Owned(name_str.to_string()),
         })
     }

@@ -54,7 +54,7 @@ pub fn decoding_test() {
         },
     );
 
-    let machine = machine.build((), false);
+    let machine = machine.build(());
     let memory_access_table = machine.memory_access_table;
     let decoder = Mos6502InstructionDecoder::new(Mos6502Kind::Mos6502);
 

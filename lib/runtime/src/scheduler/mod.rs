@@ -1,15 +1,17 @@
 use crate::{
-    component::ResourcePath,
-    machine::{builder::StoredTask, registry::ComponentRegistry},
+    component::{Component, ErasedComponentHandle, ResourcePath},
+    machine::registry::ComponentRegistry,
+    scheduler::run::scheduler_thread,
 };
 use crossbeam::atomic::AtomicCell;
+use nohash::BuildNoHashHasher;
 use num::{
     ToPrimitive,
     integer::{gcd, lcm},
     rational::Ratio,
 };
 use std::{
-    boxed::Box,
+    any::Any,
     collections::{BTreeMap, HashMap},
     fmt::Debug,
     num::NonZero,
@@ -21,7 +23,6 @@ use std::{
     vec::Vec,
 };
 
-pub(crate) use run::scheduler_thread;
 pub use task::*;
 
 mod run;
@@ -29,26 +30,24 @@ mod task;
 #[cfg(test)]
 mod test;
 
-pub type TaskId = u16;
-pub type ErasedTask = Box<dyn FnMut(&ComponentRegistry, NonZero<u32>) + Send + Sync>;
-
-struct TaskInfo {
-    pub task: ErasedTask,
-    pub relative_period: u32,
-}
-
-impl Debug for TaskInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TaskInfo")
-            .field("tick_rate", &self.relative_period)
-            .finish()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ScheduleEntry {
     pub task_id: TaskId,
     pub time_slice: NonZero<u32>,
+    pub component: ErasedComponentHandle,
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskMetadata {
+    pub id: TaskId,
+    pub period: Ratio<u32>,
+    pub path: ResourcePath,
+}
+
+#[derive(Debug)]
+pub struct Timeline {
+    entries: Vec<Vec<ScheduleEntry>>,
+    tick_real_time: Duration,
 }
 
 /// The scheduler for the emulator
@@ -57,48 +56,44 @@ pub struct ScheduleEntry {
 ///
 /// Currently it only supports frequency based executions
 #[derive(Debug)]
-pub struct SchedulerState {
-    /// Global tick we are currently on
+pub struct Scheduler {
     current_tick: u32,
-    /// The amount of time a tick takes
-    tick_real_time: Duration,
-    /// Active tasks
-    timeline: Vec<Vec<ScheduleEntry>>,
-    tasks: Vec<TaskInfo>,
-    #[allow(unused)]
-    task_lookup: HashMap<ResourcePath, TaskId>,
+    timeline: Option<Timeline>,
     registry: Arc<ComponentRegistry>,
     handle: Arc<SchedulerHandle>,
+    next_task_id: TaskId,
+    tasks: HashMap<TaskId, TaskMetadata, BuildNoHashHasher<TaskId>>,
 }
 
-impl SchedulerState {
-    pub(crate) fn new(
-        component_tasks: HashMap<ResourcePath, StoredTask>,
-        registry: Arc<ComponentRegistry>,
-    ) -> Self {
-        // Only the active tasks are put on the schedule
-        let mut tasks: BTreeMap<u16, _> = BTreeMap::new();
-        let mut task_lookup = HashMap::default();
+impl Scheduler {
+    pub(crate) fn new(registry: Arc<ComponentRegistry>) -> Self {
+        let handle = SchedulerHandle {
+            average_efficiency: AtomicCell::new(1.0),
+            paused: AtomicBool::new(true),
+            exit: AtomicBool::new(false),
+        };
 
-        for (resource_path, task_id, task) in
-            component_tasks
-                .into_iter()
-                .enumerate()
-                .map(|(task_id, (resource_path, task))| {
-                    (resource_path, task_id.try_into().unwrap(), task)
-                })
-        {
-            tasks.insert(task_id, task);
-            task_lookup.insert(resource_path, task_id);
+        Self {
+            current_tick: 0,
+            timeline: None,
+            tasks: HashMap::default(),
+            registry,
+            handle: Arc::new(handle),
+            next_task_id: 0,
         }
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn build_timeline(&mut self) {
+        assert!(self.timeline.is_none(), "Timeline already computed!");
 
         let system_lcm = Ratio::new(
-            tasks
+            self.tasks
                 .values()
                 .map(|task| *task.period.numer())
                 .reduce(lcm)
                 .unwrap_or(1),
-            tasks
+            self.tasks
                 .values()
                 .map(|task| *task.period.denom())
                 .reduce(gcd)
@@ -106,12 +101,12 @@ impl SchedulerState {
         );
 
         let system_gcd = Ratio::new(
-            tasks
+            self.tasks
                 .values()
                 .map(|task| *task.period.numer())
                 .reduce(gcd)
                 .unwrap_or(1),
-            tasks
+            self.tasks
                 .values()
                 .map(|task| *task.period.denom())
                 .reduce(lcm)
@@ -133,36 +128,14 @@ impl SchedulerState {
 
         let mut timeline = vec![Vec::new(); timeline_length as usize];
 
-        let tasks: Vec<_> = tasks
-            .into_iter()
-            .map(|(task_id, task)| {
-                let relative_period = task.period / system_gcd;
-
-                tracing::debug!(
-                    "Task {} has a period of {} ({:?}), tick rate of {}",
-                    task_id,
-                    task.period,
-                    Duration::from_secs_f64(task.period.to_f64().unwrap()),
-                    relative_period
-                );
-
-                assert!(relative_period.is_integer());
-                assert!(timeline_length % relative_period.to_integer() == 0);
-
-                TaskInfo {
-                    task: task.task,
-                    relative_period: relative_period.to_integer(),
-                }
-            })
-            .collect();
-
-        let mut schedule = BTreeMap::from_iter([(0, (0..tasks.len() as u16).collect::<Vec<_>>())]);
+        let mut schedule =
+            BTreeMap::from_iter([(0, self.tasks.keys().cloned().collect::<Vec<_>>())]);
 
         for (current_tick, timeline_tick_entries) in timeline.iter_mut().enumerate() {
             let current_tick = current_tick as u32;
 
             // It's OK to use [Option::unwrap_or_default] here; an empty Vec does not allocate in Rust
-            let active_events = schedule.remove(&current_tick).unwrap_or_default();
+            let mut active_events = schedule.remove(&current_tick).unwrap_or_default();
 
             let active_max_allotted_ticks =
                 timeline_length.min(timeline_length - current_tick).min(
@@ -176,60 +149,104 @@ impl SchedulerState {
             match active_events.len() {
                 0 => {}
                 1 => {
-                    let task_id = active_events[0];
-                    let task_info = &tasks[task_id as usize];
-                    let time_slice: NonZero<u32> = NonZero::new(
-                        (active_max_allotted_ticks / task_info.relative_period).max(1),
-                    )
-                    .unwrap();
-                    let representing_time = time_slice.get() * task_info.relative_period;
+                    let task_path = active_events.remove(0);
+                    let task_metadata = &self.tasks[&task_path];
+                    let relative_period = (task_metadata.period / system_gcd).to_u32().unwrap();
 
+                    let time_slice: NonZero<u32> =
+                        NonZero::new((active_max_allotted_ticks / relative_period).max(1)).unwrap();
+                    let representing_time = time_slice.get() * relative_period;
+
+                    let component = self
+                        .registry
+                        .get_erased(&task_metadata.path.component)
+                        .unwrap();
                     schedule
                         .entry((current_tick + representing_time) % timeline_length)
                         .or_default()
-                        .push(task_id);
+                        .push(task_path);
 
                     timeline_tick_entries.push(ScheduleEntry {
-                        task_id,
+                        task_id: task_metadata.id,
                         time_slice,
+                        component,
                     });
                 }
                 _ => {
-                    for task_id in active_events {
-                        let task_info = &tasks[task_id as usize];
+                    for task_path in active_events {
+                        let task_metadata = &self.tasks[&task_path];
+                        let relative_period = (task_metadata.period / system_gcd).to_u32().unwrap();
                         let time_slice = NonZero::new(1).unwrap();
-                        let representing_time = time_slice.get() * task_info.relative_period;
+
+                        let representing_time = time_slice.get() * relative_period;
+
+                        let component = self
+                            .registry
+                            .get_erased(&task_metadata.path.component)
+                            .unwrap();
 
                         schedule
                             .entry((current_tick + representing_time) % timeline_length)
                             .or_default()
-                            .push(task_id);
+                            .push(task_path);
 
                         timeline_tick_entries.push(ScheduleEntry {
-                            task_id,
+                            task_id: task_metadata.id,
                             time_slice,
+                            component,
                         });
                     }
                 }
             }
         }
 
-        let handle = SchedulerHandle {
-            timeline_length,
-            average_efficiency: AtomicCell::new(1.0),
-            paused: AtomicBool::new(true),
-            exit: AtomicBool::new(false),
+        self.timeline = Some(Timeline {
+            tick_real_time,
+            entries: timeline,
+        });
+    }
+
+    pub(crate) fn insert_task<C: Component>(
+        &mut self,
+        path: ResourcePath,
+        ty: TaskType,
+        period: Ratio<u32>,
+        mut task: impl Task<C>,
+    ) -> (TaskId, TaskData) {
+        assert!(self.timeline.is_none(), "Timeline already computed!");
+
+        let task_id = self.next_task_id;
+        self.next_task_id = self.next_task_id.checked_add(1).expect("Too many tasks");
+
+        self.tasks.insert(
+            task_id,
+            TaskMetadata {
+                id: task_id,
+                period,
+                path: path.clone(),
+            },
+        );
+
+        let data = TaskData {
+            callback: Box::new(move |component, slice| {
+                // tracing::info!("Executing task for {} for {} units", path, slice);
+
+                let component = (component as &mut dyn Any).downcast_mut().unwrap();
+
+                task.run(component, slice)
+            }),
+            debt: 0,
+            ty,
         };
 
-        Self {
-            current_tick: 0,
-            tick_real_time,
-            tasks,
-            timeline,
-            task_lookup,
-            registry,
-            handle: Arc::new(handle),
-        }
+        (task_id, data)
+    }
+
+    /// Move the scheduler onto a dedicated thread
+    pub fn spawn_dedicated_thread(self) {
+        std::thread::spawn(|| {
+            scheduler_thread(self);
+        });
     }
 
     pub fn handle(&self) -> Arc<SchedulerHandle> {
@@ -237,13 +254,12 @@ impl SchedulerState {
     }
 
     pub fn timeline_length(&self) -> u32 {
-        self.timeline.len() as u32
+        self.timeline.as_ref().unwrap().entries.len() as u32
     }
 }
 
 #[derive(Debug)]
 pub struct SchedulerHandle {
-    timeline_length: u32,
     average_efficiency: AtomicCell<f32>,
     paused: AtomicBool,
     exit: AtomicBool,
@@ -264,10 +280,7 @@ impl SchedulerHandle {
         self.paused.store(false, Ordering::Release);
     }
 
-    pub fn timeline_length(&self) -> u32 {
-        self.timeline_length
-    }
-
+    /// Get the average efficiency of the scheduler
     pub fn average_efficiency(&self) -> f32 {
         self.average_efficiency.load()
     }

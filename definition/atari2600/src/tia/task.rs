@@ -8,14 +8,14 @@ use bitvec::{
     view::BitView,
 };
 use multiemu_definition_mos6502::RdyFlag;
-use multiemu_runtime::scheduler::TaskMut;
+use multiemu_runtime::scheduler::Task;
 use std::{num::NonZero, sync::Arc};
 
 pub struct TiaTask {
     pub cpu_rdy: Arc<RdyFlag>,
 }
 
-impl<R: Region, G: SupportedGraphicsApiTia> TaskMut<Tia<R, G>> for TiaTask {
+impl<R: Region, G: SupportedGraphicsApiTia> Task<Tia<R, G>> for TiaTask {
     fn run(&mut self, component: &mut Tia<R, G>, time_slice: NonZero<u32>) {
         let mut commit_staging_buffer = false;
         let backend_guard = component.backend.as_mut().unwrap();
@@ -45,7 +45,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> TaskMut<Tia<R, G>> for TiaTask {
 
             component.state.electron_beam.x += 1;
 
-            if component.state.electron_beam.x >= SCANLINE_LENGTH {
+            if component.state.electron_beam.x == SCANLINE_LENGTH {
                 component.state.electron_beam.x = 0;
                 component.state.electron_beam.y += 1;
 

@@ -12,7 +12,7 @@ use crate::{
     persistence::{SaveManager, SnapshotManager},
     platform::{Platform, TestPlatform},
     program::{ProgramMetadata, ProgramSpecification},
-    scheduler::{SchedulerHandle, SchedulerState},
+    scheduler::Scheduler,
 };
 use num::rational::Ratio;
 use rustc_hash::FxBuildHasher;
@@ -41,10 +41,8 @@ pub struct Machine<P: Platform>
 where
     Self: Send + Sync,
 {
-    /// Scheduler controller
-    pub scheduler_handle: Arc<SchedulerHandle>,
     // A dedicated thread might own the actual scheduler state, if this is present you need to drive it
-    pub scheduler_state: Option<SchedulerState>,
+    pub scheduler: Option<Scheduler>,
     /// Memory translation table
     pub memory_access_table: Arc<MemoryAccessTable>,
     /// All virtual gamepads inserted by components

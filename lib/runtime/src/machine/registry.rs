@@ -1,4 +1,7 @@
-use crate::component::{Component, ComponentHandle, ComponentPath, ErasedComponentHandle};
+use crate::{
+    component::{Component, ComponentHandle, ComponentPath, ErasedComponentHandle},
+    scheduler::{TaskData, TaskId},
+};
 use rustc_hash::FxBuildHasher;
 use std::{
     any::{Any, TypeId},
@@ -24,7 +27,9 @@ where
 impl ComponentRegistry {
     pub(crate) fn interact_all(&self, mut callback: impl FnMut(&ComponentPath, &dyn Component)) {
         self.components.iter_sync(|path, component_info| {
-            callback(path, &*component_info.component.read());
+            component_info.component.interact(|component| {
+                callback(path, component);
+            });
 
             true
         });
@@ -35,18 +40,25 @@ impl ComponentRegistry {
         mut callback: impl FnMut(&ComponentPath, &mut dyn Component),
     ) {
         self.components.iter_sync(|path, component_info| {
-            callback(path, &mut *component_info.component.write());
+            component_info.component.interact_mut(|component| {
+                callback(path, component);
+            });
 
             true
         });
     }
 
-    pub(crate) fn insert_component<C: Component>(&self, path: ComponentPath, component: C) {
+    pub(crate) fn insert_component<C: Component>(
+        &self,
+        path: ComponentPath,
+        component: C,
+        tasks: impl IntoIterator<Item = (TaskId, TaskData)>,
+    ) {
         self.components
             .insert_sync(
                 path,
                 ComponentInfo {
-                    component: ErasedComponentHandle::new(component),
+                    component: ErasedComponentHandle::new(component, tasks),
                     type_id: TypeId::of::<C>(),
                 },
             )
@@ -54,7 +66,7 @@ impl ComponentRegistry {
     }
 
     #[inline]
-    pub fn interact<C: Component, T: 'static>(
+    pub fn interact<C: Component, T>(
         &self,
         path: &ComponentPath,
         callback: impl FnOnce(&C) -> T,
@@ -78,24 +90,28 @@ impl ComponentRegistry {
     }
 
     #[inline]
-    pub fn interact_dyn<T: 'static>(
+    pub fn interact_dyn<T>(
         &self,
         path: &ComponentPath,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Option<T> {
         self.components.read_sync(path, |_, component_info| {
-            callback(&*component_info.component.read())
+            component_info
+                .component
+                .interact(|component| callback(component))
         })
     }
 
     #[inline]
-    pub fn interact_dyn_mut<T: 'static>(
+    pub fn interact_dyn_mut<T>(
         &self,
         path: &ComponentPath,
         callback: impl FnOnce(&mut dyn Component) -> T,
     ) -> Option<T> {
         self.components.read_sync(path, |_, component_info| {
-            callback(&mut *component_info.component.write())
+            component_info
+                .component
+                .interact_mut(|component| callback(component))
         })
     }
 

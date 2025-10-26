@@ -18,6 +18,7 @@ use multiemu_runtime::{
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, MemoryAccessTable, ReadMemoryError, WriteMemoryError},
     platform::Platform,
+    scheduler::TaskType,
 };
 use nalgebra::{Point2, Vector2};
 use serde::{Deserialize, Serialize};
@@ -301,16 +302,24 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
             .unwrap();
 
         component_builder
-            .insert_task_mut(
+            .insert_task(
                 "driver",
                 R::master_clock() / 4,
+                TaskType::Direct,
                 Driver {
                     processor_nmi,
                     ppu_address_space: self.ppu_address_space,
                 },
             )
+            .0
             // At the same speed as the processor
-            .insert_task_mut("oam_dma_counter", R::master_clock() / 3, OamDmaTask)
+            .insert_task(
+                "oam_dma_counter",
+                R::master_clock() / 12,
+                TaskType::Direct,
+                OamDmaTask,
+            )
+            .0
             .set_lazy_component_initializer(|component, data| {
                 component.backend = Some(PpuDisplayBackend::new(
                     data.component_graphics_initialization_data.clone(),

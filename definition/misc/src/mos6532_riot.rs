@@ -8,6 +8,7 @@ use multiemu_runtime::{
         WriteMemoryErrorType,
     },
     platform::Platform,
+    scheduler::TaskType,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
@@ -324,46 +325,54 @@ fn set_up_timer_tasks<'a, P: Platform>(
 ) -> ComponentBuilder<'a, P, Mos6532Riot> {
     // Make the timers operate
     component_builder
-        .insert_task_mut(
+        .insert_task(
             "tim1t",
             config.frequency,
+            TaskType::Lazy,
             move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
                 component.registers.tim1t = component
                     .registers
                     .tim1t
-                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
+                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX));
             },
         )
-        .insert_task_mut(
+        .0
+        .insert_task(
             "tim8t",
             config.frequency / 8,
+            TaskType::Lazy,
             move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
                 component.registers.tim8t = component
                     .registers
                     .tim8t
-                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
+                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX));
             },
         )
-        .insert_task_mut(
+        .0
+        .insert_task(
             "tim64t",
             config.frequency / 64,
+            TaskType::Lazy,
             move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
                 component.registers.tim64t = component
                     .registers
                     .tim64t
-                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
+                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX));
             },
         )
-        .insert_task_mut(
+        .0
+        .insert_task(
             "t1024t",
             config.frequency / 1024,
+            TaskType::Lazy,
             move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
                 component.registers.t1024t = component
                     .registers
                     .t1024t
-                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX))
+                    .wrapping_add(slice.get().try_into().unwrap_or(u8::MAX));
             },
         )
+        .0
 }
 
 #[derive(Debug)]

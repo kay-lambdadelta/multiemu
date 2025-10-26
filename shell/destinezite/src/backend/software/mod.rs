@@ -88,7 +88,7 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
         for display_path in machine.displays.iter() {
             machine
                 .component_registry
-                .interact_dyn_mut(&display_path.component_path, |component| {
+                .interact_dyn_mut(&display_path.component, |component| {
                     component.access_framebuffer(
                         display_path,
                         Box::new(|display| {

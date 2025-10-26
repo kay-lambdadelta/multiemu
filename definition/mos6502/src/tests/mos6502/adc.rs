@@ -25,7 +25,7 @@ pub fn adc_immediate() {
             .unwrap();
 
         // Should be done in 2 cycles
-        machine.scheduler_state.as_mut().unwrap().run_for_cycles(2);
+        machine.scheduler.as_mut().unwrap().run_for_cycles(2);
 
         machine
             .component_registry
@@ -86,7 +86,7 @@ pub fn adc_absolute() {
             .write_le_value::<u16>(0x0001, cpu_address_space, 0x3)
             .unwrap();
 
-        machine.scheduler_state.as_mut().unwrap().run_for_cycles(4);
+        machine.scheduler.as_mut().unwrap().run_for_cycles(4);
 
         machine
             .component_registry

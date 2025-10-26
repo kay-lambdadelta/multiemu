@@ -24,7 +24,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             sram: false,
         },
     );
-    let machine = machine.build((), false);
+    let machine = machine.build(());
 
     let decoder = Chip8InstructionDecoder;
 

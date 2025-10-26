@@ -12,7 +12,7 @@ use crate::{
     persistence::{SaveManager, SnapshotManager},
     platform::Platform,
     program::{MachineId, ProgramMetadata, ProgramSpecification},
-    scheduler::{ErasedTask, SchedulerState, Task, TaskMut, scheduler_thread},
+    scheduler::{Scheduler, Task, TaskData, TaskId, TaskType},
 };
 use indexmap::IndexMap;
 use num::rational::Ratio;
@@ -21,10 +21,9 @@ use std::{
     any::Any,
     borrow::Cow,
     collections::{HashMap, HashSet},
-    fmt::Debug,
     io::Read,
     marker::PhantomData,
-    ops::{Deref, DerefMut, RangeInclusive},
+    ops::RangeInclusive,
     path::PathBuf,
     str::FromStr,
     sync::Arc,
@@ -32,7 +31,6 @@ use std::{
 
 /// Overall data extracted from components needed for machine initialization
 pub struct ComponentMetadata<P: Platform> {
-    pub tasks: HashMap<ResourcePath, StoredTask>,
     pub displays: HashSet<ResourcePath>,
     pub graphics_requirements: GraphicsRequirements<P::GraphicsApi>,
     pub audio_outputs: HashSet<ResourcePath>,
@@ -44,7 +42,6 @@ pub struct ComponentMetadata<P: Platform> {
 impl<P: Platform> Default for ComponentMetadata<P> {
     fn default() -> Self {
         Self {
-            tasks: Default::default(),
             displays: Default::default(),
             graphics_requirements: Default::default(),
             audio_outputs: Default::default(),
@@ -72,19 +69,8 @@ pub struct MachineBuilder<P: Platform> {
     component_metadata: IndexMap<ComponentPath, ComponentMetadata<P>, FxBuildHasher>,
     /// Program we were opened with
     program_specification: Option<ProgramSpecification>,
-}
-
-pub struct StoredTask {
-    pub period: Ratio<u32>,
-    pub task: ErasedTask,
-}
-
-impl Debug for StoredTask {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StoredTask")
-            .field("frequency", &self.period)
-            .finish()
-    }
+    /// Scheduler
+    scheduler: Scheduler,
 }
 
 impl<P: Platform> MachineBuilder<P> {
@@ -98,16 +84,18 @@ impl<P: Platform> MachineBuilder<P> {
         let registry = Arc::new(ComponentRegistry::default());
         let save_manager = SaveManager::new(save_path);
         let snapshot_manager = SnapshotManager::new(snapshot_path);
+        let scheduler = Scheduler::new(registry.clone());
 
         MachineBuilder::<P> {
             memory_access_table: Arc::new(MemoryAccessTable::new(registry.clone())),
             save_manager,
             snapshot_manager,
-            registry,
             rom_metadata: program_manager,
             sample_rate,
             component_metadata: IndexMap::default(),
             program_specification,
+            scheduler,
+            registry,
         }
     }
 
@@ -135,11 +123,13 @@ impl<P: Platform> MachineBuilder<P> {
         path: ComponentPath,
         config: B,
     ) {
+        let mut tasks = HashMap::new();
         let mut component_metadata = ComponentMetadata::default();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
             machine_builder: self,
             component_metadata: &mut component_metadata,
+            tasks: &mut tasks,
             path: &path,
             _phantom: PhantomData,
         };
@@ -147,7 +137,9 @@ impl<P: Platform> MachineBuilder<P> {
         let component = config
             .build_component(component_builder)
             .expect("Failed to build component");
-        self.registry.insert_component(path.clone(), component);
+
+        self.registry
+            .insert_component(path.clone(), component, tasks);
 
         self.component_metadata.insert(path, component_metadata);
     }
@@ -160,7 +152,7 @@ impl<P: Platform> MachineBuilder<P> {
         config: B,
     ) -> (Self, ComponentPath) {
         assert!(
-            !name.contains(ComponentPath::SEPERATOR),
+            !name.contains(ComponentPath::SEPARATOR),
             "This function requires a name not a path"
         );
 
@@ -273,10 +265,7 @@ impl<P: Platform> MachineBuilder<P> {
     pub fn build(
         mut self,
         component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
-        // NOTE: EVERY test should set this to false
-        scheduler_dedicated_thread: bool,
     ) -> Machine<P> {
-        let mut tasks = HashMap::default();
         let mut virtual_gamepads = HashMap::default();
         let mut audio_outputs = HashSet::new();
         let mut component_initializers = HashMap::new();
@@ -288,14 +277,7 @@ impl<P: Platform> MachineBuilder<P> {
             }
 
             displays.extend(component_metadata.displays);
-
-            // Gather the tasks
-            for (resource_path, task) in component_metadata.tasks {
-                tasks.insert(resource_path, task);
-            }
-
             virtual_gamepads.extend(component_metadata.gamepads);
-
             audio_outputs.extend(component_metadata.audio_outputs);
         }
 
@@ -311,23 +293,11 @@ impl<P: Platform> MachineBuilder<P> {
                 .unwrap();
         }
 
-        // Create the scheduler
-        let scheduler_state = SchedulerState::new(tasks, self.registry.clone());
-        let scheduler_handle = scheduler_state.handle();
-
-        let scheduler_state = if scheduler_dedicated_thread {
-            std::thread::spawn(|| {
-                scheduler_thread(scheduler_state);
-            });
-
-            None
-        } else {
-            Some(scheduler_state)
-        };
+        // Build the timeline before building the machine
+        self.scheduler.build_timeline();
 
         Machine {
-            scheduler_handle,
-            scheduler_state,
+            scheduler: Some(self.scheduler),
             memory_access_table: self.memory_access_table.clone(),
             virtual_gamepads,
             component_registry: self.registry,
@@ -344,6 +314,7 @@ impl<P: Platform> MachineBuilder<P> {
 pub struct ComponentBuilder<'a, P: Platform, C: Component> {
     machine_builder: &'a mut MachineBuilder<P>,
     component_metadata: &'a mut ComponentMetadata<P>,
+    tasks: &'a mut HashMap<TaskId, TaskData>,
     path: &'a ComponentPath,
     _phantom: PhantomData<C>,
 }
@@ -396,27 +367,31 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         config: B,
     ) -> (Self, ComponentPath) {
         assert!(
-            !name.contains(ComponentPath::SEPERATOR),
+            !name.contains(ComponentPath::SEPARATOR),
             "This function requires a name not a path"
         );
 
         let mut path = self.path.clone();
         path.push(name).unwrap();
+
+        let mut tasks = HashMap::new();
         let mut component_metadata = ComponentMetadata::default();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
             machine_builder: self.machine_builder,
             component_metadata: &mut component_metadata,
             path: &path,
+            tasks: &mut tasks,
             _phantom: PhantomData,
         };
 
         let component = config
             .build_component(component_builder)
             .expect("Failed to build component");
+
         self.machine_builder
             .registry
-            .insert_component(path.clone(), component);
+            .insert_component(path.clone(), component, tasks);
 
         self.machine_builder
             .component_metadata
@@ -437,7 +412,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn insert_audio_output(self, name: impl Into<Cow<'static, str>>) -> (Self, ResourcePath) {
         let resource_path = ResourcePath {
-            component_path: self.path.clone(),
+            component: self.path.clone(),
             name: name.into(),
         };
 
@@ -450,7 +425,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn insert_display(self, name: impl Into<Cow<'static, str>>) -> (Self, ResourcePath) {
         let resource_path = ResourcePath {
-            component_path: self.path.clone(),
+            component: self.path.clone(),
             name: name.into(),
         };
 
@@ -467,7 +442,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         gamepad: Arc<VirtualGamepad>,
     ) -> (Self, ResourcePath) {
         let resource_path = ResourcePath {
-            component_path: self.path.clone(),
+            component: self.path.clone(),
             name: name.into(),
         };
 
@@ -598,78 +573,27 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self
     }
 
-    /// Insert a task to be executed by the scheduler at the given frequency
     pub fn insert_task(
         self,
         name: impl Into<Cow<'static, str>>,
         frequency: Ratio<u32>,
-        mut callback: impl Task<C>,
-    ) -> Self {
+        ty: TaskType,
+        task: impl Task<C>,
+    ) -> (Self, ResourcePath) {
         let resource_path = ResourcePath {
-            component_path: self.path.clone(),
+            component: self.path.clone(),
             name: name.into(),
         };
 
-        if self.component_metadata.tasks.contains_key(&resource_path) {
-            panic!("Task with path {} already exists", resource_path);
-        }
-
-        let mut component = None;
-        let component_path = self.path.clone();
-
-        self.component_metadata.tasks.insert(
-            resource_path,
-            StoredTask {
-                period: frequency.reduced().recip(),
-                task: Box::new(move |component_registry, slice| {
-                    let component = component.get_or_insert_with(|| {
-                        component_registry.get::<C>(&component_path).unwrap()
-                    });
-
-                    let component_guard = component.read();
-
-                    callback.run(component_guard.deref(), slice);
-                }),
-            },
+        let (task_id, task_data) = self.machine_builder.scheduler.insert_task(
+            resource_path.clone(),
+            ty,
+            frequency.reduced().recip(),
+            task,
         );
 
-        self
-    }
+        self.tasks.insert(task_id, task_data);
 
-    pub fn insert_task_mut(
-        self,
-        name: impl Into<Cow<'static, str>>,
-        frequency: Ratio<u32>,
-        mut callback: impl TaskMut<C>,
-    ) -> Self {
-        let resource_path = ResourcePath {
-            component_path: self.path.clone(),
-            name: name.into(),
-        };
-
-        if self.component_metadata.tasks.contains_key(&resource_path) {
-            panic!("Task with path {} already exists", resource_path);
-        }
-
-        let mut component = None;
-        let component_path = self.path.clone();
-
-        self.component_metadata.tasks.insert(
-            resource_path,
-            StoredTask {
-                period: frequency.reduced().recip(),
-                task: Box::new(move |component_registry, slice| {
-                    let component = component.get_or_insert_with(|| {
-                        component_registry.get::<C>(&component_path).unwrap()
-                    });
-
-                    let mut component_guard = component.write();
-
-                    callback.run(component_guard.deref_mut(), slice);
-                }),
-            },
-        );
-
-        self
+        (self, resource_path)
     }
 }

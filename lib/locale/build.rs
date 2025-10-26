@@ -119,15 +119,15 @@ pub fn generate_3166() {
             }
         }
 
-        impl std::fmt::Display for Iso3166Alpha2 {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl core::fmt::Display for Iso3166Alpha2 {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 let s = match self {
                     #(#display_arms_2)*
                 };
                 write!(f, "{}", s)
             }
         }
-        impl std::str::FromStr for Iso3166Alpha2 {
+        impl core::str::FromStr for Iso3166Alpha2 {
             type Err = String;
 
                 fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -169,15 +169,15 @@ pub fn generate_3166() {
             }
         }
 
-        impl std::fmt::Display for Iso3166Alpha3 {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl core::fmt::Display for Iso3166Alpha3 {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 let s = match self {
                     #(#display_arms_3)*
                 };
                 write!(f, "{}", s)
             }
         }
-        impl std::str::FromStr for Iso3166Alpha3 {
+        impl core::str::FromStr for Iso3166Alpha3 {
             type Err = String;
 
                 fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -320,15 +320,15 @@ pub fn generate_639() {
             }
         }
 
-        impl std::fmt::Display for Iso639Alpha2 {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl core::fmt::Display for Iso639Alpha2 {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 let s = match self {
                     #(#display_arms_2)*
                 };
                 write!(f, "{}", s)
             }
         }
-        impl std::str::FromStr for Iso639Alpha2 {
+        impl core::str::FromStr for Iso639Alpha2 {
             type Err = String;
 
                 fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -370,15 +370,15 @@ pub fn generate_639() {
             }
         }
 
-        impl std::fmt::Display for Iso639Alpha3 {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl core::fmt::Display for Iso639Alpha3 {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 let s = match self {
                     #(#display_arms_3)*
                 };
                 write!(f, "{}", s)
             }
         }
-        impl std::str::FromStr for Iso639Alpha3 {
+        impl core::str::FromStr for Iso639Alpha3 {
             type Err = String;
 
                 fn from_str(s: &str) -> Result<Self, Self::Err> {

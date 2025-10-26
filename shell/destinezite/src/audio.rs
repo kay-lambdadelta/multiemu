@@ -132,7 +132,7 @@ fn build_stream<P: Platform, OS: SampleFormat + cpal::SizedSample + FromSample<f
                     if let Some(audio_resource_path) = machine.audio_outputs.iter().next() {
                         machine
                             .component_registry
-                            .interact_dyn_mut(&audio_resource_path.component_path, |component| {
+                            .interact_dyn_mut(&audio_resource_path.component, |component| {
                                 let buffer = component.drain_samples(audio_resource_path).unwrap();
                                 let final_sample = buffer
                                     .into_iter()

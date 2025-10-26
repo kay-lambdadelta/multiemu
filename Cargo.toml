@@ -18,13 +18,12 @@ multiemu-audio = { path = "lib/audio" }
 multiemu-range = { path = "lib/range" }
 
 # External dependencies
-strum = { version = "0.27", default-features = false, features = ["derive"] }
+strum = { version = "0.27", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rangemap = { version = "1.6", features = ["serde1"] }
 redb = { version = "3.1", features = ["logging"] }
-serde = { version = "1.0", default-features = false, features = [
-    "alloc",
+serde = { version = "1.0", features = [
     "derive",
 ] }
 serde_with = "3.15"
@@ -39,17 +38,9 @@ bytemuck = { version = "1.24", features = ["derive"] }
 num = { version = "0.4", features = ["serde"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 thiserror = "2.0"
-bitvec = { version = "1.0", default-features = false, features = [
-    "std",
-    "serde",
-] }
+bitvec = { version = "1.0", features = ["serde"] }
 rand = "0.9"
-palette = { version = "0.7", default-features = false, features = [
-    "std",
-    "bytemuck",
-    "serializing",
-    "named",
-] }
+palette = { version = "0.7", features = ["bytemuck", "serializing", "named"] }
 clap = { version = "4.5", features = ["derive"] }
 criterion = "0.7"
 uuid = { version = "1.18", features = ["serde", "v4"] }
@@ -61,11 +52,7 @@ data-encoding = "2.9"
 scc = "3.3"
 sealed = "0.6"
 crossbeam = "0.8"
-egui = { version = "0.32", default-features = false, features = [
-    "rayon",
-    "log",
-    "default_fonts",
-] }
+egui = { version = "0.32", features = ["rayon", "log"] }
 naga = { version = "27.0", features = ["wgsl-in", "serialize", "deserialize"] }
 itertools = "0.14"
 smallvec = "1.15"

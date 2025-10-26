@@ -3,7 +3,7 @@ use crate::ppu::backend::SupportedGraphicsApiPpu;
 use crate::ppu::region::Region;
 use arrayvec::ArrayVec;
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
-use multiemu_runtime::scheduler::TaskMut;
+use multiemu_runtime::scheduler::Task;
 use nalgebra::{Point2, Vector2};
 use serde::{Deserialize, Serialize};
 use serde_with::Bytes;
@@ -79,7 +79,7 @@ pub struct OamState {
 
 pub struct OamDmaTask;
 
-impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for OamDmaTask {
+impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for OamDmaTask {
     fn run(&mut self, component: &mut Ppu<R, G>, time_slice: NonZero<u32>) {
         if component.state.oam.cpu_dma_countdown > 0 {
             component.state.oam.cpu_dma_countdown = component

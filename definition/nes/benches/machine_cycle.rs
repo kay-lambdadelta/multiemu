@@ -33,8 +33,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         None,
         Ratio::from_integer(44100),
     );
-    let mut machine: Machine<TestPlatform> = Nes.construct(machine).build((), false);
-    let scheduler_state = machine.scheduler_state.as_mut().unwrap();
+    let mut machine: Machine<TestPlatform> = Nes.construct(machine).build(());
+    let scheduler_state = machine.scheduler.as_mut().unwrap();
     let full_cycle = scheduler_state.timeline_length();
 
     c.bench_function("nes_full_machine_cycle", |b| {

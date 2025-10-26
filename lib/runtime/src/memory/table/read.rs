@@ -95,12 +95,14 @@ impl MemoryAccessTable {
                     ..=(*component_access_range.end() - access_range.start());
                 let adjusted_buffer = &mut buffer[buffer_range];
 
-                component.read().read_memory(
-                    operation_base + offset.start(),
-                    address_space,
-                    avoid_side_effects,
-                    adjusted_buffer,
-                )
+                component.interact(|component| {
+                    component.read_memory(
+                        operation_base + offset.start(),
+                        address_space,
+                        avoid_side_effects,
+                        adjusted_buffer,
+                    )
+                })
             },
         )?;
 

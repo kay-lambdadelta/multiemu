@@ -1,6 +1,4 @@
 //! Shader definitions
-//!
-//! This part of the library is effectively std required due to use of naga and scc
 
 use crate::graphics::GraphicsVersion;
 use naga::{

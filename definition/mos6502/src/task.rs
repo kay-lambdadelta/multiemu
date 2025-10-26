@@ -5,9 +5,7 @@ use crate::{
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,
 };
-use multiemu_runtime::{
-    memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::TaskMut,
-};
+use multiemu_runtime::{memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::Task};
 use std::{num::NonZero, sync::Arc};
 
 #[derive(Debug)]
@@ -16,7 +14,7 @@ pub struct Driver {
     pub instruction_decoder: Mos6502InstructionDecoder,
 }
 
-impl TaskMut<Mos6502> for Driver {
+impl Task<Mos6502> for Driver {
     fn run(&mut self, component: &mut Mos6502, time_slice: NonZero<u32>) {
         let mut time_slice = time_slice.get();
 

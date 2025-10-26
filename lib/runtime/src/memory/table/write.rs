@@ -86,11 +86,13 @@ impl MemoryAccessTable {
                     ..=(*component_access_range.end() - access_range.start());
                 let adjusted_buffer = &buffer[buffer_range];
 
-                component.write().write_memory(
-                    operation_base + offset.start(),
-                    address_space,
-                    adjusted_buffer,
-                )
+                component.interact_mut(|component| {
+                    component.write_memory(
+                        operation_base + offset.start(),
+                        address_space,
+                        adjusted_buffer,
+                    )
+                })
             },
         )?;
 

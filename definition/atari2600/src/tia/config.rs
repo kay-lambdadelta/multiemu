@@ -6,6 +6,7 @@ use multiemu_runtime::{
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
+    scheduler::TaskType,
 };
 use std::marker::PhantomData;
 
@@ -33,9 +34,10 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
             .interact::<Mos6502, _>(&self.cpu, |cpu| cpu.rdy())
             .unwrap();
 
-        let component_builder = component_builder.insert_task_mut(
+        let (component_builder, _) = component_builder.insert_task(
             "driver",
             R::frequency(),
+            TaskType::Direct,
             TiaTask {
                 cpu_rdy: cpu_rdy.clone(),
             },

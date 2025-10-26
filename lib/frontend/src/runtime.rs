@@ -260,7 +260,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                 let maybe_machine = maybe_machine_guard.as_mut().unwrap();
 
                 // If the scheduler state is here, we must manually drive it
-                if maybe_machine.scheduler_state.is_some() {
+                if maybe_machine.scheduler.is_some() {
                     let frame_timing: Duration = if self.collected_frame_rates.is_empty() {
                         Duration::from_secs(1) / 60
                     } else {
@@ -272,7 +272,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                     windowing.graphics_runtime.redraw(maybe_machine);
                     let render_frame_time_taken = Instant::now() - render_frame_start_timestamp;
 
-                    maybe_machine.scheduler_state.as_mut().unwrap().run(
+                    maybe_machine.scheduler.as_mut().unwrap().run(
                         frame_timing
                             .checked_sub(render_frame_time_taken)
                             .unwrap_or(frame_timing),
@@ -441,8 +441,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         )
         .unwrap();
 
-        let machine =
-            machine_builder.build(graphics_runtime.component_initialization_data(), false);
+        let machine = machine_builder.build(graphics_runtime.component_initialization_data());
 
         let windowing = WindowingContext {
             display_api_handle,
@@ -479,7 +478,6 @@ impl<P: PlatformExt> FrontendRuntime<P> {
                 );
         }
 
-        machine.scheduler_handle.play();
         *maybe_machine_guard = Some(machine);
         self.mode = Mode::Machine;
     }

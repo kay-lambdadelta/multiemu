@@ -218,7 +218,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build((), false);
+        let machine = machine.build(());
 
         let mut buffer = [0; 4];
 
@@ -244,7 +244,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build((), false);
+        let machine = machine.build(());
 
         let mut buffer = [0; 4];
 
@@ -273,7 +273,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build((), false);
+        let machine = machine.build(());
 
         let mut buffer = [0; 8];
 
@@ -302,7 +302,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build((), false);
+        let machine = machine.build(());
 
         let buffer = [0; 8];
 
@@ -330,7 +330,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build((), false);
+        let machine = machine.build(());
 
         let mut buffer = [0xff; 8];
 
@@ -366,7 +366,7 @@ mod test {
         );
         let machine = machine.memory_map_mirror(0xf000..=0xffff, 0x0000..=0x0fff, address_space);
 
-        let machine = machine.build((), false);
+        let machine = machine.build(());
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];
@@ -449,7 +449,7 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.build((), false);
+        let machine = machine.build(());
 
         let mut buffer = [0; 2];
 

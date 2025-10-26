@@ -30,7 +30,9 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
 
         match instruction {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Clr) => {
-                self.display.write().clear_display();
+                self.display.interact_mut(|component| {
+                    component.clear_display();
+                });
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Rtrn) => {
                 if let Some(address) = state.stack.pop() {
@@ -226,7 +228,6 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                     state.registers.work_registers[coordinates.y as usize],
                 );
                 let mut cursor = 0;
-                let mut display_component_guard = self.display.write();
 
                 // SuperChip8 specializes a 16x16 sprite here
                 if height == 0 && *mode == Chip8Mode::SuperChip8 || *mode == Chip8Mode::XoChip {
@@ -244,8 +245,9 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                         cursor += buffer_section.len();
                     }
 
-                    state.registers.work_registers[0xf] =
-                        display_component_guard.draw_supersized_sprite(position, buffer) as u8;
+                    state.registers.work_registers[0xf] = self.display.interact_mut(|component| {
+                        component.draw_supersized_sprite(position, buffer) as u8
+                    });
                 } else {
                     let mut buffer =
                         ArrayVec::<_, 16>::from_iter(std::iter::repeat_n(0, height as usize));
@@ -262,8 +264,9 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                         cursor += buffer_section.len();
                     }
 
-                    state.registers.work_registers[0xf] =
-                        display_component_guard.draw_sprite(position, &buffer) as u8;
+                    state.registers.work_registers[0xf] = self
+                        .display
+                        .interact_mut(|component| component.draw_sprite(position, &buffer) as u8);
                 }
 
                 state.execution_state = ExecutionState::AwaitingVsync;
@@ -287,9 +290,8 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                 }
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Moved { register }) => {
-                let delay_timer_value = self.timer.read().get();
-
-                state.registers.work_registers[register as usize] = delay_timer_value;
+                state.registers.work_registers[register as usize] =
+                    self.timer.interact(|component| component.get());
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Keyd { key: register }) => {
                 state.execution_state = ExecutionState::AwaitingKeyPress { register };
@@ -297,12 +299,16 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loadd { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                self.timer.write().set(register_value);
+                self.timer.interact_mut(|component| {
+                    component.set(register_value);
+                });
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Loads { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                self.audio.write().set(register_value);
+                self.audio.interact_mut(|component| {
+                    component.set(register_value);
+                });
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Addi { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
@@ -378,10 +384,14 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
 
                 match subinstruction {
                     InstructionSetSuperChip8::Lores => {
-                        self.display.write().set_hires(false);
+                        self.display.interact_mut(|component| {
+                            component.set_hires(false);
+                        });
                     }
                     InstructionSetSuperChip8::Hires => {
-                        self.display.write().set_hires(true);
+                        self.display.interact_mut(|component| {
+                            component.set_hires(true);
+                        });
                     }
                     InstructionSetSuperChip8::Scroll { direction } => todo!(),
                     InstructionSetSuperChip8::Scrd { amount } => todo!(),

@@ -1,34 +1,57 @@
-use super::SchedulerState;
-use crate::scheduler::ScheduleEntry;
+use super::Scheduler;
+use crate::scheduler::{ScheduleEntry, TaskType};
 use std::{
+    num::NonZero,
     sync::atomic::Ordering,
     thread::sleep,
     time::{Duration, Instant},
 };
 
-impl SchedulerState {
+impl Scheduler {
     /// Runs the scheduler for X number of passes
     pub fn run_for_cycles(&mut self, cycles: u32) {
+        let timeline = self.timeline.as_mut().unwrap();
+
         for _ in 0..cycles {
             for ScheduleEntry {
                 task_id,
                 time_slice,
-            } in &self.timeline[self.current_tick as usize]
+                component,
+            } in &timeline.entries[self.current_tick as usize]
             {
-                let task_info = &mut self.tasks[*task_id as usize];
-                (task_info.task)(&self.registry, *time_slice);
+                component.interact_mut_with_task(*task_id, |component, task| {
+                    // FIXME: Verify logic edge cases
+
+                    match task.ty {
+                        // Direct tasks never have debt
+                        TaskType::Direct => {
+                            (task.callback)(component, *time_slice);
+                        }
+                        TaskType::Lazy => {
+                            let (new_debt, overflowed) =
+                                task.debt.overflowing_add(time_slice.get());
+                            task.debt = new_debt;
+
+                            if overflowed {
+                                (task.callback)(component, NonZero::new(u32::MAX).unwrap());
+                            }
+                        }
+                    }
+                });
             }
 
             self.current_tick =
-                self.current_tick.checked_add(1).unwrap() % self.timeline.len() as u32;
+                self.current_tick.checked_add(1).unwrap() % timeline.entries.len() as u32;
         }
     }
 
     pub fn run(&mut self, allotted_duration: Duration) {
-        // Do not allow the above runtime to undercut us stupidly
-        let allotted_duration = allotted_duration.max(self.tick_real_time);
+        let timeline = self.timeline.as_mut().unwrap();
 
-        let allotted_ticks = (allotted_duration.as_nanos() / self.tick_real_time.as_nanos())
+        // Do not allow the above runtime to undercut us stupidly
+        let allotted_duration = allotted_duration.max(timeline.tick_real_time);
+
+        let allotted_ticks = (allotted_duration.as_nanos() / timeline.tick_real_time.as_nanos())
             .try_into()
             .unwrap();
 
@@ -37,12 +60,19 @@ impl SchedulerState {
 }
 
 /// scheduler thread implementation that attempts to run the scheduler actively as much as that would be efficient
-pub(crate) fn scheduler_thread(mut state: SchedulerState) {
+pub(super) fn scheduler_thread(mut state: Scheduler) {
+    let timeline = state.timeline.as_mut().unwrap();
+    let reasonable_sleep_resolution =
+        find_reasonable_sleep_resolution().max(timeline.tick_real_time);
+
     let handle = state.handle();
 
-    let reasonable_sleep_resolution = find_reasonable_sleep_resolution().max(state.tick_real_time);
-    tracing::info!("Chose sleep resolution: {:?}", reasonable_sleep_resolution);
+    tracing::info!(
+        "Chose sleep resolution for the dedicated thread: {:?}",
+        reasonable_sleep_resolution
+    );
     let time_block_size = reasonable_sleep_resolution * 2;
+    let mut sleep_debt = Duration::ZERO;
 
     while !handle.exit.load(Ordering::Acquire) {
         if handle.paused.load(Ordering::Acquire) {
@@ -55,16 +85,16 @@ pub(crate) fn scheduler_thread(mut state: SchedulerState) {
         let time_taken = start.elapsed();
 
         let time_to_sleep = time_block_size.saturating_sub(time_taken);
+        sleep_debt += time_to_sleep;
 
-        if time_to_sleep < reasonable_sleep_resolution {
-            // Sleeping here is impossible
-            continue;
+        if sleep_debt > reasonable_sleep_resolution {
+            sleep(sleep_debt);
+            sleep_debt = Duration::ZERO;
         }
-
-        sleep(time_to_sleep);
     }
 }
 
+/// Tries to find a reasonable sleep resolution for the dedicated thread based upon several heuristic methods.
 fn find_reasonable_sleep_resolution() -> Duration {
     let min_exponent = 10;
     // ~32 milliseconds, if the system can't keep up with this, oh well

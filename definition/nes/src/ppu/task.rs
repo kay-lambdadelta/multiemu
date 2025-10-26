@@ -9,7 +9,7 @@ use crate::ppu::{
 use multiemu_definition_mos6502::NmiFlag;
 use multiemu_runtime::{
     memory::{AddressSpaceId, MemoryAccessTable},
-    scheduler::TaskMut,
+    scheduler::Task,
 };
 use nalgebra::{Point2, Vector2};
 use palette::Srgb;
@@ -25,7 +25,7 @@ pub struct Driver {
     pub ppu_address_space: AddressSpaceId,
 }
 
-impl<R: Region, G: SupportedGraphicsApiPpu> TaskMut<Ppu<R, G>> for Driver {
+impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
     fn run(&mut self, component: &mut Ppu<R, G>, time_slice: NonZero<u32>) {
         let backend = component.backend.as_mut().unwrap();
 

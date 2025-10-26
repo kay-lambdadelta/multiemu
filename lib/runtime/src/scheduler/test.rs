@@ -2,6 +2,7 @@ use crate::{
     component::{Component, ComponentConfig},
     machine::{Machine, builder::ComponentBuilder},
     platform::Platform,
+    scheduler::TaskType,
 };
 use num::rational::Ratio;
 use std::{num::NonZero, time::Duration};
@@ -27,9 +28,10 @@ fn basic_operation() {
             self,
             component_builder: ComponentBuilder<P, Self::Component>,
         ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-            component_builder.insert_task_mut(
+            component_builder.insert_task(
                 "task",
                 self.frequency,
+                TaskType::Lazy,
                 |component: &mut Counter, slice: NonZero<u32>| {
                     component.counter += slice.get();
                 },
@@ -39,7 +41,8 @@ fn basic_operation() {
         }
     }
 
-    let (machine, counter1000) = Machine::build_test_minimal().insert_component(
+    let machine = Machine::build_test_minimal();
+    let (machine, counter1000) = machine.insert_component(
         "counter1000",
         CounterConfig {
             frequency: Ratio::from_integer(1000),
@@ -52,10 +55,10 @@ fn basic_operation() {
         },
     );
 
-    let mut machine = machine.build((), false);
+    let mut machine = machine.build(());
 
     machine
-        .scheduler_state
+        .scheduler
         .as_mut()
         .unwrap()
         .run(Duration::from_secs(1));

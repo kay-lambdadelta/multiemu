@@ -2,6 +2,7 @@ use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     platform::Platform,
+    scheduler::TaskType,
 };
 use num::rational::Ratio;
 use std::{
@@ -62,9 +63,10 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        component_builder.insert_task_mut(
+        component_builder.insert_task(
             "driver",
             Ratio::from_integer(60),
+            TaskType::Lazy,
             move |component: &mut Chip8Timer, slice: NonZero<u32>| {
                 component.timer = component
                     .timer

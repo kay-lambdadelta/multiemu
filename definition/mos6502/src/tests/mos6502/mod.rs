@@ -38,5 +38,5 @@ fn instruction_test_boilerplate() -> (Machine<TestPlatform>, ComponentPath, Addr
         },
     );
 
-    (machine.build((), false), cpu, cpu_address_space)
+    (machine.build(()), cpu, cpu_address_space)
 }

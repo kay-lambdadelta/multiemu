@@ -4,6 +4,7 @@ use multiemu_runtime::{
     graphics::GraphicsApi,
     machine::builder::ComponentBuilder,
     platform::Platform,
+    scheduler::TaskType,
 };
 use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
@@ -254,15 +255,17 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         component_builder: ComponentBuilder<P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         component_builder
-            .insert_task_mut(
+            .insert_task(
                 "driver",
                 Ratio::from_integer(60),
+                TaskType::Lazy,
                 move |component: &mut Chip8Display<<P as Platform>::GraphicsApi>,
                       _: NonZero<u32>| {
                     component.vsync_occurred = true;
                     component.backend.as_mut().unwrap().commit_staging_buffer();
                 },
             )
+            .0
             .set_lazy_component_initializer(move |component, data| {
                 component.backend = Some(Chip8DisplayBackend::new(
                     data.component_graphics_initialization_data.clone(),

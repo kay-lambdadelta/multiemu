@@ -3,7 +3,7 @@ use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
     machine::builder::ComponentBuilder,
     platform::Platform,
-    scheduler::TaskMut,
+    scheduler::{Task, TaskType},
 };
 use nalgebra::SVector;
 use num::rational::Ratio;
@@ -82,7 +82,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         component_builder
             .insert_audio_output("audio-output")
             .0
-            .insert_task_mut("driver", register_change_frequency, driver);
+            .insert_task("driver", register_change_frequency, TaskType::Lazy, driver);
 
         Ok(Chip8Audio {
             sound_timer: 0,
@@ -97,7 +97,7 @@ struct Driver {
     register_change_frequency: Ratio<u32>,
 }
 
-impl TaskMut<Chip8Audio> for Driver {
+impl Task<Chip8Audio> for Driver {
     fn run(&mut self, component: &mut Chip8Audio, time_slice: NonZero<u32>) {
         let sample_generation_slice = time_slice.get().min(component.sound_timer as u32);
         let samples_to_generate = ((self.host_sample_rate * sample_generation_slice)

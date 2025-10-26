@@ -11,6 +11,7 @@ use multiemu_runtime::{
     },
     memory::AddressSpaceId,
     platform::Platform,
+    scheduler::TaskType,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
@@ -172,7 +173,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         component_builder
             .insert_gamepad("chip8-keypad", virtual_gamepad)
             .0
-            .insert_task_mut("driver", frequency, driver);
+            .insert_task("driver", frequency, TaskType::Direct, driver);
 
         Ok(Chip8Processor { state })
     }

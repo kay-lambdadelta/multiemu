@@ -33,9 +33,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         None,
         Ratio::from_integer(44100),
     );
-    let mut machine: Machine<TestPlatform> = Atari2600.construct(machine).build((), false);
+    let mut machine: Machine<TestPlatform> = Atari2600.construct(machine).build(());
 
-    let scheduler_state = machine.scheduler_state.as_mut().unwrap();
+    let scheduler_state = machine.scheduler.as_mut().unwrap();
     let full_cycle = scheduler_state.timeline_length();
 
     c.bench_function("atari_2600_full_machine_cycle", |b| {

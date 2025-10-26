@@ -1,68 +1,79 @@
-use crate::component::Component;
+use nohash::BuildNoHashHasher;
+
+use crate::{
+    component::Component,
+    scheduler::{TaskData, TaskId},
+};
 use std::{
-    any::Any,
+    any::{Any, TypeId},
+    collections::HashMap,
     marker::PhantomData,
-    ops::{Deref, DerefMut},
-    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    num::NonZero,
+    ops::DerefMut,
+    sync::{Arc, RwLock},
 };
 
-#[derive(Debug, Clone)]
-pub struct ErasedComponentHandle {
-    component: Arc<RwLock<dyn Component>>,
+// HACK: Add a generic so we can coerce this unsized
+#[derive(Debug)]
+struct HandleInner<T: ?Sized> {
+    tasks: HashMap<TaskId, TaskData, BuildNoHashHasher<TaskId>>,
+    component: T,
 }
+
+#[derive(Debug, Clone)]
+pub struct ErasedComponentHandle(Arc<RwLock<HandleInner<dyn Component>>>);
 
 impl ErasedComponentHandle {
-    pub(crate) fn new(component: impl Component) -> Self {
-        Self {
-            component: Arc::new(RwLock::new(component)),
+    pub(crate) fn new(
+        component: impl Component,
+        tasks: impl IntoIterator<Item = (TaskId, TaskData)>,
+    ) -> Self {
+        Self(Arc::new(RwLock::new(HandleInner {
+            tasks: tasks.into_iter().collect(),
+            component,
+        })))
+    }
+
+    #[inline]
+    pub fn interact<T>(&self, callback: impl FnOnce(&dyn Component) -> T) -> T {
+        let guard = self.0.read().unwrap();
+
+        let any_debt = guard.tasks.iter().any(|(_, data)| data.debt > 0);
+
+        if any_debt {
+            drop(guard);
+            return self.interact_mut(|component| callback(component));
         }
+
+        callback(&guard.component)
     }
 
     #[inline]
-    pub fn read(&self) -> ErasedComponentHandleReadGuard<'_> {
-        let guard = self.component.read().unwrap();
+    pub fn interact_mut<T>(&self, callback: impl FnOnce(&mut dyn Component) -> T) -> T {
+        let mut guard = self.0.write().unwrap();
+        let guard = guard.deref_mut();
 
-        ErasedComponentHandleReadGuard { component: guard }
+        for (_, data) in guard.tasks.iter_mut() {
+            if let Some(debt) = NonZero::new(data.debt) {
+                (data.callback)(&mut guard.component, debt);
+                data.debt = 0;
+            }
+        }
+
+        callback(&mut guard.component)
     }
 
     #[inline]
-    pub fn write(&self) -> ErasedComponentHandleWriteGuard<'_> {
-        let guard = self.component.write().unwrap();
+    /// Gets the component and its task without clearing debt
+    pub(crate) fn interact_mut_with_task<T>(
+        &self,
+        task_id: TaskId,
+        callback: impl FnOnce(&mut dyn Component, &mut TaskData) -> T,
+    ) -> T {
+        let mut guard = self.0.write().unwrap();
+        let guard = guard.deref_mut();
 
-        ErasedComponentHandleWriteGuard { component: guard }
-    }
-}
-
-pub struct ErasedComponentHandleReadGuard<'a> {
-    component: RwLockReadGuard<'a, dyn Component>,
-}
-
-impl<'a> Deref for ErasedComponentHandleReadGuard<'a> {
-    type Target = dyn Component;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        self.component.deref()
-    }
-}
-
-pub struct ErasedComponentHandleWriteGuard<'a> {
-    component: RwLockWriteGuard<'a, dyn Component>,
-}
-
-impl<'a> Deref for ErasedComponentHandleWriteGuard<'a> {
-    type Target = dyn Component;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        self.component.deref()
-    }
-}
-
-impl<'a> DerefMut for ErasedComponentHandleWriteGuard<'a> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.component.deref_mut()
+        callback(&mut guard.component, guard.tasks.get_mut(&task_id).unwrap())
     }
 }
 
@@ -93,64 +104,22 @@ impl<C: Component> ComponentHandle<C> {
     }
 
     #[inline]
-    pub fn read(&self) -> ComponentHandleReadGuard<'_, C> {
-        let guard = self.component.read();
+    pub fn interact<T: 'static>(&self, callback: impl FnOnce(&C) -> T) -> T {
+        self.component.interact(|component| {
+            debug_assert_eq!(TypeId::of::<C>(), (component as &dyn Any).type_id());
+            let component = unsafe { &*(component as *const dyn Component as *const C) };
 
-        ComponentHandleReadGuard {
-            component: guard,
-            _phantom: PhantomData,
-        }
+            callback(component)
+        })
     }
 
     #[inline]
-    pub fn write(&self) -> ComponentHandleWriteGuard<'_, C> {
-        let guard = self.component.write();
+    pub fn interact_mut<T: 'static>(&self, callback: impl FnOnce(&mut C) -> T) -> T {
+        self.component.interact_mut(|component| {
+            debug_assert_eq!(TypeId::of::<C>(), (component as &dyn Any).type_id());
+            let component = unsafe { &mut *(component as *mut dyn Component as *mut C) };
 
-        ComponentHandleWriteGuard {
-            component: guard,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-pub struct ComponentHandleReadGuard<'a, C> {
-    component: ErasedComponentHandleReadGuard<'a>,
-    _phantom: PhantomData<C>,
-}
-
-impl<'a, C: Component> Deref for ComponentHandleReadGuard<'a, C> {
-    type Target = C;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        debug_assert!((self.component.deref() as &dyn Any).is::<C>());
-
-        // The component must match the type of the generic
-        unsafe { &*(self.component.deref() as &dyn Any as *const dyn Any as *const C) }
-    }
-}
-
-pub struct ComponentHandleWriteGuard<'a, C> {
-    component: ErasedComponentHandleWriteGuard<'a>,
-    _phantom: PhantomData<C>,
-}
-
-impl<'a, C: Component> Deref for ComponentHandleWriteGuard<'a, C> {
-    type Target = C;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        debug_assert!((self.component.deref() as &dyn Any).is::<C>());
-
-        unsafe { &*(self.component.deref() as &dyn Any as *const dyn Any as *const C) }
-    }
-}
-
-impl<'a, C: Component> DerefMut for ComponentHandleWriteGuard<'a, C> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        debug_assert!((self.component.deref() as &dyn Any).is::<C>());
-
-        unsafe { &mut *(self.component.deref_mut() as &mut dyn Any as *mut dyn Any as *mut C) }
+            callback(component)
+        })
     }
 }

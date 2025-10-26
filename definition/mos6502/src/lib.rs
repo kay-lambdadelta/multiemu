@@ -7,6 +7,7 @@ use multiemu_runtime::{
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
+    scheduler::TaskType,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
@@ -338,9 +339,10 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let memory_access_table = component_builder.memory_access_table();
 
-        component_builder.insert_task_mut(
+        component_builder.insert_task(
             "driver",
             self.frequency,
+            TaskType::Direct,
             Driver {
                 memory_access_table,
                 instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
