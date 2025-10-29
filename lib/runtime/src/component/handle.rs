@@ -1,12 +1,10 @@
-use nohash::BuildNoHashHasher;
-
 use crate::{
     component::Component,
     scheduler::{TaskData, TaskId},
 };
 use std::{
     any::{Any, TypeId},
-    collections::HashMap,
+    collections::BTreeMap,
     marker::PhantomData,
     num::NonZero,
     ops::DerefMut,
@@ -16,7 +14,7 @@ use std::{
 // HACK: Add a generic so we can coerce this unsized
 #[derive(Debug)]
 struct HandleInner<T: ?Sized> {
-    tasks: HashMap<TaskId, TaskData, BuildNoHashHasher<TaskId>>,
+    tasks: BTreeMap<TaskId, TaskData>,
     component: T,
 }
 

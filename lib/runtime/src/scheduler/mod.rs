@@ -4,6 +4,7 @@ use crate::{
     scheduler::run::scheduler_thread,
 };
 use crossbeam::atomic::AtomicCell;
+use itertools::Itertools;
 use nohash::BuildNoHashHasher;
 use num::{
     ToPrimitive,
@@ -31,23 +32,30 @@ mod task;
 mod test;
 
 #[derive(Debug, Clone)]
-pub struct ScheduleEntry {
-    pub task_id: TaskId,
-    pub time_slice: NonZero<u32>,
-    pub component: ErasedComponentHandle,
-}
-
-#[derive(Debug, Clone)]
 pub struct TaskMetadata {
     pub id: TaskId,
     pub period: Ratio<u32>,
     pub path: ResourcePath,
+    pub ty: TaskType,
+}
+
+#[derive(Debug)]
+struct TimelineTaskEntry {
+    pub task_id: TaskId,
+    pub component: ErasedComponentHandle,
+}
+
+#[derive(Debug)]
+struct TimelineEntry {
+    pub tasks: Vec<TimelineTaskEntry>,
+    pub time_slice: NonZero<u32>,
 }
 
 #[derive(Debug)]
 pub struct Timeline {
-    entries: Vec<Vec<ScheduleEntry>>,
+    entries: BTreeMap<u32, TimelineEntry>,
     tick_real_time: Duration,
+    timeline_length: u32,
 }
 
 /// The scheduler for the emulator
@@ -62,7 +70,7 @@ pub struct Scheduler {
     registry: Arc<ComponentRegistry>,
     handle: Arc<SchedulerHandle>,
     next_task_id: TaskId,
-    tasks: HashMap<TaskId, TaskMetadata, BuildNoHashHasher<TaskId>>,
+    task_metadata: HashMap<TaskId, TaskMetadata, BuildNoHashHasher<TaskId>>,
 }
 
 impl Scheduler {
@@ -76,7 +84,7 @@ impl Scheduler {
         Self {
             current_tick: 0,
             timeline: None,
-            tasks: HashMap::default(),
+            task_metadata: HashMap::default(),
             registry,
             handle: Arc::new(handle),
             next_task_id: 0,
@@ -85,15 +93,20 @@ impl Scheduler {
 
     #[tracing::instrument(skip_all)]
     pub(crate) fn build_timeline(&mut self) {
+        // empty schedule
+        if self.task_metadata.is_empty() {
+            return;
+        }
+
         assert!(self.timeline.is_none(), "Timeline already computed!");
 
         let system_lcm = Ratio::new(
-            self.tasks
+            self.task_metadata
                 .values()
                 .map(|task| *task.period.numer())
                 .reduce(lcm)
                 .unwrap_or(1),
-            self.tasks
+            self.task_metadata
                 .values()
                 .map(|task| *task.period.denom())
                 .reduce(gcd)
@@ -101,12 +114,12 @@ impl Scheduler {
         );
 
         let system_gcd = Ratio::new(
-            self.tasks
+            self.task_metadata
                 .values()
                 .map(|task| *task.period.numer())
                 .reduce(gcd)
                 .unwrap_or(1),
-            self.tasks
+            self.task_metadata
                 .values()
                 .map(|task| *task.period.denom())
                 .reduce(lcm)
@@ -126,76 +139,114 @@ impl Scheduler {
             timeline_length,
         );
 
-        let mut timeline = vec![Vec::new(); timeline_length as usize];
+        let mut timeline = BTreeMap::default();
+        let mut current_tick = 0;
 
-        let mut schedule =
-            BTreeMap::from_iter([(0, self.tasks.keys().cloned().collect::<Vec<_>>())]);
-
-        for (current_tick, timeline_tick_entries) in timeline.iter_mut().enumerate() {
-            let current_tick = current_tick as u32;
-
-            // It's OK to use [Option::unwrap_or_default] here; an empty Vec does not allocate in Rust
-            let mut active_events = schedule.remove(&current_tick).unwrap_or_default();
-
-            let active_max_allotted_ticks =
-                timeline_length.min(timeline_length - current_tick).min(
-                    schedule
-                        .range(current_tick..)
-                        .next()
-                        .map(|(tick, _)| *tick - current_tick)
-                        .unwrap_or(timeline_length),
-                );
-
-            match active_events.len() {
-                0 => {}
-                1 => {
-                    let task_path = active_events.remove(0);
-                    let task_metadata = &self.tasks[&task_path];
+        while current_tick < timeline_length {
+            let tasks: Vec<_> = self
+                .task_metadata
+                .iter()
+                .map(|(task_id, task_metadata)| {
                     let relative_period = (task_metadata.period / system_gcd).to_u32().unwrap();
 
-                    let time_slice: NonZero<u32> =
-                        NonZero::new((active_max_allotted_ticks / relative_period).max(1)).unwrap();
-                    let representing_time = time_slice.get() * relative_period;
+                    (task_id, task_metadata, current_tick % relative_period)
+                })
+                .sorted_by_key(|(_, _, time_till_run)| *time_till_run)
+                .collect();
 
-                    let component = self
-                        .registry
-                        .get_erased(&task_metadata.path.component)
-                        .unwrap();
-                    schedule
-                        .entry((current_tick + representing_time) % timeline_length)
-                        .or_default()
-                        .push(task_path);
+            let number_to_run = tasks
+                .iter()
+                .take_while(|(_, _, time_till_run)| *time_till_run == 0)
+                .count();
 
-                    timeline_tick_entries.push(ScheduleEntry {
-                        task_id: task_metadata.id,
-                        time_slice,
-                        component,
-                    });
+            match number_to_run {
+                0 => {
+                    current_tick += 1;
+                }
+                1 => {
+                    let (first_task_id, first_task_metadata, _) = tasks.first().unwrap();
+
+                    let first_relative_period =
+                        (first_task_metadata.period / system_gcd).to_u32().unwrap();
+
+                    if let Some((_, second_task_metadata, _)) = tasks
+                        .iter()
+                        .skip(1)
+                        .find(|(_, task_metadata, _)| task_metadata.ty == TaskType::Direct)
+                    {
+                        let second_relative_period =
+                            (second_task_metadata.period / system_gcd).to_u32().unwrap();
+
+                        let first_time_until = (first_relative_period
+                            - (current_tick % first_relative_period))
+                            % first_relative_period;
+                        let second_time_until = (second_relative_period
+                            - (current_tick % second_relative_period))
+                            % second_relative_period;
+
+                        let time_difference = second_time_until - first_time_until;
+                        let runs_before_second = time_difference / first_relative_period;
+
+                        let time_slice = runs_before_second.max(1);
+
+                        timeline.insert(
+                            current_tick,
+                            TimelineEntry {
+                                time_slice: NonZero::new(time_slice).unwrap(),
+                                tasks: vec![TimelineTaskEntry {
+                                    task_id: **first_task_id,
+                                    component: self
+                                        .registry
+                                        .get_erased(&first_task_metadata.path.component)
+                                        .unwrap(),
+                                }],
+                            },
+                        );
+
+                        current_tick += time_difference;
+                    } else {
+                        // Limit by itself
+
+                        timeline.insert(
+                            current_tick,
+                            TimelineEntry {
+                                time_slice: NonZero::new(1).unwrap(),
+                                tasks: vec![TimelineTaskEntry {
+                                    task_id: **first_task_id,
+                                    component: self
+                                        .registry
+                                        .get_erased(&first_task_metadata.path.component)
+                                        .unwrap(),
+                                }],
+                            },
+                        );
+
+                        current_tick += first_relative_period;
+                    }
                 }
                 _ => {
-                    for task_path in active_events {
-                        let task_metadata = &self.tasks[&task_path];
-                        let relative_period = (task_metadata.period / system_gcd).to_u32().unwrap();
-                        let time_slice = NonZero::new(1).unwrap();
+                    timeline.insert(
+                        current_tick,
+                        TimelineEntry {
+                            time_slice: NonZero::new(1).unwrap(),
+                            tasks: tasks
+                                .into_iter()
+                                .map(|(task_id, _, _)| {
+                                    let task_metadata = self.task_metadata.get(task_id).unwrap();
 
-                        let representing_time = time_slice.get() * relative_period;
+                                    TimelineTaskEntry {
+                                        task_id: *task_id,
+                                        component: self
+                                            .registry
+                                            .get_erased(&task_metadata.path.component)
+                                            .unwrap(),
+                                    }
+                                })
+                                .collect(),
+                        },
+                    );
 
-                        let component = self
-                            .registry
-                            .get_erased(&task_metadata.path.component)
-                            .unwrap();
-
-                        schedule
-                            .entry((current_tick + representing_time) % timeline_length)
-                            .or_default()
-                            .push(task_path);
-
-                        timeline_tick_entries.push(ScheduleEntry {
-                            task_id: task_metadata.id,
-                            time_slice,
-                            component,
-                        });
-                    }
+                    current_tick += 1;
                 }
             }
         }
@@ -203,6 +254,7 @@ impl Scheduler {
         self.timeline = Some(Timeline {
             tick_real_time,
             entries: timeline,
+            timeline_length,
         });
     }
 
@@ -218,12 +270,13 @@ impl Scheduler {
         let task_id = self.next_task_id;
         self.next_task_id = self.next_task_id.checked_add(1).expect("Too many tasks");
 
-        self.tasks.insert(
+        self.task_metadata.insert(
             task_id,
             TaskMetadata {
                 id: task_id,
                 period,
                 path: path.clone(),
+                ty,
             },
         );
 
@@ -254,7 +307,7 @@ impl Scheduler {
     }
 
     pub fn timeline_length(&self) -> u32 {
-        self.timeline.as_ref().unwrap().entries.len() as u32
+        self.timeline.as_ref().unwrap().timeline_length
     }
 }
 

@@ -63,7 +63,6 @@ pub(crate) struct State {
     collision_matrix: HashMap<ObjectId, HashSet<ObjectId>>,
     vblank_active: bool,
     cycles_waiting_for_vsync: Option<u16>,
-    reset_rdy_on_scanline_end: bool,
     input_control: [InputControl; 6],
     electron_beam: Point2<u16>,
     missiles: [Missile; 2],

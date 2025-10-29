@@ -15,7 +15,7 @@ use std::{
     collections::VecDeque,
     io::{Read, Write},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -269,6 +269,50 @@ impl Default for ProcessorState {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+struct RdyState {
+    pub state: bool,
+    pub until: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RdyFlag(Mutex<RdyState>);
+
+impl Default for RdyFlag {
+    fn default() -> Self {
+        Self(Mutex::new(RdyState {
+            state: true,
+            until: None,
+        }))
+    }
+}
+
+impl RdyFlag {
+    #[inline]
+    pub fn load(&self) -> bool {
+        let mut guard = self.0.lock().unwrap();
+
+        if let Some(until) = &mut guard.until {
+            *until = until.saturating_sub(1);
+
+            if *until == 0 {
+                guard.until = None;
+                guard.state = !guard.state;
+            }
+        }
+
+        guard.state
+    }
+
+    #[inline]
+    pub fn store(&self, value: bool, until: Option<u32>) {
+        let mut guard = self.0.lock().unwrap();
+
+        guard.state = value;
+        guard.until = until;
+    }
+}
+
 #[derive(Debug)]
 pub struct Mos6502 {
     state: ProcessorState,
@@ -300,8 +344,8 @@ impl Component for Mos6502 {
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
         bincode::serde::encode_into_std_write(
             &Snapshot {
-                rdy: self.rdy.load(),
                 state: self.state.clone(),
+                rdy: *self.rdy.0.lock().unwrap(),
             },
             &mut writer,
             bincode::config::standard(),
@@ -320,8 +364,8 @@ impl Component for Mos6502 {
                 let snapshot: Snapshot =
                     bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
 
-                self.rdy.store(snapshot.rdy);
                 self.state = snapshot.state;
+                *self.rdy.0.lock().unwrap() = snapshot.rdy;
 
                 Ok(())
             }
@@ -361,33 +405,8 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Snapshot {
-    rdy: bool,
     state: ProcessorState,
-}
-
-#[derive(Debug)]
-pub struct RdyFlag(AtomicBool);
-
-impl Default for RdyFlag {
-    fn default() -> Self {
-        Self(AtomicBool::new(true))
-    }
-}
-
-impl RdyFlag {
-    pub fn store(&self, rdy: bool) {
-        if rdy {
-            tracing::debug!("RDY went high, resuming execution");
-        } else {
-            tracing::debug!("RDY went low, pausing execution");
-        }
-
-        self.0.store(rdy, Ordering::Release);
-    }
-
-    pub fn load(&self) -> bool {
-        self.0.load(Ordering::Acquire)
-    }
+    rdy: RdyState,
 }
 
 #[derive(Debug)]

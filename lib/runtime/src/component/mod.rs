@@ -7,7 +7,6 @@ use crate::{
     },
     platform::Platform,
 };
-pub use handle::*;
 use multiemu_range::ContiguousRange;
 use nalgebra::SVector;
 pub use path::{ComponentPath, ResourcePath};
@@ -19,6 +18,8 @@ use std::{
     io::{Read, Write},
     ops::RangeInclusive,
 };
+
+pub use handle::*;
 
 mod handle;
 mod path;

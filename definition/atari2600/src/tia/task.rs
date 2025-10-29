@@ -1,19 +1,16 @@
 use super::{SCANLINE_LENGTH, State, Tia, color::TiaColor, region::Region};
 use crate::tia::{
-    VISIBLE_SCANLINE_LENGTH,
+    HBLANK_LENGTH, VISIBLE_SCANLINE_LENGTH,
     backend::{SupportedGraphicsApiTia, TiaDisplayBackend},
 };
 use bitvec::{
     order::{Lsb0, Msb0},
     view::BitView,
 };
-use multiemu_definition_mos6502::RdyFlag;
 use multiemu_runtime::scheduler::Task;
-use std::{num::NonZero, sync::Arc};
+use std::num::NonZero;
 
-pub struct TiaTask {
-    pub cpu_rdy: Arc<RdyFlag>,
-}
+pub struct TiaTask;
 
 impl<R: Region, G: SupportedGraphicsApiTia> Task<Tia<R, G>> for TiaTask {
     fn run(&mut self, component: &mut Tia<R, G>, time_slice: NonZero<u32>) {
@@ -26,18 +23,20 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task<Tia<R, G>> for TiaTask {
 
                 if component.state.cycles_waiting_for_vsync == Some(0) {
                     commit_staging_buffer = true;
+                    component.state.cycles_waiting_for_vsync = None;
                 }
             }
 
             if !(component.state.cycles_waiting_for_vsync.is_some()
                 || component.state.vblank_active)
-                && (0..VISIBLE_SCANLINE_LENGTH).contains(&component.state.electron_beam.x)
+                && (HBLANK_LENGTH..(VISIBLE_SCANLINE_LENGTH + HBLANK_LENGTH))
+                    .contains(&component.state.electron_beam.x)
             {
                 let color = R::color_to_srgb(component.state.get_rendered_color());
 
                 backend_guard.modify_staging_buffer(|mut staging_buffer_guard| {
                     staging_buffer_guard[(
-                        component.state.electron_beam.x as usize,
+                        (component.state.electron_beam.x - HBLANK_LENGTH) as usize,
                         component.state.electron_beam.y as usize,
                     )] = color.into();
                 });
@@ -48,10 +47,6 @@ impl<R: Region, G: SupportedGraphicsApiTia> Task<Tia<R, G>> for TiaTask {
             if component.state.electron_beam.x == SCANLINE_LENGTH {
                 component.state.electron_beam.x = 0;
                 component.state.electron_beam.y += 1;
-
-                if std::mem::replace(&mut component.state.reset_rdy_on_scanline_end, false) {
-                    self.cpu_rdy.store(true);
-                }
 
                 if component.state.electron_beam.y >= R::TOTAL_SCANLINES {
                     component.state.electron_beam.y = 0;
@@ -188,7 +183,7 @@ impl State {
 
     #[inline]
     fn get_playfield_color(&self) -> Option<TiaColor> {
-        let playfield_position = (self.electron_beam.x / 4) as usize;
+        let playfield_position = ((self.electron_beam.x - HBLANK_LENGTH) / 4) as usize;
 
         match playfield_position {
             0..20 => {

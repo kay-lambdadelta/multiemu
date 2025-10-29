@@ -3,7 +3,7 @@ use crate::{
     ppu::{
         backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
         background::{BackgroundPipelineState, BackgroundState},
-        oam::{OamDmaTask, OamState, SpriteEvaluationState},
+        oam::{OamState, SpriteEvaluationState},
         region::Region,
         state::State,
         task::Driver,
@@ -245,9 +245,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                 }
                 CpuAccessibleRegister::OamDma => {
                     let page = (*buffer as u16) << 8;
-                    // Halt the processor
-                    self.processor_rdy.store(false);
-                    self.state.oam.cpu_dma_countdown = 514;
+
+                    self.processor_rdy.store(false, Some(514));
 
                     // Read off OAM data immediately, this is done for performance and should not have any side effects
                     let _ = self.memory_access_table.read(
@@ -296,6 +295,7 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
             .interact::<Mos6502, _>(&self.processor, |component| component.nmi())
             .unwrap();
 
+        // Install the rdy source
         let processor_rdy = component_builder
             .registry()
             .interact::<Mos6502, _>(&self.processor, |component| component.rdy())
@@ -310,14 +310,6 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                     processor_nmi,
                     ppu_address_space: self.ppu_address_space,
                 },
-            )
-            .0
-            // At the same speed as the processor
-            .insert_task(
-                "oam_dma_counter",
-                R::master_clock() / 12,
-                TaskType::Direct,
-                OamDmaTask,
             )
             .0
             .set_lazy_component_initializer(|component, data| {
@@ -402,7 +394,6 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
                     show_sprites_leftmost_pixels: true,
                     sprite_8x8_pattern_table_address: 0x0000,
                     sprite_rendering_enabled: true,
-                    cpu_dma_countdown: 0,
                 },
             },
             backend: None,

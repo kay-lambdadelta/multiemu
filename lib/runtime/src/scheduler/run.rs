@@ -1,55 +1,66 @@
+use multiemu_range::ContiguousRange;
+
 use super::Scheduler;
-use crate::scheduler::{ScheduleEntry, TaskType};
+use crate::scheduler::{TaskType, TimelineEntry, TimelineTaskEntry};
 use std::{
     num::NonZero,
+    ops::RangeInclusive,
     sync::atomic::Ordering,
     thread::sleep,
     time::{Duration, Instant},
 };
 
 impl Scheduler {
-    /// Runs the scheduler for X number of passes
-    pub fn run_for_cycles(&mut self, cycles: u32) {
+    /// Runs the scheduler for X number of cycles
+    ///
+    /// This may not relate to the frequency of any component but represents the number of fine grained steps in a timeline
+    pub fn run_for_cycles(&mut self, mut cycles: u32) {
         let timeline = self.timeline.as_mut().unwrap();
 
-        for _ in 0..cycles {
-            for ScheduleEntry {
-                task_id,
-                time_slice,
-                component,
-            } in &timeline.entries[self.current_tick as usize]
-            {
-                component.interact_mut_with_task(*task_id, |component, task| {
-                    // FIXME: Verify logic edge cases
+        while cycles != 0 {
+            let to_run = (timeline.timeline_length - self.current_tick).min(cycles);
+            cycles -= to_run;
 
-                    match task.ty {
-                        // Direct tasks never have debt
-                        TaskType::Direct => {
-                            (task.callback)(component, *time_slice);
-                        }
-                        TaskType::Lazy => {
-                            let (new_debt, overflowed) =
-                                task.debt.overflowing_add(time_slice.get());
-                            task.debt = new_debt;
+            let cycle_range = RangeInclusive::from_start_and_length(self.current_tick, to_run);
 
-                            if overflowed {
-                                (task.callback)(component, NonZero::new(u32::MAX).unwrap());
+            for (_, TimelineEntry { tasks, time_slice }) in timeline.entries.range(cycle_range) {
+                for TimelineTaskEntry { task_id, component } in tasks {
+                    component.interact_mut_with_task(*task_id, |component, task| {
+                        match task.ty {
+                            // Direct tasks never have debt
+                            TaskType::Direct => {
+                                (task.callback)(component, *time_slice);
+                            }
+                            TaskType::Lazy => {
+                                // If the debt overflows go ahead and call the task and do the expensive operation
+                                //
+                                // This is unlikely to occur but it could occur
+                                let (new_debt, overflowed) =
+                                    task.debt.overflowing_add(time_slice.get());
+                                task.debt = new_debt;
+
+                                if overflowed {
+                                    (task.callback)(component, NonZero::new(u32::MAX).unwrap());
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }
             }
 
             self.current_tick =
-                self.current_tick.checked_add(1).unwrap() % timeline.entries.len() as u32;
+                self.current_tick.checked_add(to_run).unwrap() % timeline.timeline_length;
         }
     }
 
-    pub fn run(&mut self, allotted_duration: Duration) {
+    /// Run for a number of cycles closest matching the duration
+    ///
+    /// Note that the passed in duration is a suggestion and the runtime may run for more or less cycles than requested.
+    pub fn run(&mut self, duration: Duration) {
         let timeline = self.timeline.as_mut().unwrap();
 
         // Do not allow the above runtime to undercut us stupidly
-        let allotted_duration = allotted_duration.max(timeline.tick_real_time);
+        let allotted_duration = duration.max(timeline.tick_real_time);
 
         let allotted_ticks = (allotted_duration.as_nanos() / timeline.tick_real_time.as_nanos())
             .try_into()
@@ -59,7 +70,6 @@ impl Scheduler {
     }
 }
 
-/// scheduler thread implementation that attempts to run the scheduler actively as much as that would be efficient
 pub(super) fn scheduler_thread(mut state: Scheduler) {
     let timeline = state.timeline.as_mut().unwrap();
     let reasonable_sleep_resolution =
@@ -71,6 +81,7 @@ pub(super) fn scheduler_thread(mut state: Scheduler) {
         "Chose sleep resolution for the dedicated thread: {:?}",
         reasonable_sleep_resolution
     );
+    // NOTE: This is rather arbitrary
     let time_block_size = reasonable_sleep_resolution * 2;
     let mut sleep_debt = Duration::ZERO;
 

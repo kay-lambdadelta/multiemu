@@ -77,9 +77,10 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
                 };
             }
             WriteRegisters::Wsync => {
-                self.cpu_rdy.store(false);
+                let until = (SCANLINE_LENGTH - self.state.electron_beam.x) as u32 / 3;
 
-                self.state.reset_rdy_on_scanline_end = true;
+                // The TIA runs 3 times as fast as the cpu
+                self.cpu_rdy.store(false, Some(until));
             }
             WriteRegisters::Rsync => {
                 self.state.electron_beam.x = 0;

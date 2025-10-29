@@ -26,9 +26,9 @@ impl Task<Mos6502> for Driver {
 
             match component.state.execution_queue.pop_front().unwrap() {
                 ExecutionStep::Reset => {
-                    component.state.interrupt(RESET_VECTOR, false, false);
-
                     time_slice -= 1;
+
+                    component.state.interrupt(RESET_VECTOR, false, false);
                 }
                 ExecutionStep::Jammed => {
                     time_slice -= 1;

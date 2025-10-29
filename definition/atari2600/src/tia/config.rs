@@ -34,14 +34,8 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
             .interact::<Mos6502, _>(&self.cpu, |cpu| cpu.rdy())
             .unwrap();
 
-        let (component_builder, _) = component_builder.insert_task(
-            "driver",
-            R::frequency(),
-            TaskType::Direct,
-            TiaTask {
-                cpu_rdy: cpu_rdy.clone(),
-            },
-        );
+        let (component_builder, _) =
+            component_builder.insert_task("driver", R::frequency(), TaskType::Lazy, TiaTask);
 
         component_builder.set_lazy_component_initializer(move |component, lazy| {
             component.backend = Some(TiaDisplayBackend::new(
