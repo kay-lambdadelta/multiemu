@@ -4,7 +4,7 @@ use multiemu_runtime::{
     environment::{ENVIRONMENT_LOCATION, Environment},
     machine::{Machine, MachineFactory},
     platform::TestPlatform,
-    program::{ProgramMetadata, RomId},
+    program::{ProgramManager, RomId},
 };
 use num::rational::Ratio;
 use std::{
@@ -19,8 +19,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
 
-    let program_manager =
-        Arc::new(ProgramMetadata::new(Arc::new(RwLock::new(environment))).unwrap());
+    let program_manager = ProgramManager::new(Arc::new(RwLock::new(environment))).unwrap();
     let program_specification = program_manager
         .identify_program([RomId::from_str("3737eefc3c7b1934e929b551251cf1ea98f5f451").unwrap()])
         .unwrap()

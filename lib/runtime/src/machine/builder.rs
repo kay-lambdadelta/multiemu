@@ -11,7 +11,7 @@ use crate::{
     memory::{Address, AddressSpaceId, MemoryAccessTable, MemoryRemappingCommand, Permissions},
     persistence::{SaveManager, SnapshotManager},
     platform::Platform,
-    program::{MachineId, ProgramMetadata, ProgramSpecification},
+    program::{MachineId, ProgramManager, ProgramSpecification},
     scheduler::{Scheduler, Task, TaskData, TaskId, TaskType},
 };
 use indexmap::IndexMap;
@@ -56,7 +56,7 @@ pub struct MachineBuilder<P: Platform> {
     /// Memory translation table
     memory_access_table: Arc<MemoryAccessTable>,
     /// Rom manager
-    rom_metadata: Arc<ProgramMetadata>,
+    rom_metadata: Arc<ProgramManager>,
     /// Save manager
     save_manager: SaveManager,
     /// Snapshot manager
@@ -76,7 +76,7 @@ pub struct MachineBuilder<P: Platform> {
 impl<P: Platform> MachineBuilder<P> {
     pub(crate) fn new(
         program_specification: Option<ProgramSpecification>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         save_path: Option<PathBuf>,
         snapshot_path: Option<PathBuf>,
         sample_rate: Ratio<u32>,
@@ -109,7 +109,7 @@ impl<P: Platform> MachineBuilder<P> {
         self.program_specification.as_ref()
     }
 
-    pub fn program_manager(&self) -> &Arc<ProgramMetadata> {
+    pub fn program_manager(&self) -> &Arc<ProgramManager> {
         &self.rom_metadata
     }
 
@@ -322,7 +322,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self.path
     }
 
-    pub fn program_manager(&self) -> &Arc<ProgramMetadata> {
+    pub fn program_manager(&self) -> &Arc<ProgramManager> {
         self.machine_builder.program_manager()
     }
 

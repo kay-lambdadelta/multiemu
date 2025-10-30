@@ -10,7 +10,7 @@ use multiemu_frontend::PlatformExt;
 use multiemu_runtime::{
     environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY},
     graphics::software::Software,
-    program::ProgramMetadata,
+    program::ProgramManager,
 };
 use std::{
     fs::{File, create_dir_all},
@@ -61,7 +61,7 @@ fn main() {
     tracing::info!("MultiEMU v{}", env!("CARGO_PKG_VERSION"));
 
     let environment = Arc::new(RwLock::new(environment));
-    let program_manager = Arc::new(ProgramMetadata::new(environment.clone()).unwrap());
+    let program_manager = ProgramManager::new(environment.clone()).unwrap();
 
     let cli = Cli::parse();
 

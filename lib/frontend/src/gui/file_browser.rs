@@ -3,7 +3,7 @@ use crate::gui::to_egui_color;
 use cfg_if::cfg_if;
 use egui::{Button, Frame, ScrollArea, Stroke, TextEdit};
 use indexmap::IndexMap;
-use multiemu_runtime::program::ProgramMetadata;
+use multiemu_runtime::program::ProgramManager;
 use palette::{
     WithAlpha,
     named::{GREEN, RED},
@@ -35,7 +35,7 @@ pub struct FileBrowserState {
     sorting_method: SortingMethod,
     reverse_sorting: bool,
     show_hidden: bool,
-    program_manager: Arc<ProgramMetadata>,
+    program_manager: Arc<ProgramManager>,
 }
 
 #[derive(Clone, Debug)]
@@ -47,7 +47,7 @@ struct DirectoryContentMetadata {
 }
 
 impl FileBrowserState {
-    pub fn new(home_directory: PathBuf, program_manager: Arc<ProgramMetadata>) -> Self {
+    pub fn new(home_directory: PathBuf, program_manager: Arc<ProgramManager>) -> Self {
         let mut me = Self {
             pathbar_state: PathBarState::Normal(home_directory),
             directory_contents: IndexMap::default(),

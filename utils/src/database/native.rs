@@ -2,7 +2,7 @@ use clap::Subcommand;
 use itertools::Itertools;
 use multiemu_runtime::{
     environment::Environment,
-    program::{PROGRAM_INFORMATION_TABLE, ProgramMetadata},
+    program::{PROGRAM_INFORMATION_TABLE, ProgramManager},
 };
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use redb::{ReadableDatabase, ReadableMultimapTable};
@@ -30,7 +30,7 @@ pub fn database_native_import(
     paths: Vec<PathBuf>,
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let program_manager = Arc::new(ProgramMetadata::new(environment).unwrap());
+    let program_manager = ProgramManager::new(environment).unwrap();
 
     paths
         .into_par_iter()
@@ -51,9 +51,9 @@ pub fn database_native_fuzzy_search(
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let search = search.to_lowercase();
-    let program_manager = Arc::new(ProgramMetadata::new(environment).unwrap());
+    let program_manager = ProgramManager::new(environment).unwrap();
 
-    let database_transaction = program_manager.database.begin_read().unwrap();
+    let database_transaction = program_manager.database().begin_read().unwrap();
     let program_information_table =
         database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
 

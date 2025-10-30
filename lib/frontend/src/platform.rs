@@ -2,7 +2,7 @@ use egui::RawInput;
 use multiemu_runtime::{
     environment::Environment,
     platform::Platform,
-    program::{ProgramMetadata, ProgramSpecification},
+    program::{ProgramManager, ProgramSpecification},
 };
 use std::{
     fmt::Debug,
@@ -25,14 +25,14 @@ pub trait PlatformExt: Platform + Sized + 'static {
     /// Run
     fn run(
         environment: Arc<RwLock<Environment>>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<Self>,
     ) -> Result<(), Box<dyn std::error::Error>>;
 
     /// Run launching a machine
     fn run_with_program(
         environment: Arc<RwLock<Environment>>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<Self>,
         program: ProgramSpecification,
     ) -> Result<(), Box<dyn std::error::Error>>;

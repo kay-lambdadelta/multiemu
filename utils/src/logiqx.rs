@@ -1,7 +1,7 @@
 use multiemu_locale::{Iso639Alpha2, Iso639Alpha3};
 use multiemu_runtime::program::{
     Filesystem, HASH_ALIAS_TABLE, MachineId, PROGRAM_INFORMATION_TABLE, ProgramId, ProgramInfo,
-    ProgramMetadata, RomId,
+    ProgramManager, RomId,
 };
 use serde::{Deserialize, Deserializer};
 use serde_with::{DisplayFromStr, serde_as};
@@ -102,7 +102,7 @@ impl FromStr for NameMetadataExtractor {
 }
 
 pub fn import(
-    program_manager: &ProgramMetadata,
+    program_manager: &ProgramManager,
     file: impl BufRead,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     // Parse XML based data file
@@ -120,7 +120,7 @@ pub fn import(
         data_file.header.machine_id
     );
 
-    let database_transaction = program_manager.database.begin_write()?;
+    let database_transaction = program_manager.database().begin_write()?;
     let mut program_information =
         database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
     let mut hash_alias = database_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;

@@ -13,7 +13,7 @@ use multiemu_runtime::{
     },
     machine::{Machine, graphics::GraphicsRequirements},
     persistence::SnapshotSlot,
-    program::{ProgramMetadata, ProgramSpecification},
+    program::{ProgramManager, ProgramSpecification},
 };
 use nalgebra::Vector2;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
@@ -56,7 +56,7 @@ pub struct FrontendRuntime<P: PlatformExt> {
     /// Gamepad to emulated gamepad mappings
     gamepad_mapping: HashMap<GamepadId, ResourcePath>,
     /// The rom manager in use
-    program_manager: Arc<ProgramMetadata>,
+    program_manager: Arc<ProgramManager>,
     /// Environment to read/modify
     environment: Arc<RwLock<Environment>>,
     /// Egui context
@@ -341,7 +341,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     /// Create a new runtime
     pub fn new(
         environment: Arc<RwLock<Environment>>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<P>,
     ) -> Self {
         let maybe_machine = Arc::new(MaybeMachine::default());
@@ -384,7 +384,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
     /// Create a new runtime a machine that needs to be built
     pub fn new_with_machine(
         environment: Arc<RwLock<Environment>>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<P>,
         program_specification: ProgramSpecification,
     ) -> Self {

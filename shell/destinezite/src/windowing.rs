@@ -16,7 +16,7 @@ use multiemu_runtime::{
     graphics::GraphicsApi,
     input::{GamepadId, Input, InputState},
     platform::Platform,
-    program::{ProgramMetadata, ProgramSpecification},
+    program::{ProgramManager, ProgramSpecification},
 };
 use nalgebra::Vector2;
 use std::{
@@ -136,7 +136,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
 
     fn run(
         environment: Arc<RwLock<Environment>>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<Self>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Self::run_common(environment, program_manager, machine_factories, None)?;
@@ -146,7 +146,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
 
     fn run_with_program(
         environment: Arc<RwLock<Environment>>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<Self>,
         program_specification: ProgramSpecification,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -252,7 +252,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
 {
     fn run_common(
         environment: Arc<RwLock<Environment>>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<Self>,
         program_specification: Option<ProgramSpecification>,
     ) -> Result<(), Box<dyn std::error::Error>> {

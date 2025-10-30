@@ -5,7 +5,7 @@ mod manager;
 
 pub use id::*;
 pub use info::*;
-pub use manager::{ProgramMetadata, *};
+pub use manager::{ProgramManager, *};
 
 /// Identifier for the emulator to recognize a program as unique and info on it
 #[derive(Debug, Clone)]

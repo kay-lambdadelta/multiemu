@@ -11,7 +11,7 @@ use crate::{
     memory::MemoryAccessTable,
     persistence::{SaveManager, SnapshotManager},
     platform::{Platform, TestPlatform},
-    program::{ProgramMetadata, ProgramSpecification},
+    program::{ProgramManager, ProgramSpecification},
     scheduler::Scheduler,
 };
 use num::rational::Ratio;
@@ -64,7 +64,7 @@ where
 impl Machine<TestPlatform> {
     pub fn build_test(
         program_specification: Option<ProgramSpecification>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         save_path: Option<PathBuf>,
         snapshot_path: Option<PathBuf>,
     ) -> MachineBuilder<TestPlatform> {
@@ -89,7 +89,7 @@ impl Machine<TestPlatform> {
 
         Self::build(
             None,
-            Arc::new(ProgramMetadata::new_test(environment).unwrap()),
+            ProgramManager::new(environment).unwrap(),
             None,
             None,
             Ratio::from_integer(44100),
@@ -100,7 +100,7 @@ impl Machine<TestPlatform> {
 impl<P: Platform> Machine<P> {
     pub fn build(
         program_specification: Option<ProgramSpecification>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
         save_path: Option<PathBuf>,
         snapshot_path: Option<PathBuf>,
         sample_rate: Ratio<u32>,

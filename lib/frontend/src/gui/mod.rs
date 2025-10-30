@@ -9,7 +9,7 @@ use egui::{
 use file_browser::FileBrowserState;
 use multiemu_runtime::{
     environment::Environment,
-    program::{ProgramMetadata, ProgramSpecification},
+    program::{ProgramManager, ProgramSpecification},
 };
 use options::OptionsState;
 use palette::Srgba;
@@ -81,7 +81,7 @@ pub struct MenuState {
 impl MenuState {
     pub fn new(
         environment: Arc<RwLock<Environment>>,
-        program_manager: Arc<ProgramMetadata>,
+        program_manager: Arc<ProgramManager>,
     ) -> Self {
         let environment_guard = environment.read().unwrap();
 

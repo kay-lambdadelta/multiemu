@@ -4,7 +4,7 @@ use multiemu_runtime::{
     environment::{ENVIRONMENT_LOCATION, Environment},
     machine::{Machine, MachineFactory},
     platform::TestPlatform,
-    program::{ProgramMetadata, RomId},
+    program::{ProgramManager, RomId},
 };
 use num::rational::Ratio;
 use std::{
@@ -17,8 +17,7 @@ use std::{
 fn criterion_benchmark(c: &mut Criterion) {
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
-    let program_manager =
-        Arc::new(ProgramMetadata::new(Arc::new(RwLock::new(environment))).unwrap());
+    let program_manager = ProgramManager::new(Arc::new(RwLock::new(environment))).unwrap();
 
     // Some FOSS chip8 games: https://johnearnest.github.io/chip8Archive/?sort=platform
     let program_specification = program_manager

@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use multiemu_runtime::{
     environment::Environment,
-    program::{MachineId, NintendoSystem, ProgramMetadata, SegaSystem, SonySystem},
+    program::{MachineId, NintendoSystem, ProgramManager, SegaSystem, SonySystem},
 };
 use std::{
     error::Error,
@@ -54,7 +54,7 @@ pub fn database_redump_download(
     systems: impl IntoIterator<Item = MachineId>,
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let program_manager = Arc::new(ProgramMetadata::new(environment).unwrap());
+    let program_manager = ProgramManager::new(environment).unwrap();
 
     for system in systems {
         if let Ok(redump_system) = RedumpSystem::try_from(system) {

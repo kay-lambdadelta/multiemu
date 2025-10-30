@@ -1,6 +1,6 @@
 use multiemu_runtime::{
     environment::Environment,
-    program::{HASH_ALIAS_TABLE, ProgramId, ProgramMetadata, RomId},
+    program::{HASH_ALIAS_TABLE, ProgramId, ProgramManager, RomId},
 };
 use redb::{ReadOnlyMultimapTable, ReadableDatabase};
 use scc::{HashCache, hash_cache::OccupiedEntry};
@@ -83,7 +83,7 @@ pub fn rom_import(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment_guard = environment.read().unwrap();
 
-    let program_manager = Arc::new(ProgramMetadata::new(environment.clone()).unwrap());
+    let program_manager = ProgramManager::new(environment.clone()).unwrap();
 
     fs::create_dir_all(&environment_guard.rom_store_directory)?;
 
@@ -186,10 +186,10 @@ pub fn rom_import(
 fn process_file(
     entry: SearchEntry,
     symlink: bool,
-    program_manager: Arc<ProgramMetadata>,
+    program_manager: Arc<ProgramManager>,
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let database_transaction = program_manager.database.begin_read()?;
+    let database_transaction = program_manager.database().begin_read()?;
     let hash_alias_table = database_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;
 
     match entry.clone() {

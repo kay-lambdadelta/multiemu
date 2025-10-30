@@ -5,7 +5,7 @@ use multiemu_runtime::{
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, ReadMemoryError, WriteMemoryError},
     platform::Platform,
-    program::{ProgramMetadata, RomId, RomRequirement},
+    program::{ProgramManager, RomId, RomRequirement},
 };
 use rand::RngCore;
 use rangemap::RangeInclusiveMap;
@@ -36,7 +36,7 @@ pub struct StandardMemoryConfig {
 
 #[derive(Debug)]
 pub struct StandardMemory {
-    program_manager: Arc<ProgramMetadata>,
+    program_manager: Arc<ProgramManager>,
     config: StandardMemoryConfig,
     buffer: Vec<u8>,
 }

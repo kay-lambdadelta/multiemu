@@ -2,18 +2,16 @@ use crate::{
     environment::Environment,
     program::{MachineId, ProgramId, ProgramInfo, ProgramSpecification, RomId, info::Filesystem},
 };
-use redb::{
-    Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable,
-    backends::InMemoryBackend,
-};
+use redb::{Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable};
+use rustc_hash::FxBuildHasher;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     fmt::Debug,
-    fs::{self, File, create_dir_all},
+    fs::{File, create_dir_all},
     io::Seek,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::{Arc, RwLock},
+    sync::{Arc, OnceLock, RwLock},
 };
 
 /// Program id -> Program info mapping
@@ -23,151 +21,57 @@ pub const PROGRAM_INFORMATION_TABLE: MultimapTableDefinition<ProgramId, ProgramI
 pub const HASH_ALIAS_TABLE: MultimapTableDefinition<RomId, ProgramId> =
     MultimapTableDefinition::new("hash_alias");
 
-#[derive(Debug, Clone)]
-/// The location of a loaded ROM
-pub enum LoadedRomLocation {
-    /// The rom is in the emulators internal store named by its sha1
-    Internal,
-    /// The rom is somewhere else on disk
-    External(PathBuf),
-}
+static DATABASE: OnceLock<Database> = OnceLock::new();
 
-#[derive(Debug)]
 /// The ROM manager which contains the database and information about the roms that were loaded
-pub struct ProgramMetadata {
-    /// [redb] database representing the ROM information
-    pub database: Database,
-    /// The roms that the emulator is aware of location
-    pub loaded_roms: RwLock<BTreeMap<RomId, LoadedRomLocation>>,
+#[derive(Debug)]
+pub struct ProgramManager {
+    external_roms: scc::HashMap<RomId, PathBuf, FxBuildHasher>,
     environment: Arc<RwLock<Environment>>,
 }
 
-impl ProgramMetadata {
+impl ProgramManager {
     /// Opens and loads the default database
     pub fn new(
         environment: Arc<RwLock<Environment>>,
-    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Arc<Self>, Box<dyn std::error::Error + Send + Sync>> {
         let environment_guard = environment.read().unwrap();
+
+        let _ = create_dir_all(environment_guard.database_location.parent().unwrap());
+        let _ = create_dir_all(&environment_guard.rom_store_directory);
 
         tracing::info!(
             "Loading ROM database at {:?}",
             environment_guard.database_location
         );
-        let _ = create_dir_all(environment_guard.database_location.parent().unwrap());
 
-        let rom_information =
-            Database::builder().create(environment_guard.database_location.clone())?;
+        // Try to create the database or repair it
 
-        let mut loaded_roms = BTreeMap::new();
-        let mut database_transaction = rom_information.begin_write()?;
-        database_transaction.set_quick_repair(true);
-        database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
-        database_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;
-        database_transaction.commit()?;
+        DATABASE.get_or_init(|| {
+            let mut database = Database::builder()
+                .create(&environment_guard.database_location)
+                .unwrap();
 
-        let _ = create_dir_all(&environment_guard.rom_store_directory);
-        if environment_guard.rom_store_directory.is_dir() {
-            for file in fs::read_dir(&environment_guard.rom_store_directory)? {
-                let file = file?.file_name();
+            let _ = database.compact();
 
-                if let Some(file) = file
-                    .clone()
-                    .into_string()
-                    .ok()
-                    .and_then(|file| RomId::from_str(&file).ok())
-                {
-                    loaded_roms.insert(file, LoadedRomLocation::Internal);
-                } else {
-                    tracing::error!(
-                        "Internal ROM store has a file thats name is not a valid ROM ID, please remove it: {:?}",
-                        file
-                    );
-                }
-            }
-        }
+            let database_transaction = database.begin_write().unwrap();
+            database_transaction
+                .open_multimap_table(PROGRAM_INFORMATION_TABLE)
+                .unwrap();
+            database_transaction
+                .open_multimap_table(HASH_ALIAS_TABLE)
+                .unwrap();
+            database_transaction.commit().unwrap();
+
+            database
+        });
 
         drop(environment_guard);
 
-        Ok(Self {
-            database: rom_information,
-            loaded_roms: RwLock::new(loaded_roms),
+        Ok(Arc::new(Self {
+            external_roms: scc::HashMap::default(),
             environment,
-        })
-    }
-
-    /// Opens a dumb in memory database
-    pub fn new_test(
-        environment: Arc<RwLock<Environment>>,
-    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let environment_guard = environment.read().unwrap();
-
-        let rom_information = Database::builder().create_with_backend(InMemoryBackend::default())?;
-
-        let mut loaded_roms = BTreeMap::new();
-        let database_transaction = rom_information.begin_write()?;
-        database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
-        database_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;
-        database_transaction.commit()?;
-
-        let _ = create_dir_all(&environment_guard.rom_store_directory);
-        if environment_guard.rom_store_directory.is_dir() {
-            for file in fs::read_dir(&environment_guard.rom_store_directory)? {
-                let file = file?.file_name();
-
-                if let Some(file) = file
-                    .clone()
-                    .into_string()
-                    .ok()
-                    .and_then(|file| RomId::from_str(&file).ok())
-                {
-                    loaded_roms.insert(file, LoadedRomLocation::Internal);
-                } else {
-                    tracing::error!(
-                        "Internal ROM store has a file thats name is not a valid ROM ID, please remove it: {:?}",
-                        file
-                    );
-                }
-            }
-        }
-
-        drop(environment_guard);
-
-        Ok(Self {
-            database: rom_information,
-            loaded_roms: RwLock::new(loaded_roms),
-            environment,
-        })
-    }
-
-    /// Imports a arbitary database into the internal database
-    pub fn load_database(&self, path: impl AsRef<Path>) -> Result<(), redb::Error> {
-        let path = path.as_ref();
-
-        let database = Database::builder().open(path)?;
-        let external_database_transaction = database.begin_read()?;
-        let external_database_table =
-            external_database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
-
-        for item in external_database_table.iter()? {
-            let (rom_id, rom_infos) = item?;
-
-            let internal_database_transaction = self.database.begin_write()?;
-            let mut internal_database_table =
-                internal_database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
-
-            for rom_info in rom_infos {
-                let rom_info = rom_info?;
-
-                internal_database_table
-                    .insert(rom_id.value(), rom_info.value())
-                    .unwrap();
-            }
-
-            drop(internal_database_table);
-            internal_database_transaction.commit()?;
-        }
-
-        Ok(())
+        }))
     }
 
     /// Opens a ROM, giving a warning or panicking in the case that the requirement is not met
@@ -203,6 +107,7 @@ impl ProgramMetadata {
     }
 
     /// Attempts to identify a program from its paths
+    #[tracing::instrument(skip_all)]
     pub fn identify_program_from_paths<'a>(
         &'a self,
         roms: impl IntoIterator<Item = PathBuf> + 'a,
@@ -217,15 +122,13 @@ impl ProgramMetadata {
 
         let mut hashes = Vec::default();
 
-        let mut loaded_roms_guard = self.loaded_roms.write().unwrap();
         for (rom_path, rom) in &mut rom_files {
             let sha1 = RomId::calculate_id(rom)?;
             rom.rewind()?;
 
-            loaded_roms_guard.insert(sha1, LoadedRomLocation::External((*rom_path).clone()));
+            self.external_roms.upsert_sync(sha1, (*rom_path).clone());
             hashes.push(sha1);
         }
-        drop(loaded_roms_guard);
 
         if let Some(specification) = self.identify_program(hashes.clone())? {
             return Ok(Some(specification));
@@ -269,12 +172,13 @@ impl ProgramMetadata {
     /// Attempts to identify a program from its program ids
     ///
     /// Prefer [`Self::identify_program_from_paths`] when possible, as it will have a higher success rate
+    #[tracing::instrument(skip_all)]
     pub fn identify_program(
         &self,
         roms: impl IntoIterator<Item = RomId>,
     ) -> Result<Option<ProgramSpecification>, Box<dyn std::error::Error>> {
         let roms = Vec::from_iter(roms);
-        let read_transaction = self.database.begin_read()?;
+        let read_transaction = self.database().begin_read()?;
         let hash_alias_table = read_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;
         let program_info_table = read_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
 
@@ -328,19 +232,16 @@ impl ProgramMetadata {
             })
             .or_else(|| {
                 if roms.len() == 1
-                    && let Some(rom_location) = self.loaded_roms.read().unwrap().get(&roms[0])
+                    && let Some(path) = self.get_rom_path(roms[0])
                 {
                     let rom_id = roms[0];
 
                     let internal_path = self.get_rom_path(rom_id)?;
 
-                    let name = match rom_location {
-                        LoadedRomLocation::Internal => rom_id.to_string(),
-                        LoadedRomLocation::External(path) => path
-                            .with_extension("")
-                            .file_name()
-                            .map(|string| string.to_string_lossy().to_string())?,
-                    };
+                    let name = path
+                        .with_extension("")
+                        .file_name()
+                        .map(|string| string.to_string_lossy().to_string())?;
 
                     let machine = MachineId::guess(internal_path)?;
 
@@ -364,24 +265,91 @@ impl ProgramMetadata {
 
     /// Get the path of a ROM on disk, if we have it
     pub fn get_rom_path(&self, id: RomId) -> Option<PathBuf> {
-        if let Some(path) = self.loaded_roms.read().unwrap().get(&id) {
-            match path {
-                LoadedRomLocation::Internal => {
-                    return Some(
-                        self.environment
-                            .read()
-                            .unwrap()
-                            .rom_store_directory
-                            .join(id.to_string()),
-                    );
+        self.external_roms
+            .get_sync(&id)
+            .map(|entry| entry.clone())
+            .or_else(|| {
+                let environment_guard = self.environment.read().unwrap();
+                let potential_path = environment_guard.rom_store_directory.join(id.to_string());
+
+                if potential_path.is_file() {
+                    return Some(potential_path);
                 }
-                LoadedRomLocation::External(path) => {
-                    return Some(path.clone());
-                }
+
+                None
+            })
+    }
+
+    /// Imports a arbitary database into the internal database
+    pub fn load_database(&self, path: impl AsRef<Path>) -> Result<(), redb::Error> {
+        let path = path.as_ref();
+
+        let database = redb::Database::builder().open_read_only(path)?;
+        let external_database_transaction = database.begin_read()?;
+        let external_database_table =
+            external_database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
+
+        for item in external_database_table.iter()? {
+            let (rom_id, rom_infos) = item?;
+
+            let internal_database_transaction = self.database().begin_write()?;
+            let mut internal_database_table =
+                internal_database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
+
+            for rom_info in rom_infos {
+                let rom_info = rom_info?;
+
+                internal_database_table
+                    .insert(rom_id.value(), rom_info.value())
+                    .unwrap();
             }
+
+            drop(internal_database_table);
+            internal_database_transaction.commit()?;
         }
 
-        None
+        Ok(())
+    }
+
+    pub fn database(&self) -> &Database {
+        DATABASE.get().expect("Database uninitialized")
+    }
+
+    pub fn iter_roms(&self) -> impl Iterator<Item = (RomId, PathBuf)> {
+        let environment_guard = self.environment.read().unwrap();
+
+        let mut already_visited = HashSet::new();
+        let mut external_roms = Vec::default();
+
+        self.external_roms.iter_sync(|id, path| {
+            external_roms.push((*id, path.clone()));
+            already_visited.insert(*id);
+
+            true
+        });
+
+        let rom_store_listings = environment_guard.rom_store_directory.read_dir();
+
+        external_roms
+            .into_iter()
+            .chain(
+                rom_store_listings
+                    .into_iter()
+                    .flatten()
+                    .filter_map(move |dir_entry| {
+                        let dir_entry = dir_entry.ok()?;
+
+                        let file_name = dir_entry.file_name().into_string().ok()?;
+                        let rom_id = RomId::from_str(&file_name).ok()?;
+
+                        if already_visited.contains(&rom_id) {
+                            None
+                        } else {
+                            already_visited.insert(rom_id);
+                            Some((rom_id, dir_entry.path()))
+                        }
+                    }),
+            )
     }
 }
 
