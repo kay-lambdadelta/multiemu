@@ -24,7 +24,7 @@ impl Debug for SoftwareState {
 impl<R: Region> TiaDisplayBackend<R> for SoftwareState {
     type GraphicsApi = Software;
 
-    fn new(_: InitializationData) -> Self {
+    fn new((): InitializationData) -> Self {
         let staging_buffer = DMatrix::from_element(
             VISIBLE_SCANLINE_LENGTH as usize,
             R::TOTAL_SCANLINES as usize,

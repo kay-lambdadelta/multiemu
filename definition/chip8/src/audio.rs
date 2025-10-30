@@ -99,7 +99,7 @@ struct Driver {
 
 impl Task<Chip8Audio> for Driver {
     fn run(&mut self, component: &mut Chip8Audio, time_slice: NonZero<u32>) {
-        let sample_generation_slice = time_slice.get().min(component.sound_timer as u32);
+        let sample_generation_slice = time_slice.get().min(u32::from(component.sound_timer));
         let samples_to_generate = ((self.host_sample_rate * sample_generation_slice)
             / self.register_change_frequency)
             .to_integer();

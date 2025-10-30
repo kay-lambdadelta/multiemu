@@ -64,10 +64,13 @@ impl AboutState {
         let rows = vec![
             (
                 "MultiEMU Version",
-                properties.multiemu_version.as_ref().map(|v| v.to_string()),
+                properties
+                    .multiemu_version
+                    .as_ref()
+                    .map(std::string::ToString::to_string),
             ),
             ("OS Identifier", properties.os_name.clone()),
-            ("Max Memory", Some(format!("{:.2}", appropiate_unit))),
+            ("Max Memory", Some(format!("{appropiate_unit:.2}"))),
         ];
 
         // Build the table

@@ -11,6 +11,8 @@ pub struct RomId(pub [u8; 20]);
 
 impl RomId {
     // I would greatly prefer if sha256 was the one used for identity but some rom datsheets only have sha1 or worse
+
+    /// Calculate the rom id (SHA-1) of a rom
     pub fn calculate_id(data: &mut impl Read) -> Result<Self, std::io::Error> {
         let mut hasher = Sha1::new();
         std::io::copy(data, &mut hasher)?;
@@ -24,6 +26,7 @@ impl Display for RomId {
     }
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum RomIdParsingError {
     #[error("{0}")]

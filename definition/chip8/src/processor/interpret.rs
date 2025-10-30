@@ -140,7 +140,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                 let (new_value, carry) = destination_value.overflowing_add(source_value);
 
                 state.registers.work_registers[destination as usize] = new_value;
-                state.registers.work_registers[0xf] = carry as u8;
+                state.registers.work_registers[0xf] = u8::from(carry);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Sub {
                 destination,
@@ -152,7 +152,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                 let (new_value, borrow) = destination_value.overflowing_sub(source_value);
 
                 state.registers.work_registers[destination as usize] = new_value;
-                state.registers.work_registers[0xf] = !borrow as u8;
+                state.registers.work_registers[0xf] = u8::from(!borrow);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Shr { register, value }) => {
                 let mut destination_value = state.registers.work_registers[register as usize];
@@ -164,7 +164,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                 let overflow = destination_value.view_bits::<Lsb0>()[0];
 
                 state.registers.work_registers[register as usize] = destination_value >> 1;
-                state.registers.work_registers[0xf] = overflow as u8;
+                state.registers.work_registers[0xf] = u8::from(overflow);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Subn {
                 destination,
@@ -176,7 +176,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                 let (new_value, borrow) = source_value.overflowing_sub(destination_value);
 
                 state.registers.work_registers[destination as usize] = new_value;
-                state.registers.work_registers[0xf] = !borrow as u8;
+                state.registers.work_registers[0xf] = u8::from(!borrow);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Shl { register, value }) => {
                 let mut destination_value = state.registers.work_registers[register as usize];
@@ -188,7 +188,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                 let overflow = destination_value.view_bits::<Lsb0>()[7];
 
                 state.registers.work_registers[register as usize] = destination_value << 1;
-                state.registers.work_registers[0xf] = overflow as u8;
+                state.registers.work_registers[0xf] = u8::from(overflow);
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Skrne { param_1, param_2 }) => {
                 let param_1_value = state.registers.work_registers[param_1 as usize];
@@ -203,11 +203,12 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Jumpi { address }) => {
                 let address = if *mode == Chip8Mode::Chip8 {
-                    address.wrapping_add(state.registers.work_registers[0x0] as u16)
+                    address.wrapping_add(u16::from(state.registers.work_registers[0x0]))
                 } else {
                     let register = address.view_bits::<Msb0>()[4..8].load::<u8>();
 
-                    address.wrapping_add(state.registers.work_registers[register as usize] as u16)
+                    address
+                        .wrapping_add(u16::from(state.registers.work_registers[register as usize]))
                 };
 
                 state.registers.program = address;
@@ -246,7 +247,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                     }
 
                     state.registers.work_registers[0xf] = self.display.interact_mut(|component| {
-                        component.draw_supersized_sprite(position, buffer) as u8
+                        u8::from(component.draw_supersized_sprite(position, buffer))
                     });
                 } else {
                     let mut buffer =
@@ -264,9 +265,9 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                         cursor += buffer_section.len();
                     }
 
-                    state.registers.work_registers[0xf] = self
-                        .display
-                        .interact_mut(|component| component.draw_sprite(position, &buffer) as u8);
+                    state.registers.work_registers[0xf] = self.display.interact_mut(|component| {
+                        u8::from(component.draw_sprite(position, &buffer))
+                    });
                 }
 
                 state.execution_state = ExecutionState::AwaitingVsync;
@@ -313,12 +314,15 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
             Chip8InstructionSet::Chip8(InstructionSetChip8::Addi { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                state.registers.index = state.registers.index.wrapping_add(register_value as u16);
+                state.registers.index = state
+                    .registers
+                    .index
+                    .wrapping_add(u16::from(register_value));
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Font { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
 
-                state.registers.index = register_value as u16 * CHIP8_FONT[0].len() as u16;
+                state.registers.index = u16::from(register_value) * CHIP8_FONT[0].len() as u16;
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Bcd { register }) => {
                 let register_value = state.registers.work_registers[register as usize];
@@ -359,7 +363,8 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
 
                 // Only the original chip8 modifies the index register for this operation
                 if *mode == Chip8Mode::Chip8 {
-                    state.registers.index = state.registers.index.wrapping_add(count as u16 + 1);
+                    state.registers.index =
+                        state.registers.index.wrapping_add(u16::from(count) + 1);
                 }
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Restore { count }) => {
@@ -376,7 +381,8 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
 
                 // Only the original chip8 modifies the index register for this operation
                 if *mode == Chip8Mode::Chip8 {
-                    state.registers.index = state.registers.index.wrapping_add(count as u16 + 1);
+                    state.registers.index =
+                        state.registers.index.wrapping_add(u16::from(count) + 1);
                 }
             }
             Chip8InstructionSet::SuperChip8(subinstruction) => {

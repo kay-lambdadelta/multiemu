@@ -52,8 +52,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
                     .state
                     .collision_matrix
                     .get(&ObjectId::Ball)
-                    .map(|set| set.contains(&ObjectId::Playfield))
-                    .unwrap_or(false);
+                    .is_some_and(|set| set.contains(&ObjectId::Playfield));
 
                 let data_bits = data.view_bits_mut::<Lsb0>();
 
@@ -81,15 +80,13 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
             .state
             .collision_matrix
             .get(&pair1[0])
-            .map(|set| set.contains(&pair1[1]))
-            .unwrap_or(false);
+            .is_some_and(|set| set.contains(&pair1[1]));
 
         let collision2 = self
             .state
             .collision_matrix
             .get(&pair2[0])
-            .map(|set| set.contains(&pair2[1]))
-            .unwrap_or(false);
+            .is_some_and(|set| set.contains(&pair2[1]));
 
         let data_bits = data.view_bits_mut::<Msb0>();
 

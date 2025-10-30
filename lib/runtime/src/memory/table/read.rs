@@ -109,6 +109,7 @@ impl MemoryAccessTable {
         Ok(())
     }
 
+    /// Given a location, read a little endian value
     #[inline]
     pub fn read_le_value<T: FromBytes>(
         &self,
@@ -124,6 +125,7 @@ impl MemoryAccessTable {
         Ok(T::from_le_bytes(&buffer))
     }
 
+    /// Given a location, read a big endian value
     #[inline]
     pub fn read_be_value<T: FromBytes>(
         &self,

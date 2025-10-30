@@ -112,7 +112,7 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
                                         let dest_start =
                                             Vector2::new(x, y).component_mul(&scaling).zip_map(
                                                 &self.previously_recorded_size.cast::<usize>(),
-                                                |dest_dim, window_dim| dest_dim.min(window_dim),
+                                                std::cmp::min,
                                             );
 
                                         let dest_end = Vector2::new(x, y)
@@ -120,7 +120,7 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
                                             .component_mul(&scaling)
                                             .zip_map(
                                                 &self.previously_recorded_size.cast::<usize>(),
-                                                |dest_dim, window_dim| dest_dim.min(window_dim),
+                                                std::cmp::min,
                                             );
 
                                         let mut destination_pixels = surface_buffer_view.view_mut(

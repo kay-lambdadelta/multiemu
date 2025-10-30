@@ -246,15 +246,13 @@ impl INes {
     pub fn prg_bank_count(&self) -> usize {
         self.roms
             .get(&RomType::Prg)
-            .map(|rom| rom.clone().count() / PRG_BANK_SIZE)
-            .unwrap_or(1)
+            .map_or(1, |rom| rom.clone().count() / PRG_BANK_SIZE)
     }
 
     pub fn chr_bank_count(&self) -> usize {
         self.roms
             .get(&RomType::Chr)
-            .map(|rom| rom.clone().count() / CHR_BANK_SIZE)
-            .unwrap_or(1)
+            .map_or(1, |rom| rom.clone().count() / CHR_BANK_SIZE)
     }
 }
 

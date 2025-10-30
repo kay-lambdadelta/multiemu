@@ -1,7 +1,6 @@
 use crate::{
     component::{Component, ErasedComponentHandle, ResourcePath},
     machine::registry::ComponentRegistry,
-    scheduler::run::scheduler_thread,
 };
 use crossbeam::atomic::AtomicCell;
 use itertools::Itertools;
@@ -32,11 +31,10 @@ mod task;
 mod test;
 
 #[derive(Debug, Clone)]
-pub struct TaskMetadata {
-    pub id: TaskId,
-    pub period: Ratio<u32>,
-    pub path: ResourcePath,
-    pub ty: TaskType,
+struct TaskMetadata {
+    period: Ratio<u32>,
+    path: ResourcePath,
+    ty: TaskType,
 }
 
 #[derive(Debug)]
@@ -52,41 +50,31 @@ struct TimelineEntry {
 }
 
 #[derive(Debug)]
-pub struct Timeline {
+struct Timeline {
     entries: BTreeMap<u32, TimelineEntry>,
     tick_real_time: Duration,
-    timeline_length: u32,
+    length: u32,
 }
 
-/// The scheduler for the emulator
+/// The main scheduler that the runtime uses to drive tasks
 ///
-/// It is a cooperative multithreaded tick based scheduler
-///
-/// Currently it only supports frequency based executions
+/// It is a frequency based cooperative scheduler with some optional out of order execution stuff
 #[derive(Debug)]
 pub struct Scheduler {
     current_tick: u32,
     timeline: Option<Timeline>,
     registry: Arc<ComponentRegistry>,
-    handle: Arc<SchedulerHandle>,
     next_task_id: TaskId,
     task_metadata: HashMap<TaskId, TaskMetadata, BuildNoHashHasher<TaskId>>,
 }
 
 impl Scheduler {
     pub(crate) fn new(registry: Arc<ComponentRegistry>) -> Self {
-        let handle = SchedulerHandle {
-            average_efficiency: AtomicCell::new(1.0),
-            paused: AtomicBool::new(true),
-            exit: AtomicBool::new(false),
-        };
-
         Self {
             current_tick: 0,
             timeline: None,
             task_metadata: HashMap::default(),
             registry,
-            handle: Arc::new(handle),
             next_task_id: 0,
         }
     }
@@ -174,6 +162,8 @@ impl Scheduler {
                         .skip(1)
                         .find(|(_, task_metadata, _)| task_metadata.ty == TaskType::Direct)
                     {
+                        // Calculate the time difference and schedule runs to fit within this difference
+
                         let second_relative_period =
                             (second_task_metadata.period / system_gcd).to_u32().unwrap();
 
@@ -254,7 +244,7 @@ impl Scheduler {
         self.timeline = Some(Timeline {
             tick_real_time,
             entries: timeline,
-            timeline_length,
+            length: timeline_length,
         });
     }
 
@@ -270,15 +260,8 @@ impl Scheduler {
         let task_id = self.next_task_id;
         self.next_task_id = self.next_task_id.checked_add(1).expect("Too many tasks");
 
-        self.task_metadata.insert(
-            task_id,
-            TaskMetadata {
-                id: task_id,
-                period,
-                path: path.clone(),
-                ty,
-            },
-        );
+        self.task_metadata
+            .insert(task_id, TaskMetadata { period, path, ty });
 
         let data = TaskData {
             callback: Box::new(move |component, slice| {
@@ -286,7 +269,7 @@ impl Scheduler {
 
                 let component = (component as &mut dyn Any).downcast_mut().unwrap();
 
-                task.run(component, slice)
+                task.run(component, slice);
             }),
             debt: 0,
             ty,
@@ -295,22 +278,28 @@ impl Scheduler {
         (task_id, data)
     }
 
-    /// Move the scheduler onto a dedicated thread
+    /// Move the scheduler onto a dedicated thread, where it will be automatically executed and managed
+    ///
+    /// TODO: Add a handle so the runtime can tear down the thread
+    /// TODO: Make the dedicated thread implementation actually efficient
     pub fn spawn_dedicated_thread(self) {
+        /*
         std::thread::spawn(|| {
             scheduler_thread(self);
         });
+         */
     }
 
-    pub fn handle(&self) -> Arc<SchedulerHandle> {
-        self.handle.clone()
-    }
-
+    /// Get the length of the timeline, in ticks
     pub fn timeline_length(&self) -> u32 {
-        self.timeline.as_ref().unwrap().timeline_length
+        self.timeline
+            .as_ref()
+            .expect("Timeline has yet to be initialized")
+            .length
     }
 }
 
+/// Handle to control the scheduler while it is on a dedicated thread
 #[derive(Debug)]
 pub struct SchedulerHandle {
     average_efficiency: AtomicCell<f32>,
@@ -320,21 +309,12 @@ pub struct SchedulerHandle {
 
 impl SchedulerHandle {
     /// Pause execution
-    ///
-    /// This does nothing when not using a dedicated thread for the scheduler
     pub fn pause(&self) {
         self.paused.store(true, Ordering::Release);
     }
 
-    /// Play execution
-    ///
-    /// This does nothing when not using a dedicated thread for the scheduler
+    /// Continue execution
     pub fn play(&self) {
         self.paused.store(false, Ordering::Release);
-    }
-
-    /// Get the average efficiency of the scheduler
-    pub fn average_efficiency(&self) -> f32 {
-        self.average_efficiency.load()
     }
 }

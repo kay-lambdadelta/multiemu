@@ -3,9 +3,12 @@ use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, str::FromStr};
 
+/// A identifier for a program
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProgramId {
+    /// The machine this program was produced for
     pub machine: MachineId,
+    /// A identifiable name for the program
     pub name: String,
 }
 
@@ -20,26 +23,24 @@ impl FromStr for ProgramId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Find the first '[' and last ']' to separate system and name
-        let start_bracket = s
-            .find('[')
-            .ok_or_else(|| format!("Missing '[' in '{}'", s))?;
+        let start_bracket = s.find('[').ok_or_else(|| format!("Missing '[' in '{s}'"))?;
         let end_bracket = s
             .rfind(']')
-            .ok_or_else(|| format!("Missing ']' in '{}'", s))?;
+            .ok_or_else(|| format!("Missing ']' in '{s}'"))?;
 
         if start_bracket >= end_bracket {
-            return Err(format!("Invalid bracket positions in '{}'", s));
+            return Err(format!("Invalid bracket positions in '{s}'"));
         }
 
         let system_str = &s[..start_bracket];
         let name = &s[start_bracket + 1..end_bracket];
 
         if name.is_empty() {
-            return Err(format!("Program name is empty in '{}'", s));
+            return Err(format!("Program name is empty in '{s}'"));
         }
 
         let system = MachineId::from_str(system_str)
-            .map_err(|_| format!("Invalid system string '{}'", system_str))?;
+            .map_err(|_| format!("Invalid system string '{system_str}'"))?;
 
         Ok(ProgramId {
             machine: system,

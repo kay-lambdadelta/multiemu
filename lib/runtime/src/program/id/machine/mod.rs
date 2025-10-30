@@ -49,6 +49,7 @@ impl MachineId {
         guess::guess_system(rom_path)
     }
 
+    /// Converts the name to a "Nointro" convention string
     pub fn to_nointro_string(&self) -> &'static str {
         match self {
             MachineId::Nintendo(NintendoSystem::GameBoy) => "Nintendo - Game Boy",
@@ -126,7 +127,7 @@ impl MachineId {
             OtherSystem::NOINTRO_NAME,
         ];
 
-        for company_name in company_names.map(|company_name| company_name.to_lowercase()) {
+        for company_name in company_names.map(str::to_lowercase) {
             if let Some(index) = s.rfind(&company_name) {
                 let mut s_without_company = s.clone();
                 s_without_company.replace_range(index..index + company_name.len(), "");
@@ -149,7 +150,7 @@ impl MachineId {
             }
         }
 
-        Err(format!("Unknown system: {}", original_s))
+        Err(format!("Unknown system: {original_s}"))
     }
 }
 

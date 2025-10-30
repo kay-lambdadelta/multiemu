@@ -1,15 +1,12 @@
 use crate::graphics::GraphicsApi;
-use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, ops::BitOr};
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
-pub enum DisplayOrientation {
-    Center,
-}
-
+/// The requirements for a graphics context
 #[derive(Debug)]
 pub struct GraphicsRequirements<G: GraphicsApi> {
+    /// Features that are needed for rendering to occur
     pub required_features: G::Features,
+    /// Features that would be nice to have
     pub preferred_features: G::Features,
 }
 

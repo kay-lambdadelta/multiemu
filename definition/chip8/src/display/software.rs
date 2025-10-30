@@ -50,7 +50,7 @@ impl Chip8DisplayBackend for SoftwareState {
         &mut self,
         callback: impl FnOnce(&<Self::GraphicsApi as GraphicsApi>::FramebufferTexture),
     ) {
-        callback(&self.framebuffer)
+        callback(&self.framebuffer);
     }
 }
 

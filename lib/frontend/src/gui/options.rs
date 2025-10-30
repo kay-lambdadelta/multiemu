@@ -3,7 +3,6 @@ use egui::{ComboBox, RichText, Ui};
 use multiemu_runtime::environment::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
 use std::{
     fs::File,
-    ops::Deref,
     sync::{Arc, RwLock},
 };
 use strum::IntoEnumIterator;
@@ -29,7 +28,7 @@ impl OptionsState {
                 .on_hover_text("Save environment to disk")
                 .clicked()
             {
-                let file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+                let file = File::create(&*ENVIRONMENT_LOCATION).unwrap();
 
                 environment_guard.save(file).unwrap();
             }

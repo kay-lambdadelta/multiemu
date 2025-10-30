@@ -22,11 +22,11 @@ pub enum Error {
 ///
 /// Valid formats include
 ///
-/// "component_1"
+/// "`component_1`"
 ///
-/// "component_1/component_2"
+/// "`component_1/component_2`"
 ///
-/// "component_1/component_2/component_3/"
+/// "`component_1/component_2/component_3`/"
 ///
 /// Component names cannot contain whitespace and their segments cannot be empty
 
@@ -72,7 +72,7 @@ impl ComponentPath {
 
     /// Checks if a string is a valid component name
     fn validate_path_component(string: &str) -> Option<Error> {
-        if string.chars().any(|c| c.is_whitespace()) {
+        if string.chars().any(char::is_whitespace) {
             return Some(Error::Whitespace);
         }
 
@@ -84,7 +84,7 @@ impl ComponentPath {
             return Some(Error::InvalidCharacter('.'));
         }
 
-        if string.contains(":") {
+        if string.contains(':') {
             return Some(Error::InvalidCharacter(':'));
         }
 
@@ -92,6 +92,7 @@ impl ComponentPath {
     }
 
     /// Get the parent component, if any
+    #[must_use]
     pub fn parent(&self) -> Option<ComponentPath> {
         let mut segments: Vec<&str> = self.iter().collect();
 
@@ -113,6 +114,7 @@ impl ComponentPath {
         self.iter().count()
     }
 
+    /// Is it empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

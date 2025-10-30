@@ -5,14 +5,19 @@ use std::fmt::Display;
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 
+/// Gamepad enums
 pub mod gamepad;
+/// Hotkey representations
 pub mod hotkey;
+/// Keyboard enums
 pub mod keyboard;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Enum covering all possible input types
 pub enum Input {
+    /// Input is for a gamepadish device
     Gamepad(GamepadInput),
+    /// Input is for a keyboardish device
     Keyboard(KeyboardInput),
 }
 

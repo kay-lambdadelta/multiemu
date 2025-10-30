@@ -12,7 +12,6 @@ use multiemu_runtime::{
 use serde::{Deserialize, Deserializer};
 use std::{
     fs::{File, create_dir_all},
-    ops::Deref,
     sync::{Arc, RwLock},
 };
 use tracing::level_filters::LevelFilter;
@@ -42,9 +41,9 @@ fn main() {
 
     let args = Cli::parse();
 
-    let _ = create_dir_all(STORAGE_DIRECTORY.deref());
+    let _ = create_dir_all(&*STORAGE_DIRECTORY);
 
-    let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+    let environment_file = File::create(&*ENVIRONMENT_LOCATION).unwrap();
     let environment = Arc::new(RwLock::new(
         ron::de::from_reader(environment_file).unwrap_or_default(),
     ));
@@ -58,7 +57,8 @@ fn main() {
         Cli::Database(DatabaseAction::Native {
             action: NativeAction::FuzzySearch { search, similarity },
         }) => {
-            database::native::database_native_fuzzy_search(search, similarity, environment).unwrap()
+            database::native::database_native_fuzzy_search(search, similarity, environment)
+                .unwrap();
         }
         Cli::Database(DatabaseAction::Logiqx {
             action: LogiqxAction::Import { paths },
@@ -107,7 +107,7 @@ where
             if bytes.len() != N {
                 return Err(serde::de::Error::invalid_length(
                     bytes.len(),
-                    &format!("{}", N).as_str(),
+                    &format!("{N}").as_str(),
                 ));
             }
 

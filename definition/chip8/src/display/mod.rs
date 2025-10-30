@@ -184,7 +184,7 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
             .as_mut()
             .unwrap()
             .interact_staging_buffer_mut(|mut framebuffer| {
-                framebuffer.copy_from(&snapshot.screen_buffer)
+                framebuffer.copy_from(&snapshot.screen_buffer);
             });
 
         self.vsync_occurred = snapshot.vsync_occurred;

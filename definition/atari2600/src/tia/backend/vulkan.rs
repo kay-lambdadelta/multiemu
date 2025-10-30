@@ -58,7 +58,11 @@ impl<R: Region> TiaDisplayBackend<R> for VulkanState {
             ImageCreateInfo {
                 image_type: ImageType::Dim2d,
                 format: Format::R8G8B8A8_SRGB,
-                extent: [VISIBLE_SCANLINE_LENGTH as u32, R::TOTAL_SCANLINES as u32, 1],
+                extent: [
+                    u32::from(VISIBLE_SCANLINE_LENGTH),
+                    u32::from(R::TOTAL_SCANLINES),
+                    1,
+                ],
                 usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
                 ..Default::default()
             },

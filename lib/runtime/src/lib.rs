@@ -1,3 +1,7 @@
+//! Multiemu Runtime
+//!
+//! Main runtime crate for the multiemu framework
+
 /// Basic types relating to the fundemental unit of this emulator
 pub mod component;
 /// Option environment that controls frontend and machine behavior

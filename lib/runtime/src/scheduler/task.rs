@@ -2,18 +2,27 @@ use crate::component::Component;
 use std::fmt::Debug;
 use std::num::NonZero;
 
+/// A callback that the scheduler executes to drive component state in a frequency based manner
 pub trait Task<C: Component>: Send + Sync + 'static {
-    /// Runs in a loop until the runtime says to stop
+    /// Given the component, advance the state machine by these many cycles
+    ///
+    /// Note that the time slice argument is not a suggestion, components must literally satisfy the timing requirements
+    /// for deterministic execution to operate correctly
     fn run(&mut self, component: &mut C, time_slice: NonZero<u32>);
 }
+
+// Blanket impl for closures and functions
 
 impl<C: Component, T: FnMut(&mut C, NonZero<u32>) + Send + Sync + 'static> Task<C> for T {
     #[inline]
     fn run(&mut self, component: &mut C, time_slice: NonZero<u32>) {
-        self(component, time_slice)
+        self(component, time_slice);
     }
 }
 
+/// The type of task that a [Task] represents
+///
+/// This affects scheduler behavior greatly
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TaskType {
     /// Tasks are run in their ordering as specified by their frequency
@@ -25,10 +34,10 @@ pub enum TaskType {
     Lazy,
 }
 
-pub type TaskId = u16;
-pub type ErasedTask = Box<dyn FnMut(&mut dyn Component, NonZero<u32>) + Send + Sync>;
+pub(crate) type TaskId = u16;
+pub(crate) type ErasedTask = Box<dyn FnMut(&mut dyn Component, NonZero<u32>) + Send + Sync>;
 
-pub struct TaskData {
+pub(crate) struct TaskData {
     // Pointer to callable task
     pub callback: ErasedTask,
     // Debt this component accumulated

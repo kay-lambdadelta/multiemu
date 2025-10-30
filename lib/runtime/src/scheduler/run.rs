@@ -1,11 +1,11 @@
 use multiemu_range::ContiguousRange;
 
 use super::Scheduler;
-use crate::scheduler::{TaskType, TimelineEntry, TimelineTaskEntry};
+use crate::scheduler::{SchedulerHandle, TaskType, TimelineEntry, TimelineTaskEntry};
 use std::{
     num::NonZero,
     ops::RangeInclusive,
-    sync::atomic::Ordering,
+    sync::{Arc, atomic::Ordering},
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -17,8 +17,12 @@ impl Scheduler {
     pub fn run_for_cycles(&mut self, mut cycles: u32) {
         let timeline = self.timeline.as_mut().unwrap();
 
+        // This particular executor design slices the timeline into efficient runs so we search the timeline as little as possible
+        //
+        // TODO: If the start and end entry match each other, fuse them
+
         while cycles != 0 {
-            let to_run = (timeline.timeline_length - self.current_tick).min(cycles);
+            let to_run = (timeline.length - self.current_tick).min(cycles);
             cycles -= to_run;
 
             let cycle_range = RangeInclusive::from_start_and_length(self.current_tick, to_run);
@@ -48,8 +52,7 @@ impl Scheduler {
                 }
             }
 
-            self.current_tick =
-                self.current_tick.checked_add(to_run).unwrap() % timeline.timeline_length;
+            self.current_tick = self.current_tick.checked_add(to_run).unwrap() % timeline.length;
         }
     }
 
@@ -70,12 +73,13 @@ impl Scheduler {
     }
 }
 
-pub(super) fn scheduler_thread(mut state: Scheduler) {
+/// Run the scheduler in a loop, to be called on a dedicated thread
+///
+/// Currently this is not more efficient than main thread execution
+pub(super) fn scheduler_thread(mut state: Scheduler, handle: Arc<SchedulerHandle>) {
     let timeline = state.timeline.as_mut().unwrap();
     let reasonable_sleep_resolution =
         find_reasonable_sleep_resolution().max(timeline.tick_real_time);
-
-    let handle = state.handle();
 
     tracing::info!(
         "Chose sleep resolution for the dedicated thread: {:?}",

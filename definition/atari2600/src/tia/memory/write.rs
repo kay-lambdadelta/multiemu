@@ -77,7 +77,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
                 };
             }
             WriteRegisters::Wsync => {
-                let until = (SCANLINE_LENGTH - self.state.electron_beam.x) as u32 / 3;
+                let until = u32::from(SCANLINE_LENGTH - self.state.electron_beam.x) / 3;
 
                 // The TIA runs 3 times as fast as the cpu
                 self.cpu_rdy.store(false, Some(until));
@@ -275,18 +275,22 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
             }
             WriteRegisters::Hmove => {
                 for player in &mut self.state.players {
-                    player.position = player.position.wrapping_add_signed(player.motion as i16);
+                    player.position = player
+                        .position
+                        .wrapping_add_signed(i16::from(player.motion));
                 }
 
                 for missile in &mut self.state.missiles {
-                    missile.position = missile.position.wrapping_add_signed(missile.motion as i16);
+                    missile.position = missile
+                        .position
+                        .wrapping_add_signed(i16::from(missile.motion));
                 }
 
                 self.state.ball.position = self
                     .state
                     .ball
                     .position
-                    .wrapping_add_signed(self.state.ball.motion as i16);
+                    .wrapping_add_signed(i16::from(self.state.ball.motion));
             }
             WriteRegisters::Hmclr => {
                 self.state.players[0].motion = 0;

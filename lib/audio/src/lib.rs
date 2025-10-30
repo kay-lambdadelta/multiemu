@@ -1,6 +1,7 @@
 //! Audio utilities
 
 #![no_std]
+#![deny(missing_docs)]
 
 mod frame;
 mod generation;

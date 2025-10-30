@@ -206,12 +206,12 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     let fine_scroll = bits[0..=2].load::<u8>();
                     let coarse_scroll = bits[3..=7].load::<u8>();
 
-                    if !self.state.ppu_addr_ppu_scroll_write_phase {
-                        self.state.background.fine_scroll.x = fine_scroll;
-                        self.state.background.coarse_scroll.x = coarse_scroll;
-                    } else {
+                    if self.state.ppu_addr_ppu_scroll_write_phase {
                         self.state.background.fine_scroll.y = fine_scroll;
                         self.state.background.coarse_scroll.y = coarse_scroll;
+                    } else {
+                        self.state.background.fine_scroll.x = fine_scroll;
+                        self.state.background.coarse_scroll.x = coarse_scroll;
                     }
 
                     self.state.ppu_addr_ppu_scroll_write_phase =
@@ -219,7 +219,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                 }
                 CpuAccessibleRegister::PpuAddr => {
                     let mut unpacked_address = self.state.ppu_addr.to_be_bytes();
-                    unpacked_address[self.state.ppu_addr_ppu_scroll_write_phase as usize] = *buffer;
+                    unpacked_address[usize::from(self.state.ppu_addr_ppu_scroll_write_phase)] =
+                        *buffer;
                     self.state.ppu_addr_ppu_scroll_write_phase =
                         !self.state.ppu_addr_ppu_scroll_write_phase;
                     self.state.ppu_addr = u16::from_be_bytes(unpacked_address);
@@ -241,10 +242,10 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     self.state.ppu_addr = self
                         .state
                         .ppu_addr
-                        .wrapping_add(self.state.ppu_addr_increment_amount as u16);
+                        .wrapping_add(u16::from(self.state.ppu_addr_increment_amount));
                 }
                 CpuAccessibleRegister::OamDma => {
-                    let page = (*buffer as u16) << 8;
+                    let page = u16::from(*buffer) << 8;
 
                     self.processor_rdy.store(false, Some(514));
 
@@ -277,8 +278,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
     }
 }
 
-impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConfig<P>
-    for NesPpuConfig<'a, R>
+impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConfig<P>
+    for NesPpuConfig<'_, R>
 {
     type Component = Ppu<R, P::GraphicsApi>;
 
@@ -292,13 +293,13 @@ impl<'a, R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> Component
 
         let processor_nmi = component_builder
             .registry()
-            .interact::<Mos6502, _>(&self.processor, |component| component.nmi())
+            .interact::<Mos6502, _>(&self.processor, multiemu_definition_mos6502::Mos6502::nmi)
             .unwrap();
 
         // Install the rdy source
         let processor_rdy = component_builder
             .registry()
-            .interact::<Mos6502, _>(&self.processor, |component| component.rdy())
+            .interact::<Mos6502, _>(&self.processor, multiemu_definition_mos6502::Mos6502::rdy)
             .unwrap();
 
         component_builder

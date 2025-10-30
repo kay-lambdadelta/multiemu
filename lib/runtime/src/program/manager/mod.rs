@@ -155,7 +155,7 @@ impl ProgramMetadata {
             let mut internal_database_table =
                 internal_database_transaction.open_multimap_table(PROGRAM_INFORMATION_TABLE)?;
 
-            for rom_info in rom_infos.into_iter() {
+            for rom_info in rom_infos {
                 let rom_info = rom_info?;
 
                 internal_database_table
@@ -177,9 +177,8 @@ impl ProgramMetadata {
         if let Some(path) = self.get_rom_path(id) {
             if path.is_file() {
                 return Some(File::open(path).unwrap());
-            } else {
-                tracing::error!("ROM {} is not a file", id);
             }
+            tracing::error!("ROM {} is not a file", id);
         }
 
         match requirement {
@@ -203,7 +202,7 @@ impl ProgramMetadata {
         None
     }
 
-    /// Tries to see if some ROMS represents something in our database
+    /// Attempts to identify a program from its paths
     pub fn identify_program_from_paths<'a>(
         &'a self,
         roms: impl IntoIterator<Item = PathBuf> + 'a,
@@ -211,7 +210,7 @@ impl ProgramMetadata {
         let rom_paths = Vec::from_iter(roms);
         let mut rom_files = HashMap::new();
 
-        for path in rom_paths.iter() {
+        for path in &rom_paths {
             let file = File::open(path)?;
             rom_files.insert(path, file);
         }
@@ -219,11 +218,11 @@ impl ProgramMetadata {
         let mut hashes = Vec::default();
 
         let mut loaded_roms_guard = self.loaded_roms.write().unwrap();
-        for (rom_path, rom) in rom_files.iter_mut() {
+        for (rom_path, rom) in &mut rom_files {
             let sha1 = RomId::calculate_id(rom)?;
             rom.rewind()?;
 
-            loaded_roms_guard.insert(sha1, LoadedRomLocation::External(rom_path.to_path_buf()));
+            loaded_roms_guard.insert(sha1, LoadedRomLocation::External((*rom_path).clone()));
             hashes.push(sha1);
         }
         drop(loaded_roms_guard);
@@ -233,6 +232,7 @@ impl ProgramMetadata {
         }
 
         if let Some((path, machine_id)) = rom_paths.into_iter().find_map(|path| {
+            // Try to figure out what machine this rom is for
             let machine_id = MachineId::guess(&path);
 
             machine_id.map(|id| (path, id))
@@ -266,7 +266,9 @@ impl ProgramMetadata {
         Ok(None)
     }
 
-    // Try to identify the game these roms belong to
+    /// Attempts to identify a program from its program ids
+    ///
+    /// Prefer [`Self::identify_program_from_paths`] when possible, as it will have a higher success rate
     pub fn identify_program(
         &self,
         roms: impl IntoIterator<Item = RomId>,

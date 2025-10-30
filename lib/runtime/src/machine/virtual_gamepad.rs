@@ -41,8 +41,7 @@ impl VirtualGamepad {
     pub fn get(&self, input: Input) -> InputState {
         assert!(
             self.metadata.present_inputs.contains(&input),
-            "Invalid input requested {:?}",
-            input
+            "Invalid input requested {input:?}"
         );
 
         self.state

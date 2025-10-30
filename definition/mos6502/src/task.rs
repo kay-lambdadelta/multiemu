@@ -110,7 +110,7 @@ impl Task<Mos6502> for Driver {
                 ExecutionStep::LatchToAddressBus => {
                     match component.state.latch.len() {
                         1 => {
-                            component.state.address_bus = component.state.latch[0] as u16;
+                            component.state.address_bus = u16::from(component.state.latch[0]);
                         }
                         2 => {
                             let latch = [component.state.latch[0], component.state.latch[1]];
@@ -136,8 +136,10 @@ impl Task<Mos6502> for Driver {
                     time_slice -= 1;
                 }
                 ExecutionStep::ModifyProgramPointer(value) => {
-                    component.state.program =
-                        component.state.program.wrapping_add_signed(value as i16);
+                    component.state.program = component
+                        .state
+                        .program
+                        .wrapping_add_signed(i16::from(value));
                     time_slice -= 1;
                 }
                 ExecutionStep::MaskAddressBusToZeroPage => {
@@ -152,7 +154,7 @@ impl Task<Mos6502> for Driver {
                     component.state.address_bus = component
                         .state
                         .address_bus
-                        .wrapping_add(modification as u16);
+                        .wrapping_add(u16::from(modification));
                 }
                 ExecutionStep::Interpret { instruction } => {
                     self.interpret_instruction(
@@ -189,10 +191,9 @@ impl Mos6502 {
             .unwrap();
 
         debug_assert!(
-            instruction
-                .addressing_mode
-                .map(|addressing_mode| { addressing_mode.is_valid_for_mode(self.config.kind) })
-                .unwrap_or(true),
+            instruction.addressing_mode.is_none_or(|addressing_mode| {
+                addressing_mode.is_valid_for_mode(self.config.kind)
+            }),
             "Invalid addressing mode for instruction for mode {:?}: {:?}",
             self.config.kind,
             instruction,
@@ -201,13 +202,12 @@ impl Mos6502 {
         self.state.address_bus = self
             .state
             .program
-            .wrapping_add(identifying_bytes_length as u16);
+            .wrapping_add(u16::from(identifying_bytes_length));
         self.state.program = self.state.program.wrapping_add(
-            identifying_bytes_length as u16
+            u16::from(identifying_bytes_length)
                 + instruction
                     .addressing_mode
-                    .map(|mode| mode.added_instruction_length())
-                    .unwrap_or(0),
+                    .map_or(0, |mode| mode.added_instruction_length()),
         );
         self.state.latch.clear();
 

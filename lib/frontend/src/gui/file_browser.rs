@@ -157,7 +157,7 @@ impl FileBrowserState {
         });
 
         ScrollArea::vertical().show(ui, |ui| {
-            for (path, metadata) in self.directory_contents.iter() {
+            for (path, metadata) in &self.directory_contents {
                 if metadata.is_hidden && !self.show_hidden {
                     continue;
                 }
@@ -180,7 +180,7 @@ impl FileBrowserState {
                     .clicked()
                 {
                     if path.is_dir() {
-                        new_dir = Some(path.to_path_buf());
+                        new_dir = Some(path.clone());
                     }
 
                     if path.is_file() {

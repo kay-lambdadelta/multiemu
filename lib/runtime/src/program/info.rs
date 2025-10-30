@@ -6,11 +6,19 @@ use serde_with::{DisplayFromStr, serde_as};
 use std::collections::{BTreeMap, BTreeSet};
 use versions::Versioning;
 
-/// Paths are unixlike
+// Paths are unixlike
 
+/// Representation of the filesystem used by a game
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Filesystem {
-    Single { rom_id: RomId, file_name: String },
+    /// The filesystem is not a filesystem but rather a single rom
+    Single {
+        /// SHA-1 of the rom
+        rom_id: RomId,
+        /// File name it should have
+        file_name: String,
+    },
+    /// The filesystem is a actual filesystem with paths
     Complex(BTreeMap<RomId, BTreeSet<String>>),
 }
 
@@ -33,6 +41,7 @@ pub enum ProgramInfo {
         ///
         /// If alternate files are required a different database entry is required
         languages: BTreeSet<Iso639Alpha3>,
+        /// The version or revision of the program
         #[serde_as(as = "Option<DisplayFromStr>")]
         version: Option<Versioning>,
     },

@@ -51,7 +51,7 @@ pub struct MemoryMappingTable {
 
 impl MemoryMappingTable {
     pub fn new(address_space_width: u8, registry: Arc<ComponentRegistry>) -> Self {
-        let addr_space_size = 2usize.pow(address_space_width as u32);
+        let addr_space_size = 2usize.pow(u32::from(address_space_width));
         let total_pages = addr_space_size.div_ceil(PAGE_SIZE);
 
         Self {
@@ -146,10 +146,10 @@ impl AddressSpace {
 
     #[inline]
     pub fn get_members(&self) -> RwLockReadGuard<'_, Members> {
-        if !self.queue_modified.load(Ordering::Acquire) {
+        if self.queue_modified.load(Ordering::Acquire) {
+            self.update_members();
             self.members.read().unwrap()
         } else {
-            self.update_members();
             self.members.read().unwrap()
         }
     }
@@ -159,7 +159,7 @@ impl AddressSpace {
         let mut queue_guard = self.queue.lock().unwrap();
         self.queue_modified.store(false, Ordering::Release);
 
-        let max = 2usize.pow(self.address_space_width as u32) - 1;
+        let max = 2usize.pow(u32::from(self.address_space_width)) - 1;
 
         let valid_range = 0..=max;
         let mut members = self.members.write().unwrap();
@@ -171,12 +171,10 @@ impl AddressSpace {
                     component,
                     permissions,
                 } => {
-                    if valid_range.disjoint(&range) {
-                        panic!(
-                            "Range {:#04x?} is invalid for a address space that ends at {:04x?} (inserted by {})",
-                            range, max, component
-                        );
-                    }
+                    assert!(
+                        !valid_range.disjoint(&range),
+                        "Range {range:#04x?} is invalid for a address space that ends at {max:04x?} (inserted by {component})"
+                    );
 
                     if permissions.read {
                         members
@@ -202,12 +200,10 @@ impl AddressSpace {
                     destination: destination_range,
                     permissions,
                 } => {
-                    if valid_range.disjoint(&range) {
-                        panic!(
-                            "Range {:#04x?} is invalid for a address space that ends at {:04x?}",
-                            range, max
-                        );
-                    }
+                    assert!(
+                        !valid_range.disjoint(&range),
+                        "Range {range:#04x?} is invalid for a address space that ends at {max:04x?}"
+                    );
 
                     if permissions.read {
                         members
@@ -227,6 +223,7 @@ impl AddressSpace {
     }
 }
 
+#[allow(missing_docs)]
 #[derive(Debug)]
 pub struct Permissions {
     pub read: bool,
@@ -234,6 +231,7 @@ pub struct Permissions {
 }
 
 impl Permissions {
+    /// Instance of [Self] where everything is allowed
     pub fn all() -> Self {
         Self {
             read: true,
@@ -242,18 +240,23 @@ impl Permissions {
     }
 }
 
+/// Command for how the memory access table should modify the memory map
+#[allow(missing_docs)]
 #[derive(Debug)]
 pub enum MemoryRemappingCommand {
+    /// Add a component to the memory map, or add a map to an existing one
     Component {
         range: RangeInclusive<Address>,
         component: ComponentPath,
         permissions: Permissions,
     },
+    /// Add a mirror to the memory map
     Mirror {
         source: RangeInclusive<Address>,
         destination: RangeInclusive<Address>,
         permissions: Permissions,
     },
+    /// Clear a memory range
     Unmap {
         range: RangeInclusive<Address>,
         permissions: Permissions,

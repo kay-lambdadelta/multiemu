@@ -20,7 +20,7 @@ pub struct Mmc1Config<'a> {
     pub ppu_address_space: AddressSpaceId,
 }
 
-impl<'a, P: Platform> ComponentConfig<P> for Mmc1Config<'a> {
+impl<P: Platform> ComponentConfig<P> for Mmc1Config<'_> {
     type Component = Mmc1;
 
     fn build_component(

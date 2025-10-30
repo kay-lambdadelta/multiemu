@@ -233,7 +233,7 @@ fn process_file(
                 None::<&[u8]>,
             )?;
         }
-    };
+    }
 
     Ok(())
 }
@@ -303,7 +303,7 @@ fn process_file_internal(
         }
     } else {
         tracing::debug!("Could not identify ROM {} at \"{}\"", rom_id, entry);
-    };
+    }
 
     Ok(())
 }

@@ -174,12 +174,10 @@ impl<P: Platform> MachineBuilder<P> {
 
     /// Insert the required information to construct a address space
     pub fn insert_address_space(mut self, width: u8) -> (Self, AddressSpaceId) {
-        if width > usize::BITS as u8 {
-            panic!(
-                "This host machine cannot handle an address space of {} bits",
-                width
-            );
-        }
+        assert!(
+            (width <= usize::BITS as u8),
+            "This host machine cannot handle an address space of {width} bits"
+        );
 
         let mutable_access_table = Arc::get_mut(&mut self.memory_access_table)
             .expect("Address spaces must be added before memory access table is spread");
@@ -288,7 +286,7 @@ impl<P: Platform> MachineBuilder<P> {
         for (component_path, initializer) in component_initializers {
             self.registry
                 .interact_dyn_mut(&component_path, |component| {
-                    initializer(component, &late_initialized_data)
+                    initializer(component, &late_initialized_data);
                 })
                 .unwrap();
         }
@@ -349,7 +347,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .get_or_insert(Box::new(|component, data| {
                 let component: &mut C = (component as &mut dyn Any).downcast_mut().unwrap();
 
-                initializer(component, data)
+                initializer(component, data);
             }));
 
         self
@@ -401,7 +399,6 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     }
 
     /// Insert a component with a default config
-    #[inline]
     pub fn insert_default_child_component<B: ComponentConfig<P> + Default>(
         self,
         name: &str,

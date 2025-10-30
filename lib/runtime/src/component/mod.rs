@@ -92,7 +92,7 @@ pub trait Component: Send + Sync + Debug + Any {
     // TODO: Find out a non nightmarish way to have the platform generic here
 
     #[allow(clippy::type_complexity)]
-    /// The [Any] needs to be cast to a &[GraphicsApi::FramebufferTexture]
+    /// The [Any] needs to be cast to a &[`GraphicsApi::FramebufferTexture`]
     fn access_framebuffer<'a>(
         &'a mut self,
         display_path: &ResourcePath,

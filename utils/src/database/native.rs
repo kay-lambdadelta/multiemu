@@ -88,13 +88,13 @@ pub fn database_native_fuzzy_search(
     }
 
     for (machine_id, found_games) in found_games {
-        println!("{}", machine_id);
+        println!("{machine_id}");
         for (game, similarity) in found_games
             .into_iter()
             .sorted_by(|(_, similarity1), (_, similarity2)| similarity1.total_cmp(similarity2))
             .rev()
         {
-            println!("\t{:.2} {}", similarity, game);
+            println!("\t{similarity:.2} {game}");
         }
     }
 

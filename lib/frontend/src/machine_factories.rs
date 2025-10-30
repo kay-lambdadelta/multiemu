@@ -26,7 +26,7 @@ impl<P: Platform> MachineFactories<P> {
 
         self.0
             .get(&system)
-            .unwrap_or_else(|| panic!("No factory for system {:?}", system))
+            .unwrap_or_else(|| panic!("No factory for system {system:?}"))
             .construct(machine_builder)
     }
 }

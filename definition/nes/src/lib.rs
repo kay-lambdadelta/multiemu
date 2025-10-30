@@ -76,9 +76,9 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
         let (machine, cartridge) = machine.insert_component(
             "cartridge",
             NesCartridgeConfig {
-                rom,
                 cpu_address_space,
                 ppu_address_space,
+                rom,
             },
         );
 

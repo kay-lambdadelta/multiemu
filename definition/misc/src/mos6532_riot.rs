@@ -126,7 +126,7 @@ impl Component for Mos6532Riot {
 
                 Ok(())
             }
-            _ => Err(format!("Unsupported snapshot version: {}", version).into()),
+            _ => Err(format!("Unsupported snapshot version: {version}").into()),
         }
     }
 
@@ -157,22 +157,20 @@ impl Component for Mos6532Riot {
                         .registers
                         .swcha
                         .get()
-                        .map(|handler| handler.read_register())
-                        .unwrap_or(0);
+                        .map_or(0, |handler| handler.read_register());
                 }
                 0x1 => {
-                    *buffer_section = if self.registers.swacnt { 1 } else { 0 };
+                    *buffer_section = u8::from(self.registers.swacnt);
                 }
                 0x2 if self.registers.swbcnt => {
                     *buffer_section = self
                         .registers
                         .swchb
                         .get()
-                        .map(|handler| handler.read_register())
-                        .unwrap_or(0);
+                        .map_or(0, |handler| handler.read_register());
                 }
                 0x3 => {
-                    *buffer_section = if self.registers.swbcnt { 1 } else { 0 };
+                    *buffer_section = u8::from(self.registers.swbcnt);
                 }
                 0x4 => {
                     *buffer_section = self.registers.intim;

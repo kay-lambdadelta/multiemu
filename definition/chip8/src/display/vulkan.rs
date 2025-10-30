@@ -56,7 +56,7 @@ impl Chip8DisplayBackend for VulkanState {
             ImageCreateInfo {
                 image_type: ImageType::Dim2d,
                 format: Format::R8G8B8A8_SRGB,
-                extent: [LORES.x as u32, LORES.y as u32, 1],
+                extent: [u32::from(LORES.x), u32::from(LORES.y), 1],
                 usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
                 ..Default::default()
             },
@@ -170,7 +170,7 @@ impl Chip8DisplayBackend for VulkanState {
         &mut self,
         callback: impl FnOnce(&<Self::GraphicsApi as GraphicsApi>::FramebufferTexture),
     ) {
-        callback(&self.framebuffer)
+        callback(&self.framebuffer);
     }
 }
 

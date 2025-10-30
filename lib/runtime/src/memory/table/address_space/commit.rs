@@ -73,7 +73,7 @@ impl MemoryMappingTable {
                         }
                     })
                     .sorted_by_key(|entry| entry.start)
-                    .collect()
+                    .collect();
             });
     }
 }

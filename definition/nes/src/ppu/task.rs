@@ -118,7 +118,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                                 SpriteEvaluationState::Evaluating { sprite_y };
                         }
                         SpriteEvaluationState::Evaluating { sprite_y } => {
-                            if sprite_y as u16 == component.state.cycle_counter.y + 1 {
+                            if u16::from(sprite_y) == component.state.cycle_counter.y + 1 {
                                 let mut bytes = [0; 4];
 
                                 #[allow(clippy::needless_range_loop)]
@@ -200,12 +200,13 @@ impl State {
                     );
 
                     self.background.pattern_low_shift =
-                        (self.background.pattern_low_shift & 0xff00) | pattern_table_low as u16;
-                    self.background.pattern_high_shift =
-                        (self.background.pattern_high_shift & 0xff00) | pattern_table_high as u16;
+                        (self.background.pattern_low_shift & 0xff00) | u16::from(pattern_table_low);
+                    self.background.pattern_high_shift = (self.background.pattern_high_shift
+                        & 0xff00)
+                        | u16::from(pattern_table_high);
                     self.background.attribute_shift = (self.background.attribute_shift
                         & 0xffff0000)
-                        | (attribute as u32 * 0x5555);
+                        | (u32::from(attribute) * 0x5555);
 
                     self.background_pipeline_state = BackgroundPipelineState::FetchingNametable;
                 }
@@ -282,7 +283,7 @@ impl State {
         nametable: u8,
     ) -> u8 {
         let row = self.scrolled().y % 8;
-        let address = self.background.pattern_table_base + (nametable as u16) * 16 + row;
+        let address = self.background.pattern_table_base + u16::from(nametable) * 16 + row;
 
         memory_access_table
             .read_le_value(address as usize, ppu_address_space, false)
@@ -297,7 +298,7 @@ impl State {
         nametable: u8,
     ) -> u8 {
         let row = self.scrolled().y % 8;
-        let address = self.background.pattern_table_base + (nametable as u16) * 16 + row + 8;
+        let address = self.background.pattern_table_base + u16::from(nametable) * 16 + row + 8;
 
         memory_access_table
             .read_le_value(address as usize, ppu_address_space, false)

@@ -53,7 +53,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task<Chip8Processor> for Driver<G> {
                             .state
                             .registers
                             .program
-                            .wrapping_add(decompiled_instruction_length as u16);
+                            .wrapping_add(u16::from(decompiled_instruction_length));
 
                         tracing::trace!("Decoded instruction {:?}", decompiled_instruction);
 

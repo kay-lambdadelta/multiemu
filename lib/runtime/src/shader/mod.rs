@@ -32,7 +32,7 @@ pub trait ShaderFormat: Debug + Any {
     /// Best in memory representation for the shader format
     type Representation: Serialize + DeserializeOwned + Debug + Clone + Send + Sync + 'static;
 
-    /// Turn a [naga] module and some other info into a [Self::Representation]
+    /// Turn a [naga] module and some other info into a [`Self::Representation`]
     fn compile(
         module: &Module,
         module_info: &ModuleInfo,
@@ -118,56 +118,55 @@ impl<T: ShaderFormat> ShaderCache<T> {
             version
         );
 
-        match self.shaders.get_sync(&(wgsl.clone(), version)) {
-            Some(module) => Ok(module.clone()),
-            None => {
-                // Try to parse it ourself and create it
-                let module = naga::front::wgsl::parse_str(&wgsl)?;
-                let mut validator = Validator::new(ValidationFlags::all(), Capabilities::all());
-                let module_info = validator.validate(&module)?;
+        if let Some(module) = self.shaders.get_sync(&(wgsl.clone(), version)) {
+            Ok(module.clone())
+        } else {
+            // Try to parse it ourself and create it
+            let module = naga::front::wgsl::parse_str(&wgsl)?;
+            let mut validator = Validator::new(ValidationFlags::all(), Capabilities::all());
+            let module_info = validator.validate(&module)?;
 
-                let vertex_entry = module
-                    .entry_points
-                    .iter()
-                    .find(|e| e.stage == ShaderStage::Vertex)
-                    .unwrap()
-                    .name
-                    .clone();
+            let vertex_entry = module
+                .entry_points
+                .iter()
+                .find(|e| e.stage == ShaderStage::Vertex)
+                .unwrap()
+                .name
+                .clone();
 
-                let fragment_entry = module
-                    .entry_points
-                    .iter()
-                    .find(|e| e.stage == ShaderStage::Fragment)
-                    .unwrap()
-                    .name
-                    .clone();
+            let fragment_entry = module
+                .entry_points
+                .iter()
+                .find(|e| e.stage == ShaderStage::Fragment)
+                .unwrap()
+                .name
+                .clone();
 
-                let shader = Arc::new(Shader {
-                    vertex: T::compile(
-                        &module,
-                        &module_info,
-                        version,
-                        &vertex_entry,
-                        ShaderStage::Vertex,
-                    )?,
-                    vertex_entry,
-                    fragment: T::compile(
-                        &module,
-                        &module_info,
-                        version,
-                        &fragment_entry,
-                        ShaderStage::Fragment,
-                    )?,
-                    fragment_entry,
-                    module,
-                });
+            let shader = Arc::new(Shader {
+                vertex: T::compile(
+                    &module,
+                    &module_info,
+                    version,
+                    &vertex_entry,
+                    ShaderStage::Vertex,
+                )?,
+                vertex_entry,
+                fragment: T::compile(
+                    &module,
+                    &module_info,
+                    version,
+                    &fragment_entry,
+                    ShaderStage::Fragment,
+                )?,
+                fragment_entry,
+                module,
+            });
 
-                let _ = self
-                    .shaders
-                    .put_sync((wgsl.clone(), version), shader.clone());
+            let _ = self
+                .shaders
+                .put_sync((wgsl.clone(), version), shader.clone());
 
-                Ok(shader)
-            }
+            Ok(shader)
         }
     }
 }

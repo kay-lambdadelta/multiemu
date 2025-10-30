@@ -175,8 +175,8 @@ pub enum Opcode {
 impl Display for Opcode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Opcode::Mos6502(opcode) => write!(f, "{}", opcode),
-            Opcode::Wdc65C02(opcode) => write!(f, "{}", opcode),
+            Opcode::Mos6502(opcode) => write!(f, "{opcode}"),
+            Opcode::Wdc65C02(opcode) => write!(f, "{opcode}"),
         }
     }
 }

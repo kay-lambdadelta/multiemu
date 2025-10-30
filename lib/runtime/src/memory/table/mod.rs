@@ -18,7 +18,7 @@ pub struct MemoryAccessTable {
 }
 
 impl MemoryAccessTable {
-    pub fn new(registry: Arc<ComponentRegistry>) -> Self {
+    pub(crate) fn new(registry: Arc<ComponentRegistry>) -> Self {
         Self {
             address_spaces: Vec::default(),
             current_address_space: 0,
@@ -55,10 +55,6 @@ impl MemoryAccessTable {
     /// Iter over present spaces
     pub fn address_spaces(&self) -> impl Iterator<Item = AddressSpaceId> {
         (0..self.address_spaces.len()).map(|space| AddressSpaceId(space as u16))
-    }
-
-    pub fn force_remap_commit(&self, address_space: AddressSpaceId) {
-        drop(self.address_spaces[address_space.0 as usize].get_members());
     }
 
     /// Adds a command to the remap queue

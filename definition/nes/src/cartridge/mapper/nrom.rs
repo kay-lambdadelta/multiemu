@@ -21,7 +21,7 @@ pub struct NRomConfig<'a> {
     pub ppu_address_space: AddressSpaceId,
 }
 
-impl<'a, P: Platform> ComponentConfig<P> for NRomConfig<'a> {
+impl<P: Platform> ComponentConfig<P> for NRomConfig<'_> {
     type Component = NRom;
 
     fn build_component(

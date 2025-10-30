@@ -63,10 +63,9 @@ pub fn decode_undocumented_space_instruction(
                 AddressingMode::Mos6502(Mos6502AddressingMode::Immediate) => {
                     (Opcode::Mos6502(Mos6502Opcode::Xaa), Some(addressing_mode))
                 }
-                AddressingMode::Mos6502(Mos6502AddressingMode::Absolute)
-                | AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage) => {
-                    (Opcode::Mos6502(Mos6502Opcode::Sax), Some(addressing_mode))
-                }
+                AddressingMode::Mos6502(
+                    Mos6502AddressingMode::Absolute | Mos6502AddressingMode::ZeroPage,
+                ) => (Opcode::Mos6502(Mos6502Opcode::Sax), Some(addressing_mode)),
                 AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage) => (
                     Opcode::Mos6502(Mos6502Opcode::Sax),
                     Some(AddressingMode::Mos6502(

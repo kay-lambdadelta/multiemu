@@ -530,7 +530,14 @@ impl VulkanEguiRenderer {
                     // The actual process to verify this would consume too much cpu time to be done
                     unsafe {
                         command_buffer
-                            .draw_indexed(index_buffer_view.len() as u32, 1, 0, 0, 0)
+                            .draw_indexed(
+                                u32::try_from(index_buffer_view.len())
+                                    .expect("Far too many indexes"),
+                                1,
+                                0,
+                                0,
+                                0,
+                            )
                             .unwrap()
                     };
                 }

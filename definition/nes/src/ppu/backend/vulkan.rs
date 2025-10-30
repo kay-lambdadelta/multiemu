@@ -59,8 +59,8 @@ impl<R: Region> PpuDisplayBackend<R> for VulkanState {
                 image_type: ImageType::Dim2d,
                 format: Format::R8G8B8A8_SRGB,
                 extent: [
-                    VISIBLE_SCANLINE_LENGTH as u32,
-                    R::VISIBLE_SCANLINES as u32,
+                    u32::from(VISIBLE_SCANLINE_LENGTH),
+                    u32::from(R::VISIBLE_SCANLINES),
                     1,
                 ],
                 usage: ImageUsage::TRANSFER_SRC | ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,

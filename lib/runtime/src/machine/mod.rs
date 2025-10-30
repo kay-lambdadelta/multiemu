@@ -21,7 +21,6 @@ use std::{
     fmt::Debug,
     fs::File,
     marker::PhantomData,
-    ops::Deref,
     path::PathBuf,
     sync::{Arc, RwLock},
 };
@@ -80,7 +79,7 @@ impl Machine<TestPlatform> {
 
     pub fn build_test_minimal() -> MachineBuilder<TestPlatform> {
         let environment: Environment =
-            if let Ok(environment_file) = File::create(ENVIRONMENT_LOCATION.deref()) {
+            if let Ok(environment_file) = File::create(&*ENVIRONMENT_LOCATION) {
                 ron::de::from_reader(environment_file).unwrap_or_default()
             } else {
                 Default::default()

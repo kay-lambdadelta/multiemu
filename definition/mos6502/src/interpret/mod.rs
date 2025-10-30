@@ -362,9 +362,9 @@ impl Driver {
                     }
                     Mos6502Opcode::Jmp => {
                         let value = match instruction.addressing_mode {
-                            Some(AddressingMode::Mos6502(Mos6502AddressingMode::Absolute))
-                            | Some(AddressingMode::Mos6502(
-                                Mos6502AddressingMode::AbsoluteIndirect,
+                            Some(AddressingMode::Mos6502(
+                                Mos6502AddressingMode::Absolute
+                                | Mos6502AddressingMode::AbsoluteIndirect,
                             )) => state.address_bus,
                             _ => unreachable!(),
                         };
@@ -773,7 +773,7 @@ fn adc(state: &mut ProcessorState, config: &Mos6502Config, value: u8) {
     if state.flags.decimal && config.kind.supports_decimal() {
         todo!()
     } else {
-        let carry = state.flags.carry as u8;
+        let carry = u8::from(state.flags.carry);
 
         let (first_operation_result, first_operation_carry) = state.a.overflowing_add(value);
 

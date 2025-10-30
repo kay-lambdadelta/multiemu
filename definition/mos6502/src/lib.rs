@@ -369,7 +369,7 @@ impl Component for Mos6502 {
 
                 Ok(())
             }
-            other => Err(format!("Unsupported snapshot version: {}", other).into()),
+            other => Err(format!("Unsupported snapshot version: {other}").into()),
         }
     }
 }

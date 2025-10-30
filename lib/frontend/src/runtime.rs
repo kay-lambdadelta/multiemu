@@ -94,7 +94,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         self.in_focus = focused;
     }
 
-    /// Get the [MaybeMachine]
+    /// Get the [`MaybeMachine`]
     pub fn maybe_machine(&self) -> Arc<MaybeMachine<P>> {
         self.maybe_machine.clone()
     }
@@ -168,13 +168,12 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         let maybe_machine_guard = self.maybe_machine.read().unwrap();
         let enviroment_guard = self.environment.read().unwrap();
 
-        for (keys_to_press, action) in enviroment_guard.hotkeys.iter() {
+        for (keys_to_press, action) in &enviroment_guard.hotkeys {
             if keys_to_press.iter().all(|key| {
                 self.current_key_states
                     .get(&id)
                     .and_then(|map| map.get(key))
-                    .map(|state| state.as_digital(None))
-                    .unwrap_or(false)
+                    .is_some_and(|state| state.as_digital(None))
             }) {
                 tracing::debug!("Hotkey pressed: {:?}", action);
 
@@ -251,7 +250,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         }
 
         self.collected_frame_rates
-            .enqueue(Instant::now() - self.previous_frame_timestamp);
+            .enqueue(self.previous_frame_timestamp.elapsed());
         self.previous_frame_timestamp = Instant::now();
 
         match self.mode {
@@ -270,7 +269,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
 
                     let render_frame_start_timestamp = Instant::now();
                     windowing.graphics_runtime.redraw(maybe_machine);
-                    let render_frame_time_taken = Instant::now() - render_frame_start_timestamp;
+                    let render_frame_time_taken = render_frame_start_timestamp.elapsed();
 
                     maybe_machine.scheduler.as_mut().unwrap().run(
                         frame_timing
@@ -462,7 +461,7 @@ impl<P: PlatformExt> FrontendRuntime<P> {
         // Try to give the environment default bindings
 
         // Make sure default mappings exist
-        for (path, virtual_gamepad) in machine.virtual_gamepads.iter() {
+        for (path, virtual_gamepad) in &machine.virtual_gamepads {
             environment_guard
                 .gamepad_configs
                 .entry(machine_id)

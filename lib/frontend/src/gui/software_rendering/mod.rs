@@ -79,9 +79,10 @@ impl SoftwareEguiRenderer {
         for (new_texture_id, new_texture) in full_output.textures_delta.set {
             tracing::debug!("Adding new egui texture {:?}", new_texture_id);
 
-            if new_texture.pos.is_some() && !self.textures.contains_key(&new_texture_id) {
-                panic!("Texture not found: {:?}", new_texture_id);
-            }
+            assert!(
+                !(new_texture.pos.is_some() && !self.textures.contains_key(&new_texture_id)),
+                "Texture not found: {new_texture_id:?}"
+            );
 
             let texture = self.textures.entry(new_texture_id).or_insert_with(|| {
                 let image_size = new_texture.image.size();
