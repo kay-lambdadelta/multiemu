@@ -559,9 +559,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.43"
+version = "1.2.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "739eb0f94557554b3ca9a86d2d37bebd49c5e6d0c1d2bda35ba5bdac830befc2"
+checksum = "37521ac7aabe3d13122dc382493e20c9416f299d2ccd5b3a5340a2570cdeb0f3"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -718,16 +718,6 @@ checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
 dependencies = [
  "bytes",
  "memchr",
-]
-
-[[package]]
-name = "concat-idents"
-version = "1.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f76990911f2267d837d9d0ad060aa63aaad170af40904b29461734c339030d4d"
-dependencies = [
- "quote",
- "syn 2.0.108",
 ]
 
 [[package]]
@@ -1318,38 +1308,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui_inbox"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8031fefc60b0170b304a8b12df0bd3531359410c3e709a2ccf33f7f58f856428"
-dependencies = [
- "egui",
- "parking_lot",
-]
-
-[[package]]
-name = "egui_infinite_scroll"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca3d89be9a805ffb5126167adcc62dacbc25eb0ea0e42fb2fb0572e6d0800769"
-dependencies = [
- "egui",
- "egui_inbox",
- "egui_virtual_list",
- "hello_egui_utils",
-]
-
-[[package]]
-name = "egui_virtual_list"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "532c45e6075a2c44fd40cd094aea69a0aa77c0804e4d91f9e06cdecf7b84b557"
-dependencies = [
- "egui",
- "web-time",
-]
-
-[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1789,16 +1747,6 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
-name = "hello_egui_utils"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea8d21d4cd2b323f7703a43fb72c0f58da649387538a96c67b02fc3967ed55dc"
-dependencies = [
- "concat-idents",
- "egui",
-]
 
 [[package]]
 name = "hermit-abi"
@@ -2533,10 +2481,10 @@ version = "0.1.0"
 dependencies = [
  "byte-unit",
  "cfg-if",
+ "criterion",
  "egui",
  "egui-phosphor",
  "egui_extras",
- "egui_infinite_scroll",
  "indexmap 2.12.0",
  "multiemu-runtime",
  "nalgebra",

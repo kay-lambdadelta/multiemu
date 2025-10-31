@@ -20,7 +20,13 @@ cfg-if = { workspace = true }
 egui_extras = { version = "0.32", default-features = false, features = [
     "image",
 ] }
-egui_infinite_scroll = "0.8"
 egui-phosphor = "0.10"
 sysinfo = "0.37"
 byte-unit = "5.1"
+
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "software_rendering"
+harness = false

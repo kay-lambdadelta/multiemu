@@ -7,7 +7,6 @@ use palette::{
     named::BLACK,
 };
 
-#[inline]
 pub(super) fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
     position: Point2<f32>,
     triangle: &Triangle,
@@ -48,25 +47,14 @@ pub(super) fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
     }
 }
 
-#[inline]
 fn barycentric_coordinates(point: Point2<f32>, triangle: &Triangle) -> Vector3<f32> {
-    let area1 = (triangle.v1.position - point)
-        .perp(&(triangle.v2.position - point))
-        .abs()
-        / 2.0;
-    let area2 = (triangle.v2.position - point)
-        .perp(&(triangle.v0.position - point))
-        .abs()
-        / 2.0;
-    let area3 = (triangle.v0.position - point)
-        .perp(&(triangle.v1.position - point))
-        .abs()
-        / 2.0;
+    let area1 = (triangle.v1.position - point).perp(&(triangle.v2.position - point));
+    let area2 = (triangle.v2.position - point).perp(&(triangle.v0.position - point));
+    let area3 = (triangle.v0.position - point).perp(&(triangle.v1.position - point));
 
-    Vector3::new(area1, area2, area3) / triangle.area
+    Vector3::new(area1, area2, area3).abs() / (2.0 * triangle.area)
 }
 
-#[inline]
 fn is_point_in_triangle(point: Point2<f32>, triangle: &Triangle) -> bool {
     let to_p0 = point - triangle.v0.position;
     let to_p1 = point - triangle.v1.position;

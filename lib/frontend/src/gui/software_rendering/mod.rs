@@ -40,7 +40,7 @@ struct Triangle {
 }
 
 impl Triangle {
-    pub fn new(v0: Vertex, v1: Vertex, v2: Vertex) -> Self {
+    fn new(v0: Vertex, v1: Vertex, v2: Vertex) -> Self {
         let edge0 = v0.position - v1.position;
         let area = edge0.perp(&(v2.position - v0.position)).abs() / 2.0;
 
