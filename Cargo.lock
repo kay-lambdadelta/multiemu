@@ -2351,6 +2351,7 @@ dependencies = [
  "criterion",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
+ "multiemu-range",
  "multiemu-runtime",
  "nalgebra",
  "num",
@@ -4065,9 +4066,9 @@ checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
 
 [[package]]
 name = "saa"
-version = "5.1.1"
+version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f895faf11c46e98547f4de603a113ca76708d4b6832dbbe3c26528b7b81aca3b"
+checksum = "e22c09675afa4caf21d8280768a5108f86248d13eb759ababa68461e98a9a8bd"
 
 [[package]]
 name = "safe_arch"
@@ -5259,9 +5260,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32b130c0d2d49f8b6889abc456e795e82525204f27c42cf767cf0d7734e089b8"
+checksum = "b2878ef029c47c6e8cf779119f20fcf52bde7ad42a731b2a304bc221df17571e"
 dependencies = [
  "rustls-pki-types",
 ]

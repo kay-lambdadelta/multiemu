@@ -28,6 +28,7 @@ pub struct Driver {
 impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
     fn run(&mut self, component: &mut Ppu<R, G>, time_slice: NonZero<u32>) {
         let backend = component.backend.as_mut().unwrap();
+        let mut commit_staging_buffer = false;
 
         for _ in 0..time_slice.get() {
             if std::mem::replace(&mut component.state.reset_cpu_nmi, false) {
@@ -56,7 +57,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                             .entered_vblank
                             .store(false, Ordering::Release);
 
-                        backend.commit_staging_buffer();
+                        commit_staging_buffer = true;
                     }
                     _ => {}
                 }
@@ -142,6 +143,10 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
             }
 
             component.state.cycle_counter = component.state.get_modified_cycle_counter::<R>(1);
+        }
+
+        if commit_staging_buffer {
+            backend.commit_staging_buffer();
         }
     }
 }

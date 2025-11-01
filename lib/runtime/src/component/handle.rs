@@ -114,7 +114,7 @@ impl<C: Component> ComponentHandle<C> {
     ///
     /// The chance of an exclusive access occuring is greatly increased if the component has lazy task
     #[inline]
-    pub fn interact<T: 'static>(&self, callback: impl FnOnce(&C) -> T) -> T {
+    pub fn interact<T>(&self, callback: impl FnOnce(&C) -> T) -> T {
         self.component.interact(|component| {
             debug_assert_eq!(TypeId::of::<C>(), (component as &dyn Any).type_id());
             let component = unsafe { &*std::ptr::from_ref::<dyn Component>(component).cast::<C>() };
@@ -125,7 +125,7 @@ impl<C: Component> ComponentHandle<C> {
 
     /// Interact mutably with a component
     #[inline]
-    pub fn interact_mut<T: 'static>(&self, callback: impl FnOnce(&mut C) -> T) -> T {
+    pub fn interact_mut<T>(&self, callback: impl FnOnce(&mut C) -> T) -> T {
         self.component.interact_mut(|component| {
             debug_assert_eq!(TypeId::of::<C>(), (component as &dyn Any).type_id());
             let component =

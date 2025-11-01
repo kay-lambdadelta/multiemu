@@ -288,7 +288,6 @@ impl Default for RdyFlag {
 }
 
 impl RdyFlag {
-    #[inline]
     pub fn load(&self) -> bool {
         let mut guard = self.0.lock().unwrap();
 
@@ -304,7 +303,6 @@ impl RdyFlag {
         guard.state
     }
 
-    #[inline]
     pub fn store(&self, value: bool, until: Option<u32>) {
         let mut guard = self.0.lock().unwrap();
 

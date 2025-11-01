@@ -6,6 +6,7 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 multiemu-runtime = { workspace = true }
+multiemu-range = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }

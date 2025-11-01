@@ -11,7 +11,7 @@ use std::{
     io::Seek,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::{Arc, OnceLock, RwLock},
+    sync::{Arc, LazyLock, Mutex, RwLock, Weak},
 };
 
 /// Program id -> Program info mapping
@@ -21,11 +21,12 @@ pub const PROGRAM_INFORMATION_TABLE: MultimapTableDefinition<ProgramId, ProgramI
 pub const HASH_ALIAS_TABLE: MultimapTableDefinition<RomId, ProgramId> =
     MultimapTableDefinition::new("hash_alias");
 
-static DATABASE: OnceLock<Database> = OnceLock::new();
+static DATABASE: LazyLock<Mutex<Weak<Database>>> = LazyLock::new(Mutex::default);
 
 /// The ROM manager which contains the database and information about the roms that were loaded
 #[derive(Debug)]
 pub struct ProgramManager {
+    database: Arc<Database>,
     external_roms: scc::HashMap<RomId, PathBuf, FxBuildHasher>,
     environment: Arc<RwLock<Environment>>,
 }
@@ -45,16 +46,17 @@ impl ProgramManager {
             environment_guard.database_location
         );
 
-        // Try to create the database or repair it
+        let mut database_guard = DATABASE.lock().unwrap();
 
-        DATABASE.get_or_init(|| {
-            let mut database = Database::builder()
+        let database = if let Some(cached_database) = database_guard.upgrade() {
+            cached_database
+        } else {
+            let database = Database::builder()
                 .create(&environment_guard.database_location)
                 .unwrap();
 
-            let _ = database.compact();
-
-            let database_transaction = database.begin_write().unwrap();
+            let mut database_transaction = database.begin_write().unwrap();
+            database_transaction.set_quick_repair(true);
             database_transaction
                 .open_multimap_table(PROGRAM_INFORMATION_TABLE)
                 .unwrap();
@@ -63,12 +65,15 @@ impl ProgramManager {
                 .unwrap();
             database_transaction.commit().unwrap();
 
+            let database = Arc::new(database);
+            *database_guard = Arc::downgrade(&database);
             database
-        });
+        };
 
         drop(environment_guard);
 
         Ok(Arc::new(Self {
+            database,
             external_roms: scc::HashMap::default(),
             environment,
         }))
@@ -312,7 +317,7 @@ impl ProgramManager {
     }
 
     pub fn database(&self) -> &Database {
-        DATABASE.get().expect("Database uninitialized")
+        &self.database
     }
 
     pub fn iter_roms(&self) -> impl Iterator<Item = (RomId, PathBuf)> {

@@ -9,7 +9,6 @@ use multiemu_runtime::{
     platform::Platform,
     program::Filesystem,
 };
-use num::rational::Ratio;
 use std::{marker::PhantomData, ops::RangeInclusive};
 use strum::Display;
 use tia::{
@@ -89,7 +88,7 @@ fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
     let (machine, cpu) = machine.insert_component(
         "mos_6502",
         Mos6502Config {
-            frequency: R::frequency() / Ratio::from_integer(3),
+            frequency: R::frequency() / 3,
             kind: Mos6502Kind::Mos6507,
             assigned_address_space: cpu_address_space,
             broken_ror: false,
@@ -99,7 +98,7 @@ fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
     let (machine, mos6532_riot) = machine.insert_component(
         "mos6532_riot",
         Mos6532RiotConfig {
-            frequency: R::frequency() / Ratio::from_integer(3),
+            frequency: R::frequency() / 3,
             registers_assigned_address: 0x280,
             ram_assigned_address: 0x80,
             assigned_address_space: cpu_address_space,
@@ -136,8 +135,8 @@ fn tia_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>>
 #[rustfmt::skip]
 fn riot_register_mirror_ranges() -> impl Iterator<Item = RangeInclusive<Address>> {
     [
-        0x280, 0x2a0, 0x2c0, 0x2e0, 
-        0x380, 0x3a0, 0x3c0, 0x3e0, 
+        0x280, 0x2a0, 0x2c0, 0x2e0,
+        0x380, 0x3a0, 0x3c0, 0x3e0,
         0x680,  0x6a0, 0x6c0, 0x6e0,
         0x780, 0x7a0, 0x7c0, 0x7e0,
         0xa80, 0xaa0, 0xac0, 0xae0,

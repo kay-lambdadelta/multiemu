@@ -6,6 +6,7 @@ pub(crate) use backend::SupportedGraphicsApiTia;
 use bitvec::{array::BitArray, order::Lsb0, view::BitView};
 use color::TiaColor;
 use multiemu_definition_mos6502::RdyFlag;
+use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
     component::{Component, ResourcePath},
     memory::{
@@ -21,6 +22,7 @@ use std::{
     any::Any,
     collections::{HashMap, HashSet},
     fmt::Debug,
+    ops::RangeInclusive,
     sync::Arc,
 };
 
@@ -152,7 +154,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         } else {
             Err(ReadMemoryError(
                 std::iter::once((
-                    address..=(address + (buffer.len() - 1)),
+                    RangeInclusive::from_start_and_length(address, buffer.len()),
                     ReadMemoryErrorType::Denied,
                 ))
                 .collect(),
@@ -178,7 +180,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         } else {
             Err(WriteMemoryError(
                 std::iter::once((
-                    address..=(address + (buffer.len() - 1)),
+                    RangeInclusive::from_start_and_length(address, buffer.len()),
                     WriteMemoryErrorType::Denied,
                 ))
                 .collect(),
