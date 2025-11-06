@@ -1,5 +1,3 @@
-//! Shader definitions
-
 use crate::graphics::GraphicsVersion;
 use naga::{
     Module, ShaderStage,

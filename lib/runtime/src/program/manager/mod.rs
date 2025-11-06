@@ -1,8 +1,10 @@
-use crate::{
-    environment::Environment,
-    program::{MachineId, ProgramId, ProgramInfo, ProgramSpecification, RomId, info::Filesystem},
+use crate::program::{
+    MachineId, ProgramId, ProgramInfo, ProgramSpecification, RomId, info::Filesystem,
 };
-use redb::{Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable};
+use redb::{
+    Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable,
+    backends::InMemoryBackend,
+};
 use rustc_hash::FxBuildHasher;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -11,7 +13,7 @@ use std::{
     io::Seek,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::{Arc, LazyLock, Mutex, RwLock, Weak},
+    sync::{Arc, LazyLock, Weak},
 };
 
 /// Program id -> Program info mapping
@@ -21,39 +23,63 @@ pub const PROGRAM_INFORMATION_TABLE: MultimapTableDefinition<ProgramId, ProgramI
 pub const HASH_ALIAS_TABLE: MultimapTableDefinition<RomId, ProgramId> =
     MultimapTableDefinition::new("hash_alias");
 
-static DATABASE: LazyLock<Mutex<Weak<Database>>> = LazyLock::new(Mutex::default);
+static DATABASE_CACHE: LazyLock<scc::HashMap<PathBuf, Weak<Database>>> =
+    LazyLock::new(Default::default);
 
 /// The ROM manager which contains the database and information about the roms that were loaded
 #[derive(Debug)]
 pub struct ProgramManager {
     database: Arc<Database>,
     external_roms: scc::HashMap<RomId, PathBuf, FxBuildHasher>,
-    environment: Arc<RwLock<Environment>>,
+    rom_store: PathBuf,
+}
+
+impl Default for ProgramManager {
+    fn default() -> Self {
+        let database = Database::builder()
+            .create_with_backend(InMemoryBackend::default())
+            .unwrap();
+
+        let mut database_transaction = database.begin_write().unwrap();
+        database_transaction.set_quick_repair(true);
+        database_transaction
+            .open_multimap_table(PROGRAM_INFORMATION_TABLE)
+            .unwrap();
+        database_transaction
+            .open_multimap_table(HASH_ALIAS_TABLE)
+            .unwrap();
+        database_transaction.commit().unwrap();
+
+        Self {
+            database: Arc::new(database),
+            external_roms: Default::default(),
+            rom_store: PathBuf::default(),
+        }
+    }
 }
 
 impl ProgramManager {
     /// Opens and loads the default database
     pub fn new(
-        environment: Arc<RwLock<Environment>>,
+        database: impl AsRef<Path>,
+        rom_store: impl AsRef<Path>,
     ) -> Result<Arc<Self>, Box<dyn std::error::Error + Send + Sync>> {
-        let environment_guard = environment.read().unwrap();
+        let database_path = database.as_ref();
+        let rom_store_path = rom_store.as_ref();
 
-        let _ = create_dir_all(environment_guard.database_location.parent().unwrap());
-        let _ = create_dir_all(&environment_guard.rom_store_directory);
+        let _ = create_dir_all(database_path.parent().unwrap());
+        let _ = create_dir_all(rom_store_path);
 
-        tracing::info!(
-            "Loading ROM database at {:?}",
-            environment_guard.database_location
-        );
+        tracing::info!("Loading ROM database at {:?}", database_path);
 
-        let mut database_guard = DATABASE.lock().unwrap();
+        let database_entry = DATABASE_CACHE.entry_sync(rom_store_path.to_owned());
 
-        let database = if let Some(cached_database) = database_guard.upgrade() {
+        let database = if let scc::hash_map::Entry::Occupied(cached_database) = &database_entry
+            && let Some(cached_database) = cached_database.upgrade()
+        {
             cached_database
         } else {
-            let database = Database::builder()
-                .create(&environment_guard.database_location)
-                .unwrap();
+            let database = Database::builder().create(database_path).unwrap();
 
             let mut database_transaction = database.begin_write().unwrap();
             database_transaction.set_quick_repair(true);
@@ -66,16 +92,14 @@ impl ProgramManager {
             database_transaction.commit().unwrap();
 
             let database = Arc::new(database);
-            *database_guard = Arc::downgrade(&database);
+            database_entry.insert_entry(Arc::downgrade(&database));
             database
         };
-
-        drop(environment_guard);
 
         Ok(Arc::new(Self {
             database,
             external_roms: scc::HashMap::default(),
-            environment,
+            rom_store: rom_store_path.to_path_buf(),
         }))
     }
 
@@ -274,8 +298,7 @@ impl ProgramManager {
             .get_sync(&id)
             .map(|entry| entry.clone())
             .or_else(|| {
-                let environment_guard = self.environment.read().unwrap();
-                let potential_path = environment_guard.rom_store_directory.join(id.to_string());
+                let potential_path = self.rom_store.join(id.to_string());
 
                 if potential_path.is_file() {
                     return Some(potential_path);
@@ -321,8 +344,6 @@ impl ProgramManager {
     }
 
     pub fn iter_roms(&self) -> impl Iterator<Item = (RomId, PathBuf)> {
-        let environment_guard = self.environment.read().unwrap();
-
         let mut already_visited = HashSet::new();
         let mut external_roms = Vec::default();
 
@@ -333,7 +354,7 @@ impl ProgramManager {
             true
         });
 
-        let rom_store_listings = environment_guard.rom_store_directory.read_dir();
+        let rom_store_listings = self.rom_store.read_dir();
 
         external_roms
             .into_iter()

@@ -48,11 +48,8 @@ impl<R: Region> PpuDisplayBackend<R> for SoftwareState {
         self.framebuffer.copy_from(&self.staging_buffer);
     }
 
-    fn access_framebuffer(
-        &mut self,
-        callback: impl FnOnce(&<Software as GraphicsApi>::FramebufferTexture),
-    ) {
-        callback(&self.framebuffer);
+    fn access_framebuffer(&mut self) -> &<Self::GraphicsApi as GraphicsApi>::FramebufferTexture {
+        &self.framebuffer
     }
 }
 

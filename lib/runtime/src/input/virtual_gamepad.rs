@@ -1,29 +1,25 @@
-use rustc_hash::FxBuildHasher;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
-
 use crate::input::{Input, InputState};
+use rustc_hash::FxBuildHasher;
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone)]
 /// Information a component gave about a emulated gamepad
 pub struct VirtualGamepadMetadata {
-    pub present_inputs: HashSet<Input>,
-    pub default_bindings: HashMap<Input, Input>,
+    pub present_inputs: Vec<Input>,
+    pub default_real2virtual_mappings: HashMap<Input, Input>,
 }
 
 #[derive(Debug)]
 /// A emulated gamepad
 pub struct VirtualGamepad {
-    metadata: Arc<VirtualGamepadMetadata>,
+    metadata: Cow<'static, VirtualGamepadMetadata>,
     state: scc::HashMap<Input, InputState, FxBuildHasher>,
 }
 
 impl VirtualGamepad {
-    pub fn new(medadata: impl Into<Arc<VirtualGamepadMetadata>>) -> Arc<Self> {
+    pub fn new(metadata: impl Into<Cow<'static, VirtualGamepadMetadata>>) -> Arc<Self> {
         Arc::new(Self {
-            metadata: medadata.into(),
+            metadata: metadata.into(),
             state: Default::default(),
         })
     }
@@ -39,11 +35,6 @@ impl VirtualGamepad {
     }
 
     pub fn get(&self, input: Input) -> InputState {
-        assert!(
-            self.metadata.present_inputs.contains(&input),
-            "Invalid input requested {input:?}"
-        );
-
         self.state
             .get_sync(&input)
             .as_deref()

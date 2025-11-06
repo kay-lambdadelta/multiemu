@@ -17,10 +17,7 @@ pub(crate) trait PpuDisplayBackend<R: Region>:
     fn new(initialization_data: <Self::GraphicsApi as GraphicsApi>::InitializationData) -> Self;
     fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>));
     fn commit_staging_buffer(&mut self);
-    fn access_framebuffer(
-        &mut self,
-        callback: impl FnOnce(&<Self::GraphicsApi as GraphicsApi>::FramebufferTexture),
-    );
+    fn access_framebuffer(&mut self) -> &<Self::GraphicsApi as GraphicsApi>::FramebufferTexture;
 }
 
 pub(crate) trait SupportedGraphicsApiPpu: GraphicsApi {

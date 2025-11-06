@@ -56,8 +56,8 @@ impl Component for Chip8Audio {
     fn drain_samples(
         &mut self,
         _audio_output_path: &ResourcePath,
-    ) -> Option<&mut AllocRingBuffer<nalgebra::SVector<f32, 2>>> {
-        Some(&mut self.buffer)
+    ) -> &mut AllocRingBuffer<SVector<f32, 2>> {
+        &mut self.buffer
     }
 }
 

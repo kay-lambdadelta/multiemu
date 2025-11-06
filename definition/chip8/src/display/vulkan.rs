@@ -166,11 +166,8 @@ impl Chip8DisplayBackend for VulkanState {
             .unwrap();
     }
 
-    fn access_framebuffer(
-        &mut self,
-        callback: impl FnOnce(&<Self::GraphicsApi as GraphicsApi>::FramebufferTexture),
-    ) {
-        callback(&self.framebuffer);
+    fn access_framebuffer(&mut self) -> &<Self::GraphicsApi as GraphicsApi>::FramebufferTexture {
+        &self.framebuffer
     }
 }
 

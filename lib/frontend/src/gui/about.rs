@@ -1,4 +1,3 @@
-use crate::gui::UiOutput;
 use byte_unit::{Byte, UnitType};
 use egui::Ui;
 use egui_extras::{Column, TableBuilder};
@@ -33,7 +32,7 @@ impl Default for AboutState {
 }
 
 impl AboutState {
-    pub fn run(&mut self, _output: &mut Option<UiOutput>, ui: &mut Ui) {
+    pub fn run(&mut self, ui: &mut Ui) {
         // Refresh properties every second
         if self.properties.is_none()
             || self.properties_last_updated.elapsed() > Duration::from_secs(1)

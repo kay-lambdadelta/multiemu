@@ -63,7 +63,6 @@ pub struct SoftwareEguiRenderer {
 }
 
 impl SoftwareEguiRenderer {
-    #[allow(clippy::toplevel_ref_arg)]
     /// Render to a surface given the pixel order
     pub fn render<P: ComponentOrder<Srgba<u8>, u32> + Scalar + Send + Sync>(
         &mut self,
@@ -80,7 +79,7 @@ impl SoftwareEguiRenderer {
             tracing::debug!("Adding new egui texture {:?}", new_texture_id);
 
             assert!(
-                !(new_texture.pos.is_some() && !self.textures.contains_key(&new_texture_id)),
+                new_texture.pos.is_none() || self.textures.contains_key(&new_texture_id),
                 "Texture not found: {new_texture_id:?}"
             );
 
@@ -113,8 +112,6 @@ impl SoftwareEguiRenderer {
 
             destination_texture_view.copy_from(&source_texture_view);
         }
-
-        render_buffer.fill(Packed::pack(BLACK.into()));
 
         let render_buffer_dimensions =
             Vector2::new(render_buffer.nrows(), render_buffer.ncols()).cast::<f32>();

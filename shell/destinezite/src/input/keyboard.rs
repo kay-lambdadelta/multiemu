@@ -1,7 +1,7 @@
-use multiemu_runtime::input::{GamepadId, Input, keyboard::KeyboardInput};
+use multiemu_runtime::input::{Input, RealGamepadId, keyboard::KeyboardInput};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-pub const KEYBOARD_ID: GamepadId = GamepadId::PLATFORM_RESERVED;
+pub const KEYBOARD_ID: RealGamepadId = RealGamepadId::PLATFORM_RESERVED;
 
 pub fn winit2key(key: PhysicalKey) -> Option<Input> {
     Some(Input::Keyboard(match key {

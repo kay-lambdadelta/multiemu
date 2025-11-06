@@ -214,15 +214,8 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
         Ok(())
     }
 
-    fn access_framebuffer<'a>(
-        &'a mut self,
-        _display_path: &ResourcePath,
-        callback: Box<dyn FnOnce(&dyn Any) + 'a>,
-    ) {
-        self.backend
-            .as_mut()
-            .unwrap()
-            .access_framebuffer(|framebuffer| callback(framebuffer));
+    fn access_framebuffer(&mut self, _path: &ResourcePath) -> &dyn Any {
+        self.backend.as_mut().unwrap().access_framebuffer()
     }
 }
 
@@ -234,10 +227,7 @@ pub(crate) trait Chip8DisplayBackend: Send + Sync + Debug + 'static {
     fn interact_staging_buffer(&self, callback: impl FnOnce(DMatrixView<'_, Srgba<u8>>));
     fn interact_staging_buffer_mut(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>));
     fn commit_staging_buffer(&mut self);
-    fn access_framebuffer(
-        &mut self,
-        callback: impl FnOnce(&<Self::GraphicsApi as GraphicsApi>::FramebufferTexture),
-    );
+    fn access_framebuffer(&mut self) -> &<Self::GraphicsApi as GraphicsApi>::FramebufferTexture;
 }
 
 #[derive(Debug, Default)]

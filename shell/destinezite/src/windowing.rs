@@ -1,31 +1,30 @@
 use crate::{
     audio::CpalAudioRuntime,
     input::{
-        gamepad::gamepad_task,
+        gamepad::{gilrs_axis2input, gilrs_button2input},
         keyboard::{KEYBOARD_ID, winit2key},
     },
 };
 use egui::RawInput;
 use egui_winit::egui::ViewportId;
+use gilrs::{EventType, Gilrs, GilrsBuilder};
 use multiemu_frontend::{
-    DisplayApiHandle, EguiPlatformIntegration, FrontendRuntime, GraphicsRuntime, MachineFactories,
-    PlatformExt,
+    EguiWindowingIntegration, Frontend, GraphicsRuntime, MachineFactories, PlatformExt,
+    WindowingHandle, environment::Environment,
 };
 use multiemu_runtime::{
-    environment::{ENVIRONMENT_LOCATION, Environment},
     graphics::GraphicsApi,
-    input::{GamepadId, Input, InputState},
+    input::{
+        GamepadInput, Input, InputState, RealGamepad, RealGamepadId, RealGamepadMetadata,
+        keyboard::KeyboardInput,
+    },
     platform::Platform,
     program::{ProgramManager, ProgramSpecification},
 };
 use nalgebra::Vector2;
-use std::{
-    cell::OnceCell,
-    fmt::Debug,
-    fs::File,
-    ops::Deref,
-    sync::{Arc, RwLock},
-};
+use std::{borrow::Cow, collections::HashMap, fmt::Debug, sync::Arc};
+use strum::IntoEnumIterator;
+use uuid::Uuid;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -35,20 +34,6 @@ use winit::{
     },
     window::{Window, WindowId},
 };
-
-pub enum RuntimeBoundMessage {
-    Input {
-        id: GamepadId,
-        input: Input,
-        state: InputState,
-    },
-}
-
-impl Debug for RuntimeBoundMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RuntimeBoundMessage").finish()
-    }
-}
 
 #[derive(Debug, Clone)]
 /// Newtype for a winit window
@@ -72,7 +57,7 @@ impl HasWindowHandle for WinitWindow {
     }
 }
 
-impl DisplayApiHandle for WinitWindow {
+impl WindowingHandle for WinitWindow {
     fn dimensions(&self) -> nalgebra::Vector2<u32> {
         let size = self.0.inner_size();
 
@@ -91,7 +76,7 @@ impl Debug for WinitEguiPlatformIntegration {
     }
 }
 
-impl EguiPlatformIntegration<WinitWindow> for WinitEguiPlatformIntegration {
+impl EguiWindowingIntegration<WinitWindow> for WinitEguiPlatformIntegration {
     fn set_egui_context(&mut self, context: &egui::Context) {
         self.egui_winit = Some(egui_winit::State::new(
             context.clone(),
@@ -112,30 +97,29 @@ impl EguiPlatformIntegration<WinitWindow> for WinitEguiPlatformIntegration {
 }
 
 #[derive(Debug)]
-pub struct DesktopPlatform<
-    G: GraphicsApi,
-    GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>,
-> {
-    runtime: FrontendRuntime<Self>,
-    display_api_handle: OnceCell<WinitWindow>,
-    environment: Arc<RwLock<Environment>>,
+pub struct DesktopPlatform<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>>
+{
+    frontend: Frontend<Self>,
+    display_api_handle: Option<WinitWindow>,
+    gilrs_context: Gilrs,
+    non_stable_controller_identification: HashMap<gilrs::GamepadId, Uuid>,
 }
 
-impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> Platform
+impl<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>> Platform
     for DesktopPlatform<G, GR>
 {
     type GraphicsApi = G;
 }
 
-impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> PlatformExt
+impl<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>> PlatformExt
     for DesktopPlatform<G, GR>
 {
     type GraphicsRuntime = GR;
     type AudioRuntime = CpalAudioRuntime<Self>;
-    type EguiPlatformIntegration = WinitEguiPlatformIntegration;
+    type EguiWindowingIntegration = WinitEguiPlatformIntegration;
 
     fn run(
-        environment: Arc<RwLock<Environment>>,
+        environment: Environment,
         program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<Self>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -145,7 +129,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
     }
 
     fn run_with_program(
-        environment: Arc<RwLock<Environment>>,
+        environment: Environment,
         program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<Self>,
         program_specification: ProgramSpecification,
@@ -161,8 +145,8 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>> 
     }
 }
 
-impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
-    ApplicationHandler<RuntimeBoundMessage> for DesktopPlatform<G, GR>
+impl<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>> ApplicationHandler<()>
+    for DesktopPlatform<G, GR>
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let display_api_handle = setup_window(event_loop);
@@ -173,10 +157,10 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
             display_api_handle: display_api_handle.clone(),
         };
 
-        self.runtime
-            .set_display_api_handle(display_api_handle.clone(), egui_platform_integration);
+        self.frontend
+            .set_windowing_handle(display_api_handle.clone(), egui_platform_integration);
 
-        self.display_api_handle.set(display_api_handle).unwrap();
+        self.display_api_handle = Some(display_api_handle);
     }
 
     fn window_event(
@@ -185,10 +169,11 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let display_api_handle = self.display_api_handle.get().unwrap();
+        let display_api_handle = self.display_api_handle.as_ref().unwrap();
 
-        let egui_winit = self.runtime.egui_platform_integration();
-        let _ = egui_winit
+        let windowing_integration = self.frontend.get_windowing_integration().unwrap();
+
+        let _ = windowing_integration
             .egui_winit
             .as_mut()
             .unwrap()
@@ -196,7 +181,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
 
         match event {
             WindowEvent::Focused(focused) => {
-                self.runtime.focus_change(focused);
+                self.frontend.focus_change(focused);
             }
             WindowEvent::CloseRequested => {
                 tracing::info!("Window close requested");
@@ -215,84 +200,144 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
                 if let Some(input) = winit2key(event.physical_key) {
                     let state = InputState::Digital(event.state.is_pressed());
 
-                    self.runtime.insert_input(KEYBOARD_ID, input, state);
+                    self.frontend
+                        .get_gamepad(KEYBOARD_ID)
+                        .unwrap()
+                        .set(input, state);
                 }
             }
             WindowEvent::RedrawRequested => {
-                self.runtime.redraw();
+                while let Some(ev) = self.gilrs_context.next_event() {
+                    let gilrs_gamepad = self.gilrs_context.gamepad(ev.id);
+
+                    let gamepad_id = produce_id_for_gilrs_gamepad(
+                        &mut self.non_stable_controller_identification,
+                        ev.id,
+                        gilrs_gamepad,
+                    );
+
+                    match ev.event {
+                        EventType::Connected => {
+                            let gamepad = RealGamepad::new(RealGamepadMetadata {
+                                name: Cow::Owned(gilrs_gamepad.name().to_string()),
+                                present_inputs: GamepadInput::iter().map(Input::Gamepad).collect(),
+                            });
+
+                            self.frontend.insert_gamepad(gamepad_id, gamepad);
+                        }
+                        EventType::AxisChanged(axis, value, _) => {
+                            let gamepad = self.frontend.get_gamepad(gamepad_id).unwrap();
+
+                            if let Some((input, state)) = gilrs_axis2input(axis, value) {
+                                gamepad.set(input, state);
+                            }
+                        }
+                        EventType::ButtonChanged(button, value, _) => {
+                            let gamepad = self.frontend.get_gamepad(gamepad_id).unwrap();
+
+                            if let Some(input) = gilrs_button2input(button) {
+                                gamepad.set(input, InputState::Analog(value));
+                            }
+                        }
+                        EventType::Disconnected => {
+                            self.non_stable_controller_identification.remove(&ev.id);
+                            self.frontend.remove_gamepad(gamepad_id);
+                        }
+                        _ => {}
+                    }
+                }
+
+                self.frontend.redraw();
             }
             _ => {}
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: RuntimeBoundMessage) {
-        match event {
-            RuntimeBoundMessage::Input { id, input, state } => {
-                self.runtime.insert_input(id, input, state);
-            }
-        }
-    }
-
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if self.display_api_handle.get().unwrap().0.has_focus() {
-            self.display_api_handle.get().unwrap().0.request_redraw();
+        if self.display_api_handle.as_ref().unwrap().0.has_focus() {
+            self.display_api_handle.as_ref().unwrap().0.request_redraw();
         }
-    }
-
-    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        // Save the config
-        let environment_guard = self.environment.read().unwrap();
-        let file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
-        environment_guard.save(file).unwrap();
     }
 }
 
-impl<G: GraphicsApi, GR: GraphicsRuntime<Self, DisplayApiHandle = WinitWindow>>
+impl<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>>
     DesktopPlatform<G, GR>
 {
     fn run_common(
-        environment: Arc<RwLock<Environment>>,
+        environment: Environment,
         program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<Self>,
         program_specification: Option<ProgramSpecification>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let event_loop = EventLoop::with_user_event().build()?;
+        let gilrs_context = GilrsBuilder::new().build().unwrap();
+        let mut non_stable_controller_identification = HashMap::new();
 
-        {
-            let event_loop_proxy = event_loop.create_proxy();
-
-            std::thread::Builder::new()
-                .name("gamepad".to_string())
-                .spawn(move || {
-                    tracing::debug!("Starting up gamepad thread");
-
-                    gamepad_task(event_loop_proxy);
-
-                    tracing::debug!("Shutting down gamepad thread");
-                })?;
-        }
-
-        let runtime = if let Some(program_specification) = program_specification {
-            FrontendRuntime::new_with_machine(
-                environment.clone(),
+        let mut frontend = if let Some(program_specification) = program_specification {
+            Frontend::new_with_machine(
+                environment,
                 program_manager,
                 machine_factories,
                 program_specification,
             )
         } else {
-            FrontendRuntime::new(environment.clone(), program_manager, machine_factories)
+            Frontend::new(environment, program_manager, machine_factories)
         };
 
+        for (gilrs_gamepad_id, gilrs_gamepad) in gilrs_context.gamepads() {
+            let gamepad_id = produce_id_for_gilrs_gamepad(
+                &mut non_stable_controller_identification,
+                gilrs_gamepad_id,
+                gilrs_gamepad,
+            );
+
+            let gamepad = RealGamepad::new(RealGamepadMetadata {
+                name: Cow::Owned(gilrs_gamepad.name().to_string()),
+                present_inputs: GamepadInput::iter().map(Input::Gamepad).collect(),
+            });
+
+            frontend.insert_gamepad(gamepad_id, gamepad);
+        }
+
+        let gamepad = RealGamepad::new(RealGamepadMetadata {
+            name: Cow::Borrowed("Keyboard"),
+            // We really can't make any assumptions about what the keyboard has so lets say "All of them"
+            present_inputs: KeyboardInput::iter().map(Input::Keyboard).collect(),
+        });
+        frontend.insert_gamepad(KEYBOARD_ID, gamepad.clone());
+
         let mut me = DesktopPlatform {
-            runtime,
-            display_api_handle: OnceCell::default(),
-            environment,
+            frontend,
+            display_api_handle: None,
+            gilrs_context,
+            non_stable_controller_identification,
         };
 
         event_loop.run_app(&mut me)?;
 
         Ok(())
     }
+}
+
+fn produce_id_for_gilrs_gamepad(
+    non_stable_controller_identification: &mut HashMap<gilrs::GamepadId, Uuid>,
+    gilrs_gamepad_id: gilrs::GamepadId,
+    gilrs_gamepad: gilrs::Gamepad<'_>,
+) -> RealGamepadId {
+    let mut gamepad_id = Uuid::from_bytes(gilrs_gamepad.uuid());
+    if gamepad_id == Uuid::nil() {
+        gamepad_id = *non_stable_controller_identification
+            .entry(gilrs_gamepad_id)
+            .or_insert_with(|| {
+                tracing::warn!(
+                    "Gamepad {} is not giving us an ID, assigning it a arbitary one",
+                    gamepad_id
+                );
+
+                Uuid::new_v4()
+            });
+    }
+    RealGamepadId::new(gamepad_id.try_into().unwrap())
 }
 
 fn setup_window(event_loop: &ActiveEventLoop) -> WinitWindow {

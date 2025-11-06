@@ -1,16 +1,14 @@
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
-    input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput},
-    machine::{
-        builder::ComponentBuilder,
-        virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
-    },
+    input::{GamepadInput, Input, VirtualGamepad, VirtualGamepadMetadata, keyboard::KeyboardInput},
+    machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, ReadMemoryError, WriteMemoryError},
     platform::Platform,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    borrow::Cow,
+    collections::HashMap,
     sync::{Arc, Mutex},
 };
 
@@ -124,7 +122,7 @@ pub struct NesControllerConfig {
 }
 
 fn create_gamepad() -> Arc<VirtualGamepad> {
-    let present_inputs = HashSet::from_iter([
+    let present_inputs = Vec::from_iter([
         Input::Gamepad(GamepadInput::DPadUp),
         Input::Gamepad(GamepadInput::DPadDown),
         Input::Gamepad(GamepadInput::DPadLeft),
@@ -135,8 +133,8 @@ fn create_gamepad() -> Arc<VirtualGamepad> {
         Input::Gamepad(GamepadInput::Select),
     ]);
 
-    VirtualGamepad::new(VirtualGamepadMetadata {
-        default_bindings: HashMap::from_iter(
+    VirtualGamepad::new(Cow::Owned(VirtualGamepadMetadata {
+        default_real2virtual_mappings: HashMap::from_iter(
             present_inputs
                 .iter()
                 .copied()
@@ -178,5 +176,5 @@ fn create_gamepad() -> Arc<VirtualGamepad> {
                 ]),
         ),
         present_inputs,
-    })
+    }))
 }

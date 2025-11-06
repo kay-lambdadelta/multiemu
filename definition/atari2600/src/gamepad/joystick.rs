@@ -2,17 +2,11 @@ use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath},
-    input::{Input, gamepad::GamepadInput, keyboard::KeyboardInput},
-    machine::{
-        builder::ComponentBuilder,
-        virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
-    },
+    input::{GamepadInput, Input, VirtualGamepad, VirtualGamepadMetadata, keyboard::KeyboardInput},
+    machine::builder::ComponentBuilder,
     platform::Platform,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 #[derive(Debug)]
 pub struct Atari2600Joystick;
@@ -30,9 +24,9 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
         let player2_gamepad = create_gamepad();
 
         let (component_builder, _) =
-            component_builder.insert_gamepad("atari-2600-joystick-0", player1_gamepad.clone());
+            component_builder.insert_gamepad("player-0", player1_gamepad.clone());
         let (component_builder, _) =
-            component_builder.insert_gamepad("atari-2600-joystick-1", player2_gamepad.clone());
+            component_builder.insert_gamepad("player-1", player2_gamepad.clone());
 
         component_builder
             .registry()
@@ -120,15 +114,15 @@ impl SwchaCallback for JoystickSwchaCallback {
 }
 
 fn create_gamepad() -> Arc<VirtualGamepad> {
-    VirtualGamepad::new(VirtualGamepadMetadata {
-        present_inputs: HashSet::from_iter([
+    VirtualGamepad::new(Cow::Owned(VirtualGamepadMetadata {
+        present_inputs: Vec::from_iter([
             Input::Gamepad(GamepadInput::LeftStickUp),
             Input::Gamepad(GamepadInput::LeftStickDown),
             Input::Gamepad(GamepadInput::LeftStickLeft),
             Input::Gamepad(GamepadInput::LeftStickRight),
             Input::Gamepad(GamepadInput::FPadDown),
         ]),
-        default_bindings: HashMap::from_iter([
+        default_real2virtual_mappings: HashMap::from_iter([
             (
                 Input::Gamepad(GamepadInput::LeftStickUp),
                 Input::Gamepad(GamepadInput::LeftStickUp),
@@ -170,5 +164,5 @@ fn create_gamepad() -> Arc<VirtualGamepad> {
                 Input::Gamepad(GamepadInput::FPadDown),
             ),
         ]),
-    })
+    }))
 }

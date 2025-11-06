@@ -7,8 +7,8 @@ use crate::{
     timer::Chip8Timer,
 };
 use multiemu_runtime::{
-    component::ComponentHandle, machine::virtual_gamepad::VirtualGamepad,
-    memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::Task,
+    component::ComponentHandle, input::VirtualGamepad, memory::MemoryAccessTable,
+    processor::InstructionDecoder, scheduler::Task,
 };
 use std::{
     num::NonZero,

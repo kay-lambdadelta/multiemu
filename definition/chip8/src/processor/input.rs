@@ -1,6 +1,6 @@
 use multiemu_runtime::input::{Input, keyboard::KeyboardInput};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub(super) struct Chip8KeyCode(pub u8);
@@ -127,8 +127,8 @@ pub(super) fn default_bindings() -> HashMap<Input, Input> {
     ])
 }
 
-pub(super) fn present_inputs() -> HashSet<Input> {
-    HashSet::from_iter([
+pub(super) fn present_inputs() -> Vec<Input> {
+    Vec::from_iter([
         // Interpreting the numbers on the chip8 keypad as "numpad"
         Input::Keyboard(KeyboardInput::Numpad1),
         Input::Keyboard(KeyboardInput::Numpad2),

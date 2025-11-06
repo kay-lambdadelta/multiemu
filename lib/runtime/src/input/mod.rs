@@ -1,16 +1,16 @@
-use gamepad::GamepadInput;
 use keyboard::KeyboardInput;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
-use strum::IntoEnumIterator;
-use uuid::Uuid;
+use strum::{EnumIter, IntoEnumIterator};
 
-/// Gamepad enums
-pub mod gamepad;
-/// Hotkey representations
-pub mod hotkey;
 /// Keyboard enums
 pub mod keyboard;
+/// Real gamepad
+mod real_gamepad;
+/// Virtual gamepad
+mod virtual_gamepad;
+
+pub use real_gamepad::*;
+pub use virtual_gamepad::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Enum covering all possible input types
@@ -75,28 +75,41 @@ impl InputState {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-/// The ID of a real, physical gamepad
-pub struct GamepadId(Uuid);
-
-impl GamepadId {
-    /// The ID of the platforms default input device
-    ///
-    /// For desktop, this is the keyboard
-    ///
-    /// For 3ds/psp this is the built in gamepad
-    pub const PLATFORM_RESERVED: GamepadId = GamepadId(Uuid::from_u128(0));
-
-    /// Creates a new gamepad ID
-    pub const fn new(id: Uuid) -> Self {
-        assert!(!id.is_nil(), "Gamepad ID 0 is reserved");
-
-        Self(id)
-    }
-}
-
-impl Display for GamepadId {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(f)
-    }
+#[non_exhaustive]
+#[derive(
+    Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter,
+)]
+/// Inputs that a gamepad could give
+#[allow(missing_docs)]
+pub enum GamepadInput {
+    FPadUp,
+    FPadDown,
+    FPadLeft,
+    FPadRight,
+    CPadUp,
+    CPadDown,
+    CPadLeft,
+    CPadRight,
+    Select,
+    Start,
+    Mode,
+    LeftThumb,
+    RightThumb,
+    DPadUp,
+    DPadDown,
+    DPadLeft,
+    DPadRight,
+    LeftTrigger,
+    RightTrigger,
+    ZTrigger,
+    LeftSecondaryTrigger,
+    RightSecondaryTrigger,
+    LeftStickUp,
+    LeftStickDown,
+    LeftStickLeft,
+    LeftStickRight,
+    RightStickUp,
+    RightStickDown,
+    RightStickLeft,
+    RightStickRight,
 }

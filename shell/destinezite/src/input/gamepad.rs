@@ -1,68 +1,7 @@
-use crate::windowing::RuntimeBoundMessage;
-use gilrs::{Axis, Button, EventType, GilrsBuilder};
-use multiemu_runtime::input::{GamepadId, Input, InputState, gamepad::GamepadInput};
-use std::collections::HashMap;
-use uuid::Uuid;
-use winit::event_loop::EventLoopProxy;
+use gilrs::{Axis, Button};
+use multiemu_runtime::input::{GamepadInput, Input, InputState};
 
-pub fn gamepad_task(sender: EventLoopProxy<RuntimeBoundMessage>) {
-    let mut gilrs_context = GilrsBuilder::new().build().unwrap();
-    let mut non_stable_controller_identification = HashMap::new();
-
-    loop {
-        while let Some(ev) = gilrs_context.next_event_blocking(None) {
-            let mut gamepad_id = Uuid::from_bytes(gilrs_context.gamepad(ev.id).uuid());
-
-            if gamepad_id == Uuid::nil() {
-                tracing::warn!(
-                    "Gamepad {} is not giving us an ID, assigning it a arbitary one",
-                    ev.id
-                );
-
-                gamepad_id = *non_stable_controller_identification
-                    .entry(ev.id)
-                    .or_insert_with(Uuid::new_v4);
-            }
-
-            let gamepad_id = GamepadId::new(gamepad_id);
-
-            match ev.event {
-                EventType::AxisChanged(axis, value, _) => {
-                    if let Some((input, state)) = gilrs_axis2input(axis, value)
-                        && sender
-                            .send_event(RuntimeBoundMessage::Input {
-                                id: gamepad_id,
-                                input,
-                                state,
-                            })
-                            .is_err()
-                    {
-                        return;
-                    }
-                }
-                EventType::ButtonChanged(button, value, _) => {
-                    if let Some(input) = gilrs_button2input(button)
-                        && sender
-                            .send_event(RuntimeBoundMessage::Input {
-                                id: gamepad_id,
-                                input,
-                                state: InputState::Analog(value),
-                            })
-                            .is_err()
-                    {
-                        return;
-                    }
-                }
-                EventType::Disconnected => {
-                    non_stable_controller_identification.remove(&ev.id);
-                }
-                _ => {}
-            }
-        }
-    }
-}
-
-fn gilrs_button2input(button: Button) -> Option<Input> {
+pub fn gilrs_button2input(button: Button) -> Option<Input> {
     Some(Input::Gamepad(match button {
         Button::South => GamepadInput::FPadDown,
         Button::East => GamepadInput::FPadRight,
@@ -87,7 +26,7 @@ fn gilrs_button2input(button: Button) -> Option<Input> {
     }))
 }
 
-fn gilrs_axis2input(axis: Axis, value: f32) -> Option<(Input, InputState)> {
+pub fn gilrs_axis2input(axis: Axis, value: f32) -> Option<(Input, InputState)> {
     match axis {
         Axis::LeftStickX => Some((
             Input::Gamepad(if value < 0.0 {

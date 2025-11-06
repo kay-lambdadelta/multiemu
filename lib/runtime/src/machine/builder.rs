@@ -4,10 +4,8 @@ use crate::{
         ResourcePath,
     },
     graphics::GraphicsApi,
-    machine::{
-        Machine, graphics::GraphicsRequirements, registry::ComponentRegistry,
-        virtual_gamepad::VirtualGamepad,
-    },
+    input::VirtualGamepad,
+    machine::{Machine, graphics::GraphicsRequirements, registry::ComponentRegistry},
     memory::{Address, AddressSpaceId, MemoryAccessTable, MemoryRemappingCommand, Permissions},
     persistence::{SaveManager, SnapshotManager},
     platform::Platform,

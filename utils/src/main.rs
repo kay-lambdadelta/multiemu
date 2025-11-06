@@ -5,10 +5,8 @@ use crate::{
 use clap::Parser;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use database::redump::RedumpAction;
-use multiemu_runtime::{
-    environment::{ENVIRONMENT_LOCATION, STORAGE_DIRECTORY},
-    program::MachineId,
-};
+use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, STORAGE_DIRECTORY};
+use multiemu_runtime::program::MachineId;
 use serde::{Deserialize, Deserializer};
 use std::{
     fs::{File, create_dir_all},

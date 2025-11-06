@@ -1,24 +1,23 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_chip8::Chip8;
+use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_runtime::{
-    environment::{ENVIRONMENT_LOCATION, Environment},
     machine::{Machine, MachineFactory},
     platform::TestPlatform,
     program::{ProgramManager, RomId},
 };
 use num::rational::Ratio;
-use std::{
-    fs::File,
-    ops::Deref,
-    str::FromStr,
-    sync::{Arc, RwLock},
-};
+use std::{fs::File, ops::Deref, str::FromStr};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
-    let program_manager = ProgramManager::new(Arc::new(RwLock::new(environment))).unwrap();
 
+    let program_manager = ProgramManager::new(
+        &environment.database_location,
+        &environment.rom_store_directory,
+    )
+    .unwrap();
     // Some FOSS chip8 games: https://johnearnest.github.io/chip8Archive/?sort=platform
     let program_specification = program_manager
         .identify_program([RomId::from_str("8263bac7d98d94097171f0a5dc6f210f77543080").unwrap()])

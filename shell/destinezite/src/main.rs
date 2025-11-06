@@ -3,20 +3,20 @@
 #![windows_subsystem = "windows"]
 #![allow(clippy::arc_with_non_send_sync)]
 
-use crate::{backend::software::SoftwareGraphicsRuntime, windowing::DesktopPlatform};
+use crate::{
+    backend::software::SoftwareGraphicsRuntime, input::DEFAULT_HOTKEYS, windowing::DesktopPlatform,
+};
 use clap::Parser;
 use cli::{Cli, CliAction};
-use multiemu_frontend::PlatformExt;
-use multiemu_runtime::{
+use multiemu_frontend::{
+    PlatformExt,
     environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY},
-    graphics::software::Software,
-    program::ProgramManager,
 };
+use multiemu_runtime::{graphics::software::Software, program::ProgramManager};
 use std::{
     fs::{File, create_dir_all},
     ops::Deref,
     path::PathBuf,
-    sync::{Arc, RwLock},
 };
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
@@ -34,10 +34,19 @@ mod windowing;
 fn main() {
     create_dir_all(STORAGE_DIRECTORY.deref()).unwrap();
 
-    let environment = File::open(ENVIRONMENT_LOCATION.deref())
+    let mut environment = File::open(ENVIRONMENT_LOCATION.deref())
         .ok()
         .and_then(|f| Environment::load(f).ok())
         .unwrap_or_default();
+
+    if environment.hotkeys.is_empty() {
+        environment.hotkeys = DEFAULT_HOTKEYS.clone();
+    }
+
+    if !ENVIRONMENT_LOCATION.is_file() {
+        let mut environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+        environment.save(&mut environment_file).unwrap();
+    }
 
     let file = File::create(&environment.log_location).expect("Failed to create log file");
     let stderr_layer = tracing_subscriber::fmt::layer()
@@ -60,8 +69,11 @@ fn main() {
 
     tracing::info!("MultiEMU v{}", env!("CARGO_PKG_VERSION"));
 
-    let environment = Arc::new(RwLock::new(environment));
-    let program_manager = ProgramManager::new(environment.clone()).unwrap();
+    let program_manager = ProgramManager::new(
+        &environment.database_location,
+        &environment.rom_store_directory,
+    )
+    .unwrap();
 
     let cli = Cli::parse();
 
@@ -93,12 +105,10 @@ fn main() {
             }
         };
 
-        let api = environment.read().unwrap().graphics_setting.api;
-
-        match api {
-            multiemu_runtime::environment::graphics::GraphicsApi::Software => {
+        match environment.graphics_setting.api {
+            multiemu_frontend::environment::graphics::GraphicsApi::Software => {
                 DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run_with_program(
-                    environment.clone(),
+                    environment,
                     program_manager.clone(),
                     build_machine::get_software_factories(),
                     program_specification,
@@ -106,12 +116,12 @@ fn main() {
                 .unwrap();
             }
             #[cfg(feature = "vulkan")]
-            multiemu_runtime::environment::graphics::GraphicsApi::Vulkan => {
+            multiemu_frontend::environment::graphics::GraphicsApi::Vulkan => {
                 use crate::backend::vulkan::VulkanGraphicsRuntime;
                 use multiemu_runtime::graphics::vulkan::Vulkan;
 
                 DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run_with_program(
-                    environment.clone(),
+                    environment,
                     program_manager.clone(),
                     build_machine::get_vulkan_factories(),
                     program_specification,
@@ -124,24 +134,22 @@ fn main() {
         return;
     }
 
-    let api = environment.read().unwrap().graphics_setting.api;
-
-    match api {
-        multiemu_runtime::environment::graphics::GraphicsApi::Software => {
+    match environment.graphics_setting.api {
+        multiemu_frontend::environment::graphics::GraphicsApi::Software => {
             DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run(
-                environment.clone(),
+                environment,
                 program_manager.clone(),
                 build_machine::get_software_factories(),
             )
             .unwrap();
         }
         #[cfg(feature = "vulkan")]
-        multiemu_runtime::environment::graphics::GraphicsApi::Vulkan => {
+        multiemu_frontend::environment::graphics::GraphicsApi::Vulkan => {
             use crate::backend::vulkan::VulkanGraphicsRuntime;
             use multiemu_runtime::graphics::vulkan::Vulkan;
 
             DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run(
-                environment.clone(),
+                environment,
                 program_manager.clone(),
                 build_machine::get_vulkan_factories(),
             )

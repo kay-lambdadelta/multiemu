@@ -9,6 +9,8 @@ description = "A command line utility interface for multiemu, but has tools gene
 [dependencies]
 multiemu-runtime = { workspace = true }
 multiemu-locale = { workspace = true }
+# TODO: Split up the frontend crate so this doesn't pull in graphics stuff or merge this crate into multiemu-shell-destinezite
+multiemu-frontend = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 rayon = { workspace = true }

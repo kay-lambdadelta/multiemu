@@ -1,5 +1,6 @@
 use clap::Subcommand;
-use multiemu_runtime::{environment::Environment, program::ProgramManager};
+use multiemu_frontend::environment::Environment;
+use multiemu_runtime::program::ProgramManager;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::{
     fs::File,
@@ -20,7 +21,12 @@ pub fn database_logiqx_import(
     files: Vec<PathBuf>,
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let program_manager = ProgramManager::new(environment).unwrap();
+    let environment_guard = environment.read().unwrap();
+    let program_manager = ProgramManager::new(
+        &environment_guard.database_location,
+        &environment_guard.rom_store_directory,
+    )
+    .unwrap();
 
     files.into_par_iter().try_for_each(|path| {
         let file = BufReader::new(File::open(&path)?);

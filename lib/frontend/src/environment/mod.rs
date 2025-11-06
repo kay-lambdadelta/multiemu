@@ -1,13 +1,9 @@
 use crate::{
-    component::ResourcePath,
-    environment::graphics::GraphicsSettings,
-    input::{
-        Input,
-        hotkey::{DEFAULT_HOTKEYS, Hotkey},
-    },
-    program::MachineId,
+    Hotkey,
+    environment::{gamepad::GamepadConfigs, graphics::GraphicsSettings},
 };
 use audio::AudioSettings;
+use multiemu_runtime::input::Input;
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
@@ -23,6 +19,8 @@ use std::{
 pub mod audio;
 /// Graphics related config types
 pub mod graphics;
+
+pub mod gamepad;
 
 cfg_if::cfg_if! {
     if #[cfg(miri)] {
@@ -54,11 +52,8 @@ pub static ENVIRONMENT_LOCATION: LazyLock<PathBuf> =
 pub struct Environment {
     #[serde(default)]
     /// Gamepad configs populated by machines or edited by the user
-    pub gamepad_configs: BTreeMap<MachineId, BTreeMap<ResourcePath, BTreeMap<Input, Input>>>,
-    #[serde_inline_default(DEFAULT_HOTKEYS.clone())]
+    pub input: GamepadConfigs,
     /// Hotkeys for the application
-    ///
-    /// Because of this using an array of enums for a key this config should be serialized as ron
     pub hotkeys: BTreeMap<BTreeSet<Input>, Hotkey>,
     #[serde(default)]
     /// Graphics settings
@@ -101,7 +96,7 @@ impl Environment {
 impl Default for Environment {
     fn default() -> Self {
         Self {
-            gamepad_configs: Default::default(),
+            input: Default::default(),
             hotkeys: Default::default(),
             graphics_setting: Default::default(),
             audio_settings: Default::default(),

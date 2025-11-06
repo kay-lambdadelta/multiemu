@@ -5,10 +5,8 @@ use input::{Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath, ComponentVersion},
-    machine::{
-        builder::ComponentBuilder,
-        virtual_gamepad::{VirtualGamepad, VirtualGamepadMetadata},
-    },
+    input::{VirtualGamepad, VirtualGamepadMetadata},
+    machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
     scheduler::TaskType,
@@ -16,6 +14,7 @@ use multiemu_runtime::{
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
+    borrow::Cow,
     io::{Read, Write},
     marker::PhantomData,
     sync::{Arc, Mutex},
@@ -153,10 +152,10 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         let state = ProcessorState::default();
         let registry = component_builder.registry();
 
-        let virtual_gamepad = VirtualGamepad::new(VirtualGamepadMetadata {
+        let virtual_gamepad = VirtualGamepad::new(Cow::Owned(VirtualGamepadMetadata {
             present_inputs: present_inputs(),
-            default_bindings: default_bindings(),
-        });
+            default_real2virtual_mappings: default_bindings(),
+        }));
         let frequency = self.frequency;
 
         let driver = Driver {

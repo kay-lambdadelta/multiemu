@@ -1,9 +1,8 @@
 use crate::windowing::{DesktopPlatform, WinitWindow};
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
-use multiemu_frontend::{DisplayApiHandle, GraphicsRuntime};
+use multiemu_frontend::{GraphicsRuntime, WindowingHandle, environment::Environment};
 use multiemu_runtime::{
-    environment::Environment,
     graphics::{
         GraphicsApi,
         vulkan::{
@@ -36,7 +35,7 @@ use multiemu_runtime::{
 };
 use nalgebra::Vector2;
 use std::sync::{
-    Arc, RwLock,
+    Arc,
     atomic::{AtomicBool, Ordering},
 };
 
@@ -58,19 +57,18 @@ pub struct VulkanGraphicsRuntime {
     swapchain_images: Vec<Arc<Image>>,
     recreate_swapchain: bool,
     display_api_handle: WinitWindow,
-    environment: Arc<RwLock<Environment>>,
     gui_renderer: VulkanEguiRenderer,
     shader_cache: ShaderCache<SpirvShader>,
 }
 
 impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
-    type DisplayApiHandle = WinitWindow;
+    type WindowingHandle = WinitWindow;
 
     fn new(
-        display_api_handle: Self::DisplayApiHandle,
+        display_api_handle: Self::WindowingHandle,
         required_features: <Vulkan as GraphicsApi>::Features,
         preferred_features: <Vulkan as GraphicsApi>::Features,
-        environment: Arc<RwLock<Environment>>,
+        environment: &Environment,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         if EXISTING_INSTANCE
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -82,7 +80,6 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         let window_dimensions = display_api_handle.dimensions();
         let shader_cache: ShaderCache<SpirvShader> = ShaderCache::default();
 
-        let environment_guard = environment.read().unwrap();
         let library = VulkanLibrary::new().unwrap();
 
         tracing::info!("Found vulkan {} implementation", library.api_version());
@@ -139,7 +136,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
             device.clone(),
             surface.clone(),
             window_dimensions,
-            environment_guard.graphics_setting.vsync,
+            environment.graphics_setting.vsync,
         );
         let memory_allocator = {
             let MemoryProperties { memory_types, .. } =
@@ -168,7 +165,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
                 color: {
                     format: swapchain.image_format(),
                     samples: 1,
-                    load_op: Clear,
+                    load_op: Load,
                     store_op: Store,
                 }
             },
@@ -200,8 +197,6 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
             Default::default(),
         ));
 
-        drop(environment_guard);
-
         let gui_renderer = VulkanEguiRenderer::new(
             device.clone(),
             gui_queue.clone(),
@@ -224,7 +219,6 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
             swapchain_images,
             recreate_swapchain: false,
             display_api_handle,
-            environment,
             gui_renderer,
             shader_cache,
         })
@@ -240,7 +234,13 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         }
     }
 
-    fn redraw(&mut self, machine: &Machine<DesktopPlatform<Vulkan, Self>>) {
+    fn redraw(
+        &mut self,
+        egui_context: &egui::Context,
+        full_output: egui::FullOutput,
+        machine: Option<&Machine<DesktopPlatform<Vulkan, Self>>>,
+        environment: &Environment,
+    ) {
         let window_dimensions = self.display_api_handle.dimensions();
 
         // Skip rendering if impossible window size
@@ -249,7 +249,9 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         }
 
         let (image_index, acquire_future, swapchain_image) =
-            self.swapchain_routines(window_dimensions);
+            self.swapchain_routines(window_dimensions, environment);
+
+        let swapchain_image_view = ImageView::new_default(swapchain_image.clone()).unwrap();
 
         let mut command_buffer = AutoCommandBufferBuilder::primary(
             self.command_buffer_allocator.clone(),
@@ -258,77 +260,39 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         )
         .unwrap();
 
-        for display_path in machine.displays.iter() {
-            machine
-                .component_registry
-                .interact_dyn_mut(&display_path.component, |component| {
-                    component.access_framebuffer(
-                        display_path,
-                        Box::new(|display| {
-                            let display: &<Vulkan as GraphicsApi>::FramebufferTexture =
-                                display.downcast_ref().unwrap();
+        if let Some(machine) = machine {
+            for display_path in machine.displays.iter() {
+                machine
+                    .component_registry
+                    .interact_dyn_mut(&display_path.component, |component| {
+                        let display = component.access_framebuffer(display_path);
 
-                            command_buffer
-                                .blit_image(BlitImageInfo {
-                                    src_image_layout: ImageLayout::TransferSrcOptimal,
-                                    dst_image_layout: ImageLayout::TransferDstOptimal,
-                                    filter: Filter::Nearest,
-                                    ..BlitImageInfo::images(
-                                        display.clone(),
-                                        swapchain_image.clone(),
-                                    )
-                                })
-                                .unwrap();
-                        }),
-                    );
-                })
-                .unwrap();
+                        let display: &<Vulkan as GraphicsApi>::FramebufferTexture =
+                            display.downcast_ref().unwrap();
+
+                        command_buffer
+                            .blit_image(BlitImageInfo {
+                                src_image_layout: ImageLayout::TransferSrcOptimal,
+                                dst_image_layout: ImageLayout::TransferDstOptimal,
+                                filter: Filter::Nearest,
+                                ..BlitImageInfo::images(display.clone(), swapchain_image.clone())
+                            })
+                            .unwrap();
+                    })
+                    .unwrap();
+            }
         }
 
-        let command_buffer = command_buffer.build().unwrap();
+        self.gui_renderer.render(
+            egui_context,
+            swapchain_image_view,
+            full_output,
+            &mut command_buffer,
+        );
 
         self.display_api_handle.inner().pre_present_notify();
-        // Swap that swapchain
-        match acquire_future
-            .then_execute(self.gui_queue.clone(), command_buffer)
-            .unwrap()
-            .then_swapchain_present(
-                self.gui_queue.clone(),
-                SwapchainPresentInfo::swapchain_image_index(self.swapchain.clone(), image_index),
-            )
-            .then_signal_fence_and_flush()
-            .map_err(Validated::unwrap)
-        {
-            Ok(future) => {
-                future.wait(None).unwrap();
-            }
-            Err(VulkanError::OutOfDate) => {
-                self.recreate_swapchain = true;
-            }
-            Err(_) => panic!("Failed to present swapchain image"),
-        }
-    }
-
-    fn redraw_menu(&mut self, egui_context: &egui::Context, full_output: egui::FullOutput) {
-        let window_dimensions = self.display_api_handle.dimensions();
-
-        // Skip rendering if impossible window size
-        if window_dimensions.min() == 0 {
-            return;
-        }
-
-        let (image_index, acquire_future, swapchain_image) =
-            self.swapchain_routines(window_dimensions);
-
-        let swapchain_image_view = ImageView::new_default(swapchain_image.clone()).unwrap();
-
-        let command_buffer =
-            self.gui_renderer
-                .render(egui_context, swapchain_image_view, full_output);
 
         let command_buffer = command_buffer.build().unwrap();
-
-        self.display_api_handle.inner().pre_present_notify();
         // Swap that swapchain
         match acquire_future
             .then_execute(self.gui_queue.clone(), command_buffer)
@@ -359,12 +323,11 @@ impl VulkanGraphicsRuntime {
     fn swapchain_routines(
         &mut self,
         window_dimensions: Vector2<u32>,
+        environment: &Environment,
     ) -> (u32, SwapchainAcquireFuture, Arc<Image>) {
-        let environment_guard = self.environment.read().unwrap();
-
         // Check if vsync settings disagree
         if (self.swapchain.create_info().present_mode == PresentMode::Immediate)
-            == environment_guard.graphics_setting.vsync
+            == environment.graphics_setting.vsync
         {
             self.recreate_swapchain = true;
         }
@@ -376,7 +339,7 @@ impl VulkanGraphicsRuntime {
                 .swapchain
                 .recreate(SwapchainCreateInfo {
                     image_extent: window_dimensions.into(),
-                    present_mode: if environment_guard.graphics_setting.vsync {
+                    present_mode: if environment.graphics_setting.vsync {
                         PresentMode::Fifo
                     } else {
                         PresentMode::Immediate

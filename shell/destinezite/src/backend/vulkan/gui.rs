@@ -11,16 +11,15 @@ use multiemu_runtime::{
                 allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
             },
             command_buffer::{
-                AutoCommandBufferBuilder, BufferImageCopy, CommandBufferUsage,
-                CopyBufferToImageInfo, PrimaryAutoCommandBuffer, RenderPassBeginInfo,
-                SubpassBeginInfo, SubpassContents, SubpassEndInfo,
-                allocator::StandardCommandBufferAllocator,
+                AutoCommandBufferBuilder, BufferImageCopy, CopyBufferToImageInfo,
+                PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents,
+                SubpassEndInfo, allocator::StandardCommandBufferAllocator,
             },
             descriptor_set::{
                 DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator,
             },
             device::{Device, Queue},
-            format::{ClearValue, Format},
+            format::Format,
             image::{
                 Image, ImageCreateInfo, ImageSubresourceLayers, ImageType, ImageUsage, SampleCount,
                 sampler::{
@@ -95,10 +94,6 @@ pub struct VulkanEguiRenderer {
     textures: HashMap<TextureId, (Arc<Image>, Arc<DescriptorSet>)>,
     /// memory allocator
     memory_allocator: Arc<StandardMemoryAllocator>,
-    /// vulkan queue
-    gui_queue: Arc<Queue>,
-    /// command buffer allocator
-    command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
     /// descriptor set allocator
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     /// vulkan pipeline
@@ -279,8 +274,6 @@ impl VulkanEguiRenderer {
         Self {
             textures: HashMap::new(),
             memory_allocator,
-            gui_queue,
-            command_buffer_allocator,
             descriptor_set_allocator,
             vertex_buffer_pool,
             pipeline,
@@ -295,7 +288,8 @@ impl VulkanEguiRenderer {
         context: &egui::Context,
         render_buffer: Arc<ImageView>,
         full_output: egui::FullOutput,
-    ) -> AutoCommandBufferBuilder<PrimaryAutoCommandBuffer> {
+        command_buffer: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    ) {
         let render_buffer_dimensions = Vector2::new(
             render_buffer.image().extent()[0],
             render_buffer.image().extent()[1],
@@ -305,13 +299,6 @@ impl VulkanEguiRenderer {
             tracing::trace!("Freeing egui texture {:?}", remove_texture_id);
             self.textures.remove(&remove_texture_id);
         }
-
-        let mut command_buffer = AutoCommandBufferBuilder::primary(
-            self.command_buffer_allocator.clone(),
-            self.gui_queue.queue_family_index(),
-            CommandBufferUsage::OneTimeSubmit,
-        )
-        .unwrap();
 
         for (new_texture_id, new_texture) in full_output.textures_delta.set {
             tracing::debug!("Adding new egui texture {:?}", new_texture_id);
@@ -450,9 +437,7 @@ impl VulkanEguiRenderer {
             .begin_render_pass(
                 RenderPassBeginInfo {
                     render_pass: self.render_pass.clone(),
-                    clear_values: vec![Some(ClearValue::Float(
-                        Srgba::<f32>::new(0.0, 0.0, 0.0, 1.0).into(),
-                    ))],
+                    clear_values: vec![None],
                     ..RenderPassBeginInfo::framebuffer(framebuffer)
                 },
                 SubpassBeginInfo {
@@ -550,7 +535,5 @@ impl VulkanEguiRenderer {
         command_buffer
             .end_render_pass(SubpassEndInfo::default())
             .unwrap();
-
-        command_buffer
     }
 }

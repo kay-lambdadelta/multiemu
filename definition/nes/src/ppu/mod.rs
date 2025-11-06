@@ -266,15 +266,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
         Ok(())
     }
 
-    fn access_framebuffer<'a>(
-        &'a mut self,
-        _display_path: &ResourcePath,
-        callback: Box<dyn FnOnce(&dyn Any) + 'a>,
-    ) {
-        self.backend
-            .as_mut()
-            .unwrap()
-            .access_framebuffer(|framebuffer| callback(framebuffer));
+    fn access_framebuffer(&mut self, _path: &ResourcePath) -> &dyn Any {
+        self.backend.as_mut().unwrap().access_framebuffer()
     }
 }
 

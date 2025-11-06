@@ -4,8 +4,6 @@
 
 /// Basic types relating to the fundemental unit of this emulator
 pub mod component;
-/// Option environment that controls frontend and machine behavior
-pub mod environment;
 /// Graphics definitions
 pub mod graphics;
 /// Input definitions

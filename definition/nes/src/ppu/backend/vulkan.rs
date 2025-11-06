@@ -121,11 +121,8 @@ impl<R: Region> PpuDisplayBackend<R> for VulkanState {
             .unwrap();
     }
 
-    fn access_framebuffer(
-        &mut self,
-        callback: impl FnOnce(&<Vulkan as GraphicsApi>::FramebufferTexture),
-    ) {
-        callback(&self.framebuffer);
+    fn access_framebuffer(&mut self) -> &<Self::GraphicsApi as GraphicsApi>::FramebufferTexture {
+        &self.framebuffer
     }
 }
 

@@ -4,10 +4,8 @@
 
 use crate::{
     component::ResourcePath,
-    environment::{ENVIRONMENT_LOCATION, Environment},
-    machine::{
-        builder::MachineBuilder, registry::ComponentRegistry, virtual_gamepad::VirtualGamepad,
-    },
+    input::VirtualGamepad,
+    machine::{builder::MachineBuilder, registry::ComponentRegistry},
     memory::MemoryAccessTable,
     persistence::{SaveManager, SnapshotManager},
     platform::{Platform, TestPlatform},
@@ -19,10 +17,9 @@ use rustc_hash::FxBuildHasher;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
-    fs::File,
     marker::PhantomData,
     path::PathBuf,
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 /// Machine builder
@@ -30,7 +27,6 @@ pub mod builder;
 /// Graphics utilities
 pub mod graphics;
 pub mod registry;
-pub mod virtual_gamepad;
 
 /// A assembled machine, usable for a further runtime to assist emulation
 ///
@@ -78,18 +74,9 @@ impl Machine<TestPlatform> {
     }
 
     pub fn build_test_minimal() -> MachineBuilder<TestPlatform> {
-        let environment: Environment =
-            if let Ok(environment_file) = File::create(&*ENVIRONMENT_LOCATION) {
-                ron::de::from_reader(environment_file).unwrap_or_default()
-            } else {
-                Default::default()
-            };
-
-        let environment = Arc::new(RwLock::new(environment));
-
         Self::build(
             None,
-            ProgramManager::new(environment).unwrap(),
+            Arc::new(ProgramManager::default()),
             None,
             None,
             Ratio::from_integer(44100),

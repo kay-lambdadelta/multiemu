@@ -1,25 +1,23 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_atari2600::Atari2600;
+use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_runtime::{
-    environment::{ENVIRONMENT_LOCATION, Environment},
     machine::{Machine, MachineFactory},
     platform::TestPlatform,
     program::{ProgramManager, RomId},
 };
 use num::rational::Ratio;
-use std::{
-    fs::File,
-    ops::Deref,
-    str::FromStr,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{fs::File, ops::Deref, str::FromStr, time::Duration};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
     let environment: Environment = ron::de::from_reader(environment_file).unwrap_or_default();
 
-    let program_manager = ProgramManager::new(Arc::new(RwLock::new(environment))).unwrap();
+    let program_manager = ProgramManager::new(
+        &environment.database_location,
+        &environment.rom_store_directory,
+    )
+    .unwrap();
     let program_specification = program_manager
         .identify_program([RomId::from_str("6e6e37ec8d66aea1c13ed444863e3db91497aa35").unwrap()])
         .unwrap()

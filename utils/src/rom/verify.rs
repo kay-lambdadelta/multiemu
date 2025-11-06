@@ -1,7 +1,5 @@
-use multiemu_runtime::{
-    environment::Environment,
-    program::{ProgramManager, RomId},
-};
+use multiemu_frontend::environment::Environment;
+use multiemu_runtime::program::{ProgramManager, RomId};
 use std::{
     fs::{self, File},
     sync::{Arc, RwLock},
@@ -11,7 +9,11 @@ pub fn rom_verify(
     environment: Arc<RwLock<Environment>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let environment_guard = environment.read().unwrap();
-    let program_manager = ProgramManager::new(environment.clone())?;
+    let program_manager = ProgramManager::new(
+        &environment_guard.database_location,
+        &environment_guard.rom_store_directory,
+    )
+    .unwrap();
 
     fs::create_dir_all(&environment_guard.rom_store_directory)?;
 

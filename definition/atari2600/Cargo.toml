@@ -21,6 +21,7 @@ bytemuck = { workspace = true }
 bincode = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
+multiemu-frontend = { workspace = true }
 ron = { workspace = true }
 criterion = { workspace = true }
 

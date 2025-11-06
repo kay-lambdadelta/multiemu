@@ -1,9 +1,9 @@
-use super::UiOutput;
 use crate::gui::to_egui_color;
 use cfg_if::cfg_if;
 use egui::{Button, Frame, ScrollArea, Stroke, TextEdit};
 use indexmap::IndexMap;
-use multiemu_runtime::program::ProgramManager;
+use itertools::Itertools;
+use multiemu_runtime::program::{ProgramManager, ProgramSpecification};
 use palette::{
     WithAlpha,
     named::{GREEN, RED},
@@ -11,7 +11,7 @@ use palette::{
 use std::{
     fs::{self, File},
     path::PathBuf,
-    sync::Arc,
+    thread::JoinHandle,
     time::SystemTime,
 };
 use strum::{Display, EnumIter};
@@ -28,14 +28,15 @@ pub enum PathBarState {
     Editing(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct FileBrowserState {
     pathbar_state: PathBarState,
     directory_contents: IndexMap<PathBuf, DirectoryContentMetadata>,
     sorting_method: SortingMethod,
     reverse_sorting: bool,
     show_hidden: bool,
-    program_manager: Arc<ProgramManager>,
+    refresh_directory_contents_task:
+        Option<JoinHandle<Result<IndexMap<PathBuf, DirectoryContentMetadata>, std::io::Error>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -47,21 +48,43 @@ struct DirectoryContentMetadata {
 }
 
 impl FileBrowserState {
-    pub fn new(home_directory: PathBuf, program_manager: Arc<ProgramManager>) -> Self {
+    pub fn new(home_directory: PathBuf) -> Self {
         let mut me = Self {
-            pathbar_state: PathBarState::Normal(home_directory),
+            pathbar_state: PathBarState::Normal(home_directory.clone()),
             directory_contents: IndexMap::default(),
             sorting_method: SortingMethod::Name,
             reverse_sorting: false,
             show_hidden: false,
-            program_manager,
+            refresh_directory_contents_task: None,
         };
-        me.refresh_current_dir();
+
+        me.directory_contents =
+            refresh_current_dir_task(home_directory, SortingMethod::Name, false)
+                .unwrap_or_default();
+
         me
     }
+}
 
-    pub fn run(&mut self, output: &mut Option<UiOutput>, ui: &mut egui::Ui) {
+impl FileBrowserState {
+    pub fn run(
+        &mut self,
+        ui: &mut egui::Ui,
+        program_manager: &ProgramManager,
+    ) -> Option<ProgramSpecification> {
         let mut new_dir = None;
+        let mut new_specification = None;
+
+        if let Some(directory_contents_join_handle) = &self.refresh_directory_contents_task
+            && directory_contents_join_handle.is_finished()
+        {
+            let directory_contents_join_handle =
+                self.refresh_directory_contents_task.take().unwrap();
+
+            if let Ok(directory_contents) = directory_contents_join_handle.join().unwrap() {
+                self.directory_contents = directory_contents;
+            }
+        }
 
         ui.horizontal_top(|ui| {
             match &mut self.pathbar_state {
@@ -121,8 +144,9 @@ impl FileBrowserState {
                 .button(egui_phosphor::regular::ARROWS_CLOCKWISE)
                 .on_hover_text("Refresh file browser file listings")
                 .clicked()
+                && let PathBarState::Normal(path) = &self.pathbar_state
             {
-                self.refresh_current_dir();
+                new_dir = Some(path.clone());
             }
 
             let old_settings = (self.sorting_method, self.reverse_sorting, self.show_hidden);
@@ -151,8 +175,10 @@ impl FileBrowserState {
             ui.toggle_value(&mut self.show_hidden, egui_phosphor::regular::EYE_CLOSED)
                 .on_hover_text("Toggle hidden file visiblity");
 
-            if old_settings != (self.sorting_method, self.reverse_sorting, self.show_hidden) {
-                self.refresh_current_dir();
+            if old_settings != (self.sorting_method, self.reverse_sorting, self.show_hidden)
+                && let PathBarState::Normal(path) = &self.pathbar_state
+            {
+                new_dir = Some(path.clone());
             }
         });
 
@@ -185,14 +211,11 @@ impl FileBrowserState {
 
                     if path.is_file() {
                         // Try to figure out what kind of game this is
-                        if let Some(program_specification) = self
-                            .program_manager
+                        if let Some(program_specification) = program_manager
                             .identify_program_from_paths(std::iter::once(path.clone()))
                             .unwrap()
                         {
-                            *output = Some(UiOutput::OpenProgram {
-                                program_specification,
-                            });
+                            new_specification = Some(program_specification);
                         } else {
                             tracing::error!("Could not identify ROM at {}", path.display());
                         }
@@ -203,78 +226,77 @@ impl FileBrowserState {
 
         if let Some(new_dir) = new_dir {
             tracing::trace!("Changing directory to {:?}", new_dir);
-            self.pathbar_state = PathBarState::Normal(new_dir);
-            self.refresh_current_dir();
+            self.pathbar_state = PathBarState::Normal(new_dir.clone());
+            self.directory_contents.clear();
+
+            self.refresh_directory_contents_task = Some(std::thread::spawn({
+                let sorting_method = self.sorting_method;
+                let reverse_sorting = self.reverse_sorting;
+
+                move || refresh_current_dir_task(new_dir, sorting_method, reverse_sorting)
+            }));
         }
+
+        new_specification
     }
+}
 
-    pub fn sort_contents(&mut self) {
-        self.directory_contents
-            .sort_by(|_, a, _, b| match self.sorting_method {
-                SortingMethod::Name => a.name.cmp(&b.name),
-                SortingMethod::Date => a.modified.cmp(&b.modified),
-            });
+// task to gather dir info on another thread
+fn refresh_current_dir_task(
+    path: PathBuf,
+    sorting_method: SortingMethod,
+    reverse_sorting: bool,
+) -> Result<IndexMap<PathBuf, DirectoryContentMetadata>, std::io::Error> {
+    let directory_contents = fs::read_dir(path)?;
 
-        if self.reverse_sorting {
-            self.directory_contents.reverse();
-        }
-    }
+    let mut directory_contents: IndexMap<_, _> = directory_contents
+        .filter_map(|dir_entry| {
+            // Don't care about items we can't iter over
+            let dir_entry = dir_entry.ok()?;
+            let path = dir_entry.path();
 
-    pub fn refresh_current_dir(&mut self) {
-        if let PathBarState::Normal(path) = &self.pathbar_state {
-            let directory_contents = match fs::read_dir(path) {
-                Ok(directory_contents) => directory_contents.filter_map(|dir_entry| {
-                    // Don't care about items we can't iter over
-                    let dir_entry = dir_entry.ok()?;
-                    let path = dir_entry.path();
+            let name = path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())?;
 
-                    let name = path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().to_string())?;
+            let modified = path.metadata().ok()?.modified().ok()?;
 
-                    let modified = path.metadata().ok()?.modified().ok()?;
+            let readable = if path.is_file() {
+                File::open(path).is_ok()
+            } else if path.is_dir() {
+                path.read_dir().is_ok()
+            } else {
+                // What else could it be
+                true
+            };
 
-                    let readable = if path.is_file() {
-                        File::open(path).is_ok()
-                    } else if path.is_dir() {
-                        path.read_dir().is_ok()
-                    } else {
-                        // What else could it be
-                        true
-                    };
-
-                    cfg_if! {
-                        if #[cfg(target_family = "unix")] {
-                            let is_hidden = name.starts_with('.');
-                        } else {
-                            let is_hidden = false;
-                        }
-                    };
-
-                    Some((
-                        dir_entry.path(),
-                        DirectoryContentMetadata {
-                            readable,
-                            modified,
-                            name,
-                            is_hidden,
-                        },
-                    ))
-                }),
-                Err(err) => {
-                    tracing::error!(
-                        "Ended up in directory we don't have permissions for {:?} due to {}",
-                        path,
-                        err
-                    );
-                    self.pathbar_state = PathBarState::Normal(path.parent().unwrap().to_path_buf());
-                    self.refresh_current_dir();
-                    return;
+            cfg_if! {
+                if #[cfg(target_family = "unix")] {
+                    let is_hidden = name.starts_with('.');
+                } else {
+                    let is_hidden = false;
                 }
             };
 
-            self.directory_contents = directory_contents.collect();
-            self.sort_contents();
-        }
+            Some((
+                dir_entry.path(),
+                DirectoryContentMetadata {
+                    readable,
+                    modified,
+                    name,
+                    is_hidden,
+                },
+            ))
+        })
+        .sorted_by(|(_, a), (_, b)| match sorting_method {
+            SortingMethod::Name => a.name.cmp(&b.name),
+            SortingMethod::Date => a.modified.cmp(&b.modified),
+        })
+        .collect();
+
+    if reverse_sorting {
+        directory_contents.reverse();
     }
+
+    Ok(directory_contents)
 }
