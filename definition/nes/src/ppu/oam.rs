@@ -50,6 +50,13 @@ impl OamSprite {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy)]
+pub struct CurrentlyRenderingSprite {
+    pub oam: OamSprite,
+    pub pattern_table_low: u8,
+    pub pattern_table_high: u8,
+}
+
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum SpriteEvaluationState {
@@ -60,11 +67,15 @@ pub enum SpriteEvaluationState {
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OamState {
+    /// Sprite data buffer 4 byte sprites and 64 of them
     #[serde_as(as = "Bytes")]
     pub data: [u8; 256],
+    /// Secondary data buffer that is filled with sprite evaluation
+    pub secondary_data: ArrayVec<OamSprite, 8>,
+    /// Internal feature of this emulator filled with sprites post fetching
+    pub currently_rendering_sprites: ArrayVec<CurrentlyRenderingSprite, 8>,
     pub oam_addr: u8,
     pub sprite_evaluation_state: SpriteEvaluationState,
-    pub queued_sprites: ArrayVec<OamSprite, 8>,
     pub show_sprites_leftmost_pixels: bool,
     pub sprite_8x8_pattern_table_address: u16,
     pub sprite_rendering_enabled: bool,

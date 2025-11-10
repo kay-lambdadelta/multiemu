@@ -31,3 +31,12 @@ pub enum BackgroundPipelineState {
         pattern_table_low: u8,
     },
 }
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum SpritePipelineState {
+    FetchingNametableGarbage0,
+    FetchingNametableGarbage1,
+    FetchingPatternTableLow,
+    FetchingPatternTableHigh { pattern_table_low: u8 },
+}

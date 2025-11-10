@@ -10,12 +10,14 @@ impl<Idx: Integer + Clone> RangeBase<Idx> for RangeInclusive<Idx> {
 }
 
 impl<Idx: Integer + Clone + ToPrimitive> ContiguousRange<Idx> for RangeInclusive<Idx> {
+    #[inline]
     fn from_start_and_length(start: Idx, length: Idx) -> Self {
         let one = Idx::one();
 
         start.clone()..=(start + length - one)
     }
 
+    #[inline]
     fn is_adjacent(&self, other: &Self) -> bool {
         !self.is_empty()
             && !other.is_empty()
@@ -23,6 +25,7 @@ impl<Idx: Integer + Clone + ToPrimitive> ContiguousRange<Idx> for RangeInclusive
                 || other.end().clone() + Idx::one() == self.start().clone())
     }
 
+    #[inline]
     fn len(&self) -> usize {
         if self.is_empty() {
             return 0;

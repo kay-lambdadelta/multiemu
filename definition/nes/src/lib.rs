@@ -5,7 +5,7 @@ use crate::{
     },
     gamepad::controller::NesControllerConfig,
     ppu::{
-        BACKGROUND_PALETTE_BASE_ADDRESS, NAMETABLE_ADDRESSES,
+        NAMETABLE_ADDRESSES, PALETTE_BASE_ADDRESS,
         backend::SupportedGraphicsApiPpu,
         region::{Region, ntsc::Ntsc},
     },
@@ -87,11 +87,10 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             StandardMemoryConfig {
                 readable: true,
                 writable: true,
-                assigned_range: BACKGROUND_PALETTE_BASE_ADDRESS
-                    ..=BACKGROUND_PALETTE_BASE_ADDRESS + 0x1f,
+                assigned_range: PALETTE_BASE_ADDRESS..=PALETTE_BASE_ADDRESS + 0x1f,
                 assigned_address_space: ppu_address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
-                    BACKGROUND_PALETTE_BASE_ADDRESS..=BACKGROUND_PALETTE_BASE_ADDRESS + 0x1f,
+                    PALETTE_BASE_ADDRESS..=PALETTE_BASE_ADDRESS + 0x1f,
                     StandardMemoryInitialContents::Random,
                 )]),
                 sram: false,

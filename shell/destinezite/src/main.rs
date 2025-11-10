@@ -20,8 +20,7 @@ use std::{
 };
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
-    EnvFilter, Layer, fmt::format::FmtSpan, prelude::__tracing_subscriber_SubscriberExt,
-    util::SubscriberInitExt,
+    EnvFilter, Layer, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
 };
 
 mod audio;
@@ -52,7 +51,6 @@ fn main() {
     let stderr_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
         .with_ansi(true)
-        .with_span_events(FmtSpan::CLOSE)
         .with_thread_ids(true)
         .with_filter(create_filter());
     let file_layer = tracing_subscriber::fmt::layer()

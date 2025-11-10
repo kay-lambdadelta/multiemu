@@ -1,3 +1,4 @@
+use crate::windowing::WinitWindow;
 use multiemu_runtime::graphics::vulkan::vulkano::{
     VulkanLibrary,
     device::{
@@ -11,8 +12,6 @@ use multiemu_runtime::graphics::vulkan::vulkano::{
 };
 use nalgebra::Vector2;
 use std::sync::Arc;
-
-use crate::windowing::WinitWindow;
 
 pub const UNIVERSALLY_REQUIRED_EXTENSIONS: DeviceExtensions = DeviceExtensions {
     khr_swapchain: true,

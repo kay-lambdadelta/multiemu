@@ -2,7 +2,7 @@ use crate::{
     INes,
     ppu::{
         backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
-        background::{BackgroundPipelineState, BackgroundState},
+        background::{BackgroundPipelineState, BackgroundState, SpritePipelineState},
         oam::{OamState, SpriteEvaluationState},
         region::Region,
         state::State,
@@ -64,7 +64,7 @@ pub const NAMETABLE_ADDRESSES: [RangeInclusive<Address>; 4] = [
 pub const NAMETABLE_BASE_ADDRESS: Address = *NAMETABLE_ADDRESSES[0].start();
 pub const NAMETABLE_SIZE: Address = 0x400;
 
-pub const BACKGROUND_PALETTE_BASE_ADDRESS: Address = 0x3f00;
+pub const PALETTE_BASE_ADDRESS: Address = 0x3f00;
 
 const DUMMY_SCANLINE_COUNT: u16 = 1;
 const VISIBLE_SCANLINE_LENGTH: u16 = 256;
@@ -232,13 +232,13 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                         buffer
                     );
 
+                    // Redirect into the ppu address space
                     self.memory_access_table.write_le_value(
                         self.state.ppu_addr as usize,
                         self.ppu_address_space,
                         *buffer,
                     )?;
 
-                    // Redirect into the ppu address space
                     self.state.ppu_addr = self
                         .state
                         .ppu_addr
@@ -367,6 +367,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                 // Start it on the dummy scanline
                 cycle_counter: Point2::new(0, 261),
                 background_pipeline_state: BackgroundPipelineState::FetchingNametable,
+                sprite_pipeline_state: SpritePipelineState::FetchingNametableGarbage0,
                 awaiting_memory_access: true,
                 ppu_addr: 0,
                 ppu_addr_ppu_scroll_write_phase: false,
@@ -384,7 +385,8 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                     data: rand::random(),
                     oam_addr: 0x00,
                     sprite_evaluation_state: SpriteEvaluationState::InspectingY,
-                    queued_sprites: ArrayVec::new(),
+                    secondary_data: ArrayVec::new(),
+                    currently_rendering_sprites: ArrayVec::new(),
                     show_sprites_leftmost_pixels: true,
                     sprite_8x8_pattern_table_address: 0x0000,
                     sprite_rendering_enabled: true,

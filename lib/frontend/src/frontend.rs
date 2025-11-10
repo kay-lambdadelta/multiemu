@@ -54,7 +54,7 @@ pub struct Frontend<P: PlatformExt> {
     /// The rom manager in use
     pub(crate) program_manager: Arc<ProgramManager>,
     /// Environment to read/modify
-    pub(crate) environment: Environment,
+    pub environment: Environment,
     /// Our windowing and rendering context
     windowing_context: Option<WindowingContext<P>>,
     /// Bits and pieces of persistant menu state

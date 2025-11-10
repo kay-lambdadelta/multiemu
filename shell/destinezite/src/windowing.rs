@@ -10,7 +10,8 @@ use egui_winit::egui::ViewportId;
 use gilrs::{EventType, Gilrs, GilrsBuilder};
 use multiemu_frontend::{
     EguiWindowingIntegration, Frontend, GraphicsRuntime, MachineFactories, PlatformExt,
-    WindowingHandle, environment::Environment,
+    WindowingHandle,
+    environment::{ENVIRONMENT_LOCATION, Environment},
 };
 use multiemu_runtime::{
     graphics::GraphicsApi,
@@ -22,7 +23,7 @@ use multiemu_runtime::{
     program::{ProgramManager, ProgramSpecification},
 };
 use nalgebra::Vector2;
-use std::{borrow::Cow, collections::HashMap, fmt::Debug, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, fmt::Debug, fs::File, ops::Deref, sync::Arc};
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 use winit::{
@@ -257,6 +258,14 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>> A
         if self.display_api_handle.as_ref().unwrap().0.has_focus() {
             self.display_api_handle.as_ref().unwrap().0.request_redraw();
         }
+    }
+
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        let mut environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+        self.frontend
+            .environment
+            .save(&mut environment_file)
+            .unwrap();
     }
 }
 

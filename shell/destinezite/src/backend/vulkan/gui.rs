@@ -13,12 +13,12 @@ use multiemu_runtime::{
             command_buffer::{
                 AutoCommandBufferBuilder, BufferImageCopy, CopyBufferToImageInfo,
                 PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents,
-                SubpassEndInfo, allocator::StandardCommandBufferAllocator,
+                SubpassEndInfo,
             },
             descriptor_set::{
                 DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator,
             },
-            device::{Device, Queue},
+            device::Device,
             format::Format,
             image::{
                 Image, ImageCreateInfo, ImageSubresourceLayers, ImageType, ImageUsage, SampleCount,
@@ -108,9 +108,7 @@ pub struct VulkanEguiRenderer {
 impl VulkanEguiRenderer {
     pub fn new(
         device: Arc<Device>,
-        gui_queue: Arc<Queue>,
         memory_allocator: Arc<StandardMemoryAllocator>,
-        command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
         descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
         shader_cache: &ShaderCache<SpirvShader>,
         render_pass: Arc<RenderPass>,

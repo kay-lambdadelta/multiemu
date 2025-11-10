@@ -1,4 +1,4 @@
-use crate::ppu::background::BackgroundState;
+use crate::ppu::background::{BackgroundState, SpritePipelineState};
 use crate::ppu::oam::OamState;
 use crate::ppu::{BackgroundPipelineState, ColorEmphasis};
 use nalgebra::{Point2, Vector2};
@@ -24,6 +24,7 @@ pub struct State {
     pub cycle_counter: Point2<u16>,
     pub awaiting_memory_access: bool,
     pub background_pipeline_state: BackgroundPipelineState,
+    pub sprite_pipeline_state: SpritePipelineState,
     pub oam: OamState,
     pub background: BackgroundState,
 }

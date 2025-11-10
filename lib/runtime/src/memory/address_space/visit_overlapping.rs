@@ -1,10 +1,5 @@
-use crate::{
-    component::ErasedComponentHandle,
-    memory::{
-        Address,
-        table::address_space::{MemoryMappingTable, PAGE_SIZE},
-    },
-};
+use crate::memory::address_space::{MemoryMappingTable, PAGE_SIZE};
+use crate::{component::ErasedComponentHandle, memory::Address};
 use multiemu_range::RangeIntersection;
 use std::ops::RangeInclusive;
 

@@ -199,9 +199,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
 
         let gui_renderer = VulkanEguiRenderer::new(
             device.clone(),
-            gui_queue.clone(),
             memory_allocator.clone(),
-            command_buffer_allocator.clone(),
             descriptor_set_allocator.clone(),
             &shader_cache,
             render_pass.clone(),

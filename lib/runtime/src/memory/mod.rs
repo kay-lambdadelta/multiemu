@@ -1,6 +1,73 @@
-pub use table::*;
+use crate::machine::registry::ComponentRegistry;
+use address_space::AddressSpace;
+use std::{fmt::Debug, sync::Arc};
 
-mod table;
+mod address_space;
+mod read;
+mod write;
 
-/// Memory address
+pub use address_space::{AddressSpaceId, MemoryRemappingCommand, Permissions};
+pub use read::*;
+pub use write::*;
+
 pub type Address = usize;
+
+/// The main structure representing the devices memory address spaces
+pub struct MemoryAccessTable {
+    address_spaces: Vec<AddressSpace>,
+    current_address_space: u16,
+    registry: Arc<ComponentRegistry>,
+}
+
+impl MemoryAccessTable {
+    pub(crate) fn new(registry: Arc<ComponentRegistry>) -> Self {
+        Self {
+            address_spaces: Vec::default(),
+            current_address_space: 0,
+            registry,
+        }
+    }
+}
+
+impl Debug for MemoryAccessTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemoryAccessTable")
+            .field("address_spaces", &self.address_spaces)
+            .finish()
+    }
+}
+
+impl MemoryAccessTable {
+    pub(crate) fn insert_address_space(&mut self, address_space_width: u8) -> AddressSpaceId {
+        let id = AddressSpaceId::new(self.current_address_space);
+
+        self.current_address_space = self
+            .current_address_space
+            .checked_add(1)
+            .expect("Too many address spaces");
+
+        self.address_spaces.push(AddressSpace::new(
+            address_space_width,
+            self.registry.clone(),
+        ));
+
+        id
+    }
+
+    /// Iter over present spaces
+    pub fn address_spaces(&self) -> impl Iterator<Item = AddressSpaceId> {
+        (0..self.address_spaces.len()).map(|space| AddressSpaceId(space as u16))
+    }
+
+    /// Adds a command to the remap queue
+    ///
+    /// Note that the queue is not applied till the next memory operation
+    pub fn remap(
+        &self,
+        address_space: AddressSpaceId,
+        commands: impl IntoIterator<Item = MemoryRemappingCommand>,
+    ) {
+        let address_space = &self.address_spaces[address_space.0 as usize];
+        address_space.remap(commands);
+    }
+}

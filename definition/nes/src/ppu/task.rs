@@ -1,12 +1,13 @@
 use crate::ppu::{
-    BACKGROUND_PALETTE_BASE_ADDRESS, Ppu, State, TOTAL_SCANLINE_LENGTH,
+    PALETTE_BASE_ADDRESS, Ppu, State, TOTAL_SCANLINE_LENGTH,
     backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
-    background::BackgroundPipelineState,
+    background::{BackgroundPipelineState, SpritePipelineState},
     color::PpuColor,
-    oam::{OamSprite, SpriteEvaluationState},
+    oam::{CurrentlyRenderingSprite, OamSprite, SpriteEvaluationState},
     region::Region,
 };
 use multiemu_definition_mos6502::NmiFlag;
+use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
     memory::{AddressSpaceId, MemoryAccessTable},
     scheduler::Task,
@@ -15,6 +16,7 @@ use nalgebra::{Point2, Vector2};
 use palette::Srgb;
 use std::{
     num::NonZero,
+    ops::RangeInclusive,
     sync::{Arc, atomic::Ordering},
 };
 
@@ -36,9 +38,6 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
             }
 
             if component.state.cycle_counter.x == 1 {
-                // Technically the NES does it over 64 cycles
-                component.state.oam.queued_sprites.clear();
-
                 match component.state.cycle_counter.y {
                     241 => {
                         component
@@ -63,27 +62,66 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                 }
             }
 
-            /*
-            if (matches!(component.state.cycle_counter.x, 321..=336)
-                && component.state.cycle_counter.y == 261)
-            {
-                component
-                    .state
-                    .drive_pipeline::<R>(&component.memory_access_table, self.ppu_address_space);
-            }
-            */
-
             if (0..R::VISIBLE_SCANLINES).contains(&component.state.cycle_counter.y) {
+                if component.state.cycle_counter.x == 1 {
+                    // Technically the NES does it over 64 cycles
+                    component.state.oam.secondary_data.clear();
+                }
+
                 if let 1..=256 = component.state.cycle_counter.x {
+                    let scanline_position_x = component.state.cycle_counter.x - 1;
+
                     component.state.drive_background_pipeline::<R>(
                         &component.memory_access_table,
                         self.ppu_address_space,
                     );
 
+                    let mut sprite_pixel = None;
+
+                    let potential_sprite = component
+                        .state
+                        .oam
+                        .currently_rendering_sprites
+                        .iter()
+                        .rev()
+                        .find_map(|sprite| {
+                            let in_sprite_position = u16::from(sprite.oam.position.x)
+                                .checked_sub(scanline_position_x)?;
+
+                            if in_sprite_position < 8 {
+                                let in_sprite_position = if !sprite.oam.flip.x {
+                                    in_sprite_position
+                                } else {
+                                    7 - in_sprite_position
+                                };
+
+                                let low = (sprite.pattern_table_low >> in_sprite_position) & 1;
+                                let high = (sprite.pattern_table_high >> in_sprite_position) & 1;
+                                let color_index = (high << 1) | low;
+
+                                if color_index != 0 {
+                                    Some((sprite, color_index))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        });
+
+                    if let Some((sprite, color_index)) = potential_sprite {
+                        sprite_pixel = Some(component.state.calculate_sprite_color::<R>(
+                            &component.memory_access_table,
+                            self.ppu_address_space,
+                            &sprite.oam,
+                            color_index,
+                        ));
+                    }
+
                     // Extract out and combine pattern bits
                     let high = (component.state.background.pattern_high_shift >> 15) & 1;
                     let low = (component.state.background.pattern_low_shift >> 15) & 1;
-                    let color = (high << 1) | low;
+                    let color_index = (high << 1) | low;
 
                     // Extract out attribute bits
                     let attribute = (component.state.background.attribute_shift >> 30) & 0b11;
@@ -93,45 +131,53 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                     component.state.background.pattern_low_shift <<= 1;
                     component.state.background.pattern_high_shift <<= 1;
 
-                    let color = component.state.calculate_color::<R>(
+                    let background_pixel = component.state.calculate_background_color::<R>(
                         &component.memory_access_table,
                         self.ppu_address_space,
                         attribute as u8,
-                        color as u8,
+                        color_index as u8,
                     );
+                    let pixel = sprite_pixel.unwrap_or(background_pixel);
 
                     backend.modify_staging_buffer(|mut staging_buffer_guard| {
                         staging_buffer_guard[(
-                            component.state.cycle_counter.x as usize - 1,
+                            scanline_position_x as usize,
                             component.state.cycle_counter.y as usize,
-                        )] = color.into();
+                        )] = pixel.into();
                     });
                 }
 
                 if let 65..=256 = component.state.cycle_counter.x {
-                    let oam_data_index = component.state.cycle_counter.x - 65;
+                    let sprite_index = (component.state.cycle_counter.x - 65) / 2;
+                    let oam_data_index = sprite_index * 4;
 
-                    match component.state.oam.sprite_evaluation_state {
-                        SpriteEvaluationState::InspectingY => {
-                            let sprite_y = component.state.oam.data[oam_data_index as usize];
+                    if sprite_index < 64 {
+                        match component.state.oam.sprite_evaluation_state {
+                            SpriteEvaluationState::InspectingY => {
+                                let sprite_y = component.state.oam.data[oam_data_index as usize];
 
-                            component.state.oam.sprite_evaluation_state =
-                                SpriteEvaluationState::Evaluating { sprite_y };
-                        }
-                        SpriteEvaluationState::Evaluating { sprite_y } => {
-                            if u16::from(sprite_y) == component.state.cycle_counter.y + 1 {
-                                let mut bytes = [0; 4];
+                                component.state.oam.sprite_evaluation_state =
+                                    SpriteEvaluationState::Evaluating { sprite_y };
+                            }
+                            SpriteEvaluationState::Evaluating { sprite_y } => {
+                                if (u16::from(sprite_y)..u16::from(sprite_y) + 8)
+                                    .contains(&(component.state.cycle_counter.y))
+                                {
+                                    let mut bytes = [0; 4];
+                                    bytes.copy_from_slice(
+                                        &component.state.oam.data
+                                            [RangeInclusive::from_start_and_length(
+                                                oam_data_index as usize,
+                                                4,
+                                            )],
+                                    );
 
-                                #[allow(clippy::needless_range_loop)]
-                                for i in 0..4 {
-                                    bytes[i] =
-                                        component.state.oam.data[oam_data_index as usize + i];
-                                }
+                                    let sprite = OamSprite::from_bytes(bytes);
 
-                                let sprite = OamSprite::from_bytes(bytes);
-
-                                if component.state.oam.queued_sprites.try_push(sprite).is_err() {
-                                    // TODO: Handle sprite overflow flag
+                                    if component.state.oam.secondary_data.try_push(sprite).is_err()
+                                    {
+                                        // TODO: Handle sprite overflow flag
+                                    }
                                 }
 
                                 component.state.oam.sprite_evaluation_state =
@@ -139,6 +185,17 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                             }
                         }
                     }
+                }
+
+                if component.state.cycle_counter.x == 257 {
+                    component.state.oam.currently_rendering_sprites.clear();
+                }
+
+                if let 257..=320 = component.state.cycle_counter.x {
+                    component.state.drive_sprite_pipeline::<R>(
+                        &component.memory_access_table,
+                        self.ppu_address_space,
+                    );
                 }
             }
 
@@ -152,6 +209,87 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
 }
 
 impl State {
+    fn drive_sprite_pipeline<R: Region>(
+        &mut self,
+        access_table: &MemoryAccessTable,
+        ppu_address_space: AddressSpaceId,
+    ) {
+        if !self.awaiting_memory_access {
+            let currently_relevant_sprite_index = (self.cycle_counter.x - 257) / 8;
+            let currently_relevant_sprite = self
+                .oam
+                .secondary_data
+                .get(usize::from(currently_relevant_sprite_index));
+
+            match self.sprite_pipeline_state {
+                SpritePipelineState::FetchingNametableGarbage0 => {
+                    self.sprite_pipeline_state = SpritePipelineState::FetchingNametableGarbage1;
+                }
+                SpritePipelineState::FetchingNametableGarbage1 => {
+                    self.sprite_pipeline_state = SpritePipelineState::FetchingPatternTableLow;
+                }
+                SpritePipelineState::FetchingPatternTableLow => {
+                    if let Some(currently_relevant_sprite) = currently_relevant_sprite {
+                        let mut row = (self.cycle_counter.y
+                            - u16::from(currently_relevant_sprite.position.y))
+                            % 8;
+                        if currently_relevant_sprite.flip.y {
+                            row = 7 - row;
+                        }
+
+                        let address = self.oam.sprite_8x8_pattern_table_address
+                            + u16::from(currently_relevant_sprite.tile_index) * 16
+                            + row;
+
+                        let pattern_table_low = access_table
+                            .read_le_value(address as usize, ppu_address_space, false)
+                            .unwrap();
+
+                        self.sprite_pipeline_state =
+                            SpritePipelineState::FetchingPatternTableHigh { pattern_table_low };
+                    } else {
+                        self.sprite_pipeline_state =
+                            SpritePipelineState::FetchingPatternTableHigh {
+                                // This is a garbage value, it isn't used
+                                pattern_table_low: 0x00,
+                            };
+                    }
+                }
+                SpritePipelineState::FetchingPatternTableHigh { pattern_table_low } => {
+                    if let Some(currently_relevant_sprite) = currently_relevant_sprite {
+                        let mut row = (self.cycle_counter.y
+                            - u16::from(currently_relevant_sprite.position.y))
+                            % 8;
+                        if currently_relevant_sprite.flip.y {
+                            row = 7 - row;
+                        }
+
+                        let address = self.oam.sprite_8x8_pattern_table_address
+                            + u16::from(currently_relevant_sprite.tile_index) * 16
+                            + row
+                            + 8;
+
+                        let pattern_table_high = access_table
+                            .read_le_value(address as usize, ppu_address_space, false)
+                            .unwrap();
+
+                        self.oam
+                            .currently_rendering_sprites
+                            .push(CurrentlyRenderingSprite {
+                                oam: *currently_relevant_sprite,
+                                pattern_table_high,
+                                pattern_table_low,
+                            });
+                    }
+
+                    self.sprite_pipeline_state = SpritePipelineState::FetchingNametableGarbage0;
+                }
+            }
+        }
+
+        self.awaiting_memory_access = !self.awaiting_memory_access;
+    }
+
     fn drive_background_pipeline<R: Region>(
         &mut self,
         access_table: &MemoryAccessTable,
@@ -162,13 +300,37 @@ impl State {
             // Swap out the pipeline state with a placeholder for a moment
             match self.background_pipeline_state {
                 BackgroundPipelineState::FetchingNametable => {
-                    let nametable = self.fetch_nametable::<R>(access_table, ppu_address_space);
+                    let scrolled = self.scrolled();
+                    let nametable = scrolled.component_div(&Vector2::new(256, 240));
+                    let nametable_index = nametable.x + nametable.y * 2;
+                    let base_address = self.nametable_base + nametable_index * 0x400;
+                    let tile_position = self.tile_position();
+
+                    let address = base_address + tile_position.y * 32 + tile_position.x;
+
+                    let nametable = access_table
+                        .read_le_value(address as usize, ppu_address_space, false)
+                        .unwrap();
 
                     self.background_pipeline_state =
                         BackgroundPipelineState::FetchingAttribute { nametable };
                 }
                 BackgroundPipelineState::FetchingAttribute { nametable } => {
-                    let attribute = self.fetch_attribute::<R>(access_table, ppu_address_space);
+                    let tile_position = self.tile_position();
+                    let attribute_position = tile_position / 4;
+
+                    let attribute_base = self.nametable_base + 0x3c0;
+                    let address = attribute_base + attribute_position.y * 8 + attribute_position.x;
+
+                    let attribute: u8 = access_table
+                        .read_le_value(address as usize, ppu_address_space, false)
+                        .unwrap();
+
+                    let attribute_quadrant =
+                        Point2::new(tile_position.x % 4, tile_position.y % 4) / 2;
+                    let shift = (attribute_quadrant.y * 2 + attribute_quadrant.x) * 2;
+
+                    let attribute = (attribute >> shift) & 0b11;
 
                     self.background_pipeline_state =
                         BackgroundPipelineState::FetchingPatternTableLow {
@@ -180,11 +342,13 @@ impl State {
                     nametable,
                     attribute,
                 } => {
-                    let pattern_table_low = self.fetch_pattern_table_low::<R>(
-                        access_table,
-                        ppu_address_space,
-                        nametable,
-                    );
+                    let row = self.scrolled().y % 8;
+                    let address =
+                        self.background.pattern_table_base + u16::from(nametable) * 16 + row;
+
+                    let pattern_table_low = access_table
+                        .read_le_value(address as usize, ppu_address_space, false)
+                        .unwrap();
 
                     self.background_pipeline_state =
                         BackgroundPipelineState::FetchingPatternTableHigh {
@@ -198,11 +362,13 @@ impl State {
                     attribute,
                     pattern_table_low,
                 } => {
-                    let pattern_table_high = self.fetch_pattern_table_high::<R>(
-                        access_table,
-                        ppu_address_space,
-                        nametable,
-                    );
+                    let row = self.scrolled().y % 8;
+                    let address =
+                        self.background.pattern_table_base + u16::from(nametable) * 16 + row + 8;
+
+                    let pattern_table_high: u8 = access_table
+                        .read_le_value(address as usize, ppu_address_space, false)
+                        .unwrap();
 
                     self.background.pattern_low_shift =
                         (self.background.pattern_low_shift & 0xff00) | u16::from(pattern_table_low);
@@ -211,6 +377,7 @@ impl State {
                         | u16::from(pattern_table_high);
                     self.background.attribute_shift = (self.background.attribute_shift
                         & 0xffff0000)
+                        // Spread the bits
                         | (u32::from(attribute) * 0x5555);
 
                     self.background_pipeline_state = BackgroundPipelineState::FetchingNametable;
@@ -238,82 +405,10 @@ impl State {
         cycle_counter
     }
 
-    #[inline]
-    fn fetch_nametable<R: Region>(
-        &self,
-        memory_access_table: &MemoryAccessTable,
-        ppu_address_space: AddressSpaceId,
-    ) -> u8 {
-        let scrolled = self.scrolled();
-
-        let nametable = scrolled.component_div(&Vector2::new(256, 240));
-        let nametable_index = nametable.x + nametable.y * 2;
-        let base_address = self.nametable_base + nametable_index * 0x400;
-        let tile_position = self.tile_position();
-
-        let address = base_address + tile_position.y * 32 + tile_position.x;
-
-        memory_access_table
-            .read_le_value(address as usize, ppu_address_space, false)
-            .unwrap()
-    }
-
-    #[inline]
-    fn fetch_attribute<R: Region>(
-        &self,
-        memory_access_table: &MemoryAccessTable,
-        ppu_address_space: AddressSpaceId,
-    ) -> u8 {
-        let tile_position = self.tile_position();
-        let attribute_position = tile_position / 4;
-
-        let attribute_base = self.nametable_base + 0x3c0;
-        let address = attribute_base + attribute_position.y * 8 + attribute_position.x;
-
-        let attribute: u8 = memory_access_table
-            .read_le_value(address as usize, ppu_address_space, false)
-            .unwrap();
-
-        let attribute_quadrant = Point2::new(tile_position.x % 4, tile_position.y % 4) / 2;
-        let shift = (attribute_quadrant.y * 2 + attribute_quadrant.x) * 2;
-
-        (attribute >> shift) & 0b11
-    }
-
-    #[inline]
-    fn fetch_pattern_table_low<R: Region>(
-        &self,
-        memory_access_table: &MemoryAccessTable,
-        ppu_address_space: AddressSpaceId,
-        nametable: u8,
-    ) -> u8 {
-        let row = self.scrolled().y % 8;
-        let address = self.background.pattern_table_base + u16::from(nametable) * 16 + row;
-
-        memory_access_table
-            .read_le_value(address as usize, ppu_address_space, false)
-            .unwrap()
-    }
-
-    #[inline]
-    fn fetch_pattern_table_high<R: Region>(
-        &self,
-        memory_access_table: &MemoryAccessTable,
-        ppu_address_space: AddressSpaceId,
-        nametable: u8,
-    ) -> u8 {
-        let row = self.scrolled().y % 8;
-        let address = self.background.pattern_table_base + u16::from(nametable) * 16 + row + 8;
-
-        memory_access_table
-            .read_le_value(address as usize, ppu_address_space, false)
-            .unwrap()
-    }
-
     // This function uses manual bit math because absolute speed is critical here
 
     #[inline]
-    fn calculate_color<R: Region>(
+    fn calculate_background_color<R: Region>(
         &self,
         memory_access_table: &MemoryAccessTable,
         ppu_address_space: AddressSpaceId,
@@ -327,7 +422,36 @@ impl State {
 
         let color_value: u8 = memory_access_table
             .read_le_value(
-                BACKGROUND_PALETTE_BASE_ADDRESS + palette_index as usize,
+                PALETTE_BASE_ADDRESS + palette_index as usize,
+                ppu_address_space,
+                false,
+            )
+            .unwrap();
+
+        let color = PpuColor {
+            hue: color_value & 0b1111,
+            luminance: (color_value >> 4) & 0b11,
+        };
+
+        R::color_to_srgb(color)
+    }
+
+    #[inline]
+    fn calculate_sprite_color<R: Region>(
+        &self,
+        memory_access_table: &MemoryAccessTable,
+        ppu_address_space: AddressSpaceId,
+        sprite: &OamSprite,
+        color: u8,
+    ) -> Srgb<u8> {
+        let color_bits = color & 0b11;
+
+        let color_value: u8 = memory_access_table
+            .read_le_value(
+                PALETTE_BASE_ADDRESS
+                    + 0x10
+                    + (usize::from(sprite.palette_index) * 4)
+                    + usize::from(color_bits),
                 ppu_address_space,
                 false,
             )

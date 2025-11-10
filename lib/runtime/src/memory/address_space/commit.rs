@@ -1,7 +1,4 @@
-use crate::memory::table::address_space::MappingEntry;
-use crate::memory::table::address_space::MemoryMappingTable;
-use crate::memory::table::address_space::PAGE_SIZE;
-use crate::memory::table::address_space::TableEntry;
+use crate::memory::address_space::{MappingEntry, MemoryMappingTable, PAGE_SIZE, TableEntry};
 use itertools::Itertools;
 use multiemu_range::ContiguousRange;
 use rayon::iter::IndexedParallelIterator;
