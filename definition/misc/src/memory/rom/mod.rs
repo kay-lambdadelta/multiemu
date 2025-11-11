@@ -101,7 +101,7 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
             .1
             .clone();
 
-        component_builder.memory_map_read(assigned_range, assigned_address_space);
+        component_builder.memory_map_read(assigned_address_space, assigned_range);
 
         Ok(RomMemory {
             config: self,

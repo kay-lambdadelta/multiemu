@@ -100,13 +100,13 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
 
         let register_location = CONTROLLER_0 + self.controller_index as usize;
         let component_builder = component_builder.memory_map_read(
-            register_location..=register_location,
             self.cpu_address_space,
+            register_location..=register_location,
         );
 
         // FIXME: The two controllers need to share this state
 
-        component_builder.memory_map_write(CONTROLLER_0..=CONTROLLER_0, self.cpu_address_space);
+        component_builder.memory_map_write(self.cpu_address_space, CONTROLLER_0..=CONTROLLER_0);
 
         Ok(NesController {
             gamepad,

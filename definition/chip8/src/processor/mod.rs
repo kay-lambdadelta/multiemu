@@ -147,7 +147,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        let memory_access_table = component_builder.memory_access_table();
+        let address_space = component_builder.address_space(self.cpu_address_space);
         let mode = Arc::new(Mutex::new(self.force_mode.unwrap_or(Chip8Mode::Chip8)));
         let state = ProcessorState::default();
         let registry = component_builder.registry();
@@ -161,7 +161,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
         let driver = Driver {
             instruction_decoder: Chip8InstructionDecoder,
             virtual_gamepad: virtual_gamepad.clone(),
-            memory_access_table,
+            cpu_address_space: address_space,
             mode,
             display: registry.get(&self.display).unwrap(),
             audio: registry.get(&self.audio).unwrap(),

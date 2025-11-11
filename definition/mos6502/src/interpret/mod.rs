@@ -182,15 +182,13 @@ impl Driver {
                         let new_stack = state.stack.wrapping_sub(2);
                         let program_bytes = (state.program.wrapping_add(2)).to_le_bytes();
 
-                        let _ = self.memory_access_table.write_le_value(
+                        let _ = self.address_space.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
-                            config.assigned_address_space,
                             program_bytes[0],
                         );
 
-                        let _ = self.memory_access_table.write_le_value(
+                        let _ = self.address_space.write_le_value(
                             (new_stack.wrapping_add(1)) as usize + STACK_BASE_ADDRESS,
-                            config.assigned_address_space,
                             program_bytes[1],
                         );
 
@@ -202,26 +200,17 @@ impl Driver {
 
                         let new_stack = new_stack.wrapping_sub(1);
 
-                        let _ = self.memory_access_table.write_le_value(
+                        let _ = self.address_space.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
-                            config.assigned_address_space,
                             flags.to_byte(),
                         );
 
                         let program = [
-                            self.memory_access_table
-                                .read_le_value(
-                                    INTERRUPT_VECTOR,
-                                    config.assigned_address_space,
-                                    false,
-                                )
+                            self.address_space
+                                .read_le_value(INTERRUPT_VECTOR, false)
                                 .unwrap_or_default(),
-                            self.memory_access_table
-                                .read_le_value(
-                                    INTERRUPT_VECTOR + 1,
-                                    config.assigned_address_space,
-                                    false,
-                                )
+                            self.address_space
+                                .read_le_value(INTERRUPT_VECTOR + 1, false)
                                 .unwrap_or_default(),
                         ];
                         state.program = u16::from_le_bytes(program);
@@ -467,12 +456,8 @@ impl Driver {
                         state.stack = state.stack.wrapping_add(1);
 
                         state.a = self
-                            .memory_access_table
-                            .read_le_value(
-                                state.stack as usize + STACK_BASE_ADDRESS,
-                                config.assigned_address_space,
-                                false,
-                            )
+                            .address_space
+                            .read_le_value(state.stack as usize + STACK_BASE_ADDRESS, false)
                             .unwrap_or_default();
 
                         state.flags.negative = state.a.view_bits::<Lsb0>()[7];
@@ -482,12 +467,8 @@ impl Driver {
                         state.stack = state.stack.wrapping_add(1);
 
                         let value = self
-                            .memory_access_table
-                            .read_le_value(
-                                state.stack as usize + STACK_BASE_ADDRESS,
-                                config.assigned_address_space,
-                                false,
-                            )
+                            .address_space
+                            .read_le_value(state.stack as usize + STACK_BASE_ADDRESS, false)
                             .unwrap_or_default();
 
                         state.flags = FlagRegister::from_byte(value);
@@ -541,34 +522,22 @@ impl Driver {
                     Mos6502Opcode::Rti => {
                         state.stack = state.stack.wrapping_add(1);
                         let flags = self
-                            .memory_access_table
-                            .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                config.assigned_address_space,
-                                false,
-                            )
+                            .address_space
+                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
                             .unwrap_or_default();
 
                         state.flags = FlagRegister::from_byte(flags);
 
                         state.stack = state.stack.wrapping_add(1);
                         let program_pointer_low = self
-                            .memory_access_table
-                            .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                config.assigned_address_space,
-                                false,
-                            )
+                            .address_space
+                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
                             .unwrap_or_default();
 
                         state.stack = state.stack.wrapping_add(1);
                         let program_pointer_high = self
-                            .memory_access_table
-                            .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                config.assigned_address_space,
-                                false,
-                            )
+                            .address_space
+                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
                             .unwrap_or_default();
 
                         state.program =
@@ -577,22 +546,14 @@ impl Driver {
                     Mos6502Opcode::Rts => {
                         state.stack = state.stack.wrapping_add(1);
                         let program_pointer_low = self
-                            .memory_access_table
-                            .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                config.assigned_address_space,
-                                false,
-                            )
+                            .address_space
+                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
                             .unwrap_or_default();
 
                         state.stack = state.stack.wrapping_add(1);
                         let program_pointer_high = self
-                            .memory_access_table
-                            .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                config.assigned_address_space,
-                                false,
-                            )
+                            .address_space
+                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
                             .unwrap_or_default();
 
                         state.program =
@@ -732,12 +693,8 @@ impl Driver {
             }
             None => unreachable!(),
             _ => self
-                .memory_access_table
-                .read_le_value(
-                    state.address_bus as usize,
-                    config.assigned_address_space,
-                    false,
-                )
+                .address_space
+                .read_le_value(state.address_bus as usize, false)
                 .unwrap_or_default(),
         }
     }
@@ -758,11 +715,9 @@ impl Driver {
                 unreachable!()
             }
             _ => {
-                let _ = self.memory_access_table.write_le_value(
-                    state.address_bus as usize,
-                    config.assigned_address_space,
-                    value,
-                );
+                let _ = self
+                    .address_space
+                    .write_le_value(state.address_bus as usize, value);
             }
         }
     }

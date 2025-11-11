@@ -7,7 +7,7 @@ use crate::{
     timer::Chip8Timer,
 };
 use multiemu_runtime::{
-    component::ComponentHandle, input::VirtualGamepad, memory::MemoryAccessTable,
+    component::ComponentHandle, input::VirtualGamepad, memory::AddressSpace,
     processor::InstructionDecoder, scheduler::Task,
 };
 use std::{
@@ -21,7 +21,7 @@ pub(crate) struct Driver<G: SupportedGraphicsApiChip8Display> {
     /// Keypad virtual gamepad
     pub virtual_gamepad: Arc<VirtualGamepad>,
     /// Essential stuff the runtime provides
-    pub memory_access_table: Arc<MemoryAccessTable>,
+    pub cpu_address_space: Arc<AddressSpace>,
     // What chip8 mode we are currently in
     pub mode: Arc<Mutex<Chip8Mode>>,
     pub display: ComponentHandle<Chip8Display<G>>,
@@ -44,8 +44,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task<Chip8Processor> for Driver<G> {
                             .instruction_decoder
                             .decode(
                                 component.state.registers.program as usize,
-                                self.config.cpu_address_space,
-                                &self.memory_access_table,
+                                &self.cpu_address_space,
                             )
                             .expect("Failed to decode instruction");
 

@@ -289,8 +289,8 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
             self.ram_assigned_address..=self.ram_assigned_address.checked_add(0x7f).unwrap();
 
         let component_builder = component_builder.memory_map(
-            self.registers_assigned_address..=self.registers_assigned_address + 0x1f,
             self.assigned_address_space,
+            self.registers_assigned_address..=self.registers_assigned_address + 0x1f,
         );
 
         let (component_builder, _) = component_builder.insert_child_component(

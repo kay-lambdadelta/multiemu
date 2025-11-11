@@ -143,12 +143,12 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
         }
 
         match (self.readable, self.writable) {
-            (true, true) => component_builder.memory_map(assigned_range, assigned_address_space),
+            (true, true) => component_builder.memory_map(assigned_address_space, assigned_range),
             (true, false) => {
-                component_builder.memory_map_read(assigned_range, assigned_address_space)
+                component_builder.memory_map_read(assigned_address_space, assigned_range)
             }
             (false, true) => {
-                component_builder.memory_map_write(assigned_range, assigned_address_space)
+                component_builder.memory_map_write(assigned_address_space, assigned_range)
             }
             (false, false) => component_builder,
         };
@@ -202,7 +202,7 @@ mod test {
 
     #[test]
     fn initialization() {
-        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
+        let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -210,7 +210,7 @@ mod test {
                 readable: true,
                 writable: true,
                 assigned_range: 0..=3,
-                assigned_address_space: cpu_address_space,
+                assigned_address_space: address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
                     0..=3,
                     StandardMemoryInitialContents::Value(0xff),
@@ -219,16 +219,14 @@ mod test {
             },
         );
         let machine = machine.build(());
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
         let mut buffer = [0; 4];
 
-        machine
-            .memory_access_table
-            .read(0, cpu_address_space, false, &mut buffer)
-            .unwrap();
+        address_space.read(0, false, &mut buffer).unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
-        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
+        let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -236,7 +234,7 @@ mod test {
                 readable: true,
                 writable: true,
                 assigned_range: 0..=3,
-                assigned_address_space: cpu_address_space,
+                assigned_address_space: address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
                     0..=3,
                     StandardMemoryInitialContents::Value(0xff),
@@ -245,19 +243,17 @@ mod test {
             },
         );
         let machine = machine.build(());
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
         let mut buffer = [0; 4];
 
-        machine
-            .memory_access_table
-            .read(0, cpu_address_space, false, &mut buffer)
-            .unwrap();
+        address_space.read(0, false, &mut buffer).unwrap();
         assert_eq!(buffer, [0xff; 4]);
     }
 
     #[test]
     fn basic_read() {
-        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
+        let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -265,7 +261,7 @@ mod test {
                 readable: true,
                 writable: true,
                 assigned_range: 0..=7,
-                assigned_address_space: cpu_address_space,
+                assigned_address_space: address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
                     0..=7,
                     StandardMemoryInitialContents::Value(0xff),
@@ -274,19 +270,17 @@ mod test {
             },
         );
         let machine = machine.build(());
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
         let mut buffer = [0; 8];
 
-        machine
-            .memory_access_table
-            .read(0, cpu_address_space, false, &mut buffer)
-            .unwrap();
+        address_space.read(0, false, &mut buffer).unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
 
     #[test]
     fn basic_write() {
-        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
+        let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -294,7 +288,7 @@ mod test {
                 readable: true,
                 writable: true,
                 assigned_range: 0..=7,
-                assigned_address_space: cpu_address_space,
+                assigned_address_space: address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
                     0..=7,
                     StandardMemoryInitialContents::Value(0xff),
@@ -303,18 +297,16 @@ mod test {
             },
         );
         let machine = machine.build(());
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
         let buffer = [0; 8];
 
-        machine
-            .memory_access_table
-            .write(0, cpu_address_space, &buffer)
-            .unwrap();
+        address_space.write(0, &buffer).unwrap();
     }
 
     #[test]
     fn basic_read_write() {
-        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
+        let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -322,7 +314,7 @@ mod test {
                 readable: true,
                 writable: true,
                 assigned_range: 0..=7,
-                assigned_address_space: cpu_address_space,
+                assigned_address_space: address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
                     0..=7,
                     StandardMemoryInitialContents::Value(0xff),
@@ -331,18 +323,13 @@ mod test {
             },
         );
         let machine = machine.build(());
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
         let mut buffer = [0xff; 8];
 
-        machine
-            .memory_access_table
-            .write(0, cpu_address_space, &buffer)
-            .unwrap();
+        address_space.write(0, &buffer).unwrap();
         buffer.fill(0);
-        machine
-            .memory_access_table
-            .read(0, cpu_address_space, false, &mut buffer)
-            .unwrap();
+        address_space.read(0, false, &mut buffer).unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
 
@@ -364,76 +351,47 @@ mod test {
                 sram: false,
             },
         );
-        let machine = machine.memory_map_mirror(0xf000..=0xffff, 0x0000..=0x0fff, address_space);
+        let machine = machine.memory_map_mirror(address_space, 0xf000..=0xffff, 0x0000..=0x0fff);
 
         let machine = machine.build(());
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];
-            machine
-                .memory_access_table
-                .write(i, address_space, &buffer)
-                .unwrap();
+            address_space.write(i, &buffer).unwrap();
             buffer.fill(0x00);
-            machine
-                .memory_access_table
-                .read(i, address_space, false, &mut buffer)
-                .unwrap();
+            address_space.read(i, false, &mut buffer).unwrap();
             assert_eq!(buffer, [0xff; 1]);
 
             let mut buffer = [0xff; 2];
-            machine
-                .memory_access_table
-                .write(i, address_space, &buffer)
-                .unwrap();
+            address_space.write(i, &buffer).unwrap();
             buffer.fill(0x00);
-            machine
-                .memory_access_table
-                .read(i, address_space, false, &mut buffer)
-                .unwrap();
+            address_space.read(i, false, &mut buffer).unwrap();
             assert_eq!(buffer, [0xff; 2]);
 
             let mut buffer = [0xff; 4];
-            machine
-                .memory_access_table
-                .write(i, address_space, &buffer)
-                .unwrap();
+            address_space.write(i, &buffer).unwrap();
             buffer.fill(0x00);
-            machine
-                .memory_access_table
-                .read(i, address_space, false, &mut buffer)
-                .unwrap();
+            address_space.read(i, false, &mut buffer).unwrap();
             assert_eq!(buffer, [0xff; 4]);
 
             let mut buffer = [0xff; 8];
-            machine
-                .memory_access_table
-                .write(i, address_space, &buffer)
-                .unwrap();
+            address_space.write(i, &buffer).unwrap();
             buffer.fill(0x00);
-            machine
-                .memory_access_table
-                .read(i, address_space, false, &mut buffer)
-                .unwrap();
+            address_space.read(i, false, &mut buffer).unwrap();
             assert_eq!(buffer, [0xff; 8]);
         }
 
         let mut buffer = [0x00; 1];
-        machine
-            .memory_access_table
-            .write(0xf000, address_space, &buffer)
-            .unwrap();
+        address_space.write(0xf000, &buffer).unwrap();
         buffer.fill(0xff);
-        machine
-            .memory_access_table
-            .read(0x0000, address_space, false, &mut buffer)
-            .unwrap();
+        address_space.read(0x0000, false, &mut buffer).unwrap();
         assert_eq!(buffer, [0x00; 1]);
     }
 
     #[test]
     fn wraparound() {
-        let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(8);
+        let (machine, address_space) = Machine::build_test_minimal().insert_address_space(8);
 
         let (machine, _) = machine.insert_component(
             "workram",
@@ -441,7 +399,7 @@ mod test {
                 readable: true,
                 writable: true,
                 assigned_range: 0x00..=0xff,
-                assigned_address_space: cpu_address_space,
+                assigned_address_space: address_space,
                 initial_contents: RangeInclusiveMap::from_iter([
                     (0x00..=0x00, StandardMemoryInitialContents::Value(0xff)),
                     (0x01..=0xff, StandardMemoryInitialContents::Value(0x00)),
@@ -450,13 +408,11 @@ mod test {
             },
         );
         let machine = machine.build(());
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
         let mut buffer = [0; 2];
 
-        machine
-            .memory_access_table
-            .read(0xff, cpu_address_space, false, &mut buffer)
-            .unwrap();
+        address_space.read(0xff, false, &mut buffer).unwrap();
         assert_eq!(buffer, [0x00, 0xff]);
     }
 }

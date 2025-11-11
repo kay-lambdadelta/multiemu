@@ -1,4 +1,7 @@
-use crate::memory::address_space::{MappingEntry, MemoryMappingTable, PAGE_SIZE, TableEntry};
+use crate::memory::MappingEntry;
+use crate::memory::MemoryMappingTable;
+use crate::memory::PAGE_SIZE;
+use crate::memory::TableEntry;
 use itertools::Itertools;
 use multiemu_range::ContiguousRange;
 use rayon::iter::IndexedParallelIterator;
@@ -9,7 +12,7 @@ use std::ops::RangeInclusive;
 // This function flattens and splits the memory map for faster lookups
 
 impl MemoryMappingTable {
-    pub fn commit(&mut self) {
+    pub(super) fn commit(&mut self) {
         // Process all pages in parallel
         self.table
             .par_iter_mut()

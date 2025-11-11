@@ -379,14 +379,14 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        let memory_access_table = component_builder.memory_access_table();
+        let address_space = component_builder.address_space(self.assigned_address_space);
 
         component_builder.insert_task(
             "driver",
             self.frequency,
             TaskType::Direct,
             Driver {
-                memory_access_table,
+                address_space,
                 instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
             },
         );

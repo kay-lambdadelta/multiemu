@@ -5,12 +5,12 @@ use crate::{
     instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
     interpret::STACK_BASE_ADDRESS,
 };
-use multiemu_runtime::{memory::MemoryAccessTable, processor::InstructionDecoder, scheduler::Task};
+use multiemu_runtime::{memory::AddressSpace, processor::InstructionDecoder, scheduler::Task};
 use std::{num::NonZero, sync::Arc};
 
 #[derive(Debug)]
 pub struct Driver {
-    pub memory_access_table: Arc<MemoryAccessTable>,
+    pub address_space: Arc<AddressSpace>,
     pub instruction_decoder: Mos6502InstructionDecoder,
 }
 
@@ -56,26 +56,19 @@ impl Task<Mos6502> for Driver {
                         {
                             component.state.interrupt(IRQ_VECTOR, true, true);
                         } else {
-                            component.fetch_and_decode(
-                                &self.instruction_decoder,
-                                &self.memory_access_table,
-                            );
+                            component
+                                .fetch_and_decode(&self.instruction_decoder, &self.address_space);
                         }
                     } else {
-                        component
-                            .fetch_and_decode(&self.instruction_decoder, &self.memory_access_table);
+                        component.fetch_and_decode(&self.instruction_decoder, &self.address_space);
                     }
 
                     time_slice -= 1;
                 }
                 ExecutionStep::LoadData => {
                     let byte = self
-                        .memory_access_table
-                        .read_le_value(
-                            component.state.address_bus as usize,
-                            component.config.assigned_address_space,
-                            false,
-                        )
+                        .address_space
+                        .read_le_value(component.state.address_bus as usize, false)
                         .unwrap_or_default();
 
                     component.state.latch.push(byte);
@@ -88,21 +81,17 @@ impl Task<Mos6502> for Driver {
                     time_slice -= 1;
                 }
                 ExecutionStep::StoreData(data) => {
-                    let _ = self.memory_access_table.write_le_value(
-                        component.state.address_bus as usize,
-                        component.config.assigned_address_space,
-                        data,
-                    );
+                    let _ = self
+                        .address_space
+                        .write_le_value(component.state.address_bus as usize, data);
                     component.state.address_bus = component.state.address_bus.wrapping_add(1);
 
                     time_slice -= 1;
                 }
                 ExecutionStep::PushStack(data) => {
-                    let _ = self.memory_access_table.write_le_value(
-                        STACK_BASE_ADDRESS + component.state.stack as usize,
-                        component.config.assigned_address_space,
-                        data,
-                    );
+                    let _ = self
+                        .address_space
+                        .write_le_value(STACK_BASE_ADDRESS + component.state.stack as usize, data);
                     component.state.stack = component.state.stack.wrapping_sub(1);
 
                     time_slice -= 1;
@@ -180,14 +169,10 @@ impl Mos6502 {
     fn fetch_and_decode(
         &mut self,
         instruction_decoder: &Mos6502InstructionDecoder,
-        memory_access_table: &MemoryAccessTable,
+        address_space: &AddressSpace,
     ) {
         let (instruction, identifying_bytes_length) = instruction_decoder
-            .decode(
-                self.state.program as usize,
-                self.config.assigned_address_space,
-                memory_access_table,
-            )
+            .decode(self.state.program as usize, address_space)
             .unwrap();
 
         debug_assert!(

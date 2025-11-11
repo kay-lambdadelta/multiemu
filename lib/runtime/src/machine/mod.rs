@@ -6,7 +6,7 @@ use crate::{
     component::ResourcePath,
     input::VirtualGamepad,
     machine::{builder::MachineBuilder, registry::ComponentRegistry},
-    memory::MemoryAccessTable,
+    memory::{AddressSpace, AddressSpaceId},
     persistence::{SaveManager, SnapshotManager},
     platform::{Platform, TestPlatform},
     program::{ProgramManager, ProgramSpecification},
@@ -39,7 +39,7 @@ where
     // A dedicated thread might own the actual scheduler state, if this is present you need to drive it
     pub scheduler: Option<Scheduler>,
     /// Memory translation table
-    pub memory_access_table: Arc<MemoryAccessTable>,
+    pub address_spaces: HashMap<AddressSpaceId, Arc<AddressSpace>>,
     /// All virtual gamepads inserted by components
     pub virtual_gamepads: HashMap<ResourcePath, Arc<VirtualGamepad>, FxBuildHasher>,
     /// The store to interact with components

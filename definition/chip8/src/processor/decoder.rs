@@ -2,10 +2,7 @@ use super::instruction::{
     Chip8InstructionSet, InstructionSetChip8, InstructionSetSuperChip8, Register, ScrollDirection,
 };
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
-use multiemu_runtime::{
-    memory::{AddressSpaceId, MemoryAccessTable},
-    processor::InstructionDecoder,
-};
+use multiemu_runtime::{memory::AddressSpace, processor::InstructionDecoder};
 use nalgebra::Point2;
 
 #[derive(Debug, Default)]
@@ -17,13 +14,10 @@ impl InstructionDecoder for Chip8InstructionDecoder {
     fn decode(
         &self,
         cursor: usize,
-        address_space: AddressSpaceId,
-        memory_access_table: &MemoryAccessTable,
+        address_space: &AddressSpace,
     ) -> Option<(Chip8InstructionSet, u8)> {
         let mut instruction = [0; 2];
-        memory_access_table
-            .read(cursor, address_space, false, &mut instruction)
-            .unwrap();
+        address_space.read(cursor, false, &mut instruction).unwrap();
 
         decode_instruction(instruction).map(|i| (i, 2))
     }

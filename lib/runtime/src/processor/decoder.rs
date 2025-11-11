@@ -1,5 +1,5 @@
 use crate::{
-    memory::{Address, AddressSpaceId, MemoryAccessTable},
+    memory::{Address, AddressSpace},
     processor::instruction::InstructionSet,
 };
 use std::fmt::Debug;
@@ -13,7 +13,6 @@ pub trait InstructionDecoder: Debug + Send + Sync + 'static {
     fn decode(
         &self,
         address: Address,
-        address_space: AddressSpaceId,
-        memory_access_table: &MemoryAccessTable,
+        address_space: &AddressSpace,
     ) -> Option<(Self::InstructionSet, u8)>;
 }

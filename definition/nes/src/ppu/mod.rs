@@ -16,7 +16,7 @@ use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath, ResourcePath},
     machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, MemoryAccessTable, ReadMemoryError, WriteMemoryError},
+    memory::{Address, AddressSpace, AddressSpaceId, ReadMemoryError, WriteMemoryError},
     platform::Platform,
     scheduler::TaskType,
 };
@@ -93,9 +93,8 @@ pub struct NesPpuConfig<'a, R: Region> {
 pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
     state: State,
     backend: Option<G::Backend<R>>,
-    cpu_address_space: AddressSpaceId,
-    ppu_address_space: AddressSpaceId,
-    memory_access_table: Arc<MemoryAccessTable>,
+    cpu_address_space: Arc<AddressSpace>,
+    ppu_address_space: Arc<AddressSpace>,
     processor_rdy: Arc<RdyFlag>,
 }
 
@@ -134,11 +133,9 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                 CpuAccessibleRegister::PpuScroll => todo!(),
                 CpuAccessibleRegister::PpuAddr => todo!(),
                 CpuAccessibleRegister::PpuData => {
-                    *buffer = self.memory_access_table.read_le_value(
-                        self.state.ppu_addr as usize,
-                        self.ppu_address_space,
-                        avoid_side_effects,
-                    )?;
+                    *buffer = self
+                        .ppu_address_space
+                        .read_le_value(self.state.ppu_addr as usize, avoid_side_effects)?;
                 }
                 _ => {
                     unreachable!("{:?}", register);
@@ -233,11 +230,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     );
 
                     // Redirect into the ppu address space
-                    self.memory_access_table.write_le_value(
-                        self.state.ppu_addr as usize,
-                        self.ppu_address_space,
-                        *buffer,
-                    )?;
+                    self.ppu_address_space
+                        .write_le_value(self.state.ppu_addr as usize, *buffer)?;
 
                     self.state.ppu_addr = self
                         .state
@@ -250,12 +244,9 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     self.processor_rdy.store(false, Some(514));
 
                     // Read off OAM data immediately, this is done for performance and should not have any side effects
-                    let _ = self.memory_access_table.read(
-                        page as usize,
-                        self.cpu_address_space,
-                        false,
-                        &mut self.state.oam.data,
-                    );
+                    let _ =
+                        self.cpu_address_space
+                            .read(page as usize, false, &mut self.state.oam.data);
                 }
                 _ => {
                     unreachable!("{:?}", register);
@@ -280,7 +271,8 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        let access_table = component_builder.memory_access_table();
+        let ppu_address_space = component_builder.address_space(self.ppu_address_space);
+        let cpu_address_space = component_builder.address_space(self.cpu_address_space);
 
         let (component_builder, _) = component_builder.insert_display("tv");
 
@@ -302,7 +294,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                 TaskType::Direct,
                 Driver {
                     processor_nmi,
-                    ppu_address_space: self.ppu_address_space,
+                    ppu_address_space: ppu_address_space.clone(),
                 },
             )
             .0
@@ -312,42 +304,42 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                 ));
             })
             .memory_map_write(
-                CpuAccessibleRegister::PpuCtrl as usize..=CpuAccessibleRegister::PpuCtrl as usize,
                 self.cpu_address_space,
+                CpuAccessibleRegister::PpuCtrl as usize..=CpuAccessibleRegister::PpuCtrl as usize,
             )
             .memory_map_write(
+                self.cpu_address_space,
                 CpuAccessibleRegister::PpuScroll as usize
                     ..=CpuAccessibleRegister::PpuScroll as usize,
-                self.cpu_address_space,
             )
             .memory_map_write(
-                CpuAccessibleRegister::PpuMask as usize..=CpuAccessibleRegister::PpuMask as usize,
                 self.cpu_address_space,
+                CpuAccessibleRegister::PpuMask as usize..=CpuAccessibleRegister::PpuMask as usize,
             )
             .memory_map_read(
+                self.cpu_address_space,
                 CpuAccessibleRegister::PpuStatus as usize
                     ..=CpuAccessibleRegister::PpuStatus as usize,
-                self.cpu_address_space,
             )
             .memory_map(
+                self.cpu_address_space,
                 CpuAccessibleRegister::PpuAddr as usize..=CpuAccessibleRegister::PpuAddr as usize,
-                self.cpu_address_space,
             )
             .memory_map(
+                self.cpu_address_space,
                 CpuAccessibleRegister::PpuData as usize..=CpuAccessibleRegister::PpuData as usize,
-                self.cpu_address_space,
             )
             .memory_map(
+                self.cpu_address_space,
                 CpuAccessibleRegister::OamAddr as usize..=CpuAccessibleRegister::OamAddr as usize,
-                self.cpu_address_space,
             )
             .memory_map(
-                CpuAccessibleRegister::OamData as usize..=CpuAccessibleRegister::OamData as usize,
                 self.cpu_address_space,
+                CpuAccessibleRegister::OamData as usize..=CpuAccessibleRegister::OamData as usize,
             )
             .memory_map_write(
-                CpuAccessibleRegister::OamDma as usize..=CpuAccessibleRegister::OamDma as usize,
                 self.cpu_address_space,
+                CpuAccessibleRegister::OamDma as usize..=CpuAccessibleRegister::OamDma as usize,
             );
 
         Ok(Ppu {
@@ -393,9 +385,8 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                 },
             },
             backend: None,
-            ppu_address_space: self.ppu_address_space,
-            cpu_address_space: self.cpu_address_space,
-            memory_access_table: access_table,
+            ppu_address_space,
+            cpu_address_space,
             processor_rdy,
         })
     }

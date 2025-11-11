@@ -42,9 +42,9 @@ impl<P: Platform> ComponentConfig<P> for NRomConfig<'_> {
                 );
 
                 component_builder.memory_mirror_map_read(
+                    self.cpu_address_space,
                     0xc000..=0xffff,
                     0x8000..=0xbfff,
-                    self.cpu_address_space,
                 )
             }
             // NROM-256

@@ -27,7 +27,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let (component_builder, _) = component_builder.insert_display("tv");
-        let component_builder = component_builder.memory_map(0x000..=0x03f, self.cpu_address_space);
+        let component_builder = component_builder.memory_map(self.cpu_address_space, 0x000..=0x03f);
 
         let cpu_rdy = component_builder
             .registry()

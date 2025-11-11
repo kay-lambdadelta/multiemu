@@ -6,7 +6,7 @@ use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath},
     machine::builder::ComponentBuilder,
     memory::{
-        Address, AddressSpaceId, MemoryAccessTable, MemoryRemappingCommand, Permissions,
+        Address, AddressSpace, AddressSpaceId, MemoryRemappingCommand, Permissions,
         ReadMemoryError, WriteMemoryError,
     },
     platform::Platform,
@@ -19,7 +19,7 @@ pub struct Mapctl {
     config: MapctlConfig,
     status: MapctlStatus,
     my_path: ComponentPath,
-    mat: Arc<MemoryAccessTable>,
+    cpu_address_space: Arc<AddressSpace>,
 }
 
 impl Component for Mapctl {
@@ -87,8 +87,7 @@ impl Component for Mapctl {
             permissions: Permissions::all(),
         });
 
-        self.mat
-            .remap(self.config.cpu_address_space, remapping_commands);
+        self.cpu_address_space.remap(remapping_commands);
 
         Ok(())
     }
@@ -114,15 +113,15 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         let my_path = component_builder.path().clone();
 
         let component_builder =
-            component_builder.memory_map(0xfff9..=0xfff9, self.cpu_address_space);
+            component_builder.memory_map(self.cpu_address_space, 0xfff9..=0xfff9);
 
-        let mat = component_builder.memory_access_table();
+        let cpu_address_space = component_builder.address_space(self.cpu_address_space);
 
         Ok(Mapctl {
             config: self,
             status: Default::default(),
             my_path,
-            mat,
+            cpu_address_space,
         })
     }
 }

@@ -78,7 +78,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
             }
         });
 
-        component_builder.memory_map_read(0x1000..=0x1fff, self.cpu_address_space);
+        component_builder.memory_map_read(self.cpu_address_space, 0x1000..=0x1fff);
 
         Ok(Atari2600Cartridge {
             cart_type,

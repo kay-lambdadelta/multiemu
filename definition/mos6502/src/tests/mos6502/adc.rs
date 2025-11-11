@@ -4,7 +4,8 @@ use bitvec::{order::Lsb0, view::BitView};
 #[test]
 pub fn adc_immediate() {
     for value in 0x00..=0xff {
-        let (mut machine, cpu, cpu_address_space) = instruction_test_boilerplate();
+        let (mut machine, cpu, address_space) = instruction_test_boilerplate();
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
         // Enable carry
         machine
@@ -19,10 +20,7 @@ pub fn adc_immediate() {
             })
             .unwrap();
 
-        machine
-            .memory_access_table
-            .write(0x0000, cpu_address_space, &[0x69, value])
-            .unwrap();
+        address_space.write(0x0000, &[0x69, value]).unwrap();
 
         // Should be done in 2 cycles
         machine.scheduler.as_mut().unwrap().run_for_cycles(2);
@@ -55,12 +53,10 @@ pub fn adc_immediate() {
 #[test]
 pub fn adc_absolute() {
     for value in 0x00..=0xff {
-        let (mut machine, cpu, cpu_address_space) = instruction_test_boilerplate();
+        let (mut machine, cpu, address_space) = instruction_test_boilerplate();
+        let address_space = machine.address_spaces.get(&address_space).unwrap();
 
-        machine
-            .memory_access_table
-            .write_le_value::<u8>(0x3, cpu_address_space, value)
-            .unwrap();
+        address_space.write_le_value::<u8>(0x3, value).unwrap();
 
         // Enable carry
         machine
@@ -76,15 +72,8 @@ pub fn adc_absolute() {
             .unwrap();
 
         // ADC 0x0003
-        machine
-            .memory_access_table
-            .write_le_value::<u8>(0x0000, cpu_address_space, 0x6d)
-            .unwrap();
-
-        machine
-            .memory_access_table
-            .write_le_value::<u16>(0x0001, cpu_address_space, 0x3)
-            .unwrap();
+        address_space.write_le_value::<u8>(0x0000, 0x6d).unwrap();
+        address_space.write_le_value::<u16>(0x0001, 0x3).unwrap();
 
         machine.scheduler.as_mut().unwrap().run_for_cycles(4);
 

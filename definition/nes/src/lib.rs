@@ -61,15 +61,15 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             },
         );
         let mut machine = machine
-            .memory_map_mirror(0x0800..=0x0fff, 0x0000..=0x07ff, cpu_address_space)
-            .memory_map_mirror(0x1000..=0x17ff, 0x0000..=0x07ff, cpu_address_space)
-            .memory_map_mirror(0x1800..=0x1fff, 0x0000..=0x07ff, cpu_address_space);
+            .memory_map_mirror(cpu_address_space, 0x0800..=0x0fff, 0x0000..=0x07ff)
+            .memory_map_mirror(cpu_address_space, 0x1000..=0x17ff, 0x0000..=0x07ff)
+            .memory_map_mirror(cpu_address_space, 0x1800..=0x1fff, 0x0000..=0x07ff);
 
         for address in (0x2000..=0x3fff).step_by(8).skip(1) {
             machine = machine.memory_map_mirror(
+                cpu_address_space,
                 address..=address + 7,
                 0x2000..=0x2007,
-                cpu_address_space,
             );
         }
 
@@ -281,14 +281,14 @@ fn setup_ppu_nametables<P: Platform>(
 
             machine
                 .memory_map_mirror(
+                    ppu_address_space,
                     NAMETABLE_ADDRESSES[2].clone(),
                     NAMETABLE_ADDRESSES[0].clone(),
-                    ppu_address_space,
                 )
                 .memory_map_mirror(
+                    ppu_address_space,
                     NAMETABLE_ADDRESSES[3].clone(),
                     NAMETABLE_ADDRESSES[1].clone(),
-                    ppu_address_space,
                 )
         }
         Mirroring::Horizontal => {
@@ -324,14 +324,14 @@ fn setup_ppu_nametables<P: Platform>(
 
             machine
                 .memory_map_mirror(
+                    ppu_address_space,
                     NAMETABLE_ADDRESSES[1].clone(),
                     NAMETABLE_ADDRESSES[0].clone(),
-                    ppu_address_space,
                 )
                 .memory_map_mirror(
+                    ppu_address_space,
                     NAMETABLE_ADDRESSES[3].clone(),
                     NAMETABLE_ADDRESSES[2].clone(),
-                    ppu_address_space,
                 )
         }
     }

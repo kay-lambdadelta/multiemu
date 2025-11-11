@@ -8,10 +8,7 @@ use crate::ppu::{
 };
 use multiemu_definition_mos6502::NmiFlag;
 use multiemu_range::ContiguousRange;
-use multiemu_runtime::{
-    memory::{AddressSpaceId, MemoryAccessTable},
-    scheduler::Task,
-};
+use multiemu_runtime::{memory::AddressSpace, scheduler::Task};
 use nalgebra::{Point2, Vector2};
 use palette::{Srgb, named::BLACK};
 use std::{
@@ -24,7 +21,7 @@ const PIPELINE_PREFETCH: u16 = 16;
 
 pub struct Driver {
     pub processor_nmi: Arc<NmiFlag>,
-    pub ppu_address_space: AddressSpaceId,
+    pub ppu_address_space: Arc<AddressSpace>,
 }
 
 impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
@@ -71,10 +68,9 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                 if let 1..=256 = component.state.cycle_counter.x {
                     let scanline_position_x = component.state.cycle_counter.x - 1;
 
-                    component.state.drive_background_pipeline::<R>(
-                        &component.memory_access_table,
-                        self.ppu_address_space,
-                    );
+                    component
+                        .state
+                        .drive_background_pipeline::<R>(&self.ppu_address_space);
 
                     let mut sprite_pixel = None;
 
@@ -111,8 +107,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
 
                     if let Some((sprite, color_index)) = potential_sprite {
                         sprite_pixel = Some(component.state.calculate_sprite_color::<R>(
-                            &component.memory_access_table,
-                            self.ppu_address_space,
+                            &self.ppu_address_space,
                             &sprite.oam,
                             color_index,
                         ));
@@ -132,8 +127,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                     component.state.background.pattern_high_shift <<= 1;
 
                     let background_pixel = component.state.calculate_background_color::<R>(
-                        &component.memory_access_table,
-                        self.ppu_address_space,
+                        &self.ppu_address_space,
                         attribute as u8,
                         color_index as u8,
                     );
@@ -203,10 +197,9 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                 }
 
                 if let 257..=320 = component.state.cycle_counter.x {
-                    component.state.drive_sprite_pipeline::<R>(
-                        &component.memory_access_table,
-                        self.ppu_address_space,
-                    );
+                    component
+                        .state
+                        .drive_sprite_pipeline::<R>(&self.ppu_address_space);
                 }
             }
 
@@ -220,11 +213,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
 }
 
 impl State {
-    fn drive_sprite_pipeline<R: Region>(
-        &mut self,
-        access_table: &MemoryAccessTable,
-        ppu_address_space: AddressSpaceId,
-    ) {
+    fn drive_sprite_pipeline<R: Region>(&mut self, ppu_address_space: &AddressSpace) {
         if !self.awaiting_memory_access {
             let currently_relevant_sprite_index = (self.cycle_counter.x - 257) / 8;
             let currently_relevant_sprite = self
@@ -252,8 +241,8 @@ impl State {
                             + u16::from(currently_relevant_sprite.tile_index) * 16
                             + row;
 
-                        let pattern_table_low = access_table
-                            .read_le_value(address as usize, ppu_address_space, false)
+                        let pattern_table_low = ppu_address_space
+                            .read_le_value(address as usize, false)
                             .unwrap();
 
                         self.sprite_pipeline_state =
@@ -280,8 +269,8 @@ impl State {
                             + row
                             + 8;
 
-                        let pattern_table_high = access_table
-                            .read_le_value(address as usize, ppu_address_space, false)
+                        let pattern_table_high = ppu_address_space
+                            .read_le_value(address as usize, false)
                             .unwrap();
 
                         self.oam
@@ -301,11 +290,7 @@ impl State {
         self.awaiting_memory_access = !self.awaiting_memory_access;
     }
 
-    fn drive_background_pipeline<R: Region>(
-        &mut self,
-        access_table: &MemoryAccessTable,
-        ppu_address_space: AddressSpaceId,
-    ) {
+    fn drive_background_pipeline<R: Region>(&mut self, ppu_address_space: &AddressSpace) {
         // Steps wait a cycle inbetween for memory access realism
         if !self.awaiting_memory_access {
             // Swap out the pipeline state with a placeholder for a moment
@@ -319,8 +304,8 @@ impl State {
 
                     let address = base_address + tile_position.y * 32 + tile_position.x;
 
-                    let nametable = access_table
-                        .read_le_value(address as usize, ppu_address_space, false)
+                    let nametable = ppu_address_space
+                        .read_le_value(address as usize, false)
                         .unwrap();
 
                     self.background_pipeline_state =
@@ -333,8 +318,8 @@ impl State {
                     let attribute_base = self.nametable_base + 0x3c0;
                     let address = attribute_base + attribute_position.y * 8 + attribute_position.x;
 
-                    let attribute: u8 = access_table
-                        .read_le_value(address as usize, ppu_address_space, false)
+                    let attribute: u8 = ppu_address_space
+                        .read_le_value(address as usize, false)
                         .unwrap();
 
                     let attribute_quadrant =
@@ -357,8 +342,8 @@ impl State {
                     let address =
                         self.background.pattern_table_base + u16::from(nametable) * 16 + row;
 
-                    let pattern_table_low = access_table
-                        .read_le_value(address as usize, ppu_address_space, false)
+                    let pattern_table_low = ppu_address_space
+                        .read_le_value(address as usize, false)
                         .unwrap();
 
                     self.background_pipeline_state =
@@ -377,8 +362,8 @@ impl State {
                     let address =
                         self.background.pattern_table_base + u16::from(nametable) * 16 + row + 8;
 
-                    let pattern_table_high: u8 = access_table
-                        .read_le_value(address as usize, ppu_address_space, false)
+                    let pattern_table_high: u8 = ppu_address_space
+                        .read_le_value(address as usize, false)
                         .unwrap();
 
                     self.background.pattern_low_shift =
@@ -421,8 +406,7 @@ impl State {
     #[inline]
     fn calculate_background_color<R: Region>(
         &self,
-        memory_access_table: &MemoryAccessTable,
-        ppu_address_space: AddressSpaceId,
+        ppu_address_space: &AddressSpace,
         attribute: u8,
         color: u8,
     ) -> Srgb<u8> {
@@ -431,12 +415,8 @@ impl State {
         // Combine into a 4-bit palette index
         let palette_index = color_bits | (attribute << 2);
 
-        let color_value: u8 = memory_access_table
-            .read_le_value(
-                PALETTE_BASE_ADDRESS + palette_index as usize,
-                ppu_address_space,
-                false,
-            )
+        let color_value: u8 = ppu_address_space
+            .read_le_value(PALETTE_BASE_ADDRESS + palette_index as usize, false)
             .unwrap();
 
         let color = PpuColor {
@@ -450,20 +430,18 @@ impl State {
     #[inline]
     fn calculate_sprite_color<R: Region>(
         &self,
-        memory_access_table: &MemoryAccessTable,
-        ppu_address_space: AddressSpaceId,
+        ppu_address_space: &AddressSpace,
         sprite: &OamSprite,
         color: u8,
     ) -> Srgb<u8> {
         let color_bits = color & 0b11;
 
-        let color_value: u8 = memory_access_table
+        let color_value: u8 = ppu_address_space
             .read_le_value(
                 PALETTE_BASE_ADDRESS
                     + 0x10
                     + (usize::from(sprite.palette_index) * 4)
                     + usize::from(color_bits),
-                ppu_address_space,
                 false,
             )
             .unwrap();

@@ -1,73 +1,277 @@
-use crate::machine::registry::ComponentRegistry;
-use address_space::AddressSpace;
-use std::{fmt::Debug, sync::Arc};
+use crate::{
+    component::{ComponentPath, ErasedComponentHandle},
+    machine::registry::ComponentRegistry,
+};
+use std::hash::{Hash, Hasher};
+use std::{
+    fmt::Debug,
+    ops::RangeInclusive,
+    sync::{
+        Arc, Mutex, RwLock, RwLockReadGuard,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
-mod address_space;
+mod commit;
 mod read;
+mod visit_overlapping;
 mod write;
 
-pub use address_space::{AddressSpaceId, MemoryRemappingCommand, Permissions};
+use bitvec::{field::BitField, order::Lsb0};
+use multiemu_range::RangeIntersection;
+use nohash::IsEnabled;
+use rangemap::RangeInclusiveMap;
 pub use read::*;
 pub use write::*;
 
 pub type Address = usize;
+const PAGE_SIZE: Address = 0x1000;
 
 /// The main structure representing the devices memory address spaces
-pub struct MemoryAccessTable {
-    address_spaces: Vec<AddressSpace>,
-    current_address_space: u16,
-    registry: Arc<ComponentRegistry>,
+#[derive(Debug)]
+pub struct AddressSpace {
+    width_mask: Address,
+    address_space_width: u8,
+    members: RwLock<Members>,
+    /// Queue for if the address space is locked at the moment
+    queue: Mutex<Vec<MemoryRemappingCommand>>,
+    queue_modified: AtomicBool,
+    id: AddressSpaceId,
 }
 
-impl MemoryAccessTable {
-    pub(crate) fn new(registry: Arc<ComponentRegistry>) -> Self {
+impl AddressSpace {
+    pub(crate) fn new(
+        registry: Arc<ComponentRegistry>,
+        address_space_id: AddressSpaceId,
+        address_space_width: u8,
+    ) -> Self {
+        let mut mask = bitvec::bitvec![usize, Lsb0; 0; usize::BITS as usize];
+        mask[..address_space_width as usize].fill(true);
+        let width_mask = mask.load_le();
+
         Self {
-            address_spaces: Vec::default(),
-            current_address_space: 0,
-            registry,
-        }
-    }
-}
-
-impl Debug for MemoryAccessTable {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MemoryAccessTable")
-            .field("address_spaces", &self.address_spaces)
-            .finish()
-    }
-}
-
-impl MemoryAccessTable {
-    pub(crate) fn insert_address_space(&mut self, address_space_width: u8) -> AddressSpaceId {
-        let id = AddressSpaceId::new(self.current_address_space);
-
-        self.current_address_space = self
-            .current_address_space
-            .checked_add(1)
-            .expect("Too many address spaces");
-
-        self.address_spaces.push(AddressSpace::new(
+            id: address_space_id,
+            width_mask,
             address_space_width,
-            self.registry.clone(),
-        ));
-
-        id
-    }
-
-    /// Iter over present spaces
-    pub fn address_spaces(&self) -> impl Iterator<Item = AddressSpaceId> {
-        (0..self.address_spaces.len()).map(|space| AddressSpaceId(space as u16))
+            members: RwLock::new(Members {
+                read: MemoryMappingTable::new(address_space_width, registry.clone()),
+                write: MemoryMappingTable::new(address_space_width, registry.clone()),
+            }),
+            queue: Default::default(),
+            queue_modified: AtomicBool::new(false),
+        }
     }
 
     /// Adds a command to the remap queue
     ///
     /// Note that the queue is not applied till the next memory operation
-    pub fn remap(
-        &self,
-        address_space: AddressSpaceId,
-        commands: impl IntoIterator<Item = MemoryRemappingCommand>,
-    ) {
-        let address_space = &self.address_spaces[address_space.0 as usize];
-        address_space.remap(commands);
+    pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommand>) {
+        let mut queue_guard = self.queue.lock().unwrap();
+
+        queue_guard.extend(commands);
+        self.queue_modified.store(true, Ordering::Release);
     }
+
+    #[inline]
+    fn get_members(&self) -> RwLockReadGuard<'_, Members> {
+        if self.queue_modified.load(Ordering::Acquire) {
+            self.update_members();
+            self.members.read().unwrap()
+        } else {
+            self.members.read().unwrap()
+        }
+    }
+
+    #[cold]
+    fn update_members(&self) {
+        let mut queue_guard = self.queue.lock().unwrap();
+        self.queue_modified.store(false, Ordering::Release);
+
+        let max = 2usize.pow(u32::from(self.address_space_width)) - 1;
+
+        let valid_range = 0..=max;
+        let mut members = self.members.write().unwrap();
+
+        for command in queue_guard.drain(..) {
+            match command {
+                MemoryRemappingCommand::Component {
+                    range,
+                    component,
+                    permissions,
+                } => {
+                    assert!(
+                        !valid_range.disjoint(&range),
+                        "Range {range:#04x?} is invalid for a address space that ends at {max:04x?} (inserted by {component})"
+                    );
+
+                    if permissions.read {
+                        members
+                            .read
+                            .insert_component(range.clone(), component.clone());
+                    }
+
+                    if permissions.write {
+                        members.write.insert_component(range, component);
+                    }
+                }
+                MemoryRemappingCommand::Unmap { range, permissions } => {
+                    if permissions.read {
+                        members.read.remove(range.clone());
+                    }
+
+                    if permissions.write {
+                        members.write.remove(range.clone());
+                    }
+                }
+                MemoryRemappingCommand::Mirror {
+                    source: range,
+                    destination: destination_range,
+                    permissions,
+                } => {
+                    assert!(
+                        !valid_range.disjoint(&range),
+                        "Range {range:#04x?} is invalid for a address space that ends at {max:04x?}"
+                    );
+
+                    if permissions.read {
+                        members
+                            .read
+                            .insert_mirror(range.clone(), destination_range.clone());
+                    }
+
+                    if permissions.write {
+                        members.write.insert_mirror(range, destination_range);
+                    }
+                }
+            }
+        }
+
+        members.read.commit();
+        members.write.commit();
+    }
+
+    pub fn id(&self) -> AddressSpaceId {
+        self.id
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug)]
+pub struct Permissions {
+    pub read: bool,
+    pub write: bool,
+}
+
+impl Permissions {
+    /// Instance of [Self] where everything is allowed
+    pub fn all() -> Self {
+        Self {
+            read: true,
+            write: true,
+        }
+    }
+}
+
+/// Command for how the memory access table should modify the memory map
+#[allow(missing_docs)]
+#[derive(Debug)]
+pub enum MemoryRemappingCommand {
+    /// Add a component to the memory map, or add a map to an existing one
+    Component {
+        range: RangeInclusive<Address>,
+        component: ComponentPath,
+        permissions: Permissions,
+    },
+    /// Add a mirror to the memory map
+    Mirror {
+        source: RangeInclusive<Address>,
+        destination: RangeInclusive<Address>,
+        permissions: Permissions,
+    },
+    /// Clear a memory range
+    Unmap {
+        range: RangeInclusive<Address>,
+        permissions: Permissions,
+    },
+}
+
+#[derive(Debug, Clone)]
+struct TableEntry {
+    /// Full, uncropped relevant range
+    pub start: Address,
+    pub end: Address,
+    /// Mirror offset
+    pub mirror_start: Option<Address>,
+    /// Handle to component
+    pub component: ErasedComponentHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MappingEntry {
+    Component(ComponentPath),
+    Mirror {
+        source_base: Address,
+        destination_base: Address,
+    },
+}
+
+#[derive(Debug)]
+pub struct MemoryMappingTable {
+    master: RangeInclusiveMap<Address, MappingEntry>,
+    table: Vec<Vec<TableEntry>>,
+    registry: Arc<ComponentRegistry>,
+}
+
+impl MemoryMappingTable {
+    pub fn new(address_space_width: u8, registry: Arc<ComponentRegistry>) -> Self {
+        let addr_space_size = 2usize.pow(u32::from(address_space_width));
+        let total_pages = addr_space_size.div_ceil(PAGE_SIZE);
+
+        Self {
+            master: RangeInclusiveMap::new(),
+            table: vec![Default::default(); total_pages],
+            registry,
+        }
+    }
+
+    pub fn insert_component(&mut self, source_range: RangeInclusive<Address>, path: ComponentPath) {
+        self.master
+            .insert(source_range, MappingEntry::Component(path));
+    }
+
+    pub fn insert_mirror(
+        &mut self,
+        source_range: RangeInclusive<Address>,
+        destination_range: RangeInclusive<Address>,
+    ) {
+        self.master.insert(
+            source_range.clone(),
+            MappingEntry::Mirror {
+                source_base: *source_range.start(),
+                destination_base: *destination_range.start(),
+            },
+        );
+    }
+
+    pub fn remove(&mut self, range: RangeInclusive<Address>) {
+        self.master.remove(range);
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+/// Identifier for a address space
+pub struct AddressSpaceId(pub(crate) u16);
+
+impl Hash for AddressSpaceId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u16(self.0);
+    }
+}
+
+impl IsEnabled for AddressSpaceId {}
+
+#[derive(Debug)]
+pub struct Members {
+    pub read: MemoryMappingTable,
+    pub write: MemoryMappingTable,
 }

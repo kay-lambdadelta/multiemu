@@ -57,15 +57,15 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
 
         for source_addresses in tia_register_mirror_ranges() {
             machine =
-                machine.memory_map_mirror(source_addresses, 0x0000..=0x003f, cpu_address_space);
+                machine.memory_map_mirror(cpu_address_space, source_addresses, 0x0000..=0x003f);
         }
 
         for source_addresses in riot_register_mirror_ranges() {
-            machine = machine.memory_map_mirror(source_addresses, 0x280..=0x29f, cpu_address_space);
+            machine = machine.memory_map_mirror(cpu_address_space, source_addresses, 0x280..=0x29f);
         }
 
         for source_addresses in riot_ram_mirror_ranges() {
-            machine = machine.memory_map_mirror(source_addresses, 0x80..=0xff, cpu_address_space);
+            machine = machine.memory_map_mirror(cpu_address_space, source_addresses, 0x80..=0xff);
         }
 
         let (machine, mos6532_riot) = match region {
