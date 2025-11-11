@@ -79,6 +79,7 @@ impl<R: Region> PpuDisplayBackend<R> for VulkanState {
         }
     }
 
+    #[inline]
     fn modify_staging_buffer(&mut self, callback: impl FnOnce(DMatrixViewMut<'_, Srgba<u8>>)) {
         let staging_buffer_guard = self
             .staging_buffer_guard

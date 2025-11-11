@@ -78,5 +78,5 @@ pub struct OamState {
     pub sprite_evaluation_state: SpriteEvaluationState,
     pub show_sprites_leftmost_pixels: bool,
     pub sprite_8x8_pattern_table_address: u16,
-    pub sprite_rendering_enabled: bool,
+    pub rendering_enabled: bool,
 }

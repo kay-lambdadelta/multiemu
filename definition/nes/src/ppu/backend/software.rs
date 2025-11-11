@@ -37,6 +37,7 @@ impl<R: Region> PpuDisplayBackend<R> for SoftwareState {
         }
     }
 
+    #[inline]
     fn modify_staging_buffer(
         &mut self,
         callback: impl FnOnce(nalgebra::DMatrixViewMut<'_, Srgba<u8>>),

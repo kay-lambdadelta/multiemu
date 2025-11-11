@@ -13,7 +13,7 @@ use multiemu_runtime::{
     scheduler::Task,
 };
 use nalgebra::{Point2, Vector2};
-use palette::Srgb;
+use palette::{Srgb, named::BLACK};
 use std::{
     num::NonZero,
     ops::RangeInclusive,
@@ -137,7 +137,18 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Task<Ppu<R, G>> for Driver {
                         attribute as u8,
                         color_index as u8,
                     );
-                    let pixel = sprite_pixel.unwrap_or(background_pixel);
+
+                    let pixel = if component.state.oam.rendering_enabled {
+                        sprite_pixel
+                    } else {
+                        None
+                    }
+                    .or(if component.state.background.rendering_enabled {
+                        Some(background_pixel)
+                    } else {
+                        None
+                    })
+                    .unwrap_or(BLACK);
 
                     backend.modify_staging_buffer(|mut staging_buffer_guard| {
                         staging_buffer_guard[(

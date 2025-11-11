@@ -186,7 +186,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     self.state.oam.show_sprites_leftmost_pixels = data_bits[2];
 
                     self.state.background.rendering_enabled = data_bits[3];
-                    self.state.oam.sprite_rendering_enabled = data_bits[4];
+                    self.state.oam.rendering_enabled = data_bits[4];
 
                     self.state.color_emphasis.red = data_bits[5];
                     self.state.color_emphasis.green = data_bits[6];
@@ -376,7 +376,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                     fine_scroll: Vector2::default(),
                     coarse_scroll: Vector2::default(),
                     pattern_table_base: 0x0000,
-                    rendering_enabled: true,
+                    rendering_enabled: false,
                     pattern_low_shift: 0,
                     pattern_high_shift: 0,
                     attribute_shift: 0,
@@ -389,7 +389,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                     currently_rendering_sprites: ArrayVec::new(),
                     show_sprites_leftmost_pixels: true,
                     sprite_8x8_pattern_table_address: 0x0000,
-                    sprite_rendering_enabled: true,
+                    rendering_enabled: false,
                 },
             },
             backend: None,
