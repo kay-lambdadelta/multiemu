@@ -8,7 +8,6 @@ use multiemu_runtime::{
         WriteMemoryErrorType,
     },
     platform::Platform,
-    scheduler::TaskType,
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
@@ -326,7 +325,6 @@ fn set_up_timer_tasks<'a, P: Platform>(
         .insert_task(
             "tim1t",
             config.frequency,
-            TaskType::Lazy,
             move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
                 component.registers.tim1t = component
                     .registers
@@ -338,7 +336,6 @@ fn set_up_timer_tasks<'a, P: Platform>(
         .insert_task(
             "tim8t",
             config.frequency / 8,
-            TaskType::Lazy,
             move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
                 component.registers.tim8t = component
                     .registers
@@ -350,7 +347,6 @@ fn set_up_timer_tasks<'a, P: Platform>(
         .insert_task(
             "tim64t",
             config.frequency / 64,
-            TaskType::Lazy,
             move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
                 component.registers.tim64t = component
                     .registers
@@ -362,7 +358,6 @@ fn set_up_timer_tasks<'a, P: Platform>(
         .insert_task(
             "t1024t",
             config.frequency / 1024,
-            TaskType::Lazy,
             move |component: &mut Mos6532Riot, slice: NonZero<u32>| {
                 component.registers.t1024t = component
                     .registers

@@ -7,7 +7,6 @@ use multiemu_runtime::{
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
-    scheduler::TaskType,
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
@@ -332,6 +331,10 @@ impl Mos6502 {
     pub fn nmi(&self) -> Arc<NmiFlag> {
         self.nmi.clone()
     }
+
+    pub fn address_space(&self) -> AddressSpaceId {
+        self.config.assigned_address_space
+    }
 }
 
 impl Component for Mos6502 {
@@ -384,7 +387,6 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
         component_builder.insert_task(
             "driver",
             self.frequency,
-            TaskType::Direct,
             Driver {
                 address_space,
                 instruction_decoder: Mos6502InstructionDecoder::new(self.kind),

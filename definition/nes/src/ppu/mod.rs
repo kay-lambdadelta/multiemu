@@ -18,7 +18,6 @@ use multiemu_runtime::{
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpace, AddressSpaceId, ReadMemoryError, WriteMemoryError},
     platform::Platform,
-    scheduler::TaskType,
 };
 use nalgebra::{Point2, Vector2};
 use serde::{Deserialize, Serialize};
@@ -291,7 +290,6 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
             .insert_task(
                 "driver",
                 R::master_clock() / 4,
-                TaskType::Direct,
                 Driver {
                     processor_nmi,
                     ppu_address_space: ppu_address_space.clone(),

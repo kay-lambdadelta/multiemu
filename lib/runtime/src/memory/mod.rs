@@ -2,14 +2,17 @@ use crate::{
     component::{ComponentPath, ErasedComponentHandle},
     machine::registry::ComponentRegistry,
 };
-use std::hash::{Hash, Hasher};
 use std::{
     fmt::Debug,
     ops::RangeInclusive,
     sync::{
-        Arc, Mutex, RwLock, RwLockReadGuard,
+        Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
     },
+};
+use std::{
+    hash::{Hash, Hasher},
+    sync::RwLockWriteGuard,
 };
 
 mod commit;
@@ -73,17 +76,21 @@ impl AddressSpace {
     }
 
     #[inline]
-    fn get_members(&self) -> RwLockReadGuard<'_, Members> {
-        if self.queue_modified.load(Ordering::Acquire) {
-            self.update_members();
-            self.members.read().unwrap()
+    fn interact_members<E>(
+        &self,
+        callback: impl FnOnce(&Members) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if !self.queue_modified.load(Ordering::Acquire) {
+            callback(&self.members.read().unwrap())
         } else {
-            self.members.read().unwrap()
+            let members = self.update_members();
+
+            callback(&members)
         }
     }
 
     #[cold]
-    fn update_members(&self) {
+    fn update_members(&self) -> RwLockWriteGuard<'_, Members> {
         let mut queue_guard = self.queue.lock().unwrap();
         self.queue_modified.store(false, Ordering::Release);
 
@@ -148,6 +155,8 @@ impl AddressSpace {
 
         members.read.commit();
         members.write.commit();
+
+        members
     }
 
     pub fn id(&self) -> AddressSpaceId {

@@ -3,7 +3,7 @@ use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
     machine::builder::ComponentBuilder,
     platform::Platform,
-    scheduler::{Task, TaskType},
+    scheduler::Task,
 };
 use nalgebra::SVector;
 use num::rational::Ratio;
@@ -82,7 +82,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         component_builder
             .insert_audio_output("audio-output")
             .0
-            .insert_task("driver", register_change_frequency, TaskType::Lazy, driver);
+            .insert_task("driver", register_change_frequency, driver);
 
         Ok(Chip8Audio {
             sound_timer: 0,

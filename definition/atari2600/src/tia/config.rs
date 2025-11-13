@@ -6,7 +6,6 @@ use multiemu_runtime::{
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
-    scheduler::TaskType,
 };
 use std::marker::PhantomData;
 
@@ -35,7 +34,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
             .unwrap();
 
         let (component_builder, _) =
-            component_builder.insert_task("driver", R::frequency(), TaskType::Lazy, TiaTask);
+            component_builder.insert_task("driver", R::frequency(), TiaTask);
 
         component_builder.set_lazy_component_initializer(move |component, lazy| {
             component.backend = Some(TiaDisplayBackend::new(

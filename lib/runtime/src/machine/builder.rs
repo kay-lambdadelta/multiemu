@@ -10,7 +10,7 @@ use crate::{
     persistence::{SaveManager, SnapshotManager},
     platform::Platform,
     program::{MachineId, ProgramManager, ProgramSpecification},
-    scheduler::{Scheduler, Task, TaskData, TaskId, TaskType},
+    scheduler::{Scheduler, Task, TaskData, TaskId},
 };
 use indexmap::IndexMap;
 use num::rational::Ratio;
@@ -567,7 +567,6 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self,
         name: impl Into<Cow<'static, str>>,
         frequency: Ratio<u32>,
-        ty: TaskType,
         task: impl Task<C>,
     ) -> (Self, ResourcePath) {
         let resource_path = ResourcePath {
@@ -577,7 +576,6 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
         let (task_id, task_data) = self.machine_builder.scheduler.insert_task(
             resource_path.clone(),
-            ty,
             frequency.reduced().recip(),
             task,
         );

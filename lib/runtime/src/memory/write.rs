@@ -1,6 +1,8 @@
+use std::ops::RangeInclusive;
+
 use super::AddressSpace;
 use crate::memory::Address;
-use multiemu_range::RangeIntersection;
+use multiemu_range::{ContiguousRange, RangeIntersection};
 use num::traits::ToBytes;
 use rangemap::RangeInclusiveMap;
 use thiserror::Error;
@@ -25,10 +27,6 @@ impl AddressSpace {
     /// Contents of the buffer upon failure are usually component specific
     #[inline]
     pub fn write(&self, mut address: Address, buffer: &[u8]) -> Result<(), WriteMemoryError> {
-        if buffer.is_empty() {
-            return Ok(());
-        }
-
         let mut remaining_buffer = buffer;
 
         while !remaining_buffer.is_empty() {
@@ -42,25 +40,37 @@ impl AddressSpace {
                 remaining_buffer.len()
             };
 
-            let access_range = address_masked..=(address_masked + chunk_len - 1);
-            let members = self.get_members();
+            let access_range = RangeInclusive::from_start_and_length(address_masked, chunk_len);
 
-            members.write.visit_overlapping(
-                access_range.clone(),
+            self.interact_members(
                 #[inline]
-                |entry_assigned_range, mirror_start, component| {
-                    let component_access_range = entry_assigned_range.intersection(&access_range);
-                    let offset = component_access_range.start() - entry_assigned_range.start();
+                |members| {
+                    members.write.visit_overlapping(
+                        access_range.clone(),
+                        #[inline]
+                        |entry_assigned_range, mirror_start, component| {
+                            let component_access_range =
+                                entry_assigned_range.intersection(&access_range);
+                            let offset =
+                                component_access_range.start() - entry_assigned_range.start();
 
-                    let operation_base = mirror_start.unwrap_or(*entry_assigned_range.start());
+                            let operation_base =
+                                mirror_start.unwrap_or(*entry_assigned_range.start());
 
-                    let buffer_range = (component_access_range.start() - access_range.start())
-                        ..=(component_access_range.end() - access_range.start());
-                    let adjusted_buffer = &remaining_buffer[buffer_range];
+                            let buffer_range = (component_access_range.start()
+                                - access_range.start())
+                                ..=(component_access_range.end() - access_range.start());
+                            let adjusted_buffer = &remaining_buffer[buffer_range];
 
-                    component.interact_mut(|component| {
-                        component.write_memory(operation_base + offset, self.id, adjusted_buffer)
-                    })
+                            component.interact_mut(|component| {
+                                component.write_memory(
+                                    operation_base + offset,
+                                    self.id,
+                                    adjusted_buffer,
+                                )
+                            })
+                        },
+                    )
                 },
             )?;
 

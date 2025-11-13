@@ -1,9 +1,7 @@
-use multiemu_range::ContiguousRange;
-
 use super::Scheduler;
-use crate::scheduler::{SchedulerHandle, TaskType, TimelineEntry, TimelineTaskEntry};
+use crate::scheduler::{SchedulerHandle, TimelineEntry, TimelineTaskEntry};
+use multiemu_range::ContiguousRange;
 use std::{
-    num::NonZero,
     ops::RangeInclusive,
     sync::{Arc, atomic::Ordering},
     thread::sleep,
@@ -30,24 +28,7 @@ impl Scheduler {
             for (_, TimelineEntry { tasks, time_slice }) in timeline.entries.range(cycle_range) {
                 for TimelineTaskEntry { task_id, component } in tasks {
                     component.interact_mut_with_task(*task_id, |component, task| {
-                        match task.ty {
-                            // Direct tasks never have debt
-                            TaskType::Direct => {
-                                (task.callback)(component, *time_slice);
-                            }
-                            TaskType::Lazy => {
-                                // If the debt overflows go ahead and call the task and do the expensive operation
-                                //
-                                // This is unlikely to occur but it could occur
-                                let (new_debt, overflowed) =
-                                    task.debt.overflowing_add(time_slice.get());
-                                task.debt = new_debt;
-
-                                if overflowed {
-                                    (task.callback)(component, NonZero::new(u32::MAX).unwrap());
-                                }
-                            }
-                        }
+                        (task.callback)(component, *time_slice);
                     });
                 }
             }

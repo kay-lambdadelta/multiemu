@@ -6,7 +6,6 @@ use std::{
     any::{Any, TypeId},
     collections::BTreeMap,
     marker::PhantomData,
-    num::NonZero,
     sync::{Arc, RwLock},
 };
 
@@ -33,20 +32,9 @@ impl ErasedComponentHandle {
     }
 
     /// Interact immutably with a component
-    ///
-    /// Note that this may or may not do an exclusively lock on the component.
-    ///
-    /// The chance of an exclusive access occuring is greatly increased if the component has lazy task
     #[inline]
     pub fn interact<T>(&self, callback: impl FnOnce(&dyn Component) -> T) -> T {
         let guard = self.0.read().unwrap();
-
-        let any_debt = guard.tasks.iter().any(|(_, data)| data.debt > 0);
-
-        if any_debt {
-            drop(guard);
-            return self.interact_mut(|component| callback(component));
-        }
 
         callback(&guard.component)
     }
@@ -55,14 +43,6 @@ impl ErasedComponentHandle {
     #[inline]
     pub fn interact_mut<T>(&self, callback: impl FnOnce(&mut dyn Component) -> T) -> T {
         let mut guard = self.0.write().unwrap();
-        let guard = &mut *guard;
-
-        for data in guard.tasks.values_mut() {
-            if let Some(debt) = NonZero::new(data.debt) {
-                (data.callback)(&mut guard.component, debt);
-                data.debt = 0;
-            }
-        }
 
         callback(&mut guard.component)
     }

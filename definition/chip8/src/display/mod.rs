@@ -4,7 +4,6 @@ use multiemu_runtime::{
     graphics::GraphicsApi,
     machine::builder::ComponentBuilder,
     platform::Platform,
-    scheduler::TaskType,
 };
 use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Point2, Vector2};
 use num::rational::Ratio;
@@ -248,7 +247,6 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
             .insert_task(
                 "driver",
                 Ratio::from_integer(60),
-                TaskType::Lazy,
                 move |component: &mut Chip8Display<<P as Platform>::GraphicsApi>,
                       _: NonZero<u32>| {
                     component.vsync_occurred = true;

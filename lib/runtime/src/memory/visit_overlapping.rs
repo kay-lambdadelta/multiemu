@@ -16,11 +16,8 @@ impl MemoryMappingTable {
             &ErasedComponentHandle,
         ) -> Result<(), E>,
     ) -> Result<(), E> {
-        let start = *access_range.start();
-        let end = *access_range.end();
-
-        let start_page = start / PAGE_SIZE;
-        let end_page = end / PAGE_SIZE;
+        let start_page = access_range.start() / PAGE_SIZE;
+        let end_page = access_range.end() / PAGE_SIZE;
 
         for page_index in start_page..=end_page {
             let page = &self.table[page_index];

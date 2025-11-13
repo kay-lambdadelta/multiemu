@@ -34,7 +34,6 @@ mod test;
 struct TaskMetadata {
     period: Ratio<u32>,
     path: ResourcePath,
-    ty: TaskType,
 }
 
 #[derive(Debug)]
@@ -157,11 +156,7 @@ impl Scheduler {
                     let first_relative_period =
                         (first_task_metadata.period / system_gcd).to_u32().unwrap();
 
-                    if let Some((_, second_task_metadata, _)) = tasks
-                        .iter()
-                        .skip(1)
-                        .find(|(_, task_metadata, _)| task_metadata.ty == TaskType::Direct)
-                    {
+                    if let Some((_, second_task_metadata, _)) = tasks.iter().skip(1).next() {
                         // Calculate the time difference and schedule runs to fit within this difference
 
                         let second_relative_period =
@@ -251,7 +246,6 @@ impl Scheduler {
     pub(crate) fn insert_task<C: Component>(
         &mut self,
         path: ResourcePath,
-        ty: TaskType,
         period: Ratio<u32>,
         mut task: impl Task<C>,
     ) -> (TaskId, TaskData) {
@@ -261,7 +255,7 @@ impl Scheduler {
         self.next_task_id = self.next_task_id.checked_add(1).expect("Too many tasks");
 
         self.task_metadata
-            .insert(task_id, TaskMetadata { period, path, ty });
+            .insert(task_id, TaskMetadata { period, path });
 
         let data = TaskData {
             callback: Box::new(move |component, slice| {
@@ -271,8 +265,6 @@ impl Scheduler {
 
                 task.run(component, slice);
             }),
-            debt: 0,
-            ty,
         };
 
         (task_id, data)
