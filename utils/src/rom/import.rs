@@ -9,7 +9,7 @@ use std::{
     fs::{self, File},
     io::{Read, Seek},
     path::{Path, PathBuf},
-    sync::{Arc, LazyLock, RwLock},
+    sync::{Arc, LazyLock},
 };
 use zip::ZipArchive;
 
@@ -77,16 +77,16 @@ impl Display for SearchEntry {
 pub fn rom_import(
     paths: Vec<PathBuf>,
     symlink: bool,
-    environment: Arc<RwLock<Environment>>,
+    environment: Environment,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let environment_guard = environment.read().unwrap();
     let program_manager = ProgramManager::new(
-        &environment_guard.database_location,
-        &environment_guard.rom_store_directory,
+        &environment.database_location,
+        &environment.rom_store_directory,
     )
     .unwrap();
 
-    fs::create_dir_all(&environment_guard.rom_store_directory)?;
+    fs::create_dir_all(&environment.rom_store_directory)?;
+    let environment = Arc::new(environment);
 
     rayon::scope(|scope| {
         let mut stack = VecDeque::from_iter(paths.into_iter().map(SearchEntry::File));
@@ -107,15 +107,16 @@ pub fn rom_import(
 
                         {
                             let program_manager = program_manager.clone();
-                            let environment = environment.clone();
 
                             let path = path.clone();
+                            let environment = environment.clone();
+
                             scope.spawn(move |_| {
                                 if let Err(err) = process_file(
                                     SearchEntry::File(path.clone()),
                                     symlink,
                                     program_manager,
-                                    environment,
+                                    &environment,
                                 ) {
                                     tracing::error!(
                                         "Failed to process file \"{}\": {}",
@@ -162,9 +163,8 @@ pub fn rom_import(
                     path,
                 } => {
                     let program_manager = program_manager.clone();
-                    let environment = environment.clone();
 
-                    scope.spawn(move |_| {
+                    scope.spawn(|_| {
                         let _ = process_file(
                             SearchEntry::Archive {
                                 archive_path,
@@ -173,7 +173,7 @@ pub fn rom_import(
                             },
                             symlink,
                             program_manager,
-                            environment,
+                            &environment,
                         );
                     });
                 }
@@ -188,7 +188,7 @@ fn process_file(
     entry: SearchEntry,
     symlink: bool,
     program_manager: Arc<ProgramManager>,
-    environment: Arc<RwLock<Environment>>,
+    environment: &Environment,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let database_transaction = program_manager.database().begin_read()?;
     let hash_alias_table = database_transaction.open_multimap_table(HASH_ALIAS_TABLE)?;
@@ -242,13 +242,11 @@ fn process_file(
 fn process_file_internal(
     entry: SearchEntry,
     symlink: bool,
-    environment: Arc<RwLock<Environment>>,
+    environment: &Environment,
     hash_alias_table: ReadOnlyMultimapTable<RomId, ProgramId>,
     rom_id: RomId,
     mut converted_reader: Option<impl Read>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let environment_guard = environment.read().unwrap();
-
     if let Some(program_id) = hash_alias_table.get(&rom_id)?.next() {
         let program_id = program_id?.value();
 
@@ -258,9 +256,7 @@ fn process_file_internal(
             program_id,
         );
 
-        let internal_rom_path = environment_guard
-            .rom_store_directory
-            .join(rom_id.to_string());
+        let internal_rom_path = environment.rom_store_directory.join(rom_id.to_string());
         let _ = fs::remove_file(&internal_rom_path);
 
         if let Some(mut converted_reader) = converted_reader.take() {

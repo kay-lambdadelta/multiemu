@@ -1,7 +1,6 @@
 use crate::program::{
     MachineId, ProgramId, ProgramInfo, ProgramSpecification, RomId, info::Filesystem,
 };
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use redb::{
     Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable,
     backends::InMemoryBackend,

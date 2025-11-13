@@ -6,23 +6,21 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
-    sync::{Arc, RwLock},
 };
 
 pub fn rom_export(
     path: PathBuf,
     symlink: bool,
     style: ExportStyle,
-    environment: Arc<RwLock<Environment>>,
+    environment: Environment,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let environment_guard = environment.read().unwrap();
     let program_manager = ProgramManager::new(
-        &environment_guard.database_location,
-        &environment_guard.rom_store_directory,
+        &environment.database_location,
+        &environment.rom_store_directory,
     )
     .unwrap();
 
-    fs::create_dir_all(&environment_guard.rom_store_directory)?;
+    fs::create_dir_all(&environment.rom_store_directory)?;
     fs::create_dir_all(&path)?;
 
     let database_transaction = program_manager.database().begin_read().unwrap();
@@ -38,9 +36,7 @@ pub fn rom_export(
 
             match program_info.filesystem() {
                 Filesystem::Single { rom_id, file_name } => {
-                    let rom_path = environment_guard
-                        .rom_store_directory
-                        .join(rom_id.to_string());
+                    let rom_path = environment.rom_store_directory.join(rom_id.to_string());
 
                     if rom_path.is_file() {
                         tracing::info!("ROM for program {} found to be exported", program_id);
@@ -58,9 +54,7 @@ pub fn rom_export(
                         .iter()
                         .flat_map(|(rom_id, paths)| paths.iter().map(|path| (*rom_id, path)))
                     {
-                        let rom_path = environment_guard
-                            .rom_store_directory
-                            .join(rom_id.to_string());
+                        let rom_path = environment.rom_store_directory.join(rom_id.to_string());
 
                         if rom_path.is_file() {
                             tracing::info!("ROM for program {} found to be exported", program_id);

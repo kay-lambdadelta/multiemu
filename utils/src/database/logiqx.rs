@@ -2,12 +2,7 @@ use clap::Subcommand;
 use multiemu_frontend::environment::Environment;
 use multiemu_runtime::program::ProgramManager;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use std::{
-    fs::File,
-    io::BufReader,
-    path::PathBuf,
-    sync::{Arc, RwLock},
-};
+use std::{fs::File, io::BufReader, path::PathBuf};
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum LogiqxAction {
@@ -19,12 +14,11 @@ pub enum LogiqxAction {
 
 pub fn database_logiqx_import(
     files: Vec<PathBuf>,
-    environment: Arc<RwLock<Environment>>,
+    environment: Environment,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let environment_guard = environment.read().unwrap();
     let program_manager = ProgramManager::new(
-        &environment_guard.database_location,
-        &environment_guard.rom_store_directory,
+        &environment.database_location,
+        &environment.rom_store_directory,
     )
     .unwrap();
 

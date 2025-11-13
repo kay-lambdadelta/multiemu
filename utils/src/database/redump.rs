@@ -6,7 +6,6 @@ use multiemu_runtime::program::{
 use std::{
     error::Error,
     io::{BufReader, Seek},
-    sync::{Arc, RwLock},
 };
 use strum::{Display, EnumIter};
 use zip::ZipArchive;
@@ -52,12 +51,11 @@ pub enum RedumpAction {
 
 pub fn database_redump_download(
     systems: impl IntoIterator<Item = MachineId>,
-    environment: Arc<RwLock<Environment>>,
+    environment: Environment,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let environment_guard = environment.read().unwrap();
     let program_manager = ProgramManager::new(
-        &environment_guard.database_location,
-        &environment_guard.rom_store_directory,
+        &environment.database_location,
+        &environment.rom_store_directory,
     )
     .unwrap();
 

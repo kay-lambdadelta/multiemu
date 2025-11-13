@@ -1,17 +1,16 @@
 use crate::{
     database::{DatabaseAction, logiqx::LogiqxAction, native::NativeAction},
     rom::RomAction,
+    search::SearchAction,
 };
 use clap::Parser;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use database::redump::RedumpAction;
-use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, STORAGE_DIRECTORY};
+use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY};
 use multiemu_runtime::program::MachineId;
 use serde::{Deserialize, Deserializer};
-use std::{
-    fs::{File, create_dir_all},
-    sync::{Arc, RwLock},
-};
+use std::fs::{File, create_dir_all};
+use std::ops::Deref;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
@@ -19,6 +18,7 @@ mod convert;
 mod database;
 mod logiqx;
 mod rom;
+mod search;
 
 #[derive(Clone, Parser)]
 pub enum Cli {
@@ -26,6 +26,8 @@ pub enum Cli {
     Database(DatabaseAction),
     #[clap(subcommand)]
     Rom(RomAction),
+    #[clap(subcommand)]
+    Search(SearchAction),
 }
 
 fn main() {
@@ -39,24 +41,22 @@ fn main() {
 
     let args = Cli::parse();
 
-    let _ = create_dir_all(&*STORAGE_DIRECTORY);
+    create_dir_all(STORAGE_DIRECTORY.deref()).unwrap();
+    let environment = File::open(ENVIRONMENT_LOCATION.deref())
+        .ok()
+        .and_then(|f| Environment::load(f).ok())
+        .unwrap_or_default();
 
-    let environment_file = File::create(&*ENVIRONMENT_LOCATION).unwrap();
-    let environment = Arc::new(RwLock::new(
-        ron::de::from_reader(environment_file).unwrap_or_default(),
-    ));
+    if !ENVIRONMENT_LOCATION.is_file() {
+        let mut environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
+        environment.save(&mut environment_file).unwrap();
+    }
 
     match args {
         Cli::Database(DatabaseAction::Native {
             action: NativeAction::Import { paths },
         }) => {
             database::native::database_native_import(paths, environment).unwrap();
-        }
-        Cli::Database(DatabaseAction::Native {
-            action: NativeAction::FuzzySearch { search, similarity },
-        }) => {
-            database::native::database_native_fuzzy_search(search, similarity, environment)
-                .unwrap();
         }
         Cli::Database(DatabaseAction::Logiqx {
             action: LogiqxAction::Import { paths },
@@ -87,6 +87,7 @@ fn main() {
         Cli::Rom(RomAction::Verify) => {
             rom::verify::rom_verify(environment).unwrap();
         }
+        Cli::Search(action) => search::search(environment, action).unwrap(),
     }
 }
 
