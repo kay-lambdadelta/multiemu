@@ -1,7 +1,8 @@
-use crate::memory::rom::RomMemoryBackend;
 use std::fs::File;
 #[cfg(not(target_family = "unix"))]
 use std::sync::Mutex;
+
+use crate::memory::rom::RomMemoryBackend;
 
 #[cfg(not(target_family = "unix"))]
 #[derive(Debug)]

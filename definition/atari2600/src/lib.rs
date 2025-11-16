@@ -1,3 +1,5 @@
+use std::{marker::PhantomData, ops::RangeInclusive};
+
 use cartridge::Atari2600CartridgeConfig;
 use gamepad::joystick::Atari2600JoystickConfig;
 use multiemu_definition_misc::mos6532_riot::Mos6532RiotConfig;
@@ -9,7 +11,6 @@ use multiemu_runtime::{
     platform::Platform,
     program::Filesystem,
 };
-use std::{marker::PhantomData, ops::RangeInclusive};
 use strum::Display;
 use tia::{
     config::TiaConfig,

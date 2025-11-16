@@ -1,3 +1,12 @@
+use std::{
+    collections::VecDeque,
+    io::{Read, Write},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+};
+
 use arrayvec::ArrayVec;
 use bitvec::{prelude::Lsb0, view::BitView};
 use decoder::Mos6502InstructionDecoder;
@@ -10,14 +19,6 @@ use multiemu_runtime::{
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::VecDeque,
-    io::{Read, Write},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
-};
 use task::Driver;
 
 mod decoder;
@@ -429,17 +430,29 @@ impl IrqFlag {
 }
 
 /// NMI is falling edge
-#[derive(Debug, Default)]
-pub struct NmiFlag(AtomicBool);
+#[derive(Debug)]
+pub struct NmiFlag {
+    current_state: AtomicBool,
+    falling_edge_occured: AtomicBool,
+}
+
+impl Default for NmiFlag {
+    fn default() -> Self {
+        Self {
+            current_state: AtomicBool::new(true),
+            falling_edge_occured: AtomicBool::new(false),
+        }
+    }
+}
 
 impl NmiFlag {
     pub fn store(&self, nmi: bool) {
-        if nmi {
-            self.0.store(true, Ordering::Release);
+        if self.current_state.swap(nmi, Ordering::AcqRel) && !nmi {
+            self.falling_edge_occured.store(true, Ordering::Release);
         }
     }
 
     pub fn interrupt_required(&self) -> bool {
-        self.0.swap(false, Ordering::AcqRel)
+        self.falling_edge_occured.swap(false, Ordering::AcqRel)
     }
 }

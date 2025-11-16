@@ -1,4 +1,3 @@
-use super::{AtariSystem, MachineId, NintendoSystem, OtherSystem, SegaSystem};
 use std::{
     collections::HashMap,
     fs::File,
@@ -6,6 +5,8 @@ use std::{
     path::Path,
     sync::LazyLock,
 };
+
+use super::{AtariSystem, MachineId, NintendoSystem, OtherSystem, SegaSystem};
 
 struct MagicTableEntry {
     bytes: &'static [u8],

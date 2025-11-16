@@ -1,4 +1,3 @@
-use super::Triangle;
 use nalgebra::{DMatrix, Point2, Scalar, Vector2, Vector3};
 use palette::{
     Srgba,
@@ -6,6 +5,8 @@ use palette::{
     cast::{ComponentOrder, Packed},
     named::BLACK,
 };
+
+use super::Triangle;
 
 pub(super) fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
     position: Point2<f32>,

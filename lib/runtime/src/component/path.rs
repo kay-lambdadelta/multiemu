@@ -1,7 +1,8 @@
+use std::{borrow::Cow, fmt::Display, str::FromStr};
+
 use itertools::Itertools;
 use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt::Display, str::FromStr};
 
 // TODO: The parser could be more rigorous
 

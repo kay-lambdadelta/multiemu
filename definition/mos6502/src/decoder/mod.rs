@@ -1,8 +1,3 @@
-use super::instruction::{AddressingMode, Mos6502InstructionSet};
-use crate::{
-    Mos6502Kind,
-    instruction::{Mos6502AddressingMode, Wdc65C02AddressingMode},
-};
 use group1::decode_group1_space_instruction;
 use group2::decode_group2_space_instruction;
 use group3::decode_group3_space_instruction;
@@ -12,6 +7,12 @@ use multiemu_runtime::{
 };
 use strum::FromRepr;
 use undocumented::decode_undocumented_space_instruction;
+
+use super::instruction::{AddressingMode, Mos6502InstructionSet};
+use crate::{
+    Mos6502Kind,
+    instruction::{Mos6502AddressingMode, Wdc65C02AddressingMode},
+};
 
 mod group1;
 mod group2;

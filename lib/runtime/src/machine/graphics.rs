@@ -1,5 +1,6 @@
-use crate::graphics::GraphicsApi;
 use std::{fmt::Debug, ops::BitOr};
+
+use crate::graphics::GraphicsApi;
 
 /// The requirements for a graphics context
 #[derive(Debug)]

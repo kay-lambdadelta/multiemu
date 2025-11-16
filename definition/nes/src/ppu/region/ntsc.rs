@@ -1,9 +1,11 @@
-use super::Region;
-use crate::ppu::color::PpuColor;
+use std::sync::LazyLock;
+
 use nalgebra::SMatrix;
 use num::rational::Ratio;
 use palette::Srgb;
-use std::sync::LazyLock;
+
+use super::Region;
+use crate::ppu::color::PpuColor;
 
 #[rustfmt::skip]
 pub static COLOR_PALETTE: LazyLock<SMatrix<Srgb<u8>, 16, 4>> = LazyLock::new(|| {

@@ -1,9 +1,10 @@
+use nalgebra::SVector;
+
 use super::{
     SampleFormat,
     conversion::{FromSample, IntoSample},
 };
 use crate::FrameIterator;
-use nalgebra::SVector;
 
 /// Helper trait for samples
 pub trait SampleIterator<S: SampleFormat>: Iterator<Item = S> {

@@ -1,12 +1,14 @@
-use super::Scheduler;
-use crate::scheduler::{SchedulerHandle, TimelineEntry, TimelineTaskEntry};
-use multiemu_range::ContiguousRange;
 use std::{
     ops::RangeInclusive,
     sync::{Arc, atomic::Ordering},
     thread::sleep,
     time::{Duration, Instant},
 };
+
+use multiemu_range::ContiguousRange;
+
+use super::Scheduler;
+use crate::scheduler::{SchedulerHandle, TimelineEntry, TimelineTaskEntry};
 
 impl Scheduler {
     /// Runs the scheduler for X number of cycles

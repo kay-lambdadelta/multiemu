@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use multiemu_runtime::input::{Input, keyboard::KeyboardInput};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub(super) struct Chip8KeyCode(pub u8);

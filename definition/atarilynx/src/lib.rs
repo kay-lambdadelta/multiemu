@@ -1,3 +1,5 @@
+use std::{ops::RangeInclusive, str::FromStr};
+
 use mapctl::MapctlConfig;
 use multiemu_definition_misc::memory::{
     null::NullMemoryConfig,
@@ -12,7 +14,6 @@ use multiemu_runtime::{
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
-use std::{ops::RangeInclusive, str::FromStr};
 
 use crate::suzy::SuzyConfig;
 

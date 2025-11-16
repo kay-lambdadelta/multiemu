@@ -1,4 +1,3 @@
-use crate::{Mos6502Config, Mos6502Kind};
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
@@ -7,6 +6,8 @@ use multiemu_runtime::{
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
+
+use crate::{Mos6502Config, Mos6502Kind};
 
 mod adc;
 

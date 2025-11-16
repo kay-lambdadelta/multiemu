@@ -1,18 +1,19 @@
-use crate::{
-    MAPCTL_ADDRESS, MIKEY_ADDRESSES, RESERVED_MEMORY_ADDRESS, SUZY_ADDRESSES, VECTOR_ADDRESSES,
-};
+use std::sync::Arc;
+
 use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath},
     machine::builder::ComponentBuilder,
     memory::{
-        Address, AddressSpace, AddressSpaceId, MemoryRemappingCommand, Permissions,
-        ReadMemoryError, WriteMemoryError,
+        Address, AddressSpace, AddressSpaceId, MemoryError, MemoryRemappingCommand, Permissions,
     },
     platform::Platform,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+
+use crate::{
+    MAPCTL_ADDRESS, MIKEY_ADDRESSES, RESERVED_MEMORY_ADDRESS, SUZY_ADDRESSES, VECTOR_ADDRESSES,
+};
 
 #[derive(Debug)]
 pub struct Mapctl {
@@ -29,7 +30,7 @@ impl Component for Mapctl {
         _address_space: AddressSpaceId,
         _avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         buffer[0] = self.status.to_byte();
 
         Ok(())
@@ -40,7 +41,7 @@ impl Component for Mapctl {
         _address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), WriteMemoryError> {
+    ) -> Result<(), MemoryError> {
         self.status = MapctlStatus::from_byte(buffer[0]);
 
         let mut remapping_commands = Vec::default();

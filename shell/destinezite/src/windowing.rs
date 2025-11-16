@@ -1,10 +1,5 @@
-use crate::{
-    audio::CpalAudioRuntime,
-    input::{
-        gamepad::{gilrs_axis2input, gilrs_button2input},
-        keyboard::{KEYBOARD_ID, winit2key},
-    },
-};
+use std::{borrow::Cow, collections::HashMap, fmt::Debug, fs::File, ops::Deref, sync::Arc};
+
 use egui::RawInput;
 use egui_winit::egui::ViewportId;
 use gilrs::{EventType, Gilrs, GilrsBuilder};
@@ -23,7 +18,6 @@ use multiemu_runtime::{
     program::{ProgramManager, ProgramSpecification},
 };
 use nalgebra::Vector2;
-use std::{borrow::Cow, collections::HashMap, fmt::Debug, fs::File, ops::Deref, sync::Arc};
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 use winit::{
@@ -34,6 +28,14 @@ use winit::{
         DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
     },
     window::{Window, WindowId},
+};
+
+use crate::{
+    audio::CpalAudioRuntime,
+    input::{
+        gamepad::{gilrs_axis2input, gilrs_button2input},
+        keyboard::{KEYBOARD_ID, winit2key},
+    },
 };
 
 #[derive(Debug, Clone)]

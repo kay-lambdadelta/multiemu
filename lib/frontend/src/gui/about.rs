@@ -1,7 +1,8 @@
+use std::time::{Duration, Instant};
+
 use byte_unit::{Byte, UnitType};
 use egui::Ui;
 use egui_extras::{Column, TableBuilder};
-use std::time::{Duration, Instant};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use versions::SemVer;
 

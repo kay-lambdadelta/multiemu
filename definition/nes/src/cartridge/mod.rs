@@ -1,4 +1,5 @@
-use crate::cartridge::mapper::{mmc1::Mmc1Config, nrom::NRomConfig};
+use std::io::{BufReader, Read};
+
 use ines::INes;
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
@@ -8,7 +9,8 @@ use multiemu_runtime::{
     program::{RomId, RomRequirement},
 };
 use serde::{Deserialize, Serialize};
-use std::io::{BufReader, Read};
+
+use crate::cartridge::mapper::{mmc1::Mmc1Config, nrom::NRomConfig};
 
 pub mod ines;
 pub mod mapper;

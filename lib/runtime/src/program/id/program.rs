@@ -1,7 +1,9 @@
-use crate::program::MachineId;
+use std::{fmt::Display, str::FromStr};
+
 use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, str::FromStr};
+
+use crate::program::MachineId;
 
 /// A identifier for a program
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,7 +1,9 @@
-use super::color::TiaColor;
+use std::fmt::Debug;
+
 use num::rational::Ratio;
 use palette::Srgb;
-use std::fmt::Debug;
+
+use super::color::TiaColor;
 
 pub mod ntsc;
 pub mod pal;

@@ -1,10 +1,11 @@
+use std::ops::RangeInclusive;
+
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId},
     platform::Platform,
 };
-use std::ops::RangeInclusive;
 
 #[derive(Debug, Clone)]
 pub struct NullMemoryConfig {

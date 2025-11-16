@@ -1,32 +1,17 @@
 use std::ops::RangeInclusive;
 
-use super::AddressSpace;
-use crate::memory::Address;
 use multiemu_range::{ContiguousRange, RangeIntersection};
 use num::traits::ToBytes;
-use rangemap::RangeInclusiveMap;
-use thiserror::Error;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-/// Why a write operation failed
-pub enum WriteMemoryErrorType {
-    /// Access was denied
-    Denied,
-    /// Nothing is mapped there
-    OutOfBus,
-}
-
-#[derive(Error, Debug)]
-#[error("Write operation failed: {0:#x?}")]
-/// Wrapper around the error type in order to specific ranges
-pub struct WriteMemoryError(pub RangeInclusiveMap<Address, WriteMemoryErrorType>);
+use super::AddressSpace;
+use crate::memory::{Address, MemoryError};
 
 impl AddressSpace {
     /// Step through the memory translation table to give a set of components the buffer
     ///
     /// Contents of the buffer upon failure are usually component specific
     #[inline]
-    pub fn write(&self, mut address: Address, buffer: &[u8]) -> Result<(), WriteMemoryError> {
+    pub fn write(&self, mut address: Address, buffer: &[u8]) -> Result<(), MemoryError> {
         let mut remaining_buffer = buffer;
 
         while !remaining_buffer.is_empty() {
@@ -88,7 +73,7 @@ impl AddressSpace {
         &self,
         address: Address,
         value: T,
-    ) -> Result<(), WriteMemoryError> {
+    ) -> Result<(), MemoryError> {
         self.write(address, value.to_le_bytes().as_ref())
     }
 
@@ -98,7 +83,7 @@ impl AddressSpace {
         &self,
         address: Address,
         value: T,
-    ) -> Result<(), WriteMemoryError> {
+    ) -> Result<(), MemoryError> {
         self.write(address, value.to_be_bytes().as_ref())
     }
 }

@@ -1,3 +1,10 @@
+use std::{
+    collections::{HashMap, HashSet},
+    mem::offset_of,
+    num::NonZero,
+    sync::Arc,
+};
+
 use bytemuck::{Pod, Zeroable};
 use egui::{TextureId, epaint::Primitive};
 use multiemu_frontend::EGUI_WGSL_SHADER;
@@ -60,12 +67,6 @@ use multiemu_runtime::{
 };
 use nalgebra::{Point2, Vector2};
 use palette::Srgba;
-use std::{
-    collections::{HashMap, HashSet},
-    mem::offset_of,
-    num::NonZero,
-    sync::Arc,
-};
 
 #[derive(Clone, Copy, Debug, Zeroable, Pod)]
 #[repr(C)]

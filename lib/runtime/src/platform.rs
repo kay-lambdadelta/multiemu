@@ -1,5 +1,6 @@
-use crate::graphics::{GraphicsApi, software::Software};
 use std::fmt::Debug;
+
+use crate::graphics::{GraphicsApi, software::Software};
 
 /// A trait abstracting over the various things the platform requires
 pub trait Platform: Debug + 'static {

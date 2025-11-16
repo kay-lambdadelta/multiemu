@@ -1,14 +1,16 @@
-use super::{SCANLINE_LENGTH, State, Tia, color::TiaColor, region::Region};
-use crate::tia::{
-    HBLANK_LENGTH, VISIBLE_SCANLINE_LENGTH,
-    backend::{SupportedGraphicsApiTia, TiaDisplayBackend},
-};
+use std::num::NonZero;
+
 use bitvec::{
     order::{Lsb0, Msb0},
     view::BitView,
 };
 use multiemu_runtime::scheduler::Task;
-use std::num::NonZero;
+
+use super::{SCANLINE_LENGTH, State, Tia, color::TiaColor, region::Region};
+use crate::tia::{
+    HBLANK_LENGTH, VISIBLE_SCANLINE_LENGTH,
+    backend::{SupportedGraphicsApiTia, TiaDisplayBackend},
+};
 
 pub struct TiaTask;
 

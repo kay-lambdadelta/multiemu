@@ -1,9 +1,10 @@
+use std::io::{Read, Seek, Write};
+
 use nod::{
     common::Format,
     read::{DiscOptions, DiscReader, PartitionEncryption},
     write::{DiscWriter, FormatOptions, ProcessOptions, ScrubLevel},
 };
-use std::io::{Read, Seek, Write};
 
 pub fn to_iso(
     rom: impl Read + Seek + Send + 'static,

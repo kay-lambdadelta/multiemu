@@ -1,8 +1,9 @@
-use super::Interpolator;
-use crate::{FrameIterator, FromSample, SampleFormat};
 use nalgebra::{ComplexField, SVector};
 use num::{Float, ToPrimitive, rational::Ratio};
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
+
+use super::Interpolator;
+use crate::{FrameIterator, FromSample, SampleFormat};
 
 // TODO: I think this is wildly incorrect
 

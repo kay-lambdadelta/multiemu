@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use egui::{FullOutput, TextureId};
 use nalgebra::{DMatrix, DMatrixViewMut, Point2, Scalar, Vector2, Vector3, Vector4};
 use palette::{
@@ -5,7 +7,6 @@ use palette::{
     cast::{ComponentOrder, Packed},
     named::BLACK,
 };
-use std::collections::HashMap;
 
 mod render_pixel;
 

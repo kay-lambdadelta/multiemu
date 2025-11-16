@@ -1,3 +1,5 @@
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
+
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use multiemu_runtime::{
@@ -6,7 +8,6 @@ use multiemu_runtime::{
     machine::builder::ComponentBuilder,
     platform::Platform,
 };
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 #[derive(Debug)]
 pub struct Atari2600Joystick;

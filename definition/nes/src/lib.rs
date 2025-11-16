@@ -1,15 +1,5 @@
-use crate::{
-    cartridge::{
-        NesCartridge,
-        ines::{INesVersion, Mirroring, expansion_device::DefaultExpansionDevice},
-    },
-    gamepad::controller::NesControllerConfig,
-    ppu::{
-        NAMETABLE_ADDRESSES, PALETTE_BASE_ADDRESS,
-        backend::SupportedGraphicsApiPpu,
-        region::{Region, ntsc::Ntsc},
-    },
-};
+use std::marker::PhantomData;
+
 pub use cartridge::ines::INes;
 use cartridge::{NesCartridgeConfig, ines::TimingMode};
 use multiemu_definition_misc::memory::standard::{
@@ -24,7 +14,19 @@ use multiemu_runtime::{
 };
 use ppu::NesPpuConfig;
 use rangemap::RangeInclusiveMap;
-use std::marker::PhantomData;
+
+use crate::{
+    cartridge::{
+        NesCartridge,
+        ines::{INesVersion, Mirroring, expansion_device::DefaultExpansionDevice},
+    },
+    gamepad::controller::NesControllerConfig,
+    ppu::{
+        BACKGROUND_PALETTE_BASE_ADDRESS, NAMETABLE_ADDRESSES,
+        backend::SupportedGraphicsApiPpu,
+        region::{Region, ntsc::Ntsc},
+    },
+};
 
 mod apu;
 mod cartridge;
@@ -87,10 +89,11 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             StandardMemoryConfig {
                 readable: true,
                 writable: true,
-                assigned_range: PALETTE_BASE_ADDRESS..=PALETTE_BASE_ADDRESS + 0x1f,
+                assigned_range: BACKGROUND_PALETTE_BASE_ADDRESS
+                    ..=BACKGROUND_PALETTE_BASE_ADDRESS + 0x1f,
                 assigned_address_space: ppu_address_space,
                 initial_contents: RangeInclusiveMap::from_iter([(
-                    PALETTE_BASE_ADDRESS..=PALETTE_BASE_ADDRESS + 0x1f,
+                    BACKGROUND_PALETTE_BASE_ADDRESS..=BACKGROUND_PALETTE_BASE_ADDRESS + 0x1f,
                     StandardMemoryInitialContents::Random,
                 )]),
                 sram: false,
@@ -160,7 +163,7 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             DefaultExpansionDevice::Famicom3dSystem => todo!(),
             DefaultExpansionDevice::ドレミッコKeyboard => todo!(),
             DefaultExpansionDevice::Rob { mode } => todo!(),
-            DefaultExpansionDevice::FamiconDataRecorder => todo!(),
+            DefaultExpansionDevice::FamiconDataRecorder => machine,
             DefaultExpansionDevice::AsciiTurboFile => todo!(),
             DefaultExpansionDevice::IgsStorageBattleBox => todo!(),
             DefaultExpansionDevice::FamilyBasicKeyBoardPlusFamiconDataRecorder => todo!(),

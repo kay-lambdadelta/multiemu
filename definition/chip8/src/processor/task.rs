@@ -1,3 +1,13 @@
+use std::{
+    num::NonZero,
+    sync::{Arc, Mutex},
+};
+
+use multiemu_runtime::{
+    component::ComponentHandle, input::VirtualGamepad, memory::AddressSpace,
+    processor::InstructionDecoder, scheduler::Task,
+};
+
 use super::{Chip8KeyCode, Chip8ProcessorConfig, ExecutionState, decoder::Chip8InstructionDecoder};
 use crate::{
     Chip8Mode,
@@ -5,14 +15,6 @@ use crate::{
     display::{Chip8Display, SupportedGraphicsApiChip8Display},
     processor::Chip8Processor,
     timer::Chip8Timer,
-};
-use multiemu_runtime::{
-    component::ComponentHandle, input::VirtualGamepad, memory::AddressSpace,
-    processor::InstructionDecoder, scheduler::Task,
-};
-use std::{
-    num::NonZero,
-    sync::{Arc, Mutex},
 };
 
 pub(crate) struct Driver<G: SupportedGraphicsApiChip8Display> {

@@ -1,7 +1,8 @@
+use std::{borrow::Cow, fmt::Display, sync::Arc};
+
 use crossbeam::atomic::AtomicCell;
 use rustc_hash::FxBuildHasher;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt::Display, sync::Arc};
 use uuid::{NonNilUuid, Uuid};
 
 use crate::input::{Input, InputState};

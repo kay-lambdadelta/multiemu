@@ -1,8 +1,9 @@
-use crate::sample::IntoSample;
-use crate::{FromSample, Interpolator, SampleFormat};
 use core::cmp::Ordering;
+
 use nalgebra::{ComplexField, SVector};
 use num::{Float, rational::Ratio};
+
+use crate::{FromSample, Interpolator, SampleFormat, sample::IntoSample};
 
 /// Helper iterator for operating on frames of samples
 pub trait FrameIterator<S: SampleFormat, const CHANNELS: usize>:

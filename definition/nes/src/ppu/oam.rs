@@ -2,8 +2,7 @@ use arrayvec::ArrayVec;
 use bitvec::{field::BitField, order::Lsb0, view::BitView};
 use nalgebra::{Point2, Vector2};
 use serde::{Deserialize, Serialize};
-use serde_with::Bytes;
-use serde_with::serde_as;
+use serde_with::{Bytes, serde_as};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Copy)]
 pub struct OamSprite {
@@ -77,6 +76,6 @@ pub struct OamState {
     pub oam_addr: u8,
     pub sprite_evaluation_state: SpriteEvaluationState,
     pub show_sprites_leftmost_pixels: bool,
-    pub sprite_8x8_pattern_table_address: u16,
+    pub sprite_8x8_pattern_table_index: u8,
     pub rendering_enabled: bool,
 }

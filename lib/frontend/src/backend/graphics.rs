@@ -1,8 +1,10 @@
-use crate::environment::Environment;
+use std::fmt::Debug;
+
 use egui::FullOutput;
 use multiemu_runtime::{graphics::GraphicsApi, machine::Machine, platform::Platform};
 use nalgebra::Vector2;
-use std::fmt::Debug;
+
+use crate::environment::Environment;
 
 /// Handle to the surface we will be rendering graphics to
 pub trait WindowingHandle: Clone + Debug + 'static {

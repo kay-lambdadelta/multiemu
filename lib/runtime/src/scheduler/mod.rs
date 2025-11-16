@@ -1,15 +1,3 @@
-use crate::{
-    component::{Component, ErasedComponentHandle, ResourcePath},
-    machine::registry::ComponentRegistry,
-};
-use crossbeam::atomic::AtomicCell;
-use itertools::Itertools;
-use nohash::BuildNoHashHasher;
-use num::{
-    ToPrimitive,
-    integer::{gcd, lcm},
-    rational::Ratio,
-};
 use std::{
     any::Any,
     collections::{BTreeMap, HashMap},
@@ -23,7 +11,20 @@ use std::{
     vec::Vec,
 };
 
+use crossbeam::atomic::AtomicCell;
+use itertools::Itertools;
+use nohash::BuildNoHashHasher;
+use num::{
+    ToPrimitive,
+    integer::{gcd, lcm},
+    rational::Ratio,
+};
 pub use task::*;
+
+use crate::{
+    component::{Component, ErasedComponentHandle, ResourcePath},
+    machine::registry::ComponentRegistry,
+};
 
 mod run;
 mod task;
@@ -156,7 +157,7 @@ impl Scheduler {
                     let first_relative_period =
                         (first_task_metadata.period / system_gcd).to_u32().unwrap();
 
-                    if let Some((_, second_task_metadata, _)) = tasks.iter().skip(1).next() {
+                    if let Some((_, second_task_metadata, _)) = tasks.get(1) {
                         // Calculate the time difference and schedule runs to fit within this difference
 
                         let second_relative_period =

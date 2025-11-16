@@ -1,10 +1,12 @@
+use std::{num::NonZero, time::Duration};
+
+use num::rational::Ratio;
+
 use crate::{
     component::{Component, ComponentConfig},
     machine::{Machine, builder::ComponentBuilder},
     platform::Platform,
 };
-use num::rational::Ratio;
-use std::{num::NonZero, time::Duration};
 
 #[test]
 fn basic_operation() {

@@ -1,8 +1,9 @@
+use std::fmt::Debug;
+
 use crate::{
     memory::{Address, AddressSpace},
     processor::instruction::InstructionSet,
 };
-use std::fmt::Debug;
 
 /// Represented a decoder for instructions
 pub trait InstructionDecoder: Debug + Send + Sync + 'static {

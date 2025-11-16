@@ -1,13 +1,14 @@
+use std::{
+    io::{Read, Write},
+    num::NonZero,
+};
+
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     platform::Platform,
 };
 use num::rational::Ratio;
-use std::{
-    io::{Read, Write},
-    num::NonZero,
-};
 
 #[derive(Debug)]
 pub struct Chip8Timer {

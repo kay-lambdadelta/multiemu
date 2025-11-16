@@ -1,6 +1,7 @@
+use num::rational::Ratio;
+
 use super::Region;
 use crate::tia::color::TiaColor;
-use num::rational::Ratio;
 
 #[derive(Debug)]
 pub struct Pal;

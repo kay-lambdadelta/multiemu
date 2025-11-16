@@ -1,3 +1,6 @@
+use multiemu_definition_misc::memory::standard::StandardMemoryConfig;
+use multiemu_runtime::{machine::Machine, processor::InstructionDecoder};
+
 use crate::{
     Mos6502Kind,
     decoder::Mos6502InstructionDecoder,
@@ -5,8 +8,6 @@ use crate::{
         AddressingMode, Mos6502AddressingMode, Mos6502InstructionSet, Mos6502Opcode, Opcode,
     },
 };
-use multiemu_definition_misc::memory::standard::StandardMemoryConfig;
-use multiemu_runtime::{machine::Machine, processor::InstructionDecoder};
 
 #[test]
 pub fn decoding_test() {

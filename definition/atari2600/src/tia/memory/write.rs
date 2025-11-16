@@ -1,10 +1,11 @@
+use bitvec::{field::BitField, order::Msb0, slice::BitSlice, view::BitView};
+use nalgebra::Point2;
+
 use super::WriteRegisters;
 use crate::tia::{
     DelayChangeGraphicPlayer, DelayEnableChangeBall, InputControl, SCANLINE_LENGTH,
     SupportedGraphicsApiTia, Tia, color::TiaColor, region::Region,
 };
-use bitvec::{field::BitField, order::Msb0, slice::BitSlice, view::BitView};
-use nalgebra::Point2;
 
 const PLAYER_RESP_OFFSET: u16 = 3;
 const OTHER_RESP_OFFSET: u16 = 2;

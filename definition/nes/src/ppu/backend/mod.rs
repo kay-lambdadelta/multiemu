@@ -1,7 +1,8 @@
+use std::fmt::Debug;
+
 use multiemu_runtime::graphics::GraphicsApi;
 use nalgebra::DMatrixViewMut;
 use palette::Srgba;
-use std::fmt::Debug;
 
 use crate::ppu::region::Region;
 

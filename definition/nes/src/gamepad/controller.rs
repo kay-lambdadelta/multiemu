@@ -1,15 +1,16 @@
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     input::{GamepadInput, Input, VirtualGamepad, VirtualGamepadMetadata, keyboard::KeyboardInput},
     machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, ReadMemoryError, WriteMemoryError},
+    memory::{Address, AddressSpaceId, MemoryError},
     platform::Platform,
-};
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    sync::{Arc, Mutex},
 };
 
 const CONTROLLER_0: Address = 0x4016;
@@ -44,7 +45,7 @@ impl Component for NesController {
         _address_space: AddressSpaceId,
         avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         let mut state_guard = self.state.lock().unwrap();
         let buffer_bits = buffer.view_bits_mut::<Lsb0>();
 
@@ -74,7 +75,7 @@ impl Component for NesController {
         _address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), WriteMemoryError> {
+    ) -> Result<(), MemoryError> {
         let mut state = self.state.lock().unwrap();
         state.strobe = buffer.view_bits::<Lsb0>()[0];
 

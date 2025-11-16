@@ -1,3 +1,10 @@
+use std::{
+    any::Any,
+    fmt::Debug,
+    io::{Read, Write},
+    num::NonZero,
+};
+
 use bitvec::{order::Msb0, view::BitView};
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
@@ -12,12 +19,6 @@ use palette::{
     named::{BLACK, WHITE},
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    any::Any,
-    fmt::Debug,
-    io::{Read, Write},
-    num::NonZero,
-};
 
 mod software;
 #[cfg(feature = "vulkan")]

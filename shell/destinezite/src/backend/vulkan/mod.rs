@@ -1,4 +1,8 @@
-use crate::windowing::{DesktopPlatform, WinitWindow};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
 use gui::VulkanEguiRenderer;
 use multiemu_frontend::{GraphicsRuntime, WindowingHandle, environment::Environment};
@@ -34,10 +38,8 @@ use multiemu_runtime::{
     shader::{ShaderCache, SpirvShader},
 };
 use nalgebra::Vector2;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+
+use crate::windowing::{DesktopPlatform, WinitWindow};
 
 mod create;
 mod gui;

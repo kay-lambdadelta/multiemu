@@ -1,6 +1,8 @@
-use crate::input::{Input, InputState};
-use rustc_hash::FxBuildHasher;
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
+
+use rustc_hash::FxBuildHasher;
+
+use crate::input::{Input, InputState};
 
 #[derive(Debug, Clone)]
 /// Information a component gave about a emulated gamepad

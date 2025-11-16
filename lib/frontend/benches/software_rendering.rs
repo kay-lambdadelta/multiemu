@@ -1,3 +1,5 @@
+use std::{collections::HashMap, hint::black_box};
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use egui::{Context, FullOutput, RawInput, TopBottomPanel, ViewportId, ViewportInfo};
 use multiemu_frontend::gui_software_rendering::SoftwareEguiRenderer;
@@ -7,7 +9,6 @@ use palette::{
     named::BLACK,
     rgb::channels::{Bgra, Rgba},
 };
-use std::{collections::HashMap, hint::black_box};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut renderer = SoftwareEguiRenderer::default();

@@ -1,4 +1,10 @@
-use crate::gui::to_egui_color;
+use std::{
+    fs::{self, File},
+    path::PathBuf,
+    thread::JoinHandle,
+    time::SystemTime,
+};
+
 use cfg_if::cfg_if;
 use egui::{Button, Frame, ScrollArea, Stroke, TextEdit};
 use indexmap::IndexMap;
@@ -8,13 +14,9 @@ use palette::{
     WithAlpha,
     named::{GREEN, RED},
 };
-use std::{
-    fs::{self, File},
-    path::PathBuf,
-    thread::JoinHandle,
-    time::SystemTime,
-};
 use strum::{Display, EnumIter};
+
+use crate::gui::to_egui_color;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, EnumIter, Display)]
 pub enum SortingMethod {

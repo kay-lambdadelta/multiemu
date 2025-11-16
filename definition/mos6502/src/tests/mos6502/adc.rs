@@ -1,5 +1,6 @@
-use crate::{ExecutionStep, FlagRegister, Mos6502, tests::mos6502::instruction_test_boilerplate};
 use bitvec::{order::Lsb0, view::BitView};
+
+use crate::{ExecutionStep, FlagRegister, Mos6502, tests::mos6502::instruction_test_boilerplate};
 
 #[test]
 pub fn adc_immediate() {

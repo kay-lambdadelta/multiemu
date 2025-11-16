@@ -1,6 +1,6 @@
+use std::{fmt::Debug, num::NonZero};
+
 use crate::component::Component;
-use std::fmt::Debug;
-use std::num::NonZero;
 
 /// A callback that the scheduler executes to drive component state in a frequency based manner
 pub trait Task<C: Component>: Send + Sync + 'static {

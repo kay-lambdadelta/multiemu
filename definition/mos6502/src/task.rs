@@ -1,12 +1,16 @@
+use std::{num::NonZero, sync::Arc};
+
+use multiemu_runtime::{memory::AddressSpace, processor::InstructionDecoder, scheduler::Task};
+
 use crate::{
     AddressBusModification, ExecutionStep, IRQ_VECTOR, Mos6502, NMI_VECTOR, PAGE_SIZE,
     ProcessorState, RESET_VECTOR,
     decoder::Mos6502InstructionDecoder,
-    instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
+    instruction::{
+        AddressingMode, Mos6502AddressingMode, Mos6502InstructionSet, Wdc65C02AddressingMode,
+    },
     interpret::STACK_BASE_ADDRESS,
 };
-use multiemu_runtime::{memory::AddressSpace, processor::InstructionDecoder, scheduler::Task};
-use std::{num::NonZero, sync::Arc};
 
 #[derive(Debug)]
 pub struct Driver {
@@ -198,6 +202,14 @@ impl Mos6502 {
 
         tracing::trace!("{:?} {:04x?}", instruction, self.state);
 
+        self.push_steps_for_instruction(&instruction);
+
+        self.state
+            .execution_queue
+            .push_back(ExecutionStep::Interpret { instruction });
+    }
+
+    fn push_steps_for_instruction(&mut self, instruction: &Mos6502InstructionSet) {
         if let Some(addressing_mode) = instruction.addressing_mode {
             match addressing_mode {
                 AddressingMode::Mos6502(Mos6502AddressingMode::Absolute) => {
@@ -293,10 +305,6 @@ impl Mos6502 {
                 }
             }
         }
-
-        self.state
-            .execution_queue
-            .push_back(ExecutionStep::Interpret { instruction });
     }
 }
 

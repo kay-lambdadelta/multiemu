@@ -1,12 +1,3 @@
-use crate::program::{
-    MachineId, ProgramId, ProgramInfo, ProgramSpecification, RomId, info::Filesystem,
-};
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
-use redb::{
-    Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable,
-    backends::InMemoryBackend,
-};
-use rustc_hash::FxBuildHasher;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fmt::Debug,
@@ -15,6 +6,16 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, LazyLock, Weak},
+};
+
+use redb::{
+    Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable,
+    backends::InMemoryBackend,
+};
+use rustc_hash::FxBuildHasher;
+
+use crate::program::{
+    MachineId, ProgramId, ProgramInfo, ProgramSpecification, RomId, info::Filesystem,
 };
 
 /// Program id -> Program info mapping

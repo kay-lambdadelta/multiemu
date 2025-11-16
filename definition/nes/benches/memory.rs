@@ -1,3 +1,5 @@
+use std::{fs::File, hint::black_box, ops::Deref, str::FromStr};
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_mos6502::Mos6502;
 use multiemu_definition_nes::Nes;
@@ -8,8 +10,6 @@ use multiemu_runtime::{
     program::{ProgramManager, RomId},
 };
 use num::rational::Ratio;
-use std::ops::Deref;
-use std::{fs::File, hint::black_box, str::FromStr};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();

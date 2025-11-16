@@ -1,3 +1,19 @@
+use std::{
+    any::Any,
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    io::Read,
+    marker::PhantomData,
+    ops::RangeInclusive,
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
+
+use indexmap::IndexMap;
+use num::rational::Ratio;
+use rustc_hash::FxBuildHasher;
+
 use crate::{
     component::{
         Component, ComponentConfig, ComponentPath, ComponentVersion, LateInitializedData,
@@ -11,20 +27,6 @@ use crate::{
     platform::Platform,
     program::{MachineId, ProgramManager, ProgramSpecification},
     scheduler::{Scheduler, Task, TaskData, TaskId},
-};
-use indexmap::IndexMap;
-use num::rational::Ratio;
-use rustc_hash::FxBuildHasher;
-use std::{
-    any::Any,
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    io::Read,
-    marker::PhantomData,
-    ops::RangeInclusive,
-    path::PathBuf,
-    str::FromStr,
-    sync::Arc,
 };
 
 /// Overall data extracted from components needed for machine initialization
@@ -289,6 +291,13 @@ impl<P: Platform> MachineBuilder<P> {
                 })
                 .unwrap();
         }
+
+        // Commit the table so the debug output makes sense
+        for address_space in self.address_spaces.values() {
+            address_space.commit();
+        }
+
+        tracing::debug!("{:#x?}", self.address_spaces);
 
         // Build the timeline before building the machine
         self.scheduler.build_timeline();

@@ -1,3 +1,5 @@
+use std::{fmt::Debug, ops::Deref, sync::Arc};
+
 use bytemuck::Pod;
 use cpal::{
     Device, Host, Stream, StreamConfig,
@@ -10,7 +12,6 @@ use multiemu_runtime::platform::Platform;
 use nalgebra::SVector;
 use num::rational::Ratio;
 use ringbuffer::RingBuffer;
-use std::{fmt::Debug, ops::Deref, sync::Arc};
 
 #[allow(unused)]
 pub struct CpalAudioRuntime<P: Platform> {

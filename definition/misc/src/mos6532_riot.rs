@@ -1,18 +1,3 @@
-use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
-use multiemu_range::ContiguousRange;
-use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion},
-    machine::builder::ComponentBuilder,
-    memory::{
-        Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
-        WriteMemoryErrorType,
-    },
-    platform::Platform,
-};
-use num::rational::Ratio;
-use rangemap::RangeInclusiveMap;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use std::{
     fmt::Debug,
     io::{Read, Write},
@@ -20,6 +5,20 @@ use std::{
     ops::RangeInclusive,
     sync::OnceLock,
 };
+
+use multiemu_range::ContiguousRange;
+use multiemu_runtime::{
+    component::{Component, ComponentConfig, ComponentVersion},
+    machine::builder::ComponentBuilder,
+    memory::{Address, AddressSpaceId, MemoryError, MemoryErrorType},
+    platform::Platform,
+};
+use num::rational::Ratio;
+use rangemap::RangeInclusiveMap;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -135,7 +134,7 @@ impl Component for Mos6532Riot {
         _address_space: AddressSpaceId,
         avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         for (address, buffer_section) in
             RangeInclusive::from_start_and_length(address, buffer.len()).zip(buffer.iter_mut())
         {
@@ -143,10 +142,10 @@ impl Component for Mos6532Riot {
 
             match adjusted_address {
                 0x0 | 0x2 if avoid_side_effects => {
-                    return Err(ReadMemoryError(
+                    return Err(MemoryError(
                         std::iter::once((
                             address..=(address + (buffer.len() - 1)),
-                            ReadMemoryErrorType::Denied,
+                            MemoryErrorType::Denied,
                         ))
                         .collect(),
                     ));
@@ -190,10 +189,10 @@ impl Component for Mos6532Riot {
                     *buffer_section = self.registers.t1024t;
                 }
                 _ => {
-                    return Err(ReadMemoryError(
+                    return Err(MemoryError(
                         std::iter::once((
-                            address..=(address + (buffer.len() - 1)),
-                            ReadMemoryErrorType::Denied,
+                            RangeInclusive::from_start_and_length(address, buffer.len()),
+                            MemoryErrorType::Denied,
                         ))
                         .collect(),
                     ));
@@ -209,7 +208,7 @@ impl Component for Mos6532Riot {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), WriteMemoryError> {
+    ) -> Result<(), MemoryError> {
         for (address, buffer_section) in
             RangeInclusive::from_start_and_length(address, buffer.len()).zip(buffer.iter())
         {
@@ -249,10 +248,10 @@ impl Component for Mos6532Riot {
                     self.registers.t1024t = *buffer_section;
                 }
                 _ => {
-                    return Err(WriteMemoryError(
+                    return Err(MemoryError(
                         std::iter::once((
-                            address..=(address + (buffer.len() - 1)),
-                            WriteMemoryErrorType::Denied,
+                            RangeInclusive::from_start_and_length(address, buffer.len()),
+                            MemoryErrorType::Denied,
                         ))
                         .collect(),
                     ));

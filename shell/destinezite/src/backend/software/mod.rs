@@ -1,4 +1,5 @@
-use crate::windowing::{DesktopPlatform, WinitWindow};
+use std::fmt::Debug;
+
 use egui::FullOutput;
 use multiemu_frontend::{
     GraphicsRuntime, WindowingHandle, environment::Environment,
@@ -11,7 +12,8 @@ use multiemu_runtime::{
 use nalgebra::{DMatrixViewMut, Point2, Vector2};
 use palette::{cast::Packed, named::BLACK, rgb::channels::Argb};
 use softbuffer::{Context, Surface};
-use std::fmt::Debug;
+
+use crate::windowing::{DesktopPlatform, WinitWindow};
 
 pub struct SoftwareGraphicsRuntime {
     surface: Surface<WinitWindow, WinitWindow>,

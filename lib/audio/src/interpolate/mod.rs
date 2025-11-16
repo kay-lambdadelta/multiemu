@@ -1,6 +1,7 @@
-use crate::SampleFormat;
 use nalgebra::{ComplexField, SVector};
 use num::{Float, rational::Ratio};
+
+use crate::SampleFormat;
 
 mod cubic;
 mod linear;

@@ -1,6 +1,7 @@
+use bitvec::{order::Msb0, prelude::Lsb0, view::BitView};
+
 use super::ReadRegisters;
 use crate::tia::{ObjectId, SupportedGraphicsApiTia, Tia, region::Region};
-use bitvec::{order::Msb0, prelude::Lsb0, view::BitView};
 
 impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
     pub(crate) fn handle_read_register(&self, data: &mut u8, address: ReadRegisters) {

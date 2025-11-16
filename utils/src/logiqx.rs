@@ -1,10 +1,3 @@
-use multiemu_locale::{Iso639Alpha2, Iso639Alpha3};
-use multiemu_runtime::program::{
-    Filesystem, HASH_ALIAS_TABLE, MachineId, PROGRAM_INFORMATION_TABLE, ProgramId, ProgramInfo,
-    ProgramManager, RomId,
-};
-use serde::{Deserialize, Deserializer};
-use serde_with::{DisplayFromStr, serde_as};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     error::Error,
@@ -12,6 +5,14 @@ use std::{
     str::FromStr,
     sync::LazyLock,
 };
+
+use multiemu_locale::{Iso639Alpha2, Iso639Alpha3};
+use multiemu_runtime::program::{
+    Filesystem, HASH_ALIAS_TABLE, MachineId, PROGRAM_INFORMATION_TABLE, ProgramId, ProgramInfo,
+    ProgramManager, RomId,
+};
+use serde::{Deserialize, Deserializer};
+use serde_with::{DisplayFromStr, serde_as};
 
 #[derive(Debug, Deserialize)]
 pub struct Datafile {

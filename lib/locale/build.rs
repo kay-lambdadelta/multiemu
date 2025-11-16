@@ -1,8 +1,9 @@
+use std::{collections::HashMap, fs::File, path::PathBuf};
+
 use csv::Reader;
 use proc_macro2::Span;
 use quote::quote;
 use serde::Deserialize;
-use std::{collections::HashMap, fs::File, path::PathBuf};
 use syn::{Fields, Ident, Variant};
 
 #[derive(Debug, Deserialize)]

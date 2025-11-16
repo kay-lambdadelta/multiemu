@@ -1,9 +1,10 @@
-use strum::FromRepr;
+use strum::{EnumIter, FromRepr};
 
 mod read;
 mod write;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr, EnumIter)]
+#[repr(u16)]
 pub enum ReadRegisters {
     Cxm0p = 0x000,
     Cxm1p = 0x001,
@@ -21,7 +22,8 @@ pub enum ReadRegisters {
     Inpt5 = 0x00d,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, FromRepr, EnumIter)]
+#[repr(u16)]
 pub enum WriteRegisters {
     Vsync = 0x000,
     Vblank = 0x001,

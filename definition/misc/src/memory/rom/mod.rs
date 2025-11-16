@@ -1,15 +1,16 @@
-use multiemu_runtime::{
-    component::{Component, ComponentConfig},
-    machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, ReadMemoryError},
-    platform::Platform,
-    program::{RomId, RomRequirement},
-};
 use std::{
     fmt::Debug,
     fs::File,
     ops::RangeInclusive,
     sync::{Arc, LazyLock},
+};
+
+use multiemu_runtime::{
+    component::{Component, ComponentConfig},
+    machine::builder::ComponentBuilder,
+    memory::{Address, AddressSpaceId, MemoryError},
+    platform::Platform,
+    program::{RomId, RomRequirement},
 };
 
 #[allow(unused)]
@@ -61,7 +62,7 @@ impl Component for RomMemory {
         _address_space: AddressSpaceId,
         _avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         let adjusted_offset =
             (address - self.config.assigned_range.start()) + self.config.rom_range.start();
 

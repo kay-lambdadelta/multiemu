@@ -2,6 +2,17 @@
 //!
 //! The main runtime for the multiemu emulator framework
 
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    marker::PhantomData,
+    path::PathBuf,
+    sync::Arc,
+};
+
+use num::rational::Ratio;
+use rustc_hash::FxBuildHasher;
+
 use crate::{
     component::ResourcePath,
     input::VirtualGamepad,
@@ -11,15 +22,6 @@ use crate::{
     platform::{Platform, TestPlatform},
     program::{ProgramManager, ProgramSpecification},
     scheduler::Scheduler,
-};
-use num::rational::Ratio;
-use rustc_hash::FxBuildHasher;
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    marker::PhantomData,
-    path::PathBuf,
-    sync::Arc,
 };
 
 /// Machine builder

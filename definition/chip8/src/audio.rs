@@ -1,3 +1,8 @@
+use std::{
+    io::{Read, Write},
+    num::NonZero,
+};
+
 use multiemu_audio::SquareWave;
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
@@ -8,10 +13,6 @@ use multiemu_runtime::{
 use nalgebra::SVector;
 use num::rational::Ratio;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
-use std::{
-    io::{Read, Write},
-    num::NonZero,
-};
 
 #[derive(Debug)]
 pub struct Chip8Audio {

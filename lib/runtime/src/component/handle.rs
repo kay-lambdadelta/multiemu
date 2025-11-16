@@ -1,12 +1,13 @@
-use crate::{
-    component::Component,
-    scheduler::{TaskData, TaskId},
-};
 use std::{
     any::{Any, TypeId},
     collections::BTreeMap,
     marker::PhantomData,
     sync::{Arc, RwLock},
+};
+
+use crate::{
+    component::Component,
+    scheduler::{TaskData, TaskId},
 };
 
 // HACK: Add a generic so we can coerce this unsized

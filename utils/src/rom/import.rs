@@ -1,7 +1,3 @@
-use multiemu_frontend::environment::Environment;
-use multiemu_runtime::program::{HASH_ALIAS_TABLE, ProgramId, ProgramManager, RomId};
-use redb::{ReadOnlyMultimapTable, ReadableDatabase};
-use scc::{HashCache, hash_cache::OccupiedEntry};
 use std::{
     collections::VecDeque,
     error::Error,
@@ -11,6 +7,11 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, LazyLock},
 };
+
+use multiemu_frontend::environment::Environment;
+use multiemu_runtime::program::{HASH_ALIAS_TABLE, ProgramId, ProgramManager, RomId};
+use redb::{ReadOnlyMultimapTable, ReadableDatabase};
+use scc::{HashCache, hash_cache::OccupiedEntry};
 use zip::ZipArchive;
 
 /// Cache to try to avoid reading the metadata of the same file multiple times

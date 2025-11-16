@@ -1,5 +1,10 @@
-use super::Chip8Mode;
-use crate::{Chip8InstructionDecoder, display::SupportedGraphicsApiChip8Display};
+use std::{
+    borrow::Cow,
+    io::{Read, Write},
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
+
 use arrayvec::ArrayVec;
 use input::{Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
@@ -12,13 +17,10 @@ use multiemu_runtime::{
 };
 use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Cow,
-    io::{Read, Write},
-    marker::PhantomData,
-    sync::{Arc, Mutex},
-};
 use task::Driver;
+
+use super::Chip8Mode;
+use crate::{Chip8InstructionDecoder, display::SupportedGraphicsApiChip8Display};
 
 pub mod decoder;
 mod input;

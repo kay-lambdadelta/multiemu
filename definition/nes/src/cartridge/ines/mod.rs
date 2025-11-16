@@ -1,6 +1,7 @@
+use std::{collections::HashMap, fmt::Debug, ops::RangeInclusive};
+
 use bitvec::{field::BitField, prelude::Msb0, ptr::BitSpanError, view::BitView};
 use expansion_device::DefaultExpansionDevice;
-use std::{collections::HashMap, fmt::Debug, ops::RangeInclusive};
 use thiserror::Error;
 
 pub mod expansion_device;

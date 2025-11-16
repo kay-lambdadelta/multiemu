@@ -1,12 +1,10 @@
-use crate::{
-    graphics::GraphicsApi,
-    shader::{ShaderCache, SpirvShader},
-};
 use std::{
     mem::transmute,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
+
+pub use vulkano;
 use vulkano::{
     buffer::{BufferContents, BufferReadGuard, BufferWriteGuard, Subbuffer},
     command_buffer::allocator::StandardCommandBufferAllocator,
@@ -16,7 +14,10 @@ use vulkano::{
     sync::HostAccessError,
 };
 
-pub use vulkano;
+use crate::{
+    graphics::GraphicsApi,
+    shader::{ShaderCache, SpirvShader},
+};
 
 #[derive(Default, Debug)]
 /// Marker train for vulkan rendering, supported on major desktop platforms

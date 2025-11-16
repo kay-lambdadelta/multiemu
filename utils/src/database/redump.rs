@@ -1,11 +1,12 @@
+use std::{
+    error::Error,
+    io::{BufReader, Seek},
+};
+
 use clap::Subcommand;
 use multiemu_frontend::environment::Environment;
 use multiemu_runtime::program::{
     MachineId, NintendoSystem, ProgramManager, SegaSystem, SonySystem,
-};
-use std::{
-    error::Error,
-    io::{BufReader, Seek},
 };
 use strum::{Display, EnumIter};
 use zip::ZipArchive;

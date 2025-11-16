@@ -1,7 +1,8 @@
+use std::fs::{self, File};
+
 use multiemu_frontend::environment::Environment;
 use multiemu_runtime::program::{ProgramManager, RomId};
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use std::fs::{self, File};
 
 pub fn rom_verify(
     environment: Environment,

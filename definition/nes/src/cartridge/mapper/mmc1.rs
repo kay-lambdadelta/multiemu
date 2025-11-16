@@ -1,4 +1,3 @@
-use crate::{INes, cartridge::ines::INesVersion};
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
@@ -6,6 +5,8 @@ use multiemu_runtime::{
     platform::Platform,
     program::RomId,
 };
+
+use crate::{INes, cartridge::ines::INesVersion};
 
 #[derive(Debug)]
 pub struct Mmc1;

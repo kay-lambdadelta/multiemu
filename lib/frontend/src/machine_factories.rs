@@ -1,9 +1,10 @@
+use std::{collections::HashMap, fmt::Debug};
+
 use multiemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     platform::Platform,
     program::MachineId,
 };
-use std::{collections::HashMap, fmt::Debug};
 
 /// Factory storage for frontend machine generation automation
 pub struct MachineFactories<P: Platform>(HashMap<MachineId, Box<dyn MachineFactory<P>>>);

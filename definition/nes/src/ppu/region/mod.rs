@@ -1,7 +1,9 @@
-use crate::ppu::{DUMMY_SCANLINE_COUNT, color::PpuColor};
+use std::fmt::Debug;
+
 use num::rational::Ratio;
 use palette::Srgb;
-use std::fmt::Debug;
+
+use crate::ppu::{DUMMY_SCANLINE_COUNT, color::PpuColor};
 
 pub mod dendy;
 pub mod ntsc;

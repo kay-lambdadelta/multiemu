@@ -1,12 +1,12 @@
-use crate::display::LORES;
-
-use super::{Chip8DisplayBackend, SupportedGraphicsApiChip8Display};
 use multiemu_runtime::graphics::{
     GraphicsApi,
     software::{InitializationData, Software},
 };
 use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Vector2};
 use palette::{Srgba, named::BLACK};
+
+use super::{Chip8DisplayBackend, SupportedGraphicsApiChip8Display};
+use crate::display::LORES;
 
 #[derive(Debug)]
 pub struct SoftwareState {

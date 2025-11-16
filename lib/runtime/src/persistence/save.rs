@@ -1,16 +1,18 @@
-use crate::{
-    component::{ComponentPath, ComponentVersion},
-    machine::registry::ComponentRegistry,
-    program::RomId,
-};
-use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
-use ron::ser::PrettyConfig;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs::{File, create_dir_all, remove_dir_all},
     io::Read,
     path::PathBuf,
+};
+
+use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
+use ron::ser::PrettyConfig;
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    component::{ComponentPath, ComponentVersion},
+    machine::registry::ComponentRegistry,
+    program::RomId,
 };
 
 pub const SAVE_METADATA_FILE_NAME: &str = "metadata.ron";

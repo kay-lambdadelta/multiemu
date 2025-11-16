@@ -1,10 +1,3 @@
-use crate::graphics::GraphicsVersion;
-use naga::{
-    Module, ShaderStage,
-    valid::{Capabilities, ModuleInfo, ValidationFlags, Validator},
-};
-use rustc_hash::FxBuildHasher;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     any::{Any, type_name},
     borrow::Cow,
@@ -12,6 +5,15 @@ use std::{
     marker::PhantomData,
     sync::Arc,
 };
+
+use naga::{
+    Module, ShaderStage,
+    valid::{Capabilities, ModuleInfo, ValidationFlags, Validator},
+};
+use rustc_hash::FxBuildHasher;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+
+use crate::graphics::GraphicsVersion;
 
 #[cfg(feature = "opengl")]
 mod glsl;

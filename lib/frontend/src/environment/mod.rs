@@ -1,18 +1,20 @@
-use crate::{
-    Hotkey,
-    environment::{gamepad::GamepadConfigs, graphics::GraphicsSettings},
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::{Read, Write},
+    path::PathBuf,
+    sync::LazyLock,
 };
+
 use audio::AudioSettings;
 use multiemu_runtime::input::Input;
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use serde_with::serde_as;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::{Read, Write},
-    path::PathBuf,
-    sync::LazyLock,
+
+use crate::{
+    Hotkey,
+    environment::{gamepad::GamepadConfigs, graphics::GraphicsSettings},
 };
 
 /// Audio related config types

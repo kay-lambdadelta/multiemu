@@ -1,9 +1,11 @@
-use super::Region;
-use crate::tia::color::TiaColor;
+use std::sync::LazyLock;
+
 use nalgebra::SMatrix;
 use num::rational::Ratio;
 use palette::{FromColor, Hsl, Srgb};
-use std::sync::LazyLock;
+
+use super::Region;
+use crate::tia::color::TiaColor;
 
 // FIXME: Truly the worst math in this repository
 

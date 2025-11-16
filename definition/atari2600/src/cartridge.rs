@@ -1,7 +1,7 @@
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, ReadMemoryError},
+    memory::{Address, AddressSpaceId, MemoryError},
     platform::Platform,
     program::{RomId, RomRequirement},
 };
@@ -36,7 +36,7 @@ impl Component for Atari2600Cartridge {
         _address_space: AddressSpaceId,
         _avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         match self.cart_type {
             CartType::Raw => {
                 let adjusted_offset = (address - 0x1000) % self.rom.len();

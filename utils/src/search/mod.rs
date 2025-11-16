@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use clap::Parser;
 use itertools::Itertools;
 use multiemu_frontend::environment::Environment;
@@ -5,7 +7,6 @@ use multiemu_runtime::program::{PROGRAM_INFORMATION_TABLE, ProgramManager};
 use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use redb::{ReadableDatabase, ReadableMultimapTable};
 use regex::Regex;
-use std::sync::LazyLock;
 
 #[derive(Clone, Parser)]
 pub enum SearchAction {

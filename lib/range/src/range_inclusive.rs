@@ -1,7 +1,9 @@
-use crate::{ContiguousRange, RangeBase, RangeDifference, RangeIntersection};
 use core::ops::RangeInclusive;
+
 use num::{Integer, ToPrimitive};
 use rangemap::{RangeInclusiveSet, StepLite};
+
+use crate::{ContiguousRange, RangeBase, RangeDifference, RangeIntersection};
 
 impl<Idx: Integer + Clone> RangeBase<Idx> for RangeInclusive<Idx> {
     fn is_empty(&self) -> bool {

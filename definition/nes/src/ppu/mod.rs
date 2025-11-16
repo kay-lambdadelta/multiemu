@@ -1,26 +1,3 @@
-use crate::{
-    INes,
-    ppu::{
-        backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
-        background::{BackgroundPipelineState, BackgroundState, SpritePipelineState},
-        oam::{OamState, SpriteEvaluationState},
-        region::Region,
-        state::State,
-        task::Driver,
-    },
-};
-use arrayvec::ArrayVec;
-use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
-use multiemu_definition_mos6502::{Mos6502, RdyFlag};
-use multiemu_range::ContiguousRange;
-use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentPath, ResourcePath},
-    machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpace, AddressSpaceId, ReadMemoryError, WriteMemoryError},
-    platform::Platform,
-};
-use nalgebra::{Point2, Vector2};
-use serde::{Deserialize, Serialize};
 use std::{
     any::Any,
     marker::PhantomData,
@@ -30,7 +7,32 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
+
+use arrayvec::ArrayVec;
+use bitvec::{array::BitArray, field::BitField, prelude::Lsb0, view::BitView};
+use multiemu_definition_mos6502::{Mos6502, RdyFlag};
+use multiemu_range::ContiguousRange;
+use multiemu_runtime::{
+    component::{Component, ComponentConfig, ComponentPath, ResourcePath},
+    machine::builder::ComponentBuilder,
+    memory::{Address, AddressSpace, AddressSpaceId, MemoryError},
+    platform::Platform,
+};
+use nalgebra::{Point2, Vector2};
+use serde::{Deserialize, Serialize};
 use strum::FromRepr;
+
+use crate::{
+    INes,
+    ppu::{
+        backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
+        background::{BackgroundPipelineState, BackgroundState, SpritePipelineState},
+        oam::{OamState, SpriteEvaluationState},
+        region::Region,
+        state::{State, VramAddressPointerContents},
+        task::Driver,
+    },
+};
 
 pub mod backend;
 mod background;
@@ -61,10 +63,9 @@ pub const NAMETABLE_ADDRESSES: [RangeInclusive<Address>; 4] = [
     0x2c00..=0x2fff,
 ];
 pub const NAMETABLE_BASE_ADDRESS: Address = *NAMETABLE_ADDRESSES[0].start();
-pub const NAMETABLE_SIZE: Address = 0x400;
-
-pub const PALETTE_BASE_ADDRESS: Address = 0x3f00;
-
+pub const BACKGROUND_PALETTE_BASE_ADDRESS: Address = 0x3f00;
+pub const SPRITE_PALETTE_BASE_ADDRESS: Address = 0x3f10;
+pub const ATTRIBUTE_BASE_ADDRESS: Address = NAMETABLE_BASE_ADDRESS + 0x3c0;
 const DUMMY_SCANLINE_COUNT: u16 = 1;
 const VISIBLE_SCANLINE_LENGTH: u16 = 256;
 const HBLANK_LENGTH: u16 = 85;
@@ -95,170 +96,6 @@ pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
     cpu_address_space: Arc<AddressSpace>,
     ppu_address_space: Arc<AddressSpace>,
     processor_rdy: Arc<RdyFlag>,
-}
-
-impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
-    fn read_memory(
-        &self,
-        address: Address,
-        _address_space: AddressSpaceId,
-        avoid_side_effects: bool,
-        buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
-        for (address, buffer) in
-            RangeInclusive::from_start_and_length(address, buffer.len()).zip(buffer.iter_mut())
-        {
-            let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
-            tracing::trace!("Reading from PPU register: {:?}", register);
-
-            match register {
-                CpuAccessibleRegister::PpuMask => todo!(),
-                CpuAccessibleRegister::PpuStatus => {
-                    let buffer_bits = buffer.view_bits_mut::<Lsb0>();
-
-                    // Currently in vblank
-                    if avoid_side_effects {
-                        buffer_bits.set(7, self.state.entered_vblank.load(Ordering::Acquire));
-                    } else {
-                        buffer_bits.set(7, self.state.entered_vblank.swap(false, Ordering::AcqRel));
-                    }
-                }
-                CpuAccessibleRegister::OamAddr => {
-                    *buffer = self.state.oam.oam_addr;
-                }
-                CpuAccessibleRegister::OamData => {
-                    *buffer = self.state.oam.data[self.state.oam.oam_addr as usize];
-                }
-                CpuAccessibleRegister::PpuScroll => todo!(),
-                CpuAccessibleRegister::PpuAddr => todo!(),
-                CpuAccessibleRegister::PpuData => {
-                    *buffer = self
-                        .ppu_address_space
-                        .read_le_value(self.state.ppu_addr as usize, avoid_side_effects)?;
-                }
-                _ => {
-                    unreachable!("{:?}", register);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn write_memory(
-        &mut self,
-        address: Address,
-        _address_space: AddressSpaceId,
-        buffer: &[u8],
-    ) -> Result<(), WriteMemoryError> {
-        for (address, buffer) in
-            RangeInclusive::from_start_and_length(address, buffer.len()).zip(buffer.iter())
-        {
-            let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
-            tracing::trace!("Writing to PPU register: {:?}", register);
-
-            match register {
-                CpuAccessibleRegister::PpuCtrl => {
-                    let data_bits = buffer.view_bits::<Lsb0>();
-
-                    self.state.nametable_base = NAMETABLE_BASE_ADDRESS as u16
-                        + (data_bits[0..=1].load::<u16>() * NAMETABLE_SIZE as u16);
-
-                    self.state.ppu_addr_increment_amount = if data_bits[2] { 32 } else { 1 };
-
-                    self.state.oam.sprite_8x8_pattern_table_address =
-                        if data_bits[3] { 0x1000 } else { 0x0000 };
-                    self.state.background.pattern_table_base =
-                        if data_bits[4] { 0x1000 } else { 0x0000 };
-
-                    self.state.vblank_nmi_enabled = data_bits[7];
-                }
-                CpuAccessibleRegister::PpuMask => {
-                    let data_bits = buffer.view_bits::<Lsb0>();
-
-                    self.state.greyscale = data_bits[0];
-
-                    self.state.show_background_leftmost_pixels = data_bits[1];
-                    self.state.oam.show_sprites_leftmost_pixels = data_bits[2];
-
-                    self.state.background.rendering_enabled = data_bits[3];
-                    self.state.oam.rendering_enabled = data_bits[4];
-
-                    self.state.color_emphasis.red = data_bits[5];
-                    self.state.color_emphasis.green = data_bits[6];
-                    self.state.color_emphasis.blue = data_bits[7];
-                }
-                CpuAccessibleRegister::OamAddr => {
-                    self.state.oam.oam_addr = *buffer;
-                }
-                CpuAccessibleRegister::OamData => {
-                    self.state.oam.data[self.state.oam.oam_addr as usize] = *buffer;
-                    self.state.oam.oam_addr = self.state.oam.oam_addr.wrapping_add(1);
-                }
-                CpuAccessibleRegister::PpuScroll => {
-                    // Convert the byte into a bit slice
-                    let bits = buffer.view_bits::<Lsb0>();
-
-                    let fine_scroll = bits[0..=2].load::<u8>();
-                    let coarse_scroll = bits[3..=7].load::<u8>();
-
-                    if self.state.ppu_addr_ppu_scroll_write_phase {
-                        self.state.background.fine_scroll.y = fine_scroll;
-                        self.state.background.coarse_scroll.y = coarse_scroll;
-                    } else {
-                        self.state.background.fine_scroll.x = fine_scroll;
-                        self.state.background.coarse_scroll.x = coarse_scroll;
-                    }
-
-                    self.state.ppu_addr_ppu_scroll_write_phase =
-                        !self.state.ppu_addr_ppu_scroll_write_phase;
-                }
-                CpuAccessibleRegister::PpuAddr => {
-                    let mut unpacked_address = self.state.ppu_addr.to_be_bytes();
-                    unpacked_address[usize::from(self.state.ppu_addr_ppu_scroll_write_phase)] =
-                        *buffer;
-                    self.state.ppu_addr_ppu_scroll_write_phase =
-                        !self.state.ppu_addr_ppu_scroll_write_phase;
-                    self.state.ppu_addr = u16::from_be_bytes(unpacked_address);
-                }
-                CpuAccessibleRegister::PpuData => {
-                    tracing::debug!(
-                        "CPU is sending data to 0x{:04x} in the PPU address space: {:02x}",
-                        self.state.ppu_addr,
-                        buffer
-                    );
-
-                    // Redirect into the ppu address space
-                    self.ppu_address_space
-                        .write_le_value(self.state.ppu_addr as usize, *buffer)?;
-
-                    self.state.ppu_addr = self
-                        .state
-                        .ppu_addr
-                        .wrapping_add(u16::from(self.state.ppu_addr_increment_amount));
-                }
-                CpuAccessibleRegister::OamDma => {
-                    let page = u16::from(*buffer) << 8;
-
-                    self.processor_rdy.store(false, Some(514));
-
-                    // Read off OAM data immediately, this is done for performance and should not have any side effects
-                    let _ =
-                        self.cpu_address_space
-                            .read(page as usize, false, &mut self.state.oam.data);
-                }
-                _ => {
-                    unreachable!("{:?}", register);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn access_framebuffer(&mut self, _path: &ResourcePath) -> &dyn Any {
-        self.backend.as_mut().unwrap().access_framebuffer()
-    }
 }
 
 impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConfig<P>
@@ -342,13 +179,13 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
 
         Ok(Ppu {
             state: State {
-                nametable_base: 0x2000,
                 sprite_size: Vector2::new(8, 8),
                 vblank_nmi_enabled: false,
-                reset_cpu_nmi: false,
-                entered_vblank: AtomicBool::new(false),
                 greyscale: false,
+                entered_vblank: AtomicBool::new(false),
                 show_background_leftmost_pixels: false,
+                vram_address_pointer_write_phase: false,
+                vram_address_pointer_increment_amount: 1,
                 color_emphasis: ColorEmphasis {
                     red: false,
                     green: false,
@@ -356,21 +193,9 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                 },
                 // Start it on the dummy scanline
                 cycle_counter: Point2::new(0, 261),
+                awaiting_memory_access: true,
                 background_pipeline_state: BackgroundPipelineState::FetchingNametable,
                 sprite_pipeline_state: SpritePipelineState::FetchingNametableGarbage0,
-                awaiting_memory_access: true,
-                ppu_addr: 0,
-                ppu_addr_ppu_scroll_write_phase: false,
-                ppu_addr_increment_amount: 1,
-                background: BackgroundState {
-                    fine_scroll: Vector2::default(),
-                    coarse_scroll: Vector2::default(),
-                    pattern_table_base: 0x0000,
-                    rendering_enabled: false,
-                    pattern_low_shift: 0,
-                    pattern_high_shift: 0,
-                    attribute_shift: 0,
-                },
                 oam: OamState {
                     data: rand::random(),
                     oam_addr: 0x00,
@@ -378,14 +203,205 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                     secondary_data: ArrayVec::new(),
                     currently_rendering_sprites: ArrayVec::new(),
                     show_sprites_leftmost_pixels: true,
-                    sprite_8x8_pattern_table_address: 0x0000,
+                    sprite_8x8_pattern_table_index: 0x0000,
                     rendering_enabled: false,
                 },
+                background: BackgroundState {
+                    pattern_table_index: 0x0000,
+                    pattern_low_shift: 0,
+                    pattern_high_shift: 0,
+                    attribute_shift: 0,
+                    fine_x_scroll: 0,
+                    rendering_enabled: false,
+                },
+                vram_address_pointer: 0,
+                shadow_vram_address_pointer: 0,
             },
             backend: None,
             ppu_address_space,
             cpu_address_space,
             processor_rdy,
         })
+    }
+}
+
+impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
+    fn read_memory(
+        &self,
+        address: Address,
+        _address_space: AddressSpaceId,
+        avoid_side_effects: bool,
+        buffer: &mut [u8],
+    ) -> Result<(), MemoryError> {
+        for (address, buffer) in
+            RangeInclusive::from_start_and_length(address, buffer.len()).zip(buffer.iter_mut())
+        {
+            let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
+            tracing::debug!("Reading from PPU register: {:?}", register);
+
+            match register {
+                CpuAccessibleRegister::PpuMask => todo!(),
+                CpuAccessibleRegister::PpuStatus => {
+                    let buffer_bits = buffer.view_bits_mut::<Lsb0>();
+
+                    // Currently in vblank
+                    if avoid_side_effects {
+                        buffer_bits.set(7, self.state.entered_vblank.load(Ordering::Acquire));
+                    } else {
+                        buffer_bits.set(7, self.state.entered_vblank.swap(false, Ordering::AcqRel));
+                    }
+                }
+                CpuAccessibleRegister::OamAddr => {
+                    *buffer = self.state.oam.oam_addr;
+                }
+                CpuAccessibleRegister::OamData => {
+                    *buffer = self.state.oam.data[self.state.oam.oam_addr as usize];
+                }
+                CpuAccessibleRegister::PpuScroll => todo!(),
+                CpuAccessibleRegister::PpuAddr => todo!(),
+                CpuAccessibleRegister::PpuData => {
+                    *buffer = self.ppu_address_space.read_le_value(
+                        self.state.vram_address_pointer as usize,
+                        avoid_side_effects,
+                    )?;
+                }
+                _ => {
+                    unreachable!("{:?}", register);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn write_memory(
+        &mut self,
+        address: Address,
+        _address_space: AddressSpaceId,
+        buffer: &[u8],
+    ) -> Result<(), MemoryError> {
+        for (address, buffer) in
+            RangeInclusive::from_start_and_length(address, buffer.len()).zip(buffer.iter())
+        {
+            let register = CpuAccessibleRegister::from_repr(address as u16).unwrap();
+            tracing::debug!("Writing to PPU register: {:?}", register);
+
+            match register {
+                CpuAccessibleRegister::PpuCtrl => {
+                    let data_bits = buffer.view_bits::<Lsb0>();
+
+                    let mut shadow_vram_address_pointer =
+                        VramAddressPointerContents::from(self.state.shadow_vram_address_pointer);
+
+                    shadow_vram_address_pointer.nametable.x = data_bits[1];
+                    shadow_vram_address_pointer.nametable.y = data_bits[0];
+
+                    self.state.vram_address_pointer_increment_amount =
+                        if data_bits[2] { 32 } else { 1 };
+
+                    self.state.oam.sprite_8x8_pattern_table_index = u8::from(data_bits[3]);
+                    self.state.background.pattern_table_index = u8::from(data_bits[4]);
+
+                    self.state.vblank_nmi_enabled = data_bits[7];
+
+                    self.state.shadow_vram_address_pointer = shadow_vram_address_pointer.into();
+                }
+                CpuAccessibleRegister::PpuMask => {
+                    let data_bits = buffer.view_bits::<Lsb0>();
+
+                    self.state.greyscale = data_bits[0];
+
+                    self.state.show_background_leftmost_pixels = data_bits[1];
+                    self.state.oam.show_sprites_leftmost_pixels = data_bits[2];
+
+                    self.state.background.rendering_enabled = data_bits[3];
+                    self.state.oam.rendering_enabled = data_bits[4];
+
+                    self.state.color_emphasis.red = data_bits[5];
+                    self.state.color_emphasis.green = data_bits[6];
+                    self.state.color_emphasis.blue = data_bits[7];
+                }
+                CpuAccessibleRegister::OamAddr => {
+                    self.state.oam.oam_addr = *buffer;
+                }
+                CpuAccessibleRegister::OamData => {
+                    self.state.oam.data[self.state.oam.oam_addr as usize] = *buffer;
+                    self.state.oam.oam_addr = self.state.oam.oam_addr.wrapping_add(1);
+                }
+                CpuAccessibleRegister::PpuScroll => {
+                    // Convert the byte into a bit slice
+                    let data_bits = BitArray::<_, Lsb0>::from(u16::from(*buffer));
+                    let mut shadow_vram_address_pointer =
+                        VramAddressPointerContents::from(self.state.shadow_vram_address_pointer);
+
+                    if self.state.vram_address_pointer_write_phase {
+                        // fine scroll y
+                        shadow_vram_address_pointer.fine_y = data_bits[0..=2].load();
+                        // coarse scroll y
+                        shadow_vram_address_pointer.coarse.y = data_bits[3..=7].load();
+                    } else {
+                        // fine scroll x
+                        self.state.background.fine_x_scroll = data_bits[0..=2].load();
+                        // coarse scroll x
+                        shadow_vram_address_pointer.coarse.x = data_bits[3..=7].load();
+                    }
+
+                    self.state.vram_address_pointer_write_phase =
+                        !self.state.vram_address_pointer_write_phase;
+
+                    self.state.shadow_vram_address_pointer = shadow_vram_address_pointer.into();
+                }
+                CpuAccessibleRegister::PpuAddr => {
+                    let mut unpacked_address = self.state.shadow_vram_address_pointer.to_be_bytes();
+                    unpacked_address[usize::from(self.state.vram_address_pointer_write_phase)] =
+                        *buffer;
+                    self.state.vram_address_pointer_write_phase =
+                        !self.state.vram_address_pointer_write_phase;
+                    self.state.shadow_vram_address_pointer =
+                        u16::from_be_bytes(unpacked_address) & 0b0111_1111_1111_1111;
+
+                    // Write the completed address
+                    if !self.state.vram_address_pointer_write_phase {
+                        self.state.vram_address_pointer = self.state.shadow_vram_address_pointer;
+                    }
+                }
+                CpuAccessibleRegister::PpuData => {
+                    tracing::debug!(
+                        "CPU is sending data to 0x{:04x} in the PPU address space: {:02x}, the cycle counter is at {}",
+                        self.state.vram_address_pointer,
+                        buffer,
+                        self.state.cycle_counter
+                    );
+
+                    // Redirect into the ppu address space
+                    self.ppu_address_space
+                        .write_le_value(self.state.vram_address_pointer as usize, *buffer)?;
+
+                    self.state.vram_address_pointer =
+                        self.state.vram_address_pointer.wrapping_add(u16::from(
+                            self.state.vram_address_pointer_increment_amount,
+                        )) & 0b0111_1111_1111_1111;
+                }
+                CpuAccessibleRegister::OamDma => {
+                    let page = u16::from(*buffer) << 8;
+
+                    self.processor_rdy.store(false, Some(514));
+
+                    // Read off OAM data immediately, this is done for performance and should not have any side effects
+                    let _ =
+                        self.cpu_address_space
+                            .read(page as usize, false, &mut self.state.oam.data);
+                }
+                _ => {
+                    unreachable!("{:?}", register);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn access_framebuffer(&mut self, _path: &ResourcePath) -> &dyn Any {
+        self.backend.as_mut().unwrap().access_framebuffer()
     }
 }

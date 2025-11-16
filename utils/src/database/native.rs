@@ -1,8 +1,9 @@
+use std::path::PathBuf;
+
 use clap::Subcommand;
 use multiemu_frontend::environment::Environment;
 use multiemu_runtime::program::ProgramManager;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use std::path::PathBuf;
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum NativeAction {

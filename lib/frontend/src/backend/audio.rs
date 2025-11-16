@@ -1,7 +1,9 @@
-use crate::MaybeMachine;
+use std::{fmt::Debug, sync::Arc};
+
 use multiemu_runtime::platform::Platform;
 use num::rational::Ratio;
-use std::{fmt::Debug, sync::Arc};
+
+use crate::MaybeMachine;
 
 /// Audio runtime to provide the frontend
 pub trait AudioRuntime<P: Platform>: Debug {

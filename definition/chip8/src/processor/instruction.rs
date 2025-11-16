@@ -1,7 +1,8 @@
+use std::{fmt::Display, ops::Range};
+
 use multiemu_runtime::processor::InstructionSet;
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, ops::Range};
 use strum::FromRepr;
 
 #[derive(

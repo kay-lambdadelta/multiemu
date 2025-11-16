@@ -1,11 +1,8 @@
 /// Menu software renderer
 pub mod software_rendering;
 
-use crate::{
-    EguiWindowingIntegration, Frontend, PlatformExt,
-    environment::Environment,
-    gui::{about::AboutState, gamepad_config::GamepadConfigState},
-};
+use std::fmt::Display;
+
 use egui::{
     CentralPanel, Color32, Context, FontDefinitions, FontFamily, Frame, FullOutput, RawInput,
     RichText, TextStyle, TopBottomPanel, Ui,
@@ -14,8 +11,13 @@ use file_browser::FileBrowserState;
 use multiemu_runtime::program::ProgramSpecification;
 use options::OptionsState;
 use palette::{Srgba, WithAlpha, named::BLACK};
-use std::fmt::Display;
 use strum::{EnumIter, IntoEnumIterator};
+
+use crate::{
+    EguiWindowingIntegration, Frontend, PlatformExt,
+    environment::Environment,
+    gui::{about::AboutState, gamepad_config::GamepadConfigState},
+};
 
 mod about;
 mod file_browser;

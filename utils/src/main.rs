@@ -1,22 +1,27 @@
-use crate::{
-    database::{DatabaseAction, logiqx::LogiqxAction, native::NativeAction},
-    rom::RomAction,
-    search::SearchAction,
+use std::{
+    fs::{File, create_dir_all},
+    ops::Deref,
 };
+
 use clap::Parser;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use database::redump::RedumpAction;
 use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY};
 use multiemu_runtime::program::MachineId;
 use serde::{Deserialize, Deserializer};
-use std::fs::{File, create_dir_all};
-use std::ops::Deref;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
+
+use crate::{
+    database::{DatabaseAction, logiqx::LogiqxAction, native::NativeAction},
+    rom::RomAction,
+    search::SearchAction,
+};
 
 mod convert;
 mod database;
 mod logiqx;
+mod patch;
 mod rom;
 mod search;
 

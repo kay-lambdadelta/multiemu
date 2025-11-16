@@ -1,5 +1,5 @@
-use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
-use crate::tia::{VISIBLE_SCANLINE_LENGTH, region::Region};
+use std::sync::Arc;
+
 use multiemu_runtime::graphics::{
     GraphicsApi,
     vulkan::{
@@ -20,7 +20,9 @@ use multiemu_runtime::graphics::{
 };
 use nalgebra::DMatrixViewMut;
 use palette::{Srgba, named::BLACK};
-use std::sync::Arc;
+
+use super::{SupportedGraphicsApiTia, TiaDisplayBackend};
+use crate::tia::{VISIBLE_SCANLINE_LENGTH, region::Region};
 
 #[derive(Debug)]
 pub struct VulkanState {

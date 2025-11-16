@@ -1,5 +1,5 @@
-use super::{LORES, SupportedGraphicsApiChip8Display};
-use crate::display::Chip8DisplayBackend;
+use std::sync::Arc;
+
 use multiemu_runtime::graphics::{
     GraphicsApi,
     vulkan::{
@@ -20,7 +20,9 @@ use multiemu_runtime::graphics::{
 };
 use nalgebra::{DMatrixView, DMatrixViewMut, Vector2};
 use palette::{Srgba, named::BLACK};
-use std::sync::Arc;
+
+use super::{LORES, SupportedGraphicsApiChip8Display};
+use crate::display::Chip8DisplayBackend;
 
 #[derive(Debug)]
 pub struct VulkanState {

@@ -1,6 +1,7 @@
+use std::ops::BitOr;
+
 use nalgebra::DMatrix;
 use palette::Srgba;
-use std::ops::BitOr;
 
 use crate::graphics::GraphicsApi;
 

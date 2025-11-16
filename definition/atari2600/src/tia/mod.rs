@@ -1,29 +1,26 @@
-use crate::tia::{
-    backend::TiaDisplayBackend,
-    memory::{ReadRegisters, WriteRegisters},
+use std::{
+    any::Any,
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    sync::Arc,
 };
+
 pub(crate) use backend::SupportedGraphicsApiTia;
 use bitvec::{array::BitArray, order::Lsb0, view::BitView};
 use color::TiaColor;
 use multiemu_definition_mos6502::RdyFlag;
-use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
     component::{Component, ResourcePath},
-    memory::{
-        Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
-        WriteMemoryErrorType,
-    },
+    memory::{Address, AddressSpaceId, MemoryError},
 };
 use nalgebra::{DMatrix, Point2};
 use palette::Srgba;
 use region::Region;
 use serde::{Deserialize, Serialize};
-use std::{
-    any::Any,
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    ops::RangeInclusive,
-    sync::Arc,
+
+use crate::tia::{
+    backend::TiaDisplayBackend,
+    memory::{ReadRegisters, WriteRegisters},
 };
 
 mod backend;
@@ -142,23 +139,17 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         _address_space: AddressSpaceId,
         _avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         let data = &mut buffer[0];
 
-        if let Some(address) = ReadRegisters::from_repr(address) {
+        if let Some(address) = ReadRegisters::from_repr(address as u16) {
             tracing::debug!("Reading from TIA register: {:?}", address);
 
             self.handle_read_register(data, address);
 
             Ok(())
         } else {
-            Err(ReadMemoryError(
-                std::iter::once((
-                    RangeInclusive::from_start_and_length(address, buffer.len()),
-                    ReadMemoryErrorType::Denied,
-                ))
-                .collect(),
-            ))
+            unreachable!("{:x}", address);
         }
     }
 
@@ -167,24 +158,18 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), WriteMemoryError> {
+    ) -> Result<(), MemoryError> {
         let data = buffer[0];
         let data_bits = data.view_bits::<Lsb0>();
 
-        if let Some(address) = WriteRegisters::from_repr(address) {
+        if let Some(address) = WriteRegisters::from_repr(address as u16) {
             tracing::debug!("Writing to TIA register: {:?} = {:02x}", address, data);
 
             self.handle_write_register(data, data_bits, address);
 
             Ok(())
         } else {
-            Err(WriteMemoryError(
-                std::iter::once((
-                    RangeInclusive::from_start_and_length(address, buffer.len()),
-                    WriteMemoryErrorType::Denied,
-                ))
-                .collect(),
-            ))
+            unreachable!("{:x}", address);
         }
     }
 

@@ -3,9 +3,12 @@
 #![windows_subsystem = "windows"]
 #![allow(clippy::arc_with_non_send_sync)]
 
-use crate::{
-    backend::software::SoftwareGraphicsRuntime, input::DEFAULT_HOTKEYS, windowing::DesktopPlatform,
+use std::{
+    fs::{File, create_dir_all},
+    ops::Deref,
+    path::PathBuf,
 };
+
 use clap::Parser;
 use cli::{Cli, CliAction};
 use multiemu_frontend::{
@@ -13,14 +16,13 @@ use multiemu_frontend::{
     environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY},
 };
 use multiemu_runtime::{graphics::software::Software, program::ProgramManager};
-use std::{
-    fs::{File, create_dir_all},
-    ops::Deref,
-    path::PathBuf,
-};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
     EnvFilter, Layer, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
+};
+
+use crate::{
+    backend::software::SoftwareGraphicsRuntime, input::DEFAULT_HOTKEYS, windowing::DesktopPlatform,
 };
 
 mod audio;
@@ -115,8 +117,9 @@ fn main() {
             }
             #[cfg(feature = "vulkan")]
             multiemu_frontend::environment::graphics::GraphicsApi::Vulkan => {
-                use crate::backend::vulkan::VulkanGraphicsRuntime;
                 use multiemu_runtime::graphics::vulkan::Vulkan;
+
+                use crate::backend::vulkan::VulkanGraphicsRuntime;
 
                 DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run_with_program(
                     environment,
@@ -143,8 +146,9 @@ fn main() {
         }
         #[cfg(feature = "vulkan")]
         multiemu_frontend::environment::graphics::GraphicsApi::Vulkan => {
-            use crate::backend::vulkan::VulkanGraphicsRuntime;
             use multiemu_runtime::graphics::vulkan::Vulkan;
+
+            use crate::backend::vulkan::VulkanGraphicsRuntime;
 
             DesktopPlatform::<Vulkan, VulkanGraphicsRuntime>::run(
                 environment,

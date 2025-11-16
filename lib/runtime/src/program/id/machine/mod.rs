@@ -1,7 +1,8 @@
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap, fmt::Display, iter::once, path::Path, str::FromStr, sync::LazyLock,
 };
+
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
 mod extension;

@@ -1,10 +1,11 @@
+use std::hint::black_box;
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use multiemu_runtime::machine::Machine;
 use rangemap::RangeInclusiveMap;
-use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);

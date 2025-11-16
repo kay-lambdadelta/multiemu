@@ -1,16 +1,3 @@
-use crate::{
-    graphics::GraphicsApi,
-    machine::builder::ComponentBuilder,
-    memory::{
-        Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
-        WriteMemoryErrorType,
-    },
-    platform::Platform,
-};
-use multiemu_range::ContiguousRange;
-use nalgebra::SVector;
-pub use path::{ComponentPath, ResourcePath};
-use ringbuffer::AllocRingBuffer;
 use std::{
     any::Any,
     error::Error,
@@ -20,6 +7,17 @@ use std::{
 };
 
 pub use handle::*;
+use multiemu_range::ContiguousRange;
+use nalgebra::SVector;
+pub use path::{ComponentPath, ResourcePath};
+use ringbuffer::AllocRingBuffer;
+
+use crate::{
+    graphics::GraphicsApi,
+    machine::builder::ComponentBuilder,
+    memory::{Address, AddressSpaceId, MemoryError, MemoryErrorType},
+    platform::Platform,
+};
 
 mod handle;
 mod path;
@@ -63,11 +61,11 @@ pub trait Component: Send + Sync + Debug + Any {
         address_space: AddressSpaceId,
         avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
-        Err(ReadMemoryError(
+    ) -> Result<(), MemoryError> {
+        Err(MemoryError(
             std::iter::once((
                 RangeInclusive::from_start_and_length(address, buffer.len()),
-                ReadMemoryErrorType::Denied,
+                MemoryErrorType::Denied,
             ))
             .collect(),
         ))
@@ -79,11 +77,11 @@ pub trait Component: Send + Sync + Debug + Any {
         address: Address,
         address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), WriteMemoryError> {
-        Err(WriteMemoryError(
+    ) -> Result<(), MemoryError> {
+        Err(MemoryError(
             std::iter::once((
                 RangeInclusive::from_start_and_length(address, buffer.len()),
-                WriteMemoryErrorType::Denied,
+                MemoryErrorType::Denied,
             ))
             .collect(),
         ))

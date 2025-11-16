@@ -1,3 +1,5 @@
+use std::{fs::File, ops::Deref, str::FromStr, time::Duration};
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_nes::Nes;
 use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment};
@@ -7,7 +9,6 @@ use multiemu_runtime::{
     program::{ProgramManager, RomId},
 };
 use num::rational::Ratio;
-use std::{fs::File, ops::Deref, str::FromStr, time::Duration};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();

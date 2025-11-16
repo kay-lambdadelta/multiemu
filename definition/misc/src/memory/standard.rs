@@ -1,20 +1,20 @@
-use multiemu_range::ContiguousRange;
-use multiemu_range::RangeIntersection;
-use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion},
-    machine::builder::ComponentBuilder,
-    memory::{Address, AddressSpaceId, ReadMemoryError, WriteMemoryError},
-    platform::Platform,
-    program::{ProgramManager, RomId, RomRequirement},
-};
-use rand::RngCore;
-use rangemap::RangeInclusiveMap;
 use std::{
     borrow::Cow,
     io::{Read, Write},
     ops::RangeInclusive,
     sync::Arc,
 };
+
+use multiemu_range::{ContiguousRange, RangeIntersection};
+use multiemu_runtime::{
+    component::{Component, ComponentConfig, ComponentVersion},
+    machine::builder::ComponentBuilder,
+    memory::{Address, AddressSpaceId, MemoryError},
+    platform::Platform,
+    program::{ProgramManager, RomId, RomRequirement},
+};
+use rand::RngCore;
+use rangemap::RangeInclusiveMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StandardMemoryInitialContents {
@@ -83,7 +83,7 @@ impl Component for StandardMemory {
         _address_space: AddressSpaceId,
         _avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 
@@ -97,7 +97,7 @@ impl Component for StandardMemory {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), WriteMemoryError> {
+    ) -> Result<(), MemoryError> {
         let requested_range = address - self.config.assigned_range.start()
             ..=(address - self.config.assigned_range.start() + buffer.len() - 1);
 

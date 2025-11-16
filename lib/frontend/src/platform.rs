@@ -1,12 +1,14 @@
-use crate::{
-    AudioRuntime, GraphicsRuntime, MachineFactories, WindowingHandle, environment::Environment,
-};
+use std::{fmt::Debug, sync::Arc};
+
 use egui::RawInput;
 use multiemu_runtime::{
     platform::Platform,
     program::{ProgramManager, ProgramSpecification},
 };
-use std::{fmt::Debug, sync::Arc};
+
+use crate::{
+    AudioRuntime, GraphicsRuntime, MachineFactories, WindowingHandle, environment::Environment,
+};
 
 /// Extension trait for the platform relevant to the frontend
 pub trait PlatformExt: Platform + Sized + 'static {

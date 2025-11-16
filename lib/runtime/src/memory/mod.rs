@@ -1,18 +1,16 @@
-use crate::{
-    component::{ComponentPath, ErasedComponentHandle},
-    machine::registry::ComponentRegistry,
-};
 use std::{
     fmt::Debug,
+    hash::{Hash, Hasher},
     ops::RangeInclusive,
     sync::{
-        Arc, Mutex, RwLock,
+        Arc, Mutex, RwLock, RwLockWriteGuard,
         atomic::{AtomicBool, Ordering},
     },
 };
-use std::{
-    hash::{Hash, Hasher},
-    sync::RwLockWriteGuard,
+
+use crate::{
+    component::{ComponentPath, ErasedComponentHandle},
+    machine::registry::ComponentRegistry,
 };
 
 mod commit;
@@ -24,8 +22,7 @@ use bitvec::{field::BitField, order::Lsb0};
 use multiemu_range::RangeIntersection;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
-pub use read::*;
-pub use write::*;
+use thiserror::Error;
 
 pub type Address = usize;
 const PAGE_SIZE: Address = 0x1000;
@@ -76,10 +73,10 @@ impl AddressSpace {
     }
 
     #[inline]
-    fn interact_members<E>(
+    fn interact_members(
         &self,
-        callback: impl FnOnce(&Members) -> Result<(), E>,
-    ) -> Result<(), E> {
+        callback: impl FnOnce(&Members) -> Result<(), MemoryError>,
+    ) -> Result<(), MemoryError> {
         if !self.queue_modified.load(Ordering::Acquire) {
             callback(&self.members.read().unwrap())
         } else {
@@ -87,6 +84,10 @@ impl AddressSpace {
 
             callback(&members)
         }
+    }
+
+    pub fn commit(&self) {
+        let _ = self.interact_members(|_| Ok(()));
     }
 
     #[cold]
@@ -109,6 +110,11 @@ impl AddressSpace {
                     assert!(
                         !valid_range.disjoint(&range),
                         "Range {range:#04x?} is invalid for a address space that ends at {max:04x?} (inserted by {component})"
+                    );
+
+                    tracing::debug!(
+                        "Mapping component {component} to range {range:#04x?} with permissions {:?}",
+                        permissions
                     );
 
                     if permissions.read {
@@ -138,6 +144,11 @@ impl AddressSpace {
                     assert!(
                         !valid_range.disjoint(&range),
                         "Range {range:#04x?} is invalid for a address space that ends at {max:04x?}"
+                    );
+
+                    tracing::debug!(
+                        "Mapping mirror to range {range:#04x?} with permissions {:?} from range {destination_range:#04x?}",
+                        permissions
                     );
 
                     if permissions.read {
@@ -204,7 +215,7 @@ pub enum MemoryRemappingCommand {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct TableEntry {
     /// Full, uncropped relevant range
     pub start: Address,
@@ -213,6 +224,16 @@ struct TableEntry {
     pub mirror_start: Option<Address>,
     /// Handle to component
     pub component: ErasedComponentHandle,
+}
+
+impl Debug for TableEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TableEntry")
+            .field("start", &self.start)
+            .field("end", &self.end)
+            .field("mirror_start", &self.mirror_start)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -284,3 +305,19 @@ pub struct Members {
     pub read: MemoryMappingTable,
     pub write: MemoryMappingTable,
 }
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// Why a read operation failed
+pub enum MemoryErrorType {
+    /// Access was denied
+    Denied,
+    /// Nothing is mapped there
+    OutOfBus,
+    /// It would be impossible to view this memory without a state change
+    Impossible,
+}
+
+#[derive(Error, Debug)]
+#[error("Memory operation failed: {0:#x?}")]
+/// Wrapper around the error type in order to specify ranges
+pub struct MemoryError(pub RangeInclusiveMap<Address, MemoryErrorType>);

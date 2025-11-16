@@ -1,5 +1,5 @@
-use super::{Tia, region::Region, task::TiaTask};
-use crate::tia::backend::{SupportedGraphicsApiTia, TiaDisplayBackend};
+use std::marker::PhantomData;
+
 use multiemu_definition_mos6502::Mos6502;
 use multiemu_runtime::{
     component::{ComponentConfig, ComponentPath},
@@ -7,7 +7,13 @@ use multiemu_runtime::{
     memory::AddressSpaceId,
     platform::Platform,
 };
-use std::marker::PhantomData;
+use strum::IntoEnumIterator;
+
+use super::{Tia, region::Region, task::TiaTask};
+use crate::tia::{
+    backend::{SupportedGraphicsApiTia, TiaDisplayBackend},
+    memory::{ReadRegisters, WriteRegisters},
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct TiaConfig<R: Region> {
@@ -25,8 +31,21 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        let (component_builder, _) = component_builder.insert_display("tv");
-        let component_builder = component_builder.memory_map(self.cpu_address_space, 0x000..=0x03f);
+        let (mut component_builder, _) = component_builder.insert_display("tv");
+
+        for register in ReadRegisters::iter() {
+            component_builder = component_builder.memory_map_read(
+                self.cpu_address_space,
+                register as usize..=register as usize,
+            );
+        }
+
+        for register in WriteRegisters::iter() {
+            component_builder = component_builder.memory_map_write(
+                self.cpu_address_space,
+                register as usize..=register as usize,
+            );
+        }
 
         let cpu_rdy = component_builder
             .registry()

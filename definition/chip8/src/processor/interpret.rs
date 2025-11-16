@@ -1,3 +1,12 @@
+use arrayvec::ArrayVec;
+use bitvec::{
+    field::BitField,
+    prelude::{Lsb0, Msb0},
+    view::BitView,
+};
+use nalgebra::Point2;
+use rand::Rng;
+
 use super::{
     ExecutionState, ProcessorState,
     input::Chip8KeyCode,
@@ -8,14 +17,6 @@ use crate::{
     CHIP8_FONT, Chip8Mode, display::SupportedGraphicsApiChip8Display,
     processor::instruction::InstructionSetSuperChip8,
 };
-use arrayvec::ArrayVec;
-use bitvec::{
-    field::BitField,
-    prelude::{Lsb0, Msb0},
-    view::BitView,
-};
-use nalgebra::Point2;
-use rand::Rng;
 
 // Instruction interpreting can be clean and easy due to the chip8 enforcing 1 cycle = 1 instruction
 

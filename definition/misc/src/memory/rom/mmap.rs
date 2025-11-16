@@ -1,7 +1,9 @@
-use crate::memory::rom::RomMemoryBackend;
+use std::fs::File;
+
 use memmap2::Mmap;
 use multiemu_runtime::memory::Address;
-use std::fs::File;
+
+use crate::memory::rom::RomMemoryBackend;
 
 #[derive(Debug)]
 pub struct MmapBackend(Mmap);

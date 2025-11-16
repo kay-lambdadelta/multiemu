@@ -1,9 +1,10 @@
-use super::instruction::{
-    Chip8InstructionSet, InstructionSetChip8, InstructionSetSuperChip8, Register, ScrollDirection,
-};
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
 use multiemu_runtime::{memory::AddressSpace, processor::InstructionDecoder};
 use nalgebra::Point2;
+
+use super::instruction::{
+    Chip8InstructionSet, InstructionSetChip8, InstructionSetSuperChip8, Register, ScrollDirection,
+};
 
 #[derive(Debug, Default)]
 pub struct Chip8InstructionDecoder;

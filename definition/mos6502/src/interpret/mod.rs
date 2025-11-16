@@ -1,3 +1,7 @@
+use bitvec::{prelude::Lsb0, view::BitView};
+use multiemu_runtime::memory::Address;
+use num::traits::{FromBytes, ToBytes};
+
 use super::{
     FlagRegister, ProcessorState,
     instruction::{Mos6502InstructionSet, Mos6502Opcode},
@@ -7,9 +11,6 @@ use crate::{
     instruction::{AddressingMode, Mos6502AddressingMode, Opcode, Wdc65C02Opcode},
     task::Driver,
 };
-use bitvec::{prelude::Lsb0, view::BitView};
-use multiemu_runtime::memory::Address;
-use num::traits::{FromBytes, ToBytes};
 
 pub const STACK_BASE_ADDRESS: Address = 0x0100;
 const INTERRUPT_VECTOR: Address = 0xfffe;
@@ -23,7 +24,7 @@ const INTERRUPT_VECTOR: Address = 0xfffe;
 impl Driver {
     #[inline]
     pub(super) fn interpret_instruction(
-        &self,
+        &mut self,
         state: &mut ProcessorState,
         config: &Mos6502Config,
         instruction: Mos6502InstructionSet,
@@ -32,12 +33,12 @@ impl Driver {
             Opcode::Mos6502(opcode) => {
                 match opcode {
                     Mos6502Opcode::Adc => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         adc(state, config, value);
                     }
                     Mos6502Opcode::Anc => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = state.a & value;
                         let result_bits = result.view_bits::<Lsb0>();
@@ -49,7 +50,7 @@ impl Driver {
                         state.a = result;
                     }
                     Mos6502Opcode::And => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = state.a & value;
 
@@ -59,7 +60,7 @@ impl Driver {
                         state.a = result;
                     }
                     Mos6502Opcode::Arr => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let mut result = state.a & value;
 
@@ -78,7 +79,7 @@ impl Driver {
                         state.a = result;
                     }
                     Mos6502Opcode::Asl => {
-                        let mut value: u8 = self.load(state, &instruction, config);
+                        let mut value: u8 = self.load(state, &instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let carry = value_bits[7];
@@ -101,7 +102,7 @@ impl Driver {
                         }
                     }
                     Mos6502Opcode::Asr => {
-                        let mut value: u8 = self.load(state, &instruction, config);
+                        let mut value: u8 = self.load(state, &instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let carry = value_bits[7];
@@ -115,7 +116,7 @@ impl Driver {
                         state.a = value;
                     }
                     Mos6502Opcode::Bcc => {
-                        let value: i8 = self.load(state, &instruction, config);
+                        let value: i8 = self.load(state, &instruction);
 
                         if !state.flags.carry {
                             state
@@ -124,7 +125,7 @@ impl Driver {
                         }
                     }
                     Mos6502Opcode::Bcs => {
-                        let value: i8 = self.load(state, &instruction, config);
+                        let value: i8 = self.load(state, &instruction);
 
                         if state.flags.carry {
                             state
@@ -133,7 +134,7 @@ impl Driver {
                         }
                     }
                     Mos6502Opcode::Beq => {
-                        let value: i8 = self.load(state, &instruction, config);
+                        let value: i8 = self.load(state, &instruction);
 
                         if state.flags.zero {
                             state
@@ -142,7 +143,7 @@ impl Driver {
                         }
                     }
                     Mos6502Opcode::Bit => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let result = state.a & value;
@@ -152,7 +153,7 @@ impl Driver {
                         state.flags.zero = result == 0;
                     }
                     Mos6502Opcode::Bmi => {
-                        let value: i8 = self.load(state, &instruction, config);
+                        let value: i8 = self.load(state, &instruction);
 
                         if state.flags.negative {
                             state
@@ -161,7 +162,7 @@ impl Driver {
                         }
                     }
                     Mos6502Opcode::Bne => {
-                        let value: i8 = self.load(state, &instruction, config);
+                        let value: i8 = self.load(state, &instruction);
 
                         if !state.flags.zero {
                             state
@@ -170,7 +171,7 @@ impl Driver {
                         }
                     }
                     Mos6502Opcode::Bpl => {
-                        let value: i8 = self.load(state, &instruction, config);
+                        let value: i8 = self.load(state, &instruction);
 
                         if !state.flags.negative {
                             state
@@ -218,7 +219,7 @@ impl Driver {
                         state.stack = new_stack;
                     }
                     Mos6502Opcode::Bvc => {
-                        let value: i8 = self.load(state, &instruction, config);
+                        let value: i8 = self.load(state, &instruction);
 
                         if !state.flags.overflow {
                             state
@@ -227,7 +228,7 @@ impl Driver {
                         }
                     }
                     Mos6502Opcode::Bvs => {
-                        let value: i8 = self.load(state, &instruction, config);
+                        let value: i8 = self.load(state, &instruction);
 
                         if state.flags.overflow {
                             state
@@ -248,7 +249,7 @@ impl Driver {
                         state.flags.overflow = false;
                     }
                     Mos6502Opcode::Cmp => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = state.a.wrapping_sub(value);
 
@@ -257,7 +258,7 @@ impl Driver {
                         state.flags.carry = state.a >= value;
                     }
                     Mos6502Opcode::Cpx => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = state.x.wrapping_sub(value);
 
@@ -266,7 +267,7 @@ impl Driver {
                         state.flags.carry = state.x >= value;
                     }
                     Mos6502Opcode::Cpy => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = state.y.wrapping_sub(value);
 
@@ -276,7 +277,7 @@ impl Driver {
                     }
                     Mos6502Opcode::Dcp => todo!(),
                     Mos6502Opcode::Dec => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = value.wrapping_sub(1);
 
@@ -304,7 +305,7 @@ impl Driver {
                         state.y = result;
                     }
                     Mos6502Opcode::Eor => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = state.a ^ value;
 
@@ -314,7 +315,7 @@ impl Driver {
                         state.a = result;
                     }
                     Mos6502Opcode::Inc => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = value.wrapping_add(1);
 
@@ -372,13 +373,13 @@ impl Driver {
                     }
                     Mos6502Opcode::Las => todo!(),
                     Mos6502Opcode::Lax => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         state.a = value;
                         state.x = value;
                     }
                     Mos6502Opcode::Lda => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         state.flags.negative = value.view_bits::<Lsb0>()[7];
                         state.flags.zero = value == 0;
@@ -386,7 +387,7 @@ impl Driver {
                         state.a = value;
                     }
                     Mos6502Opcode::Ldx => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         state.flags.negative = value.view_bits::<Lsb0>()[7];
                         state.flags.zero = value == 0;
@@ -394,7 +395,7 @@ impl Driver {
                         state.x = value;
                     }
                     Mos6502Opcode::Ldy => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         state.flags.negative = value.view_bits::<Lsb0>()[7];
                         state.flags.zero = value == 0;
@@ -402,7 +403,7 @@ impl Driver {
                         state.y = value;
                     }
                     Mos6502Opcode::Lsr => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let carry = value_bits[0];
@@ -424,11 +425,11 @@ impl Driver {
                     }
                     Mos6502Opcode::Nop => {
                         if instruction.addressing_mode.is_some() {
-                            let _: u8 = self.load(state, &instruction, config);
+                            let _: u8 = self.load(state, &instruction);
                         }
                     }
                     Mos6502Opcode::Ora => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         let result = state.a | value;
 
@@ -475,7 +476,7 @@ impl Driver {
                     }
                     Mos6502Opcode::Rla => todo!(),
                     Mos6502Opcode::Rol => {
-                        let mut value: u8 = self.load(state, &instruction, config);
+                        let mut value: u8 = self.load(state, &instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let old_carry = state.flags.carry;
@@ -497,7 +498,7 @@ impl Driver {
                         }
                     }
                     Mos6502Opcode::Ror => {
-                        let mut value: u8 = self.load(state, &instruction, config);
+                        let mut value: u8 = self.load(state, &instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let old_carry = state.flags.carry;
@@ -563,10 +564,10 @@ impl Driver {
                     Mos6502Opcode::Sax => {
                         let value = state.a & state.x;
 
-                        self.store(state, &instruction, config, value);
+                        self.store(state, &instruction, value);
                     }
                     Mos6502Opcode::Sbc => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
 
                         adc(state, config, !value);
                     }
@@ -587,13 +588,13 @@ impl Driver {
                     Mos6502Opcode::Slo => todo!(),
                     Mos6502Opcode::Sre => todo!(),
                     Mos6502Opcode::Sta => {
-                        self.store(state, &instruction, config, state.a);
+                        self.store(state, &instruction, state.a);
                     }
                     Mos6502Opcode::Stx => {
-                        self.store(state, &instruction, config, state.x);
+                        self.store(state, &instruction, state.x);
                     }
                     Mos6502Opcode::Sty => {
-                        self.store(state, &instruction, config, state.y);
+                        self.store(state, &instruction, state.y);
                     }
                     Mos6502Opcode::Tax => {
                         let result = state.a;
@@ -639,7 +640,7 @@ impl Driver {
                         state.a = result;
                     }
                     Mos6502Opcode::Xaa => {
-                        let value: u8 = self.load(state, &instruction, config);
+                        let value: u8 = self.load(state, &instruction);
                         let random_value: u8 = rand::random();
 
                         let result = (state.a & random_value) & state.x & value;
@@ -653,7 +654,7 @@ impl Driver {
             }
             Opcode::Wdc65C02(opcode) => match opcode {
                 Wdc65C02Opcode::Bra => {
-                    let value: i8 = self.load(state, &instruction, config);
+                    let value: i8 = self.load(state, &instruction);
 
                     state
                         .execution_queue
@@ -685,7 +686,6 @@ impl Driver {
         &self,
         state: &mut ProcessorState,
         instruction: &Mos6502InstructionSet,
-        config: &Mos6502Config,
     ) -> T {
         match instruction.addressing_mode {
             Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)) => {
@@ -704,7 +704,6 @@ impl Driver {
         &self,
         state: &mut ProcessorState,
         instruction: &Mos6502InstructionSet,
-        config: &Mos6502Config,
         value: T,
     ) {
         match instruction.addressing_mode {

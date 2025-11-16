@@ -1,10 +1,10 @@
-use crate::{
-    EguiWindowingIntegration, GraphicsRuntime, Hotkey, MachineFactories, PlatformExt,
-    WindowingHandle,
-    backend::AudioRuntime,
-    environment::Environment,
-    gui::{GuiState, MenuOutput},
+use std::{
+    collections::{HashMap, HashSet},
+    num::Wrapping,
+    sync::{Arc, RwLock},
+    time::{Duration, Instant},
 };
+
 use multiemu_runtime::{
     graphics::GraphicsApi,
     input::{RealGamepad, RealGamepadId},
@@ -15,11 +15,13 @@ use multiemu_runtime::{
 use nalgebra::Vector2;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 use rustc_hash::FxBuildHasher;
-use std::{
-    collections::{HashMap, HashSet},
-    num::Wrapping,
-    sync::{Arc, RwLock},
-    time::{Duration, Instant},
+
+use crate::{
+    EguiWindowingIntegration, GraphicsRuntime, Hotkey, MachineFactories, PlatformExt,
+    WindowingHandle,
+    backend::AudioRuntime,
+    environment::Environment,
+    gui::{GuiState, MenuOutput},
 };
 
 #[derive(Debug)]

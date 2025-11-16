@@ -1,6 +1,7 @@
-use crate::SampleFormat;
 use nalgebra::SVector;
 use num::rational::Ratio;
+
+use crate::SampleFormat;
 
 #[derive(Debug)]
 /// Square wave generator

@@ -1,7 +1,9 @@
-use crate::environment::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
-use egui::{ComboBox, RichText, Ui};
 use std::fs::File;
+
+use egui::{ComboBox, RichText, Ui};
 use strum::IntoEnumIterator;
+
+use crate::environment::{ENVIRONMENT_LOCATION, Environment, graphics::GraphicsApi};
 
 #[derive(Debug, Default)]
 pub struct OptionsState {}

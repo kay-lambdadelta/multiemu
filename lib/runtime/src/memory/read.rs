@@ -1,40 +1,22 @@
 use std::ops::RangeInclusive;
 
-use super::AddressSpace;
-use crate::memory::Address;
 use multiemu_range::{ContiguousRange, RangeIntersection};
 use num::traits::FromBytes;
-use rangemap::RangeInclusiveMap;
-use thiserror::Error;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-/// Why a read operation failed
-pub enum ReadMemoryErrorType {
-    /// Access was denied
-    Denied,
-    /// Nothing is mapped there
-    OutOfBus,
-    /// It would be impossible to view this memory without a state change
-    Impossible,
-}
-
-#[derive(Error, Debug)]
-#[error("Read operation failed: {0:#x?}")]
-/// Wrapper around the error type in order to specify ranges
-pub struct ReadMemoryError(pub RangeInclusiveMap<Address, ReadMemoryErrorType>);
+use super::AddressSpace;
+use crate::memory::{Address, MemoryError};
 
 impl AddressSpace {
     /// Step through the memory translation table to fill a buffer
     ///
     /// Contents of the buffer upon failure are usually component specific
-    ///
     #[inline]
     pub fn read(
         &self,
         mut address: Address,
         avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         let mut remaining_buffer = buffer;
 
         while !remaining_buffer.is_empty() {
@@ -97,7 +79,7 @@ impl AddressSpace {
         &self,
         address: Address,
         avoid_side_effects: bool,
-    ) -> Result<T, ReadMemoryError>
+    ) -> Result<T, MemoryError>
     where
         T::Bytes: Default,
     {
@@ -112,7 +94,7 @@ impl AddressSpace {
         &self,
         address: Address,
         avoid_side_effects: bool,
-    ) -> Result<T, ReadMemoryError>
+    ) -> Result<T, MemoryError>
     where
         T::Bytes: Default,
     {

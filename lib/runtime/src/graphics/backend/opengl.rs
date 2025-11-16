@@ -1,12 +1,13 @@
+use std::{ops::BitOr, rc::Rc};
+
+pub use glow;
+use glow::{Context, Framebuffer};
+use nalgebra::Vector2;
+
 use crate::{
     GraphicsApi,
     shader::{GlslShader, ShaderCache},
 };
-use glow::{Context, Framebuffer};
-use nalgebra::Vector2;
-use std::{ops::BitOr, rc::Rc};
-
-pub use glow;
 
 #[derive(Default, Debug)]
 /// Marker train for opengl rendering, supported on major desktop platforms, lesser to the vulkan one

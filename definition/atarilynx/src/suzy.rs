@@ -1,13 +1,11 @@
+use std::ops::RangeInclusive;
+
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
-    memory::{
-        Address, AddressSpaceId, ReadMemoryError, ReadMemoryErrorType, WriteMemoryError,
-        WriteMemoryErrorType,
-    },
+    memory::{Address, AddressSpaceId, MemoryError},
     platform::Platform,
 };
-use std::ops::RangeInclusive;
 
 use crate::SUZY_ADDRESSES;
 
@@ -63,7 +61,7 @@ impl Component for Suzy {
         _address_space: AddressSpaceId,
         _avoid_side_effects: bool,
         buffer: &mut [u8],
-    ) -> Result<(), ReadMemoryError> {
+    ) -> Result<(), MemoryError> {
         // TODO: Make this a match table when rust gets inline const patterns
 
         if TMPADRL.contains(&address) {
@@ -107,13 +105,7 @@ impl Component for Suzy {
         } else if PPTDATA.contains(&address) {
         } else if HOWIE.contains(&address) {
         } else {
-            return Err(ReadMemoryError(
-                std::iter::once((
-                    address..=(address + (buffer.len() - 1)),
-                    ReadMemoryErrorType::Denied,
-                ))
-                .collect(),
-            ));
+            unreachable!()
         }
 
         Ok(())
@@ -124,7 +116,7 @@ impl Component for Suzy {
         address: Address,
         _address_space: AddressSpaceId,
         buffer: &[u8],
-    ) -> Result<(), WriteMemoryError> {
+    ) -> Result<(), MemoryError> {
         if TMPADRL.contains(&address) {
         } else if TILTACUM.contains(&address) {
         } else if HOFF.contains(&address) {
@@ -166,13 +158,7 @@ impl Component for Suzy {
         } else if PPTDATA.contains(&address) {
         } else if HOWIE.contains(&address) {
         } else {
-            return Err(WriteMemoryError(
-                std::iter::once((
-                    address..=(address + (buffer.len() - 1)),
-                    WriteMemoryErrorType::Denied,
-                ))
-                .collect(),
-            ));
+            unreachable!()
         }
 
         Ok(())

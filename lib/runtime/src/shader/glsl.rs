@@ -1,6 +1,7 @@
+use naga::{Module, ShaderStage, valid::ModuleInfo};
+
 use super::ShaderFormat;
 use crate::GraphicsVersion;
-use naga::{Module, ShaderStage, valid::ModuleInfo};
 
 #[derive(Debug)]
 /// GLSL shader format, used for opengl

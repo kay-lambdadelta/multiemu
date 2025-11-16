@@ -1,4 +1,3 @@
-use crate::{INes, cartridge::ines::RomType};
 use multiemu_definition_misc::memory::rom::RomMemoryConfig;
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
@@ -7,6 +6,8 @@ use multiemu_runtime::{
     platform::Platform,
     program::RomId,
 };
+
+use crate::{INes, cartridge::ines::RomType};
 
 #[derive(Debug)]
 pub struct NRom;

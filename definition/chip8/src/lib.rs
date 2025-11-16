@@ -1,4 +1,5 @@
-use crate::display::SupportedGraphicsApiChip8Display;
+use std::{borrow::Cow, marker::PhantomData};
+
 use audio::Chip8AudioConfig;
 use display::Chip8DisplayConfig;
 use font::CHIP8_FONT;
@@ -15,8 +16,9 @@ use processor::Chip8ProcessorConfig;
 pub use processor::decoder::Chip8InstructionDecoder;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, marker::PhantomData};
 use timer::Chip8TimerConfig;
+
+use crate::display::SupportedGraphicsApiChip8Display;
 
 mod audio;
 mod display;

@@ -1,17 +1,24 @@
-use crate::{
-    component::{Component, ComponentHandle, ComponentPath, ErasedComponentHandle},
-    scheduler::{TaskData, TaskId},
-};
-use rustc_hash::FxBuildHasher;
 use std::{
     any::{Any, TypeId},
     fmt::Debug,
 };
 
-#[derive(Debug)]
+use rustc_hash::FxBuildHasher;
+
+use crate::{
+    component::{Component, ComponentHandle, ComponentPath, ErasedComponentHandle},
+    scheduler::{TaskData, TaskId},
+};
+
 struct ComponentInfo {
     component: ErasedComponentHandle,
     type_id: TypeId,
+}
+
+impl Debug for ComponentInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ComponentInfo").finish()
+    }
 }
 
 #[derive(Debug, Default)]

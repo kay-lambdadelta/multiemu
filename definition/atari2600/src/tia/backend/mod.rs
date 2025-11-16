@@ -1,8 +1,10 @@
-use crate::tia::region::Region;
+use std::fmt::Debug;
+
 use multiemu_runtime::graphics::GraphicsApi;
 use nalgebra::DMatrixViewMut;
 use palette::Srgba;
-use std::fmt::Debug;
+
+use crate::tia::region::Region;
 
 pub mod software;
 #[cfg(feature = "vulkan")]
