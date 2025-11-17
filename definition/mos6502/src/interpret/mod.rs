@@ -185,11 +185,13 @@ impl Driver {
 
                         let _ = self.address_space.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
+                            Some(&mut self.address_space_cache),
                             program_bytes[0],
                         );
 
                         let _ = self.address_space.write_le_value(
                             (new_stack.wrapping_add(1)) as usize + STACK_BASE_ADDRESS,
+                            Some(&mut self.address_space_cache),
                             program_bytes[1],
                         );
 
@@ -203,15 +205,24 @@ impl Driver {
 
                         let _ = self.address_space.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
+                            Some(&mut self.address_space_cache),
                             flags.to_byte(),
                         );
 
                         let program = [
                             self.address_space
-                                .read_le_value(INTERRUPT_VECTOR, false)
+                                .read_le_value(
+                                    INTERRUPT_VECTOR,
+                                    false,
+                                    Some(&mut self.address_space_cache),
+                                )
                                 .unwrap_or_default(),
                             self.address_space
-                                .read_le_value(INTERRUPT_VECTOR + 1, false)
+                                .read_le_value(
+                                    INTERRUPT_VECTOR + 1,
+                                    false,
+                                    Some(&mut self.address_space_cache),
+                                )
                                 .unwrap_or_default(),
                         ];
                         state.program = u16::from_le_bytes(program);
@@ -458,7 +469,11 @@ impl Driver {
 
                         state.a = self
                             .address_space
-                            .read_le_value(state.stack as usize + STACK_BASE_ADDRESS, false)
+                            .read_le_value(
+                                state.stack as usize + STACK_BASE_ADDRESS,
+                                false,
+                                Some(&mut self.address_space_cache),
+                            )
                             .unwrap_or_default();
 
                         state.flags.negative = state.a.view_bits::<Lsb0>()[7];
@@ -469,7 +484,11 @@ impl Driver {
 
                         let value = self
                             .address_space
-                            .read_le_value(state.stack as usize + STACK_BASE_ADDRESS, false)
+                            .read_le_value(
+                                state.stack as usize + STACK_BASE_ADDRESS,
+                                false,
+                                Some(&mut self.address_space_cache),
+                            )
                             .unwrap_or_default();
 
                         state.flags = FlagRegister::from_byte(value);
@@ -524,7 +543,11 @@ impl Driver {
                         state.stack = state.stack.wrapping_add(1);
                         let flags = self
                             .address_space
-                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
+                            .read_le_value::<u8>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                false,
+                                Some(&mut self.address_space_cache),
+                            )
                             .unwrap_or_default();
 
                         state.flags = FlagRegister::from_byte(flags);
@@ -532,13 +555,21 @@ impl Driver {
                         state.stack = state.stack.wrapping_add(1);
                         let program_pointer_low = self
                             .address_space
-                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
+                            .read_le_value::<u8>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                false,
+                                Some(&mut self.address_space_cache),
+                            )
                             .unwrap_or_default();
 
                         state.stack = state.stack.wrapping_add(1);
                         let program_pointer_high = self
                             .address_space
-                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
+                            .read_le_value::<u8>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                false,
+                                Some(&mut self.address_space_cache),
+                            )
                             .unwrap_or_default();
 
                         state.program =
@@ -548,13 +579,21 @@ impl Driver {
                         state.stack = state.stack.wrapping_add(1);
                         let program_pointer_low = self
                             .address_space
-                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
+                            .read_le_value::<u8>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                false,
+                                Some(&mut self.address_space_cache),
+                            )
                             .unwrap_or_default();
 
                         state.stack = state.stack.wrapping_add(1);
                         let program_pointer_high = self
                             .address_space
-                            .read_le_value::<u8>(STACK_BASE_ADDRESS + state.stack as usize, false)
+                            .read_le_value::<u8>(
+                                STACK_BASE_ADDRESS + state.stack as usize,
+                                false,
+                                Some(&mut self.address_space_cache),
+                            )
                             .unwrap_or_default();
 
                         state.program =
@@ -683,7 +722,7 @@ impl Driver {
 
     #[inline]
     fn load<T: FromBytes<Bytes = [u8; 1]> + Default>(
-        &self,
+        &mut self,
         state: &mut ProcessorState,
         instruction: &Mos6502InstructionSet,
     ) -> T {
@@ -694,14 +733,18 @@ impl Driver {
             None => unreachable!(),
             _ => self
                 .address_space
-                .read_le_value(state.address_bus as usize, false)
+                .read_le_value(
+                    state.address_bus as usize,
+                    false,
+                    Some(&mut self.address_space_cache),
+                )
                 .unwrap_or_default(),
         }
     }
 
     #[inline]
     fn store<T: ToBytes<Bytes = [u8; 1]>>(
-        &self,
+        &mut self,
         state: &mut ProcessorState,
         instruction: &Mos6502InstructionSet,
         value: T,
@@ -714,9 +757,11 @@ impl Driver {
                 unreachable!()
             }
             _ => {
-                let _ = self
-                    .address_space
-                    .write_le_value(state.address_bus as usize, value);
+                let _ = self.address_space.write_le_value(
+                    state.address_bus as usize,
+                    Some(&mut self.address_space_cache),
+                    value,
+                );
             }
         }
     }

@@ -133,7 +133,7 @@ pub(crate) struct Tia<R: Region, G: SupportedGraphicsApiTia> {
 }
 
 impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
-    fn read_memory(
+    fn memory_read(
         &self,
         address: Address,
         _address_space: AddressSpaceId,
@@ -153,7 +153,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         }
     }
 
-    fn write_memory(
+    fn memory_write(
         &mut self,
         address: Address,
         _address_space: AddressSpaceId,

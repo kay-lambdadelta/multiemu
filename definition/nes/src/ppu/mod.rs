@@ -130,6 +130,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                 Driver {
                     processor_nmi,
                     ppu_address_space: ppu_address_space.clone(),
+                    ppu_address_space_cache: ppu_address_space.cache(),
                 },
             )
             .0
@@ -226,7 +227,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
 }
 
 impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
-    fn read_memory(
+    fn memory_read(
         &self,
         address: Address,
         _address_space: AddressSpaceId,
@@ -263,6 +264,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     *buffer = self.ppu_address_space.read_le_value(
                         self.state.vram_address_pointer as usize,
                         avoid_side_effects,
+                        None,
                     )?;
                 }
                 _ => {
@@ -274,7 +276,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
         Ok(())
     }
 
-    fn write_memory(
+    fn memory_write(
         &mut self,
         address: Address,
         _address_space: AddressSpaceId,
@@ -374,8 +376,11 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     );
 
                     // Redirect into the ppu address space
-                    self.ppu_address_space
-                        .write_le_value(self.state.vram_address_pointer as usize, *buffer)?;
+                    self.ppu_address_space.write_le_value(
+                        self.state.vram_address_pointer as usize,
+                        None,
+                        *buffer,
+                    )?;
 
                     self.state.vram_address_pointer =
                         self.state.vram_address_pointer.wrapping_add(u16::from(
@@ -388,9 +393,12 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     self.processor_rdy.store(false, Some(514));
 
                     // Read off OAM data immediately, this is done for performance and should not have any side effects
-                    let _ =
-                        self.cpu_address_space
-                            .read(page as usize, false, &mut self.state.oam.data);
+                    let _ = self.cpu_address_space.read(
+                        page as usize,
+                        false,
+                        None,
+                        &mut self.state.oam.data,
+                    );
                 }
                 _ => {
                     unreachable!("{:?}", register);

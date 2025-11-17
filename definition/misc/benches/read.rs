@@ -27,28 +27,79 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let machine = machine.build(());
     let address_space = machine.address_spaces.get(&address_space).unwrap();
+    let mut address_space_cache = address_space.cache();
 
     c.bench_function("read1", |b| {
         b.iter(|| {
-            black_box(address_space.read_le_value::<u8>(0x1000, false).unwrap());
+            black_box(
+                address_space
+                    .read_le_value::<u8>(0x1000, false, None)
+                    .unwrap(),
+            );
         })
     });
-
     c.bench_function("read2", |b| {
         b.iter(|| {
-            black_box(address_space.read_le_value::<u16>(0x1000, false).unwrap());
+            black_box(
+                address_space
+                    .read_le_value::<u16>(0x1000, false, None)
+                    .unwrap(),
+            );
         })
     });
-
     c.bench_function("read4", |b| {
         b.iter(|| {
-            black_box(address_space.read_le_value::<u32>(0x1000, false).unwrap());
+            black_box(
+                address_space
+                    .read_le_value::<u32>(0x1000, false, None)
+                    .unwrap(),
+            );
+        })
+    });
+    c.bench_function("read8", |b| {
+        b.iter(|| {
+            black_box(
+                address_space
+                    .read_le_value::<u64>(0x1000, false, None)
+                    .unwrap(),
+            );
         })
     });
 
-    c.bench_function("read8", |b| {
+    c.bench_function("read1_cached", |b| {
         b.iter(|| {
-            black_box(address_space.read_le_value::<u64>(0x1000, false).unwrap());
+            black_box(
+                address_space
+                    .read_le_value::<u8>(0x1000, false, Some(&mut address_space_cache))
+                    .unwrap(),
+            );
+        })
+    });
+    c.bench_function("read2_cached", |b| {
+        b.iter(|| {
+            black_box(
+                address_space
+                    .read_le_value::<u16>(0x1000, false, Some(&mut address_space_cache))
+                    .unwrap(),
+            );
+        })
+    });
+    c.bench_function("read4_cached", |b| {
+        b.iter(|| {
+            black_box(
+                address_space
+                    .read_le_value::<u32>(0x1000, false, Some(&mut address_space_cache))
+                    .unwrap(),
+            );
+        })
+    });
+    c.bench_function("read8_cached", |b| {
+        b.iter(|| {
+            black_box(
+                address_space
+                    .read_le_value::<u64>(0x1000, false, Some(&mut address_space_cache))
+                    .unwrap(),
+            );
         })
     });
 }

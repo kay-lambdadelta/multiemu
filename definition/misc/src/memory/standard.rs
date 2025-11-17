@@ -77,7 +77,7 @@ impl Component for StandardMemory {
         Ok(())
     }
 
-    fn read_memory(
+    fn memory_read(
         &self,
         address: Address,
         _address_space: AddressSpaceId,
@@ -92,7 +92,7 @@ impl Component for StandardMemory {
         Ok(())
     }
 
-    fn write_memory(
+    fn memory_write(
         &mut self,
         address: Address,
         _address_space: AddressSpaceId,
@@ -223,7 +223,7 @@ mod test {
 
         let mut buffer = [0; 4];
 
-        address_space.read(0, false, &mut buffer).unwrap();
+        address_space.read(0, false, None, &mut buffer).unwrap();
         assert_eq!(buffer, [0xff; 4]);
 
         let (machine, address_space) = Machine::build_test_minimal().insert_address_space(16);
@@ -247,7 +247,7 @@ mod test {
 
         let mut buffer = [0; 4];
 
-        address_space.read(0, false, &mut buffer).unwrap();
+        address_space.read(0, false, None, &mut buffer).unwrap();
         assert_eq!(buffer, [0xff; 4]);
     }
 
@@ -274,7 +274,7 @@ mod test {
 
         let mut buffer = [0; 8];
 
-        address_space.read(0, false, &mut buffer).unwrap();
+        address_space.read(0, false, None, &mut buffer).unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
 
@@ -301,7 +301,7 @@ mod test {
 
         let buffer = [0; 8];
 
-        address_space.write(0, &buffer).unwrap();
+        address_space.write(0, None, &buffer).unwrap();
     }
 
     #[test]
@@ -327,9 +327,9 @@ mod test {
 
         let mut buffer = [0xff; 8];
 
-        address_space.write(0, &buffer).unwrap();
+        address_space.write(0, None, &buffer).unwrap();
         buffer.fill(0);
-        address_space.read(0, false, &mut buffer).unwrap();
+        address_space.read(0, false, None, &mut buffer).unwrap();
         assert_eq!(buffer, [0xff; 8]);
     }
 
@@ -358,34 +358,36 @@ mod test {
 
         for i in 0..=0x5000 {
             let mut buffer = [0xff; 1];
-            address_space.write(i, &buffer).unwrap();
+            address_space.write(i, None, &buffer).unwrap();
             buffer.fill(0x00);
-            address_space.read(i, false, &mut buffer).unwrap();
+            address_space.read(i, false, None, &mut buffer).unwrap();
             assert_eq!(buffer, [0xff; 1]);
 
             let mut buffer = [0xff; 2];
-            address_space.write(i, &buffer).unwrap();
+            address_space.write(i, None, &buffer).unwrap();
             buffer.fill(0x00);
-            address_space.read(i, false, &mut buffer).unwrap();
+            address_space.read(i, false, None, &mut buffer).unwrap();
             assert_eq!(buffer, [0xff; 2]);
 
             let mut buffer = [0xff; 4];
-            address_space.write(i, &buffer).unwrap();
+            address_space.write(i, None, &buffer).unwrap();
             buffer.fill(0x00);
-            address_space.read(i, false, &mut buffer).unwrap();
+            address_space.read(i, false, None, &mut buffer).unwrap();
             assert_eq!(buffer, [0xff; 4]);
 
             let mut buffer = [0xff; 8];
-            address_space.write(i, &buffer).unwrap();
+            address_space.write(i, None, &buffer).unwrap();
             buffer.fill(0x00);
-            address_space.read(i, false, &mut buffer).unwrap();
+            address_space.read(i, false, None, &mut buffer).unwrap();
             assert_eq!(buffer, [0xff; 8]);
         }
 
         let mut buffer = [0x00; 1];
-        address_space.write(0xf000, &buffer).unwrap();
+        address_space.write(0xf000, None, &buffer).unwrap();
         buffer.fill(0xff);
-        address_space.read(0x0000, false, &mut buffer).unwrap();
+        address_space
+            .read(0x0000, false, None, &mut buffer)
+            .unwrap();
         assert_eq!(buffer, [0x00; 1]);
     }
 
@@ -412,7 +414,7 @@ mod test {
 
         let mut buffer = [0; 2];
 
-        address_space.read(0xff, false, &mut buffer).unwrap();
+        address_space.read(0xff, false, None, &mut buffer).unwrap();
         assert_eq!(buffer, [0x00, 0xff]);
     }
 }

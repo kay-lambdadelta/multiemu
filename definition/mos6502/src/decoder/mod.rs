@@ -2,7 +2,7 @@ use group1::decode_group1_space_instruction;
 use group2::decode_group2_space_instruction;
 use group3::decode_group3_space_instruction;
 use multiemu_runtime::{
-    memory::{Address, AddressSpace},
+    memory::{Address, AddressSpace, AddressSpaceCache},
     processor::InstructionDecoder,
 };
 use strum::FromRepr;
@@ -42,9 +42,10 @@ impl InstructionDecoder for Mos6502InstructionDecoder {
         &self,
         address: Address,
         address_space: &AddressSpace,
+        address_space_cache: Option<&mut AddressSpaceCache>,
     ) -> Option<(Self::InstructionSet, u8)> {
         let byte: u8 = address_space
-            .read_le_value(address, false)
+            .read_le_value(address, false, address_space_cache)
             .unwrap_or_default();
 
         let instruction_identifier = InstructionGroup::from_repr(byte & 0b11).unwrap();

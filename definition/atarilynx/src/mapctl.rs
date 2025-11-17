@@ -24,7 +24,7 @@ pub struct Mapctl {
 }
 
 impl Component for Mapctl {
-    fn read_memory(
+    fn memory_read(
         &self,
         _address: Address,
         _address_space: AddressSpaceId,
@@ -36,7 +36,7 @@ impl Component for Mapctl {
         Ok(())
     }
 
-    fn write_memory(
+    fn memory_write(
         &mut self,
         _address: Address,
         _address_space: AddressSpaceId,

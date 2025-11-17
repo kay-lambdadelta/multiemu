@@ -21,7 +21,7 @@ pub fn adc_immediate() {
             })
             .unwrap();
 
-        address_space.write(0x0000, &[0x69, value]).unwrap();
+        address_space.write(0x0000, None, &[0x69, value]).unwrap();
 
         // Should be done in 2 cycles
         machine.scheduler.as_mut().unwrap().run_for_cycles(2);
@@ -57,7 +57,9 @@ pub fn adc_absolute() {
         let (mut machine, cpu, address_space) = instruction_test_boilerplate();
         let address_space = machine.address_spaces.get(&address_space).unwrap();
 
-        address_space.write_le_value::<u8>(0x3, value).unwrap();
+        address_space
+            .write_le_value::<u8>(0x3, None, value)
+            .unwrap();
 
         // Enable carry
         machine
@@ -73,8 +75,12 @@ pub fn adc_absolute() {
             .unwrap();
 
         // ADC 0x0003
-        address_space.write_le_value::<u8>(0x0000, 0x6d).unwrap();
-        address_space.write_le_value::<u16>(0x0001, 0x3).unwrap();
+        address_space
+            .write_le_value::<u8>(0x0000, None, 0x6d)
+            .unwrap();
+        address_space
+            .write_le_value::<u16>(0x0001, None, 0x3)
+            .unwrap();
 
         machine.scheduler.as_mut().unwrap().run_for_cycles(4);
 

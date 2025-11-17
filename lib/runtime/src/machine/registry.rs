@@ -6,12 +6,12 @@ use std::{
 use rustc_hash::FxBuildHasher;
 
 use crate::{
-    component::{Component, ComponentHandle, ComponentPath, ErasedComponentHandle},
+    component::{Component, ComponentHandle, ComponentPath, TypedComponentHandle},
     scheduler::{TaskData, TaskId},
 };
 
 struct ComponentInfo {
-    component: ErasedComponentHandle,
+    component: ComponentHandle,
     type_id: TypeId,
 }
 
@@ -65,7 +65,7 @@ impl ComponentRegistry {
             .insert_sync(
                 path,
                 ComponentInfo {
-                    component: ErasedComponentHandle::new(component, tasks),
+                    component: ComponentHandle::new(component, tasks),
                     type_id: TypeId::of::<C>(),
                 },
             )
@@ -122,19 +122,19 @@ impl ComponentRegistry {
         })
     }
 
-    pub fn get_erased(&self, path: &ComponentPath) -> Option<ErasedComponentHandle> {
+    pub fn get_erased(&self, path: &ComponentPath) -> Option<ComponentHandle> {
         self.components
             .read_sync(path, |_, component_info| component_info.component.clone())
     }
 
-    pub fn get<C: Component>(&self, path: &ComponentPath) -> Option<ComponentHandle<C>> {
+    pub fn get<C: Component>(&self, path: &ComponentPath) -> Option<TypedComponentHandle<C>> {
         self.components.read_sync(path, |_, component_info| {
             let component = component_info.component.clone();
 
             // Ensure the component actually matches the generic
             assert_eq!(component_info.type_id, TypeId::of::<C>());
 
-            unsafe { ComponentHandle::new(component) }
+            unsafe { TypedComponentHandle::new(component) }
         })
     }
 }

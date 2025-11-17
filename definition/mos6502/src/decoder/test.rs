@@ -61,9 +61,9 @@ pub fn decoding_test() {
     let decoder = Mos6502InstructionDecoder::new(Mos6502Kind::Mos6502);
 
     for (byte, expected_decoding) in table {
-        address_space.write_le_value::<u8>(0x0, byte).unwrap();
+        address_space.write_le_value::<u8>(0x0, None, byte).unwrap();
 
-        let (decoding, _) = decoder.decode(0x0000, address_space).unwrap();
+        let (decoding, _) = decoder.decode(0x0000, address_space, None).unwrap();
 
         assert_eq!(
             decoding, expected_decoding,

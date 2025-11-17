@@ -4,7 +4,7 @@ use std::{
 };
 
 use multiemu_runtime::{
-    component::ComponentHandle, input::VirtualGamepad, memory::AddressSpace,
+    component::TypedComponentHandle, input::VirtualGamepad, memory::AddressSpace,
     processor::InstructionDecoder, scheduler::Task,
 };
 
@@ -26,9 +26,9 @@ pub(crate) struct Driver<G: SupportedGraphicsApiChip8Display> {
     pub cpu_address_space: Arc<AddressSpace>,
     // What chip8 mode we are currently in
     pub mode: Arc<Mutex<Chip8Mode>>,
-    pub display: ComponentHandle<Chip8Display<G>>,
-    pub audio: ComponentHandle<Chip8Audio>,
-    pub timer: ComponentHandle<Chip8Timer>,
+    pub display: TypedComponentHandle<Chip8Display<G>>,
+    pub audio: TypedComponentHandle<Chip8Audio>,
+    pub timer: TypedComponentHandle<Chip8Timer>,
     pub config: Chip8ProcessorConfig<G>,
 }
 
@@ -47,6 +47,7 @@ impl<G: SupportedGraphicsApiChip8Display> Task<Chip8Processor> for Driver<G> {
                             .decode(
                                 component.state.registers.program as usize,
                                 &self.cpu_address_space,
+                                None,
                             )
                             .expect("Failed to decode instruction");
 

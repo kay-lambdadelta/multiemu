@@ -1,6 +1,6 @@
 use std::{
     any::Any,
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fmt::Debug,
     num::NonZero,
     sync::{
@@ -22,7 +22,7 @@ use num::{
 pub use task::*;
 
 use crate::{
-    component::{Component, ErasedComponentHandle, ResourcePath},
+    component::{Component, ComponentHandle, ResourcePath},
     machine::registry::ComponentRegistry,
 };
 
@@ -37,13 +37,13 @@ struct TaskMetadata {
     path: ResourcePath,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TimelineTaskEntry {
     pub task_id: TaskId,
-    pub component: ErasedComponentHandle,
+    pub component: ComponentHandle,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TimelineEntry {
     pub tasks: Vec<TimelineTaskEntry>,
     pub time_slice: NonZero<u32>,
@@ -51,7 +51,7 @@ struct TimelineEntry {
 
 #[derive(Debug)]
 struct Timeline {
-    entries: BTreeMap<u32, TimelineEntry>,
+    entries: Vec<Option<TimelineEntry>>,
     tick_real_time: Duration,
     length: u32,
 }
@@ -127,7 +127,7 @@ impl Scheduler {
             timeline_length,
         );
 
-        let mut timeline = BTreeMap::default();
+        let mut timeline = vec![None; timeline_length as usize];
         let mut current_tick = 0;
 
         while current_tick < timeline_length {
@@ -175,62 +175,53 @@ impl Scheduler {
 
                         let time_slice = runs_before_second.max(1);
 
-                        timeline.insert(
-                            current_tick,
-                            TimelineEntry {
-                                time_slice: NonZero::new(time_slice).unwrap(),
-                                tasks: vec![TimelineTaskEntry {
-                                    task_id: **first_task_id,
-                                    component: self
-                                        .registry
-                                        .get_erased(&first_task_metadata.path.component)
-                                        .unwrap(),
-                                }],
-                            },
-                        );
+                        timeline[current_tick as usize] = Some(TimelineEntry {
+                            time_slice: NonZero::new(time_slice).unwrap(),
+                            tasks: vec![TimelineTaskEntry {
+                                task_id: **first_task_id,
+                                component: self
+                                    .registry
+                                    .get_erased(&first_task_metadata.path.component)
+                                    .unwrap(),
+                            }],
+                        });
 
                         current_tick += time_difference;
                     } else {
                         // Limit by itself
 
-                        timeline.insert(
-                            current_tick,
-                            TimelineEntry {
-                                time_slice: NonZero::new(1).unwrap(),
-                                tasks: vec![TimelineTaskEntry {
-                                    task_id: **first_task_id,
-                                    component: self
-                                        .registry
-                                        .get_erased(&first_task_metadata.path.component)
-                                        .unwrap(),
-                                }],
-                            },
-                        );
+                        timeline[current_tick as usize] = Some(TimelineEntry {
+                            time_slice: NonZero::new(1).unwrap(),
+                            tasks: vec![TimelineTaskEntry {
+                                task_id: **first_task_id,
+                                component: self
+                                    .registry
+                                    .get_erased(&first_task_metadata.path.component)
+                                    .unwrap(),
+                            }],
+                        });
 
                         current_tick += first_relative_period;
                     }
                 }
                 _ => {
-                    timeline.insert(
-                        current_tick,
-                        TimelineEntry {
-                            time_slice: NonZero::new(1).unwrap(),
-                            tasks: tasks
-                                .into_iter()
-                                .map(|(task_id, _, _)| {
-                                    let task_metadata = self.task_metadata.get(task_id).unwrap();
+                    timeline[current_tick as usize] = Some(TimelineEntry {
+                        time_slice: NonZero::new(1).unwrap(),
+                        tasks: tasks
+                            .into_iter()
+                            .map(|(task_id, _, _)| {
+                                let task_metadata = self.task_metadata.get(task_id).unwrap();
 
-                                    TimelineTaskEntry {
-                                        task_id: *task_id,
-                                        component: self
-                                            .registry
-                                            .get_erased(&task_metadata.path.component)
-                                            .unwrap(),
-                                    }
-                                })
-                                .collect(),
-                        },
-                    );
+                                TimelineTaskEntry {
+                                    task_id: *task_id,
+                                    component: self
+                                        .registry
+                                        .get_erased(&task_metadata.path.component)
+                                        .unwrap(),
+                                }
+                            })
+                            .collect(),
+                    });
 
                     current_tick += 1;
                 }

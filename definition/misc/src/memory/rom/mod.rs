@@ -56,7 +56,7 @@ impl RomMemory {
 }
 
 impl Component for RomMemory {
-    fn read_memory(
+    fn memory_read(
         &self,
         address: Address,
         _address_space: AddressSpaceId,

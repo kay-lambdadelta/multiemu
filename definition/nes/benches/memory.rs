@@ -42,16 +42,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         .address_spaces
         .get(&processor.interact(|c| c.address_space()))
         .unwrap();
-
-    c.bench_function("cpu_access_workram", |b| {
-        b.iter(|| {
-            black_box(
-                address_space
-                    .read_le_value::<u8>(black_box(0x0000), false)
-                    .unwrap(),
-            );
-        })
-    });
 }
 
 criterion_group!(benches, criterion_benchmark);

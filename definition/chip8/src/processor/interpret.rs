@@ -240,6 +240,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                             .read(
                                 state.registers.index as usize + cursor,
                                 false,
+                                None,
                                 buffer_section,
                             )
                             .unwrap();
@@ -258,6 +259,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                             .read(
                                 state.registers.index as usize + cursor,
                                 false,
+                                None,
                                 buffer_section,
                             )
                             .unwrap();
@@ -328,13 +330,13 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                 let [hundreds, tens, ones] = bcd_encode(register_value);
 
                 self.cpu_address_space
-                    .write_le_value(state.registers.index as usize, hundreds)
+                    .write_le_value(state.registers.index as usize, None, hundreds)
                     .unwrap();
                 self.cpu_address_space
-                    .write_le_value(state.registers.index as usize + 1, tens)
+                    .write_le_value(state.registers.index as usize + 1, None, tens)
                     .unwrap();
                 self.cpu_address_space
-                    .write_le_value(state.registers.index as usize + 2, ones)
+                    .write_le_value(state.registers.index as usize + 2, None, ones)
                     .unwrap();
             }
             Chip8InstructionSet::Chip8(InstructionSetChip8::Save { count }) => {
@@ -342,6 +344,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                     self.cpu_address_space
                         .write(
                             state.registers.index as usize + i as usize,
+                            None,
                             &state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();
@@ -359,6 +362,7 @@ impl<G: SupportedGraphicsApiChip8Display> Driver<G> {
                         .read(
                             state.registers.index as usize + i as usize,
                             false,
+                            None,
                             &mut state.registers.work_registers[i as usize..=i as usize],
                         )
                         .unwrap();

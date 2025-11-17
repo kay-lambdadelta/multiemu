@@ -1,5 +1,8 @@
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
-use multiemu_runtime::{memory::AddressSpace, processor::InstructionDecoder};
+use multiemu_runtime::{
+    memory::{Address, AddressSpace, AddressSpaceCache},
+    processor::InstructionDecoder,
+};
 use nalgebra::Point2;
 
 use super::instruction::{
@@ -14,11 +17,15 @@ impl InstructionDecoder for Chip8InstructionDecoder {
 
     fn decode(
         &self,
-        cursor: usize,
+        cursor: Address,
         address_space: &AddressSpace,
+        address_space_cache: Option<&mut AddressSpaceCache>,
     ) -> Option<(Chip8InstructionSet, u8)> {
         let mut instruction = [0; 2];
-        address_space.read(cursor, false, &mut instruction).unwrap();
+
+        address_space
+            .read(cursor, false, address_space_cache, &mut instruction)
+            .unwrap();
 
         decode_instruction(instruction).map(|i| (i, 2))
     }

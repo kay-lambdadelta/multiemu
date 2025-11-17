@@ -389,6 +389,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
             "driver",
             self.frequency,
             Driver {
+                address_space_cache: address_space.cache(),
                 address_space,
                 instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
             },

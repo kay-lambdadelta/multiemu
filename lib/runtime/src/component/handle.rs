@@ -19,9 +19,9 @@ struct HandleInner<T: ?Sized> {
 
 /// A handle and storage for a component, and the tasks associated with it
 #[derive(Debug, Clone)]
-pub struct ErasedComponentHandle(Arc<RwLock<HandleInner<dyn Component>>>);
+pub struct ComponentHandle(Arc<RwLock<HandleInner<dyn Component>>>);
 
-impl ErasedComponentHandle {
+impl ComponentHandle {
     pub(crate) fn new(
         component: impl Component,
         tasks: impl IntoIterator<Item = (TaskId, TaskData)>,
@@ -64,12 +64,12 @@ impl ErasedComponentHandle {
 
 /// Helper type that acts like a [`ErasedComponentHandle`] but does downcasting for you
 #[derive(Debug)]
-pub struct ComponentHandle<C: Component> {
-    component: ErasedComponentHandle,
+pub struct TypedComponentHandle<C: Component> {
+    component: ComponentHandle,
     _phantom: PhantomData<C>,
 }
 
-impl<C: Component> Clone for ComponentHandle<C> {
+impl<C: Component> Clone for TypedComponentHandle<C> {
     fn clone(&self) -> Self {
         Self {
             component: self.component.clone(),
@@ -78,11 +78,11 @@ impl<C: Component> Clone for ComponentHandle<C> {
     }
 }
 
-impl<C: Component> ComponentHandle<C> {
+impl<C: Component> TypedComponentHandle<C> {
     /// # SAFETY
     ///
     /// The component must match the type of the generic, this struct does not do type checking in release mode
-    pub(crate) unsafe fn new(component: ErasedComponentHandle) -> Self {
+    pub(crate) unsafe fn new(component: ComponentHandle) -> Self {
         Self {
             component,
             _phantom: PhantomData,

@@ -51,6 +51,11 @@ impl<P: Platform> Default for ComponentMetadata<P> {
     }
 }
 
+struct AddressSpaceInfo {
+    address_space: Arc<AddressSpace>,
+    memory_map_queue: Vec<MemoryRemappingCommand>,
+}
+
 /// Builder to produce a machine, definition crates will want to use this
 pub struct MachineBuilder<P: Platform> {
     /// Rom manager
@@ -69,7 +74,7 @@ pub struct MachineBuilder<P: Platform> {
     program_specification: Option<ProgramSpecification>,
     /// Scheduler
     scheduler: Scheduler,
-    address_spaces: HashMap<AddressSpaceId, Arc<AddressSpace>>,
+    address_spaces: HashMap<AddressSpaceId, AddressSpaceInfo>,
     next_address_space_id: AddressSpaceId,
 }
 
@@ -191,62 +196,79 @@ impl<P: Platform> MachineBuilder<P> {
             .0
             .checked_add(1)
             .expect("Too many address spaces");
-        self.address_spaces
-            .insert(address_space.id(), address_space);
+        self.address_spaces.insert(
+            address_space.id(),
+            AddressSpaceInfo {
+                address_space,
+                memory_map_queue: Vec::default(),
+            },
+        );
 
         (self, address_space_id)
     }
 
     pub fn memory_map_mirror_read(
-        self,
+        mut self,
         address_space: AddressSpaceId,
         source: RangeInclusive<Address>,
         destination: RangeInclusive<Address>,
     ) -> Self {
-        self.address_spaces[&address_space].remap([MemoryRemappingCommand::Mirror {
-            source,
-            destination,
-            permissions: Permissions {
-                read: true,
-                write: false,
-            },
-        }]);
+        self.address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Mirror {
+                source,
+                destination,
+                permissions: Permissions {
+                    read: true,
+                    write: false,
+                },
+            });
 
         self
     }
 
     pub fn memory_map_mirror_write(
-        self,
+        mut self,
         address_space: AddressSpaceId,
         source: RangeInclusive<Address>,
         destination: RangeInclusive<Address>,
     ) -> Self {
-        self.address_spaces[&address_space].remap([MemoryRemappingCommand::Mirror {
-            source,
-            destination,
-            permissions: Permissions {
-                read: false,
-                write: true,
-            },
-        }]);
+        self.address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Mirror {
+                source,
+                destination,
+                permissions: Permissions {
+                    read: false,
+                    write: true,
+                },
+            });
 
         self
     }
 
     pub fn memory_map_mirror(
-        self,
+        mut self,
         address_space: AddressSpaceId,
         source: RangeInclusive<Address>,
         destination: RangeInclusive<Address>,
     ) -> Self {
-        self.address_spaces[&address_space].remap([MemoryRemappingCommand::Mirror {
-            source,
-            destination,
-            permissions: Permissions {
-                read: true,
-                write: true,
-            },
-        }]);
+        self.address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Mirror {
+                source,
+                destination,
+                permissions: Permissions {
+                    read: true,
+                    write: true,
+                },
+            });
 
         self
     }
@@ -280,6 +302,14 @@ impl<P: Platform> MachineBuilder<P> {
             audio_outputs.extend(component_metadata.audio_outputs);
         }
 
+        for AddressSpaceInfo {
+            address_space,
+            memory_map_queue,
+        } in self.address_spaces.values_mut()
+        {
+            address_space.remap(memory_map_queue.drain(..));
+        }
+
         let late_initialized_data = LateInitializedData::<P> {
             component_graphics_initialization_data,
         };
@@ -292,19 +322,18 @@ impl<P: Platform> MachineBuilder<P> {
                 .unwrap();
         }
 
-        // Commit the table so the debug output makes sense
-        for address_space in self.address_spaces.values() {
-            address_space.commit();
-        }
-
-        tracing::debug!("{:#x?}", self.address_spaces);
-
         // Build the timeline before building the machine
         self.scheduler.build_timeline();
 
+        let address_spaces = self
+            .address_spaces
+            .into_iter()
+            .map(|(id, info)| (id, info.address_space))
+            .collect();
+
         Machine {
             scheduler: Some(self.scheduler),
-            address_spaces: self.address_spaces,
+            address_spaces,
             virtual_gamepads,
             component_registry: self.registry,
             displays,
@@ -335,7 +364,9 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     }
 
     pub fn address_space(&self, address_space: AddressSpaceId) -> Arc<AddressSpace> {
-        self.machine_builder.address_spaces[&address_space].clone()
+        self.machine_builder.address_spaces[&address_space]
+            .address_space
+            .clone()
     }
 
     pub fn host_sample_rate(&self) -> Ratio<u32> {
@@ -464,16 +495,19 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         address_space: AddressSpaceId,
         range: RangeInclusive<Address>,
     ) -> Self {
-        self.machine_builder.address_spaces[&address_space].remap([
-            MemoryRemappingCommand::Component {
+        self.machine_builder
+            .address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Component {
                 range,
                 component: self.path.clone(),
                 permissions: Permissions {
                     read: true,
                     write: false,
                 },
-            },
-        ]);
+            });
 
         self
     }
@@ -483,31 +517,37 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         address_space: AddressSpaceId,
         range: RangeInclusive<Address>,
     ) -> Self {
-        self.machine_builder.address_spaces[&address_space].remap([
-            MemoryRemappingCommand::Component {
+        self.machine_builder
+            .address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Component {
                 range,
                 component: self.path.clone(),
                 permissions: Permissions {
                     read: false,
                     write: true,
                 },
-            },
-        ]);
+            });
 
         self
     }
 
     pub fn memory_map(self, address_space: AddressSpaceId, range: RangeInclusive<Address>) -> Self {
-        self.machine_builder.address_spaces[&address_space].remap([
-            MemoryRemappingCommand::Component {
+        self.machine_builder
+            .address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Component {
                 range,
                 component: self.path.clone(),
                 permissions: Permissions {
                     read: true,
                     write: true,
                 },
-            },
-        ]);
+            });
 
         self
     }
@@ -518,16 +558,19 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         source: RangeInclusive<Address>,
         destination: RangeInclusive<Address>,
     ) -> Self {
-        self.machine_builder.address_spaces[&address_space].remap([
-            MemoryRemappingCommand::Mirror {
+        self.machine_builder
+            .address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Mirror {
                 source,
                 destination,
                 permissions: Permissions {
                     read: true,
                     write: false,
                 },
-            },
-        ]);
+            });
 
         self
     }
@@ -538,16 +581,19 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         source: RangeInclusive<Address>,
         destination: RangeInclusive<Address>,
     ) -> Self {
-        self.machine_builder.address_spaces[&address_space].remap([
-            MemoryRemappingCommand::Mirror {
+        self.machine_builder
+            .address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Mirror {
                 source,
                 destination,
                 permissions: Permissions {
                     read: false,
                     write: true,
                 },
-            },
-        ]);
+            });
 
         self
     }
@@ -558,16 +604,19 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         source: RangeInclusive<Address>,
         destination: RangeInclusive<Address>,
     ) -> Self {
-        self.machine_builder.address_spaces[&address_space].remap([
-            MemoryRemappingCommand::Mirror {
+        self.machine_builder
+            .address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Mirror {
                 source,
                 destination,
                 permissions: Permissions {
                     read: true,
                     write: true,
                 },
-            },
-        ]);
+            });
 
         self
     }

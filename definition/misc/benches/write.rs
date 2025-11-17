@@ -27,35 +27,62 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let machine = machine.build(());
     let address_space = machine.address_spaces.get(&address_space).unwrap();
+    let mut address_space_cache = address_space.cache();
 
     c.bench_function("write1", |b| {
         b.iter(|| {
             address_space
-                .write_le_value::<u8>(0x1000, black_box(0))
+                .write_le_value::<u8>(0x1000, None, black_box(0))
                 .unwrap();
         })
     });
-
     c.bench_function("write2", |b| {
         b.iter(|| {
             address_space
-                .write_le_value::<u16>(0x1000, black_box(0))
+                .write_le_value::<u16>(0x1000, None, black_box(0))
                 .unwrap();
         })
     });
-
     c.bench_function("write4", |b| {
         b.iter(|| {
             address_space
-                .write_le_value::<u32>(0x1000, black_box(0))
+                .write_le_value::<u32>(0x1000, None, black_box(0))
+                .unwrap();
+        })
+    });
+    c.bench_function("write8", |b| {
+        b.iter(|| {
+            address_space
+                .write_le_value::<u64>(0x1000, None, black_box(0))
                 .unwrap();
         })
     });
 
-    c.bench_function("write8", |b| {
+    c.bench_function("write1_cached", |b| {
         b.iter(|| {
             address_space
-                .write_le_value::<u64>(0x1000, black_box(0))
+                .write_le_value::<u8>(0x1000, Some(&mut address_space_cache), black_box(0))
+                .unwrap();
+        })
+    });
+    c.bench_function("write2_cached", |b| {
+        b.iter(|| {
+            address_space
+                .write_le_value::<u16>(0x1000, Some(&mut address_space_cache), black_box(0))
+                .unwrap();
+        })
+    });
+    c.bench_function("write4_cached", |b| {
+        b.iter(|| {
+            address_space
+                .write_le_value::<u32>(0x1000, Some(&mut address_space_cache), black_box(0))
+                .unwrap();
+        })
+    });
+    c.bench_function("write8_cached", |b| {
+        b.iter(|| {
+            address_space
+                .write_le_value::<u64>(0x1000, Some(&mut address_space_cache), black_box(0))
                 .unwrap();
         })
     });

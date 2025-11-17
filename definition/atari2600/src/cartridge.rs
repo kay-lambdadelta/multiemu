@@ -30,7 +30,7 @@ pub struct Atari2600CartridgeConfig {
 }
 
 impl Component for Atari2600Cartridge {
-    fn read_memory(
+    fn memory_read(
         &self,
         address: Address,
         _address_space: AddressSpaceId,

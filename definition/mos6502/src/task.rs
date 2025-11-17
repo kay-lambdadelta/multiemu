@@ -1,6 +1,10 @@
 use std::{num::NonZero, sync::Arc};
 
-use multiemu_runtime::{memory::AddressSpace, processor::InstructionDecoder, scheduler::Task};
+use multiemu_runtime::{
+    memory::{AddressSpace, AddressSpaceCache},
+    processor::InstructionDecoder,
+    scheduler::Task,
+};
 
 use crate::{
     AddressBusModification, ExecutionStep, IRQ_VECTOR, Mos6502, NMI_VECTOR, PAGE_SIZE,
@@ -15,6 +19,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Driver {
     pub address_space: Arc<AddressSpace>,
+    pub address_space_cache: AddressSpaceCache,
     pub instruction_decoder: Mos6502InstructionDecoder,
 }
 
@@ -60,11 +65,18 @@ impl Task<Mos6502> for Driver {
                         {
                             component.state.interrupt(IRQ_VECTOR, true, true);
                         } else {
-                            component
-                                .fetch_and_decode(&self.instruction_decoder, &self.address_space);
+                            component.fetch_and_decode(
+                                &self.instruction_decoder,
+                                &self.address_space,
+                                &mut self.address_space_cache,
+                            );
                         }
                     } else {
-                        component.fetch_and_decode(&self.instruction_decoder, &self.address_space);
+                        component.fetch_and_decode(
+                            &self.instruction_decoder,
+                            &self.address_space,
+                            &mut self.address_space_cache,
+                        );
                     }
 
                     time_slice -= 1;
@@ -72,7 +84,11 @@ impl Task<Mos6502> for Driver {
                 ExecutionStep::LoadData => {
                     let byte = self
                         .address_space
-                        .read_le_value(component.state.address_bus as usize, false)
+                        .read_le_value(
+                            component.state.address_bus as usize,
+                            false,
+                            Some(&mut self.address_space_cache),
+                        )
                         .unwrap_or_default();
 
                     component.state.latch.push(byte);
@@ -85,17 +101,21 @@ impl Task<Mos6502> for Driver {
                     time_slice -= 1;
                 }
                 ExecutionStep::StoreData(data) => {
-                    let _ = self
-                        .address_space
-                        .write_le_value(component.state.address_bus as usize, data);
+                    let _ = self.address_space.write_le_value(
+                        component.state.address_bus as usize,
+                        Some(&mut self.address_space_cache),
+                        data,
+                    );
                     component.state.address_bus = component.state.address_bus.wrapping_add(1);
 
                     time_slice -= 1;
                 }
                 ExecutionStep::PushStack(data) => {
-                    let _ = self
-                        .address_space
-                        .write_le_value(STACK_BASE_ADDRESS + component.state.stack as usize, data);
+                    let _ = self.address_space.write_le_value(
+                        STACK_BASE_ADDRESS + component.state.stack as usize,
+                        Some(&mut self.address_space_cache),
+                        data,
+                    );
                     component.state.stack = component.state.stack.wrapping_sub(1);
 
                     time_slice -= 1;
@@ -174,9 +194,14 @@ impl Mos6502 {
         &mut self,
         instruction_decoder: &Mos6502InstructionDecoder,
         address_space: &AddressSpace,
+        address_space_cache: &mut AddressSpaceCache,
     ) {
         let (instruction, identifying_bytes_length) = instruction_decoder
-            .decode(self.state.program as usize, address_space)
+            .decode(
+                self.state.program as usize,
+                address_space,
+                Some(address_space_cache),
+            )
             .unwrap();
 
         debug_assert!(
@@ -200,7 +225,7 @@ impl Mos6502 {
         );
         self.state.latch.clear();
 
-        tracing::trace!("{:?} {:04x?}", instruction, self.state);
+        tracing::debug!("{:?} {:04x?}", instruction, self.state);
 
         self.push_steps_for_instruction(&instruction);
 

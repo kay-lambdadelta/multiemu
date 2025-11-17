@@ -128,7 +128,7 @@ impl Component for Mos6532Riot {
         }
     }
 
-    fn read_memory(
+    fn memory_read(
         &self,
         address: Address,
         _address_space: AddressSpaceId,
@@ -203,7 +203,7 @@ impl Component for Mos6532Riot {
         Ok(())
     }
 
-    fn write_memory(
+    fn memory_write(
         &mut self,
         address: Address,
         _address_space: AddressSpaceId,

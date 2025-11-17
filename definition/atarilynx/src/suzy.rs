@@ -55,7 +55,7 @@ pub struct Suzy {}
 
 #[allow(clippy::if_same_then_else)]
 impl Component for Suzy {
-    fn read_memory(
+    fn memory_read(
         &self,
         address: Address,
         _address_space: AddressSpaceId,
@@ -111,7 +111,7 @@ impl Component for Suzy {
         Ok(())
     }
 
-    fn write_memory(
+    fn memory_write(
         &mut self,
         address: Address,
         _address_space: AddressSpaceId,

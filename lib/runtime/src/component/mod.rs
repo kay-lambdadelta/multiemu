@@ -55,7 +55,7 @@ pub trait Component: Send + Sync + Debug + Any {
     }
 
     /// Reads memory at the specified address in the specified address space to fill the buffer
-    fn read_memory(
+    fn memory_read(
         &self,
         address: Address,
         address_space: AddressSpaceId,
@@ -72,7 +72,7 @@ pub trait Component: Send + Sync + Debug + Any {
     }
 
     /// Writes memory at the specified address in the specified address space
-    fn write_memory(
+    fn memory_write(
         &mut self,
         address: Address,
         address_space: AddressSpaceId,

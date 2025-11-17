@@ -38,6 +38,7 @@ image = { version = "0.25", default-features = false, features = ["webp"] }
 flate2 = "1.1"
 sha1 = "0.10"
 nohash = "0.2"
+arc-swap = "1.7"
 
 # Vulkan support
 vulkano = { version = "0.35", default-features = false, optional = true }

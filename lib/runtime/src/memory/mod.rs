@@ -2,27 +2,25 @@ use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
     ops::RangeInclusive,
-    sync::{
-        Arc, Mutex, RwLock, RwLockWriteGuard,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::Arc,
 };
 
-use crate::{
-    component::{ComponentPath, ErasedComponentHandle},
-    machine::registry::ComponentRegistry,
-};
-
-mod commit;
-mod read;
-mod visit_overlapping;
-mod write;
-
+use arc_swap::{ArcSwap, Cache};
 use bitvec::{field::BitField, order::Lsb0};
 use multiemu_range::RangeIntersection;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use thiserror::Error;
+
+use crate::{
+    component::{ComponentHandle, ComponentPath},
+    machine::registry::ComponentRegistry,
+};
+
+mod commit;
+mod overlapping;
+mod read;
+mod write;
 
 pub type Address = usize;
 const PAGE_SIZE: Address = 0x1000;
@@ -32,11 +30,8 @@ const PAGE_SIZE: Address = 0x1000;
 pub struct AddressSpace {
     width_mask: Address,
     address_space_width: u8,
-    members: RwLock<Members>,
-    /// Queue for if the address space is locked at the moment
-    queue: Mutex<Vec<MemoryRemappingCommand>>,
-    queue_modified: AtomicBool,
     id: AddressSpaceId,
+    members: Arc<ArcSwap<Members>>,
 }
 
 impl AddressSpace {
@@ -53,121 +48,98 @@ impl AddressSpace {
             id: address_space_id,
             width_mask,
             address_space_width,
-            members: RwLock::new(Members {
+            members: Arc::new(ArcSwap::new(Arc::new(Members {
                 read: MemoryMappingTable::new(address_space_width, registry.clone()),
                 write: MemoryMappingTable::new(address_space_width, registry.clone()),
-            }),
-            queue: Default::default(),
-            queue_modified: AtomicBool::new(false),
+            }))),
         }
     }
 
-    /// Adds a command to the remap queue
-    ///
-    /// Note that the queue is not applied till the next memory operation
+    pub fn cache(&self) -> AddressSpaceCache {
+        AddressSpaceCache {
+            members: Cache::new(self.members.clone()),
+        }
+    }
+
     pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommand>) {
-        let mut queue_guard = self.queue.lock().unwrap();
-
-        queue_guard.extend(commands);
-        self.queue_modified.store(true, Ordering::Release);
-    }
-
-    #[inline]
-    fn interact_members(
-        &self,
-        callback: impl FnOnce(&Members) -> Result<(), MemoryError>,
-    ) -> Result<(), MemoryError> {
-        if !self.queue_modified.load(Ordering::Acquire) {
-            callback(&self.members.read().unwrap())
-        } else {
-            let members = self.update_members();
-
-            callback(&members)
-        }
-    }
-
-    pub fn commit(&self) {
-        let _ = self.interact_members(|_| Ok(()));
-    }
-
-    #[cold]
-    fn update_members(&self) -> RwLockWriteGuard<'_, Members> {
-        let mut queue_guard = self.queue.lock().unwrap();
-        self.queue_modified.store(false, Ordering::Release);
-
         let max = 2usize.pow(u32::from(self.address_space_width)) - 1;
-
         let valid_range = 0..=max;
-        let mut members = self.members.write().unwrap();
+        let commands: Vec<_> = commands.into_iter().collect();
 
-        for command in queue_guard.drain(..) {
-            match command {
-                MemoryRemappingCommand::Component {
-                    range,
-                    component,
-                    permissions,
-                } => {
-                    assert!(
-                        !valid_range.disjoint(&range),
-                        "Range {range:#04x?} is invalid for a address space that ends at {max:04x?} (inserted by {component})"
-                    );
+        self.members.rcu(|members| {
+            let mut members = Members::clone(members);
 
-                    tracing::debug!(
-                        "Mapping component {component} to range {range:#04x?} with permissions {:?}",
-                        permissions
-                    );
+            for command in commands.clone() {
+                match command {
+                    MemoryRemappingCommand::Component {
+                        range,
+                        component,
+                        permissions,
+                    } => {
+                        assert!(
+                            !valid_range.disjoint(&range),
+                            "Range {range:#04x?} is invalid for a address space that ends at {max:04x?} (inserted by {component})"
+                        );
 
-                    if permissions.read {
-                        members
-                            .read
-                            .insert_component(range.clone(), component.clone());
+                        tracing::debug!(
+                            "Mapping component {component} to range {range:#04x?} with permissions {:?}",
+                            permissions
+                        );
+
+                        if permissions.read {
+                            members
+                                .read
+                                .insert_component(range.clone(), component.clone());
+                        }
+
+                        if permissions.write {
+                            members.write.insert_component(range, component);
+                        }
                     }
+                    MemoryRemappingCommand::Unmap { range, permissions } => {
+                        if permissions.read {
+                            members.read.remove(range.clone());
+                        }
 
-                    if permissions.write {
-                        members.write.insert_component(range, component);
+                        if permissions.write {
+                            members.write.remove(range.clone());
+                        }
                     }
-                }
-                MemoryRemappingCommand::Unmap { range, permissions } => {
-                    if permissions.read {
-                        members.read.remove(range.clone());
-                    }
+                    MemoryRemappingCommand::Mirror {
+                        source: range,
+                        destination: destination_range,
+                        permissions,
+                    } => {
+                        assert!(
+                            !valid_range.disjoint(&range),
+                            "Range {range:#04x?} is invalid for a address space that ends at {max:04x?}"
+                        );
 
-                    if permissions.write {
-                        members.write.remove(range.clone());
-                    }
-                }
-                MemoryRemappingCommand::Mirror {
-                    source: range,
-                    destination: destination_range,
-                    permissions,
-                } => {
-                    assert!(
-                        !valid_range.disjoint(&range),
-                        "Range {range:#04x?} is invalid for a address space that ends at {max:04x?}"
-                    );
+                        tracing::debug!(
+                            "Mapping mirror to range {range:#04x?} with permissions {:?} from range {destination_range:#04x?}",
+                            permissions
+                        );
 
-                    tracing::debug!(
-                        "Mapping mirror to range {range:#04x?} with permissions {:?} from range {destination_range:#04x?}",
-                        permissions
-                    );
+                        if permissions.read {
+                            members
+                                .read
+                                .insert_mirror(range.clone(), destination_range.clone());
+                        }
 
-                    if permissions.read {
-                        members
-                            .read
-                            .insert_mirror(range.clone(), destination_range.clone());
-                    }
-
-                    if permissions.write {
-                        members.write.insert_mirror(range, destination_range);
+                        if permissions.write {
+                            members.write.insert_mirror(range, destination_range);
+                        }
                     }
                 }
             }
-        }
 
-        members.read.commit();
-        members.write.commit();
 
-        members
+            members.read.commit();
+            members.write.commit();
+
+
+            members
+        });
     }
 
     pub fn id(&self) -> AddressSpaceId {
@@ -176,7 +148,7 @@ impl AddressSpace {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Permissions {
     pub read: bool,
     pub write: bool,
@@ -194,7 +166,7 @@ impl Permissions {
 
 /// Command for how the memory access table should modify the memory map
 #[allow(missing_docs)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MemoryRemappingCommand {
     /// Add a component to the memory map, or add a map to an existing one
     Component {
@@ -223,7 +195,7 @@ struct TableEntry {
     /// Mirror offset
     pub mirror_start: Option<Address>,
     /// Handle to component
-    pub component: ErasedComponentHandle,
+    pub component: ComponentHandle,
 }
 
 impl Debug for TableEntry {
@@ -245,7 +217,7 @@ pub enum MappingEntry {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MemoryMappingTable {
     master: RangeInclusiveMap<Address, MappingEntry>,
     table: Vec<Vec<TableEntry>>,
@@ -300,7 +272,7 @@ impl Hash for AddressSpaceId {
 
 impl IsEnabled for AddressSpaceId {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Members {
     pub read: MemoryMappingTable,
     pub write: MemoryMappingTable,
@@ -321,3 +293,8 @@ pub enum MemoryErrorType {
 #[error("Memory operation failed: {0:#x?}")]
 /// Wrapper around the error type in order to specify ranges
 pub struct MemoryError(pub RangeInclusiveMap<Address, MemoryErrorType>);
+
+#[derive(Debug)]
+pub struct AddressSpaceCache {
+    members: Cache<Arc<ArcSwap<Members>>, Arc<Members>>,
+}

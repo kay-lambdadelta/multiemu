@@ -1,11 +1,8 @@
 use std::{
-    ops::RangeInclusive,
     sync::{Arc, atomic::Ordering},
     thread::sleep,
     time::{Duration, Instant},
 };
-
-use multiemu_range::ContiguousRange;
 
 use super::Scheduler;
 use crate::scheduler::{SchedulerHandle, TimelineEntry, TimelineTaskEntry};
@@ -14,20 +11,13 @@ impl Scheduler {
     /// Runs the scheduler for X number of cycles
     ///
     /// This may not relate to the frequency of any component but represents the number of fine grained steps in a timeline
-    pub fn run_for_cycles(&mut self, mut cycles: u32) {
+    pub fn run_for_cycles(&mut self, cycles: u32) {
         let timeline = self.timeline.as_mut().unwrap();
 
-        // This particular executor design slices the timeline into efficient runs so we search the timeline as little as possible
-        //
-        // TODO: If the start and end entry match each other, fuse them
-
-        while cycles != 0 {
-            let to_run = (timeline.length - self.current_tick).min(cycles);
-            cycles -= to_run;
-
-            let cycle_range = RangeInclusive::from_start_and_length(self.current_tick, to_run);
-
-            for (_, TimelineEntry { tasks, time_slice }) in timeline.entries.range(cycle_range) {
+        for _ in 0..cycles {
+            if let Some(TimelineEntry { tasks, time_slice }) =
+                timeline.entries.get(self.current_tick as usize).unwrap()
+            {
                 for TimelineTaskEntry { task_id, component } in tasks {
                     component.interact_mut_with_task(*task_id, |component, task| {
                         (task.callback)(component, *time_slice);
@@ -35,7 +25,7 @@ impl Scheduler {
                 }
             }
 
-            self.current_tick = self.current_tick.checked_add(to_run).unwrap() % timeline.length;
+            self.current_tick = self.current_tick.checked_add(1).unwrap() % timeline.length;
         }
     }
 
