@@ -34,14 +34,14 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>> ComponentConf
         let (mut component_builder, _) = component_builder.insert_display("tv");
 
         for register in ReadRegisters::iter() {
-            component_builder = component_builder.memory_map_read(
+            component_builder = component_builder.memory_map_component_read(
                 self.cpu_address_space,
                 register as usize..=register as usize,
             );
         }
 
         for register in WriteRegisters::iter() {
-            component_builder = component_builder.memory_map_write(
+            component_builder = component_builder.memory_map_component_write(
                 self.cpu_address_space,
                 register as usize..=register as usize,
             );

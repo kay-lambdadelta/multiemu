@@ -100,14 +100,15 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
             .insert_gamepad(format!("player-{}", self.controller_index), gamepad.clone());
 
         let register_location = CONTROLLER_0 + self.controller_index as usize;
-        let component_builder = component_builder.memory_map_read(
+        let component_builder = component_builder.memory_map_component_read(
             self.cpu_address_space,
             register_location..=register_location,
         );
 
         // FIXME: The two controllers need to share this state
 
-        component_builder.memory_map_write(self.cpu_address_space, CONTROLLER_0..=CONTROLLER_0);
+        component_builder
+            .memory_map_component_write(self.cpu_address_space, CONTROLLER_0..=CONTROLLER_0);
 
         Ok(NesController {
             gamepad,

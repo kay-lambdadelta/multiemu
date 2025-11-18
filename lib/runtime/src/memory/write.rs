@@ -5,11 +5,12 @@ use num::traits::ToBytes;
 
 use super::AddressSpace;
 use crate::memory::{
-    Address, AddressSpaceCache, Members, MemoryError, MemoryErrorType, overlapping::Item,
+    Address, AddressSpaceCache, ComputedTablePageTarget, Members, MemoryError, MemoryErrorType,
+    overlapping::Item,
 };
 
 impl AddressSpace {
-    #[inline]
+    #[inline(always)]
     pub(super) fn write_internal(
         &self,
         mut address: Address,
@@ -34,26 +35,41 @@ impl AddressSpace {
 
             for Item {
                 entry_assigned_range,
-                mirror_start,
-                component,
+                target,
             } in members.write.overlapping(access_range.clone())
             {
                 handled = true;
-                let component_access_range = entry_assigned_range.intersection(&access_range);
-                let offset = component_access_range.start() - entry_assigned_range.start();
 
-                let operation_base = mirror_start.unwrap_or(*entry_assigned_range.start());
+                match target {
+                    ComputedTablePageTarget::Component {
+                        mirror_start,
+                        component,
+                    } => {
+                        let component_access_range =
+                            entry_assigned_range.intersection(&access_range);
+                        let offset = component_access_range.start() - entry_assigned_range.start();
 
-                let buffer_range = (component_access_range.start() - access_range.start())
-                    ..=(component_access_range.end() - access_range.start());
-                let adjusted_buffer = &remaining_buffer[buffer_range];
+                        let operation_base = mirror_start.unwrap_or(*entry_assigned_range.start());
 
-                component.interact_mut(
-                    #[inline]
-                    |component| {
-                        component.memory_write(operation_base + offset, self.id, adjusted_buffer)
-                    },
-                )?;
+                        let buffer_range = (component_access_range.start() - access_range.start())
+                            ..=(component_access_range.end() - access_range.start());
+                        let adjusted_buffer = &remaining_buffer[buffer_range];
+
+                        component.interact_mut(
+                            #[inline]
+                            |component| {
+                                component.memory_write(
+                                    operation_base + offset,
+                                    self.id,
+                                    adjusted_buffer,
+                                )
+                            },
+                        )?;
+                    }
+                    ComputedTablePageTarget::Memory(_) => {
+                        unreachable!()
+                    }
+                }
             }
 
             if !handled {

@@ -5,7 +5,8 @@ use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentPath},
     machine::builder::ComponentBuilder,
     memory::{
-        Address, AddressSpace, AddressSpaceId, MemoryError, MemoryRemappingCommand, Permissions,
+        Address, AddressSpace, AddressSpaceId, MapTarget, MemoryError, MemoryRemappingCommand,
+        Permissions,
     },
     platform::Platform,
 };
@@ -46,45 +47,45 @@ impl Component for Mapctl {
 
         let mut remapping_commands = Vec::default();
 
-        remapping_commands.push(MemoryRemappingCommand::Component {
+        remapping_commands.push(MemoryRemappingCommand::Map {
             range: 0x0000..=0xffff,
-            component: self.config.ram.clone(),
+            target: MapTarget::Component(self.config.ram.clone()),
             permissions: Permissions::all(),
         });
 
         if self.status.suzy {
-            remapping_commands.push(MemoryRemappingCommand::Component {
+            remapping_commands.push(MemoryRemappingCommand::Map {
                 range: SUZY_ADDRESSES,
-                component: self.config.suzy.clone(),
+                target: MapTarget::Component(self.config.suzy.clone()),
                 permissions: Permissions::all(),
             });
         }
 
         if self.status.mikey {
-            remapping_commands.push(MemoryRemappingCommand::Component {
+            remapping_commands.push(MemoryRemappingCommand::Map {
                 range: MIKEY_ADDRESSES,
-                component: self.config.mikey.clone(),
+                target: MapTarget::Component(self.config.mikey.clone()),
                 permissions: Permissions::all(),
             });
         }
 
-        remapping_commands.push(MemoryRemappingCommand::Component {
+        remapping_commands.push(MemoryRemappingCommand::Map {
             range: RESERVED_MEMORY_ADDRESS..=RESERVED_MEMORY_ADDRESS,
-            component: self.config.reserved.clone(),
+            target: MapTarget::Component(self.config.reserved.clone()),
             permissions: Permissions::all(),
         });
 
         if self.status.vector {
-            remapping_commands.push(MemoryRemappingCommand::Component {
+            remapping_commands.push(MemoryRemappingCommand::Map {
                 range: VECTOR_ADDRESSES,
-                component: self.config.vector.clone(),
+                target: MapTarget::Component(self.config.vector.clone()),
                 permissions: Permissions::all(),
             });
         }
 
-        remapping_commands.push(MemoryRemappingCommand::Component {
+        remapping_commands.push(MemoryRemappingCommand::Map {
             range: MAPCTL_ADDRESS..=MAPCTL_ADDRESS,
-            component: self.my_path.clone(),
+            target: MapTarget::Component(self.my_path.clone()),
             permissions: Permissions::all(),
         });
 
@@ -114,7 +115,7 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         let my_path = component_builder.path().clone();
 
         let component_builder =
-            component_builder.memory_map(self.cpu_address_space, 0xfff9..=0xfff9);
+            component_builder.memory_map_component(self.cpu_address_space, 0xfff9..=0xfff9);
 
         let cpu_address_space = component_builder.address_space(self.cpu_address_space);
 

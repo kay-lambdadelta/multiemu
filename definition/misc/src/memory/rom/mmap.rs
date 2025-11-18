@@ -1,23 +1,17 @@
+use crate::memory::rom::RomMemoryBackend;
+use bytes::Bytes;
+use memmap2::Mmap;
 use std::fs::File;
 
-use memmap2::Mmap;
-use multiemu_runtime::memory::Address;
-
-use crate::memory::rom::RomMemoryBackend;
-
 #[derive(Debug)]
-pub struct MmapBackend(Mmap);
+pub struct MmapBackend;
 
 impl RomMemoryBackend for MmapBackend {
-    fn new(file: File) -> Self {
+    fn open(file: File) -> Bytes {
         // Modifying files on disk that are memmapped is UB, so we attempt to acquire a file lock to prevent such a thing
         let _ = file.lock_shared();
+        let buffer = unsafe { Mmap::map(&file) }.unwrap();
 
-        Self(unsafe { Mmap::map(&file).unwrap() })
-    }
-
-    #[inline]
-    fn read(&self, offset: Address, buffer: &mut [u8]) {
-        buffer.copy_from_slice(&self.0[offset..offset + buffer.len()]);
+        Bytes::from_owner(buffer)
     }
 }

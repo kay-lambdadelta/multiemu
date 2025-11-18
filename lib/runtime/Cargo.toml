@@ -34,6 +34,7 @@ crossbeam = { workspace = true }
 versions = { workspace = true }
 indexmap = { workspace = true }
 ron = { workspace = true }
+bytes = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["webp"] }
 flate2 = "1.1"
 sha1 = "0.10"

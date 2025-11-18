@@ -177,7 +177,7 @@ impl<P: Platform> ComponentConfig<P> for SuzyConfig {
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        component_builder.memory_map(self.cpu_address_space, SUZY_ADDRESSES);
+        component_builder.memory_map_component(self.cpu_address_space, SUZY_ADDRESSES);
 
         Ok(Suzy {})
     }

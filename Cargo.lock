@@ -2484,6 +2484,7 @@ name = "multiemu-definition-misc"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "bytes",
  "criterion",
  "memmap2",
  "multiemu-range",
@@ -2600,6 +2601,7 @@ dependencies = [
  "arc-swap",
  "bincode",
  "bitvec",
+ "bytes",
  "cfg-if",
  "crossbeam",
  "data-encoding",

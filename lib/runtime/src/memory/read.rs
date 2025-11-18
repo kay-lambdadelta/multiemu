@@ -5,11 +5,13 @@ use num::traits::FromBytes;
 
 use super::AddressSpace;
 use crate::memory::{
-    Address, AddressSpaceCache, Members, MemoryError, MemoryErrorType, overlapping::Item,
+    Address, AddressSpaceCache, ComputedTablePageTarget, Members, MemoryError, MemoryErrorType,
+    overlapping::Item,
 };
 
 impl AddressSpace {
-    #[inline]
+    /// Force code into the generic read_*_value functions
+    #[inline(always)]
     pub(super) fn read_internal(
         &self,
         mut address: Address,
@@ -35,31 +37,58 @@ impl AddressSpace {
 
             for Item {
                 entry_assigned_range,
-                mirror_start,
-                component,
+                target,
             } in members.read.overlapping(access_range.clone())
             {
                 handled = true;
-                let component_access_range = entry_assigned_range.intersection(&access_range);
-                let offset = component_access_range.start() - entry_assigned_range.start();
 
-                let operation_base = mirror_start.unwrap_or(*entry_assigned_range.start());
+                match target {
+                    ComputedTablePageTarget::Component {
+                        mirror_start,
+                        component,
+                    } => {
+                        let component_access_range =
+                            entry_assigned_range.intersection(&access_range);
+                        let offset = component_access_range.start() - entry_assigned_range.start();
 
-                let buffer_range = (component_access_range.start() - access_range.start())
-                    ..=(component_access_range.end() - access_range.start());
-                let adjusted_buffer = &mut remaining_buffer[buffer_range];
+                        let operation_base = mirror_start.unwrap_or(*entry_assigned_range.start());
 
-                component.interact(
-                    #[inline]
-                    |component| {
-                        component.memory_read(
-                            operation_base + offset,
-                            self.id,
-                            avoid_side_effects,
-                            adjusted_buffer,
-                        )
-                    },
-                )?;
+                        let buffer_range = (component_access_range.start() - access_range.start())
+                            ..=(component_access_range.end() - access_range.start());
+                        let adjusted_buffer = &mut remaining_buffer[buffer_range];
+
+                        component.interact(
+                            #[inline]
+                            |component| {
+                                component.memory_read(
+                                    operation_base + offset,
+                                    self.id,
+                                    avoid_side_effects,
+                                    adjusted_buffer,
+                                )
+                            },
+                        )?;
+                    }
+                    ComputedTablePageTarget::Memory(bytes) => {
+                        let memory_access_range = entry_assigned_range.intersection(&access_range);
+
+                        let memory_offset =
+                            memory_access_range.start() - entry_assigned_range.start();
+                        let buffer_range = (memory_access_range.start() - access_range.start())
+                            ..=(memory_access_range.end() - access_range.start());
+
+                        let adjusted_buffer = &mut remaining_buffer[buffer_range];
+                        let memory_range = RangeInclusive::from_start_and_length(
+                            memory_offset,
+                            adjusted_buffer.len(),
+                        );
+
+                        // HACK: rustc seems to be much better at producing an optimized copy routine without using copy_from_slice
+                        for (dst, src) in adjusted_buffer.iter_mut().zip(&bytes[memory_range]) {
+                            *dst = *src;
+                        }
+                    }
+                }
             }
 
             if !handled {

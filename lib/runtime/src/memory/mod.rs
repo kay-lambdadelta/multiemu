@@ -1,21 +1,22 @@
 use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
-    ops::RangeInclusive,
     sync::Arc,
 };
 
 use arc_swap::{ArcSwap, Cache};
 use bitvec::{field::BitField, order::Lsb0};
+use bytes::Bytes;
 use multiemu_range::RangeIntersection;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use thiserror::Error;
 
 use crate::{
-    component::{ComponentHandle, ComponentPath},
+    component::{ComponentHandle, ComponentPath, ResourcePath},
     machine::registry::ComponentRegistry,
 };
+pub use commit::{MapTarget, MemoryRemappingCommand, Permissions};
 
 mod commit;
 mod overlapping;
@@ -32,6 +33,8 @@ pub struct AddressSpace {
     address_space_width: u8,
     id: AddressSpaceId,
     members: Arc<ArcSwap<Members>>,
+    resources: scc::HashMap<ResourcePath, Bytes>,
+    registry: Arc<ComponentRegistry>,
 }
 
 impl AddressSpace {
@@ -49,9 +52,11 @@ impl AddressSpace {
             width_mask,
             address_space_width,
             members: Arc::new(ArcSwap::new(Arc::new(Members {
-                read: MemoryMappingTable::new(address_space_width, registry.clone()),
-                write: MemoryMappingTable::new(address_space_width, registry.clone()),
+                read: MemoryMappingTable::new(address_space_width),
+                write: MemoryMappingTable::new(address_space_width),
             }))),
+            resources: scc::HashMap::default(),
+            registry,
         }
     }
 
@@ -71,43 +76,9 @@ impl AddressSpace {
 
             for command in commands.clone() {
                 match command {
-                    MemoryRemappingCommand::Component {
+                    MemoryRemappingCommand::Map {
                         range,
-                        component,
-                        permissions,
-                    } => {
-                        assert!(
-                            !valid_range.disjoint(&range),
-                            "Range {range:#04x?} is invalid for a address space that ends at {max:04x?} (inserted by {component})"
-                        );
-
-                        tracing::debug!(
-                            "Mapping component {component} to range {range:#04x?} with permissions {:?}",
-                            permissions
-                        );
-
-                        if permissions.read {
-                            members
-                                .read
-                                .insert_component(range.clone(), component.clone());
-                        }
-
-                        if permissions.write {
-                            members.write.insert_component(range, component);
-                        }
-                    }
-                    MemoryRemappingCommand::Unmap { range, permissions } => {
-                        if permissions.read {
-                            members.read.remove(range.clone());
-                        }
-
-                        if permissions.write {
-                            members.write.remove(range.clone());
-                        }
-                    }
-                    MemoryRemappingCommand::Mirror {
-                        source: range,
-                        destination: destination_range,
+                        target,
                         permissions,
                     } => {
                         assert!(
@@ -115,27 +86,85 @@ impl AddressSpace {
                             "Range {range:#04x?} is invalid for a address space that ends at {max:04x?}"
                         );
 
-                        tracing::debug!(
-                            "Mapping mirror to range {range:#04x?} with permissions {:?} from range {destination_range:#04x?}",
-                            permissions
-                        );
+                        match target {
+                            MapTarget::Component(component_path) => {
+                                if permissions.read {
+                                    members.read.master.insert(
+                                        range.clone(),
+                                        MappingEntry::Component(component_path.clone()),
+                                    );
+                                }
 
+                                if permissions.write {
+                                    members.write.master.insert(
+                                        range.clone(),
+                                        MappingEntry::Component(component_path),
+                                    );
+                                }
+                            },
+                            MapTarget::Memory(resource_path) => {
+                                assert!(self.resources.contains_sync(&resource_path));
+
+                                if permissions.read {
+                                    members.read.master.insert(
+                                        range.clone(),
+                                        MappingEntry::Memory(resource_path.clone()),
+                                    );
+                                }
+
+                                if permissions.write {
+                                    members.write.master.insert(
+                                        range.clone(),
+                                        MappingEntry::Memory(resource_path),
+                                    );
+                                }
+                            },
+                            MapTarget::Mirror { destination } => {
+                                assert!(
+                                    !valid_range.disjoint(&destination),
+                                    "Range {destination:#04x?} is invalid for a address space that ends at {max:04x?}"
+                                );
+
+                                if permissions.read {
+                                    members.read.master.insert(
+                                        range.clone(),
+                                        MappingEntry::Mirror {
+                                            source_base: *range.start(),
+                                            destination_base: *destination.start(),
+                                        },
+                                    );
+                                }
+
+                                if permissions.write {
+                                    members.write.master.insert(
+                                        range.clone(),
+                                        MappingEntry::Mirror {
+                                            source_base: *range.start(),
+                                            destination_base: *destination.start(),
+                                        },
+                                    );
+                                }
+                            },
+                        }
+                    }
+                    MemoryRemappingCommand::Unmap { range, permissions } => {
                         if permissions.read {
-                            members
-                                .read
-                                .insert_mirror(range.clone(), destination_range.clone());
+                            members.read.master.remove(range.clone());
                         }
 
                         if permissions.write {
-                            members.write.insert_mirror(range, destination_range);
+                            members.write.master.remove(range.clone());
                         }
                     }
+                    MemoryRemappingCommand::Register { id, buffer } => {
+                        self.resources.insert_sync(id, buffer).unwrap();
+                    },
                 }
             }
 
 
-            members.read.commit();
-            members.write.commit();
+            members.read.commit(&self.registry, &self.resources);
+            members.write.commit(&self.registry, &self.resources);
 
 
             members
@@ -147,63 +176,28 @@ impl AddressSpace {
     }
 }
 
-#[allow(missing_docs)]
-#[derive(Debug, Clone, Copy)]
-pub struct Permissions {
-    pub read: bool,
-    pub write: bool,
-}
-
-impl Permissions {
-    /// Instance of [Self] where everything is allowed
-    pub fn all() -> Self {
-        Self {
-            read: true,
-            write: true,
-        }
-    }
-}
-
-/// Command for how the memory access table should modify the memory map
-#[allow(missing_docs)]
-#[derive(Debug, Clone)]
-pub enum MemoryRemappingCommand {
-    /// Add a component to the memory map, or add a map to an existing one
+#[derive(Clone)]
+pub enum ComputedTablePageTarget {
     Component {
-        range: RangeInclusive<Address>,
-        component: ComponentPath,
-        permissions: Permissions,
+        mirror_start: Option<Address>,
+        component: ComponentHandle,
     },
-    /// Add a mirror to the memory map
-    Mirror {
-        source: RangeInclusive<Address>,
-        destination: RangeInclusive<Address>,
-        permissions: Permissions,
-    },
-    /// Clear a memory range
-    Unmap {
-        range: RangeInclusive<Address>,
-        permissions: Permissions,
-    },
+    Memory(Bytes),
 }
 
 #[derive(Clone)]
-struct TableEntry {
+struct ComputedTablePage {
     /// Full, uncropped relevant range
     pub start: Address,
     pub end: Address,
-    /// Mirror offset
-    pub mirror_start: Option<Address>,
-    /// Handle to component
-    pub component: ComponentHandle,
+    pub target: ComputedTablePageTarget,
 }
 
-impl Debug for TableEntry {
+impl Debug for ComputedTablePage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TableEntry")
             .field("start", &self.start)
             .field("end", &self.end)
-            .field("mirror_start", &self.mirror_start)
             .finish()
     }
 }
@@ -215,48 +209,24 @@ pub enum MappingEntry {
         source_base: Address,
         destination_base: Address,
     },
+    Memory(ResourcePath),
 }
 
 #[derive(Debug, Clone)]
 pub struct MemoryMappingTable {
     master: RangeInclusiveMap<Address, MappingEntry>,
-    table: Vec<Vec<TableEntry>>,
-    registry: Arc<ComponentRegistry>,
+    computed_table: Vec<Vec<ComputedTablePage>>,
 }
 
 impl MemoryMappingTable {
-    pub fn new(address_space_width: u8, registry: Arc<ComponentRegistry>) -> Self {
+    pub fn new(address_space_width: u8) -> Self {
         let addr_space_size = 2usize.pow(u32::from(address_space_width));
         let total_pages = addr_space_size.div_ceil(PAGE_SIZE);
 
         Self {
             master: RangeInclusiveMap::new(),
-            table: vec![Default::default(); total_pages],
-            registry,
+            computed_table: vec![Default::default(); total_pages],
         }
-    }
-
-    pub fn insert_component(&mut self, source_range: RangeInclusive<Address>, path: ComponentPath) {
-        self.master
-            .insert(source_range, MappingEntry::Component(path));
-    }
-
-    pub fn insert_mirror(
-        &mut self,
-        source_range: RangeInclusive<Address>,
-        destination_range: RangeInclusive<Address>,
-    ) {
-        self.master.insert(
-            source_range.clone(),
-            MappingEntry::Mirror {
-                source_base: *source_range.start(),
-                destination_base: *destination_range.start(),
-            },
-        );
-    }
-
-    pub fn remove(&mut self, range: RangeInclusive<Address>) {
-        self.master.remove(range);
     }
 }
 

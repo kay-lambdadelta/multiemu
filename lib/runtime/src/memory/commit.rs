@@ -1,17 +1,74 @@
 use std::ops::RangeInclusive;
 
+use bytes::Bytes;
 use itertools::Itertools;
-use multiemu_range::{ContiguousRange, RangeDifference};
+use multiemu_range::{ContiguousRange, RangeDifference, RangeIntersection};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 
-use crate::memory::{MappingEntry, MemoryMappingTable, PAGE_SIZE, TableEntry};
+use crate::{
+    component::{ComponentPath, ResourcePath},
+    machine::registry::ComponentRegistry,
+    memory::{
+        Address, ComputedTablePage, ComputedTablePageTarget, MappingEntry, MemoryMappingTable,
+        PAGE_SIZE,
+    },
+};
+
+#[derive(Debug, Clone)]
+pub enum MapTarget {
+    Component(ComponentPath),
+    Memory(ResourcePath),
+    Mirror {
+        destination: RangeInclusive<Address>,
+    },
+}
+
+/// Command for how the memory access table should modify the memory map
+#[allow(missing_docs)]
+#[derive(Debug, Clone)]
+pub enum MemoryRemappingCommand {
+    /// Add a target to the memory map, or add a map to an existing one
+    Map {
+        range: RangeInclusive<Address>,
+        target: MapTarget,
+        permissions: Permissions,
+    },
+    /// Clear a memory range
+    Unmap {
+        range: RangeInclusive<Address>,
+        permissions: Permissions,
+    },
+    /// Register a buffer or another item
+    Register { id: ResourcePath, buffer: Bytes },
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy)]
+pub struct Permissions {
+    pub read: bool,
+    pub write: bool,
+}
+
+impl Permissions {
+    /// Instance of [Self] where everything is allowed
+    pub fn all() -> Self {
+        Self {
+            read: true,
+            write: true,
+        }
+    }
+}
 
 // This function flattens and splits the memory map for faster lookups
 
 impl MemoryMappingTable {
-    pub(super) fn commit(&mut self) {
+    pub(super) fn commit(
+        &mut self,
+        registry: &ComponentRegistry,
+        resources: &scc::HashMap<ResourcePath, Bytes>,
+    ) {
         // Process all pages in parallel
-        self.table
+        self.computed_table
             .par_iter_mut()
             .enumerate()
             .for_each(|(page_index, page)| {
@@ -25,13 +82,15 @@ impl MemoryMappingTable {
                     .map(|(range, component)| (range.clone(), component))
                     .flat_map(|(source_range, entry)| match entry {
                         MappingEntry::Component(path) => {
-                            let component = self.registry.get_erased(path).unwrap();
+                            let component = registry.get_erased(path).unwrap();
 
-                            vec![TableEntry {
+                            vec![ComputedTablePage {
                                 start: *source_range.start(),
                                 end: *source_range.end(),
-                                mirror_start: None,
-                                component,
+                                target: ComputedTablePageTarget::Component {
+                                    mirror_start: None,
+                                    component,
+                                },
                             }]
                         }
                         MappingEntry::Mirror {
@@ -54,11 +113,7 @@ impl MemoryMappingTable {
                             self.master
                                 .overlapping(assigned_destination_range.clone())
                                 .map(|(destination_range, dest_entry)| {
-                                    let mut source_range = source_range.clone();
-                                    let MappingEntry::Component(path) = dest_entry else {
-                                        panic!("Recursive mirrors are not allowed");
-                                    };
-                                    let component = self.registry.get_erased(path).unwrap();
+                                    let mut calculated_source_range = source_range.clone();
 
                                     let range_diff =
                                         assigned_destination_range.difference(destination_range);
@@ -66,29 +121,76 @@ impl MemoryMappingTable {
                                     for exterior_range in range_diff {
                                         if exterior_range.end() < assigned_destination_range.start()
                                         {
-                                            let new_start =
-                                                source_range.start() + exterior_range.len();
+                                            let new_start = calculated_source_range.start()
+                                                + exterior_range.len();
 
-                                            source_range = new_start..=*source_range.end();
+                                            calculated_source_range =
+                                                new_start..=*calculated_source_range.end();
                                         }
 
-                                        if assigned_destination_range.start()
-                                            < assigned_destination_range.end()
+                                        if exterior_range.start() > assigned_destination_range.end()
                                         {
-                                            let new_end = source_range.end() - exterior_range.len();
+                                            let new_end = calculated_source_range.end()
+                                                - exterior_range.len();
 
-                                            source_range = *source_range.start()..=new_end;
+                                            calculated_source_range =
+                                                *calculated_source_range.start()..=new_end;
                                         }
                                     }
 
-                                    TableEntry {
-                                        start: *source_range.start(),
-                                        end: *source_range.end(),
-                                        mirror_start: Some(*destination_range.start()),
-                                        component,
+                                    match dest_entry {
+                                        MappingEntry::Component(component_path) => {
+                                            let component =
+                                                registry.get_erased(component_path).unwrap();
+
+                                            ComputedTablePage {
+                                                start: *calculated_source_range.start(),
+                                                end: *calculated_source_range.end(),
+                                                target: ComputedTablePageTarget::Component {
+                                                    mirror_start: Some(*destination_range.start()),
+                                                    component,
+                                                },
+                                            }
+                                        }
+                                        MappingEntry::Mirror { .. } => {
+                                            panic!("Recursive mirrors are not allowed");
+                                        }
+                                        MappingEntry::Memory(resource_path) => {
+                                            let memory = resources.get_sync(resource_path).unwrap();
+                                            let destination_overlap = assigned_destination_range
+                                                .intersection(destination_range);
+                                            debug_assert_eq!(
+                                                destination_overlap.len(),
+                                                calculated_source_range.len()
+                                            );
+
+                                            let buffer_subrange = (destination_overlap.start()
+                                                - destination_range.start())
+                                                ..=(destination_overlap.end()
+                                                    - destination_range.start());
+
+                                            let memory = memory.slice(buffer_subrange);
+
+                                            ComputedTablePage {
+                                                start: *calculated_source_range.start(),
+                                                end: *calculated_source_range.end(),
+                                                target: ComputedTablePageTarget::Memory(memory),
+                                            }
+                                        }
                                     }
                                 })
                                 .collect()
+                        }
+                        MappingEntry::Memory(resource_path) => {
+                            let memory = resources.get_sync(resource_path).unwrap();
+
+                            assert_eq!(memory.len(), source_range.len());
+
+                            vec![ComputedTablePage {
+                                start: *source_range.start(),
+                                end: *source_range.end(),
+                                target: ComputedTablePageTarget::Memory(memory.clone()),
+                            }]
                         }
                     })
                     .sorted_by_key(|entry| entry.start)

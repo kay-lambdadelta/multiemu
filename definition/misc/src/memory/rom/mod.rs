@@ -1,10 +1,6 @@
-use std::{
-    fmt::Debug,
-    fs::File,
-    ops::RangeInclusive,
-    sync::{Arc, LazyLock},
-};
+use std::{fmt::Debug, fs::File, ops::RangeInclusive, sync::LazyLock};
 
+use bytes::Bytes;
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
@@ -13,18 +9,18 @@ use multiemu_runtime::{
     program::{RomId, RomRequirement},
 };
 
-#[allow(unused)]
-mod file;
 #[cfg(any(target_family = "unix", target_os = "windows"))]
 mod mmap;
+#[allow(unused)]
+mod vec;
 
 #[cfg(any(target_family = "unix", target_os = "windows"))]
 pub type DefaultRomMemoryBackend = mmap::MmapBackend;
 #[cfg(not(any(target_family = "unix", target_os = "windows")))]
-pub type DefaultRomMemoryBackend = file::FileBackend;
+pub type DefaultRomMemoryBackend = vec::VecBackend;
 
 /// Use a global cache to share among rom instances and reduce loaded memory/fds
-static ROM_CACHE: LazyLock<RomCache<DefaultRomMemoryBackend>> = LazyLock::new(RomCache::default);
+static ROM_CACHE: LazyLock<RomCache> = LazyLock::new(RomCache::default);
 
 #[derive(Debug)]
 pub struct RomMemoryConfig {
@@ -40,7 +36,7 @@ pub struct RomMemoryConfig {
 #[derive(Debug)]
 pub struct RomMemory {
     config: RomMemoryConfig,
-    backend: Arc<DefaultRomMemoryBackend>,
+    bytes: Bytes,
 }
 
 impl RomMemory {
@@ -63,12 +59,7 @@ impl Component for RomMemory {
         _avoid_side_effects: bool,
         buffer: &mut [u8],
     ) -> Result<(), MemoryError> {
-        let adjusted_offset =
-            (address - self.config.assigned_range.start()) + self.config.rom_range.start();
-
-        self.backend.read(adjusted_offset, buffer);
-
-        Ok(())
+        todo!()
     }
 }
 
@@ -92,34 +83,40 @@ impl<P: Platform> ComponentConfig<P> for RomMemoryConfig {
         let assigned_address_space = self.assigned_address_space;
         let assigned_range = self.assigned_range.clone();
 
-        let backend = ROM_CACHE
+        let bytes = ROM_CACHE
             .0
             .entry_sync(self.rom)
-            .or_put_with(|| {
-                let backend = DefaultRomMemoryBackend::new(rom);
-                Arc::new(backend)
-            })
+            .or_put_with(|| DefaultRomMemoryBackend::open(rom))
             .1
             .clone();
+        let bytes = bytes.slice(self.rom_range.clone());
 
-        component_builder.memory_map_read(assigned_address_space, assigned_range);
+        let (component_builder, buffer_path) = component_builder.memory_register_buffer(
+            assigned_address_space,
+            "buffer",
+            bytes.clone(),
+        );
+        component_builder.memory_map_buffer_read(
+            assigned_address_space,
+            assigned_range,
+            &buffer_path,
+        );
 
         Ok(RomMemory {
             config: self,
-            backend,
+            bytes,
         })
     }
 }
 
 #[allow(unused)]
 pub trait RomMemoryBackend: Debug + Send + Sync + Sized + 'static {
-    fn new(file: File) -> Self;
-    fn read(&self, address: usize, buffer: &mut [u8]);
+    fn open(file: File) -> Bytes;
 }
 
-pub struct RomCache<B: RomMemoryBackend>(pub scc::HashCache<RomId, Arc<B>>);
+pub struct RomCache(pub scc::HashCache<RomId, Bytes>);
 
-impl<B: RomMemoryBackend> Default for RomCache<B> {
+impl Default for RomCache {
     fn default() -> Self {
         Self(scc::HashCache::with_capacity(0, 4))
     }

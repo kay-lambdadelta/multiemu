@@ -30,11 +30,15 @@ impl<P: Platform> ComponentConfig<P> for NullMemoryConfig {
 
         match (self.readable, self.writable) {
             (true, true) => component_builder
-                .memory_map(self.assigned_address_space, self.assigned_range.clone()),
-            (true, false) => component_builder
-                .memory_map_read(self.assigned_address_space, self.assigned_range.clone()),
-            (false, true) => component_builder
-                .memory_map_write(self.assigned_address_space, self.assigned_range.clone()),
+                .memory_map_component(self.assigned_address_space, self.assigned_range.clone()),
+            (true, false) => component_builder.memory_map_component_read(
+                self.assigned_address_space,
+                self.assigned_range.clone(),
+            ),
+            (false, true) => component_builder.memory_map_component_write(
+                self.assigned_address_space,
+                self.assigned_range.clone(),
+            ),
             (false, false) => component_builder,
         };
 

@@ -139,41 +139,41 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                     data.component_graphics_initialization_data.clone(),
                 ));
             })
-            .memory_map_write(
+            .memory_map_component_write(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuCtrl as usize..=CpuAccessibleRegister::PpuCtrl as usize,
             )
-            .memory_map_write(
+            .memory_map_component_write(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuScroll as usize
                     ..=CpuAccessibleRegister::PpuScroll as usize,
             )
-            .memory_map_write(
+            .memory_map_component_write(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuMask as usize..=CpuAccessibleRegister::PpuMask as usize,
             )
-            .memory_map_read(
+            .memory_map_component_read(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuStatus as usize
                     ..=CpuAccessibleRegister::PpuStatus as usize,
             )
-            .memory_map(
+            .memory_map_component(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuAddr as usize..=CpuAccessibleRegister::PpuAddr as usize,
             )
-            .memory_map(
+            .memory_map_component(
                 self.cpu_address_space,
                 CpuAccessibleRegister::PpuData as usize..=CpuAccessibleRegister::PpuData as usize,
             )
-            .memory_map(
+            .memory_map_component(
                 self.cpu_address_space,
                 CpuAccessibleRegister::OamAddr as usize..=CpuAccessibleRegister::OamAddr as usize,
             )
-            .memory_map(
+            .memory_map_component(
                 self.cpu_address_space,
                 CpuAccessibleRegister::OamData as usize..=CpuAccessibleRegister::OamData as usize,
             )
-            .memory_map_write(
+            .memory_map_component_write(
                 self.cpu_address_space,
                 CpuAccessibleRegister::OamDma as usize..=CpuAccessibleRegister::OamDma as usize,
             );

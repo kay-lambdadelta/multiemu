@@ -2,10 +2,7 @@ use std::ops::RangeInclusive;
 
 use multiemu_range::RangeIntersection;
 
-use crate::{
-    component::ComponentHandle,
-    memory::{Address, MemoryMappingTable, PAGE_SIZE},
-};
+use crate::memory::{Address, ComputedTablePageTarget, MemoryMappingTable, PAGE_SIZE};
 
 pub struct OverlappingMappingsIter<'a> {
     table: &'a MemoryMappingTable,
@@ -36,8 +33,7 @@ impl MemoryMappingTable {
 
 pub struct Item<'a> {
     pub entry_assigned_range: RangeInclusive<Address>,
-    pub mirror_start: Option<Address>,
-    pub component: &'a ComponentHandle,
+    pub target: &'a ComputedTablePageTarget,
 }
 
 impl<'a> Iterator for OverlappingMappingsIter<'a> {
@@ -46,7 +42,7 @@ impl<'a> Iterator for OverlappingMappingsIter<'a> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         while self.page_index <= self.end_page {
-            let page = &self.table.table[self.page_index];
+            let page = &self.table.computed_table[self.page_index];
 
             while self.entry_index < page.len() {
                 let entry = &page[self.entry_index];
@@ -57,8 +53,7 @@ impl<'a> Iterator for OverlappingMappingsIter<'a> {
                 if self.access_range.intersects(&entry_assigned_range) {
                     return Some(Item {
                         entry_assigned_range,
-                        mirror_start: entry.mirror_start,
-                        component: &entry.component,
+                        target: &entry.target,
                     });
                 }
             }

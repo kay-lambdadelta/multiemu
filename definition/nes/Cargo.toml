@@ -35,7 +35,3 @@ opengl = ["multiemu-runtime/opengl"]
 [[bench]]
 name = "machine_cycle"
 harness = false
-
-[[bench]]
-name = "memory"
-harness = false
