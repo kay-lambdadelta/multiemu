@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use bytes::Bytes;
 use itertools::Itertools;
-use multiemu_range::{ContiguousRange, RangeDifference, RangeIntersection};
+use multiemu_range::{ContiguousRange, RangeIntersection};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::{
@@ -113,30 +113,17 @@ impl MemoryMappingTable {
                             self.master
                                 .overlapping(assigned_destination_range.clone())
                                 .map(|(destination_range, dest_entry)| {
-                                    let mut calculated_source_range = source_range.clone();
+                                    let dest_overlap =
+                                        assigned_destination_range.intersection(destination_range);
 
-                                    let range_diff =
-                                        assigned_destination_range.difference(destination_range);
+                                    let shrink_left =
+                                        dest_overlap.start() - assigned_destination_range.start();
+                                    let shrink_right =
+                                        assigned_destination_range.end() - dest_overlap.end();
 
-                                    for exterior_range in range_diff {
-                                        if exterior_range.end() < assigned_destination_range.start()
-                                        {
-                                            let new_start = calculated_source_range.start()
-                                                + exterior_range.len();
-
-                                            calculated_source_range =
-                                                new_start..=*calculated_source_range.end();
-                                        }
-
-                                        if exterior_range.start() > assigned_destination_range.end()
-                                        {
-                                            let new_end = calculated_source_range.end()
-                                                - exterior_range.len();
-
-                                            calculated_source_range =
-                                                *calculated_source_range.start()..=new_end;
-                                        }
-                                    }
+                                    let calculated_source_range = (source_range.start()
+                                        + shrink_left)
+                                        ..=(source_range.end() - shrink_right);
 
                                     match dest_entry {
                                         MappingEntry::Component(component_path) => {

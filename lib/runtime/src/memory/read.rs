@@ -83,10 +83,7 @@ impl AddressSpace {
                             adjusted_buffer.len(),
                         );
 
-                        // HACK: rustc seems to be much better at producing an optimized copy routine without using copy_from_slice
-                        for (dst, src) in adjusted_buffer.iter_mut().zip(&bytes[memory_range]) {
-                            *dst = *src;
-                        }
+                        adjusted_buffer.copy_from_slice(&bytes[memory_range]);
                     }
                 }
             }
