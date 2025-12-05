@@ -69,16 +69,14 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Data (low byte)
 //      LoadStep::Data (high byte)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add X) <- this might be done in parallel depending on
-// the instruction
+//      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
 //
 // AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute)
 //      LoadStep::Opcode
 //      LoadStep::Data (low byte)
 //      LoadStep::Data (high byte)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add Y) <- this might be done in parallel depending on
-// the instruction
+//      LoadStep::Offset (add Y) <- this might be done in parallel depending on the instruction
 //
 // AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage)
 //      LoadStep::Opcode
@@ -89,22 +87,20 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add X) <- this might be done in parallel depending on
-// the instruction
+//      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
 //
 // AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add Y) <- this might be done in parallel depending on
-// the instruction
+//      LoadStep::Offset (add Y) <- this might be done in parallel depending on the instruction
 //
 // AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add X) <- this might be done in parallel depending on
-// the instruction      LoadStep::Data (fetch low byte of pointer as immediate)
+//      LoadStep::Offset (add X) <- this might be done in parallel depending onthe instruction
+//      LoadStep::Data (fetch low byte of pointer as immediate)
 //      LoadStep::Data (fetch high byte of pointer as immediate)
 //      LoadStep::LatchToBus
 //
@@ -115,8 +111,7 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Data (fetch low byte of pointer as immediate)
 //      LoadStep::Data (fetch high byte of pointer as immediate)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add Y)  <- this might be done in parallel depending on
-// the instructions
+//      LoadStep::Offset (add Y)  <- this might be done in parallel depending on the instructions
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AddressBusModification {
@@ -539,17 +534,23 @@ impl Component for Mos6502 {
             self.timestamp = context.now();
 
             if self.rdy.load() {
-                'main_loop_inner: {
+                loop {
                     match self.state.execution_queue.pop_front().unwrap() {
                         ExecutionStep::Reset => {
                             self.state.interrupt(RESET_VECTOR, false, false);
+
+                            break;
                         }
                         ExecutionStep::Jammed => {
                             self.state.execution_queue.clear();
                             self.state.execution_queue.push_back(ExecutionStep::Jammed);
+
+                            break;
                         }
                         ExecutionStep::Wait => {
                             self.state.execution_queue.push_back(ExecutionStep::Wait);
+
+                            break;
                         }
                         ExecutionStep::FetchAndDecode => {
                             if self.config.kind.supports_interrupts() {
@@ -565,6 +566,8 @@ impl Component for Mos6502 {
                             } else {
                                 self.fetch_and_decode();
                             }
+
+                            break;
                         }
                         ExecutionStep::LoadData => {
                             let byte = self
@@ -578,9 +581,13 @@ impl Component for Mos6502 {
 
                             self.state.latch.push(byte);
                             self.state.address_bus = self.state.address_bus.wrapping_add(1);
+
+                            break;
                         }
                         ExecutionStep::LoadDataFromConstant(data) => {
                             self.state.latch.push(data);
+
+                            break;
                         }
                         ExecutionStep::StoreData(data) => {
                             let _ = self.address_space.write_le_value(
@@ -590,6 +597,8 @@ impl Component for Mos6502 {
                                 data,
                             );
                             self.state.address_bus = self.state.address_bus.wrapping_add(1);
+
+                            break;
                         }
                         ExecutionStep::PushStack(data) => {
                             let _ = self.address_space.write_le_value(
@@ -599,6 +608,8 @@ impl Component for Mos6502 {
                                 data,
                             );
                             self.state.stack = self.state.stack.wrapping_sub(1);
+
+                            break;
                         }
                         ExecutionStep::LatchToAddressBus => {
                             match self.state.latch.len() {
@@ -615,8 +626,6 @@ impl Component for Mos6502 {
                             }
 
                             self.state.latch.clear();
-
-                            break 'main_loop_inner;
                         }
                         // only used for interrupts
                         ExecutionStep::LatchToProgramPointer => {
@@ -625,22 +634,20 @@ impl Component for Mos6502 {
                             self.state.program =
                                 u16::from_le_bytes([self.state.latch[0], self.state.latch[1]]);
                             self.state.latch.clear();
-
-                            break 'main_loop_inner;
                         }
                         ExecutionStep::AddressBusToProgramPointer => {
                             self.state.program = self.state.address_bus;
 
-                            break 'main_loop_inner;
+                            break;
                         }
                         ExecutionStep::ModifyProgramPointer(value) => {
                             self.state.program =
                                 self.state.program.wrapping_add_signed(i16::from(value));
+
+                            break;
                         }
                         ExecutionStep::MaskAddressBusToZeroPage => {
                             self.state.address_bus %= PAGE_SIZE as u16;
-
-                            break 'main_loop_inner;
                         }
                         ExecutionStep::ModifyAddressBus(modification) => {
                             let modification = match modification {
@@ -650,8 +657,6 @@ impl Component for Mos6502 {
 
                             self.state.address_bus =
                                 self.state.address_bus.wrapping_add(u16::from(modification));
-
-                            break 'main_loop_inner;
                         }
                         ExecutionStep::Interpret { instruction } => {
                             self.interpret_instruction(instruction.clone());
@@ -659,6 +664,8 @@ impl Component for Mos6502 {
                             self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::FetchAndDecode);
+
+                            break;
                         }
                     }
                 }

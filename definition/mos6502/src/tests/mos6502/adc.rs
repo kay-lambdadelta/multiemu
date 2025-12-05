@@ -55,7 +55,7 @@ pub fn adc_immediate() {
 #[test]
 pub fn adc_absolute() {
     for value in 0x00..=0xff {
-        let (mut machine, cpu, address_space) = instruction_test_boilerplate();
+        let (machine, cpu, address_space) = instruction_test_boilerplate();
         let address_space = machine.address_spaces(address_space).unwrap();
 
         address_space
