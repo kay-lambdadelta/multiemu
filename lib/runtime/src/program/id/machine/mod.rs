@@ -45,7 +45,8 @@ impl MachineId {
         extension::get_extension(self)
     }
 
-    /// Attempt to guess the game system from several heuristics including file extension and file contents
+    /// Attempt to guess the game system from several heuristics including file
+    /// extension and file contents
     pub fn guess(rom_path: impl AsRef<Path>) -> Option<Self> {
         guess::guess_system(rom_path)
     }

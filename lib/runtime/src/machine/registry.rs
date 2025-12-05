@@ -1,13 +1,16 @@
 use std::{
     any::{Any, TypeId},
+    collections::HashMap,
     fmt::Debug,
+    sync::Arc,
 };
 
 use rustc_hash::FxBuildHasher;
 
 use crate::{
     component::{Component, ComponentHandle, ComponentPath, TypedComponentHandle},
-    scheduler::{TaskData, TaskId},
+    machine::builder::SchedulerParticipation,
+    scheduler::{EventQueue, Period},
 };
 
 struct ComponentInfo {
@@ -28,17 +31,30 @@ pub struct ComponentRegistry
 where
     Self: Send + Sync,
 {
-    components: scc::HashMap<ComponentPath, ComponentInfo, FxBuildHasher>,
+    components: HashMap<ComponentPath, ComponentInfo, FxBuildHasher>,
 }
 
 impl ComponentRegistry {
-    pub(crate) fn interact_all(&self, mut callback: impl FnMut(&ComponentPath, &dyn Component)) {
-        self.components.iter_sync(|path, component_info| {
-            component_info.component.interact(|component| {
-                callback(path, component);
-            });
+    pub(crate) fn insert_component<C: Component>(
+        &mut self,
+        path: ComponentPath,
+        scheduler_participation: SchedulerParticipation,
+        event_queue: Arc<EventQueue>,
+        component: C,
+    ) {
+        self.components.insert(
+            path,
+            ComponentInfo {
+                component: ComponentHandle::new(scheduler_participation, event_queue, component),
+                type_id: TypeId::of::<C>(),
+            },
+        );
+    }
 
-            true
+    pub(crate) fn interact_all(&self, mut callback: impl FnMut(&ComponentPath, &dyn Component)) {
+        self.components.iter().for_each(|(path, info)| {
+            info.component
+                .interact_without_synchronization(|component| callback(path, component))
         });
     }
 
@@ -46,51 +62,33 @@ impl ComponentRegistry {
         &self,
         mut callback: impl FnMut(&ComponentPath, &mut dyn Component),
     ) {
-        self.components.iter_sync(|path, component_info| {
-            component_info.component.interact_mut(|component| {
-                callback(path, component);
-            });
-
-            true
+        self.components.iter().for_each(|(path, info)| {
+            info.component
+                .interact_mut_without_synchronization(|component| callback(path, component))
         });
-    }
-
-    pub(crate) fn insert_component<C: Component>(
-        &self,
-        path: ComponentPath,
-        component: C,
-        tasks: impl IntoIterator<Item = (TaskId, TaskData)>,
-    ) {
-        self.components
-            .insert_sync(
-                path,
-                ComponentInfo {
-                    component: ComponentHandle::new(component, tasks),
-                    type_id: TypeId::of::<C>(),
-                },
-            )
-            .unwrap();
     }
 
     #[inline]
     pub fn interact<C: Component, T>(
         &self,
         path: &ComponentPath,
+        current_timestamp: Period,
         callback: impl FnOnce(&C) -> T,
     ) -> Option<T> {
-        self.interact_dyn(path, |component| {
+        self.interact_dyn(path, current_timestamp, |component| {
             let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
             callback(component)
         })
     }
 
     #[inline]
-    pub fn interact_mut<C: Component, T: 'static>(
+    pub fn interact_mut<C: Component, T>(
         &self,
         path: &ComponentPath,
+        current_timestamp: Period,
         callback: impl FnOnce(&mut C) -> T,
     ) -> Option<T> {
-        self.interact_dyn_mut(path, |component| {
+        self.interact_dyn_mut(path, current_timestamp, |component| {
             let component = (component as &mut dyn Any).downcast_mut::<C>().unwrap();
             callback(component)
         })
@@ -100,41 +98,98 @@ impl ComponentRegistry {
     pub fn interact_dyn<T>(
         &self,
         path: &ComponentPath,
+        current_timestamp: Period,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Option<T> {
-        self.components.read_sync(path, |_, component_info| {
+        let component_info = self.components.get(path)?;
+
+        Some(
             component_info
                 .component
-                .interact(|component| callback(component))
-        })
+                .interact(current_timestamp, |component| callback(component)),
+        )
     }
 
     #[inline]
     pub fn interact_dyn_mut<T>(
         &self,
         path: &ComponentPath,
+        current_timestamp: Period,
         callback: impl FnOnce(&mut dyn Component) -> T,
     ) -> Option<T> {
-        self.components.read_sync(path, |_, component_info| {
+        let component_info = self.components.get(path)?;
+
+        Some(
             component_info
                 .component
-                .interact_mut(|component| callback(component))
+                .interact_mut(current_timestamp, |component| callback(component)),
+        )
+    }
+
+    pub fn typed_handle<C: Component>(
+        &self,
+        path: &ComponentPath,
+    ) -> Option<TypedComponentHandle<C>> {
+        let component_info = self.components.get(path)?;
+
+        assert_eq!(component_info.type_id, TypeId::of::<C>());
+
+        Some(unsafe { TypedComponentHandle::new(component_info.component.clone()) })
+    }
+
+    pub fn handle(&self, path: &ComponentPath) -> Option<ComponentHandle> {
+        let component_info = self.components.get(path)?;
+
+        Some(component_info.component.clone())
+    }
+
+    pub(crate) fn interact_without_synchronization<C: Component, T>(
+        &self,
+        path: &ComponentPath,
+        callback: impl FnOnce(&C) -> T,
+    ) -> Option<T> {
+        self.interact_dyn_without_synchronization(path, |component| {
+            let component = (component as &dyn Any).downcast_ref::<C>().unwrap();
+            callback(component)
         })
     }
 
-    pub fn get_erased(&self, path: &ComponentPath) -> Option<ComponentHandle> {
-        self.components
-            .read_sync(path, |_, component_info| component_info.component.clone())
+    pub(crate) fn interact_mut_without_synchronization<C: Component, T>(
+        &self,
+        path: &ComponentPath,
+        callback: impl FnOnce(&mut C) -> T,
+    ) -> Option<T> {
+        self.interact_dyn_mut_without_synchronization(path, |component| {
+            let component = (component as &mut dyn Any).downcast_mut::<C>().unwrap();
+            callback(component)
+        })
     }
 
-    pub fn get<C: Component>(&self, path: &ComponentPath) -> Option<TypedComponentHandle<C>> {
-        self.components.read_sync(path, |_, component_info| {
-            let component = component_info.component.clone();
+    pub(crate) fn interact_dyn_without_synchronization<T>(
+        &self,
+        path: &ComponentPath,
+        callback: impl FnOnce(&dyn Component) -> T,
+    ) -> Option<T> {
+        let component_info = self.components.get(path)?;
 
-            // Ensure the component actually matches the generic
-            assert_eq!(component_info.type_id, TypeId::of::<C>());
+        Some(
+            component_info
+                .component
+                .interact_without_synchronization(|component| callback(component)),
+        )
+    }
 
-            unsafe { TypedComponentHandle::new(component) }
-        })
+    pub(crate) fn interact_dyn_mut_without_synchronization<T>(
+        &self,
+        path: &ComponentPath,
+        callback: impl FnOnce(&mut dyn Component) -> T,
+    ) -> Option<T> {
+        let component_info = self.components.get(path)?;
+
+        Some(
+            component_info
+                .component
+                .interact_mut_without_synchronization(|component| callback(component)),
+        )
     }
 }

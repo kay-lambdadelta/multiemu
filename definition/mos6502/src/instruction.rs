@@ -162,7 +162,8 @@ pub enum Wdc65C02Opcode {
     Stz,
     Trb,
     Tsb,
-    // Apparently these two only exist on some 65C02Os but for simplicity sake we will treat all of them as having these two
+    // Apparently these two only exist on some 65C02Os but for simplicity sake we will treat all
+    // of them as having these two
     Stp,
     Wai,
 }

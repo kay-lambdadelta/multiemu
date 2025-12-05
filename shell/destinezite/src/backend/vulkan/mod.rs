@@ -238,7 +238,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         &mut self,
         egui_context: &egui::Context,
         full_output: egui::FullOutput,
-        machine: Option<&Machine<DesktopPlatform<Vulkan, Self>>>,
+        machine: Option<&Machine>,
         environment: &Environment,
     ) {
         let window_dimensions = self.display_api_handle.dimensions();
@@ -263,7 +263,6 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         if let Some(machine) = machine {
             for display_path in machine.displays.iter() {
                 machine
-                    .component_registry
                     .interact_dyn_mut(&display_path.component, |component| {
                         let display = component.access_framebuffer(display_path);
 

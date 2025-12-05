@@ -26,14 +26,14 @@ fn criterion_benchmark(c: &mut Criterion) {
     );
 
     let machine = machine.build(());
-    let address_space = machine.address_spaces.get(&address_space).unwrap();
+    let address_space = machine.address_spaces(address_space).unwrap();
     let mut address_space_cache = address_space.cache();
 
     c.bench_function("read1", |b| {
         b.iter(|| {
             black_box(
                 address_space
-                    .read_le_value::<u8>(0x1000, false, None)
+                    .read_le_value::<u8>(0x1000, machine.now(), None)
                     .unwrap(),
             );
         })
@@ -42,7 +42,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 address_space
-                    .read_le_value::<u16>(0x1000, false, None)
+                    .read_le_value::<u16>(0x1000, machine.now(), None)
                     .unwrap(),
             );
         })
@@ -51,7 +51,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 address_space
-                    .read_le_value::<u32>(0x1000, false, None)
+                    .read_le_value::<u32>(0x1000, machine.now(), None)
                     .unwrap(),
             );
         })
@@ -60,7 +60,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 address_space
-                    .read_le_value::<u64>(0x1000, false, None)
+                    .read_le_value::<u64>(0x1000, machine.now(), None)
                     .unwrap(),
             );
         })
@@ -70,7 +70,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 address_space
-                    .read_le_value::<u8>(0x1000, false, Some(&mut address_space_cache))
+                    .read_le_value::<u8>(0x1000, machine.now(), Some(&mut address_space_cache))
                     .unwrap(),
             );
         })
@@ -79,7 +79,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 address_space
-                    .read_le_value::<u16>(0x1000, false, Some(&mut address_space_cache))
+                    .read_le_value::<u16>(0x1000, machine.now(), Some(&mut address_space_cache))
                     .unwrap(),
             );
         })
@@ -88,7 +88,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 address_space
-                    .read_le_value::<u32>(0x1000, false, Some(&mut address_space_cache))
+                    .read_le_value::<u32>(0x1000, machine.now(), Some(&mut address_space_cache))
                     .unwrap(),
             );
         })
@@ -97,7 +97,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 address_space
-                    .read_le_value::<u64>(0x1000, false, Some(&mut address_space_cache))
+                    .read_le_value::<u64>(0x1000, machine.now(), Some(&mut address_space_cache))
                     .unwrap(),
             );
         })

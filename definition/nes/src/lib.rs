@@ -12,7 +12,7 @@ use multiemu_runtime::{
     platform::Platform,
     program::Filesystem,
 };
-use ppu::NesPpuConfig;
+use ppu::PpuConfig;
 use rangemap::RangeInclusiveMap;
 
 use crate::{
@@ -101,7 +101,6 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
         );
 
         let ines = machine
-            .registry()
             .interact::<NesCartridge, _>(&cartridge, |cart| cart.rom())
             .unwrap();
 
@@ -228,7 +227,7 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
 
                 let (machine, _) = machine.insert_component(
                     "ppu",
-                    NesPpuConfig::<'_, Ntsc> {
+                    PpuConfig::<'_, Ntsc> {
                         ppu_address_space,
                         cpu_address_space,
                         processor,

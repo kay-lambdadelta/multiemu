@@ -151,7 +151,8 @@ impl<P: PlatformExt> Frontend<P> {
                             }
                         });
 
-                        // Display a textual label for the open menu item in case the icon didn't clarify
+                        // Display a textual label for the open menu item in case the icon didn't
+                        // clarify
                         ui.label(RichText::new(self.gui.open_menu_item.to_string()).strong());
                     });
 
@@ -222,7 +223,8 @@ pub fn setup_egui_context() -> Context {
     egui_context
 }
 
-/// I'm not operating two color libraries at once especially since eguis is far less powerful
+/// I'm not operating two color libraries at once especially since eguis is far
+/// less powerful
 fn to_egui_color(color: impl Into<Srgba<u8>>) -> Color32 {
     let color = color.into();
 

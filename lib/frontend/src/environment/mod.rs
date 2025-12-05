@@ -50,7 +50,8 @@ pub static ENVIRONMENT_LOCATION: LazyLock<PathBuf> =
 #[derive(Serialize, Deserialize, Debug)]
 /// Miscellaneous settings that the runtime and machine must obey
 ///
-/// The canonical on-disk representation for this config is RON but any type will do
+/// The canonical on-disk representation for this config is RON but any type
+/// will do
 pub struct Environment {
     #[serde(default)]
     /// Gamepad configs populated by machines or edited by the user

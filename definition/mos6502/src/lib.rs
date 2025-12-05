@@ -2,38 +2,45 @@ use std::{
     collections::VecDeque,
     io::{Read, Write},
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
 };
 
 use arrayvec::ArrayVec;
 use bitvec::{prelude::Lsb0, view::BitView};
-use decoder::Mos6502InstructionDecoder;
 use instruction::Mos6502InstructionSet;
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion},
-    machine::builder::ComponentBuilder,
-    memory::AddressSpaceId,
+    component::{Component, ComponentConfig, ComponentVersion, SynchronizationContext},
+    machine::builder::{ComponentBuilder, SchedulerParticipation},
+    memory::{Address, AddressSpace, AddressSpaceCache, AddressSpaceId},
     platform::Platform,
+    scheduler::{Frequency, Period},
 };
-use num::rational::Ratio;
 use serde::{Deserialize, Serialize};
-use task::Driver;
+
+use crate::{
+    decoder::{
+        InstructionGroup, decode_group1_space_instruction, decode_group2_space_instruction,
+        decode_group3_space_instruction, decode_undocumented_space_instruction,
+    },
+    instruction::{AddressingMode, Mos6502AddressingMode, Wdc65C02AddressingMode},
+    interpret::STACK_BASE_ADDRESS,
+};
 
 mod decoder;
 mod instruction;
 mod interpret;
-mod task;
 #[cfg(test)]
 mod tests;
 
-const RESET_VECTOR: u16 = 0xfffc;
-const IRQ_VECTOR: u16 = 0xfffe;
-const NMI_VECTOR: u16 = 0xfffa;
+pub const RESET_VECTOR: u16 = 0xfffc;
+pub const IRQ_VECTOR: u16 = 0xfffe;
+pub const NMI_VECTOR: u16 = 0xfffa;
 const PAGE_SIZE: usize = 256;
 
-// NOTE: This is based upon an old design of this cpu emulator but I'm keeping it until its fully implemented
+// NOTE: This is based upon an old design of this cpu emulator but I'm keeping
+// it until its fully implemented
 //
 // Addressing modes vs load steps
 //
@@ -62,14 +69,16 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Data (low byte)
 //      LoadStep::Data (high byte)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
+//      LoadStep::Offset (add X) <- this might be done in parallel depending on
+// the instruction
 //
 // AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute)
 //      LoadStep::Opcode
 //      LoadStep::Data (low byte)
 //      LoadStep::Data (high byte)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add Y) <- this might be done in parallel depending on the instruction
+//      LoadStep::Offset (add Y) <- this might be done in parallel depending on
+// the instruction
 //
 // AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage)
 //      LoadStep::Opcode
@@ -80,20 +89,22 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
+//      LoadStep::Offset (add X) <- this might be done in parallel depending on
+// the instruction
 //
 // AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add Y) <- this might be done in parallel depending on the instruction
+//      LoadStep::Offset (add Y) <- this might be done in parallel depending on
+// the instruction
 //
 // AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect)
 //      LoadStep::Opcode
 //      LoadStep::Data (zero page offset)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add X) <- this might be done in parallel depending on the instruction
-//      LoadStep::Data (fetch low byte of pointer as immediate)
+//      LoadStep::Offset (add X) <- this might be done in parallel depending on
+// the instruction      LoadStep::Data (fetch low byte of pointer as immediate)
 //      LoadStep::Data (fetch high byte of pointer as immediate)
 //      LoadStep::LatchToBus
 //
@@ -104,7 +115,8 @@ const PAGE_SIZE: usize = 256;
 //      LoadStep::Data (fetch low byte of pointer as immediate)
 //      LoadStep::Data (fetch high byte of pointer as immediate)
 //      LoadStep::LatchToBus
-//      LoadStep::Offset (add Y)  <- this might be done in parallel depending on the instructions
+//      LoadStep::Offset (add Y)  <- this might be done in parallel depending on
+// the instructions
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AddressBusModification {
@@ -224,7 +236,7 @@ impl FlagRegister {
 
 #[derive(Debug)]
 pub struct Mos6502Config {
-    pub frequency: Ratio<u32>,
+    pub frequency: Frequency,
     pub assigned_address_space: AddressSpaceId,
     pub kind: Mos6502Kind,
     pub broken_ror: bool,
@@ -269,45 +281,22 @@ impl Default for ProcessorState {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-struct RdyState {
-    pub state: bool,
-    pub until: Option<u32>,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RdyFlag(Mutex<RdyState>);
+pub struct RdyFlag(AtomicBool);
 
 impl Default for RdyFlag {
     fn default() -> Self {
-        Self(Mutex::new(RdyState {
-            state: true,
-            until: None,
-        }))
+        Self(AtomicBool::new(true))
     }
 }
 
 impl RdyFlag {
     pub fn load(&self) -> bool {
-        let mut guard = self.0.lock().unwrap();
-
-        if let Some(until) = &mut guard.until {
-            *until = until.saturating_sub(1);
-
-            if *until == 0 {
-                guard.until = None;
-                guard.state = !guard.state;
-            }
-        }
-
-        guard.state
+        self.0.load(Ordering::Acquire)
     }
 
-    pub fn store(&self, value: bool, until: Option<u32>) {
-        let mut guard = self.0.lock().unwrap();
-
-        guard.state = value;
-        guard.until = until;
+    pub fn store(&self, value: bool) {
+        self.0.store(value, Ordering::Release)
     }
 }
 
@@ -318,6 +307,9 @@ pub struct Mos6502 {
     irq: Arc<IrqFlag>,
     nmi: Arc<NmiFlag>,
     config: Mos6502Config,
+    address_space: Arc<AddressSpace>,
+    address_space_cache: AddressSpaceCache,
+    timestamp: Period,
 }
 
 impl Mos6502 {
@@ -336,6 +328,171 @@ impl Mos6502 {
     pub fn address_space(&self) -> AddressSpaceId {
         self.config.assigned_address_space
     }
+
+    #[inline]
+    fn fetch_and_decode(&mut self) {
+        let byte: u8 = self
+            .address_space
+            .read_le_value(
+                self.state.program as Address,
+                self.timestamp,
+                Some(&mut self.address_space_cache),
+            )
+            .unwrap_or_default();
+
+        let instruction_identifier = InstructionGroup::from_repr(byte & 0b11).unwrap();
+        let secondary_instruction_identifier = (byte >> 5) & 0b111;
+        let argument = (byte >> 2) & 0b111;
+
+        let (opcode, addressing_mode) = match instruction_identifier {
+            InstructionGroup::Group3 => decode_group3_space_instruction(
+                secondary_instruction_identifier,
+                argument,
+                self.config.kind,
+            ),
+            InstructionGroup::Group1 => decode_group1_space_instruction(
+                secondary_instruction_identifier,
+                argument,
+                self.config.kind,
+            ),
+            InstructionGroup::Group2 => decode_group2_space_instruction(
+                secondary_instruction_identifier,
+                argument,
+                self.config.kind,
+            ),
+            InstructionGroup::Undocumented => decode_undocumented_space_instruction(
+                secondary_instruction_identifier,
+                argument,
+                self.config.kind,
+            ),
+        };
+
+        let instruction = Mos6502InstructionSet {
+            opcode,
+            addressing_mode,
+        };
+
+        debug_assert!(
+            instruction.addressing_mode.is_none_or(|addressing_mode| {
+                addressing_mode.is_valid_for_mode(self.config.kind)
+            }),
+            "Invalid addressing mode for instruction for mode {:?}: {:?}",
+            self.config.kind,
+            instruction,
+        );
+
+        self.state.address_bus = self.state.program.wrapping_add(1);
+        self.state.program = self.state.program.wrapping_add(
+            1 + instruction
+                .addressing_mode
+                .map_or(0, |mode| mode.added_instruction_length()),
+        );
+        self.state.latch.clear();
+
+        self.push_steps_for_instruction(&instruction);
+
+        self.state
+            .execution_queue
+            .push_back(ExecutionStep::Interpret { instruction });
+    }
+
+    fn push_steps_for_instruction(&mut self, instruction: &Mos6502InstructionSet) {
+        if let Some(addressing_mode) = instruction.addressing_mode {
+            match addressing_mode {
+                AddressingMode::Mos6502(Mos6502AddressingMode::Absolute) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::Immediate) => {}
+                AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedAbsolute) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedAbsolute) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::AbsoluteIndirect) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                        ExecutionStep::MaskAddressBusToZeroPage,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::MaskAddressBusToZeroPage,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPageIndirectYIndexed) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::MaskAddressBusToZeroPage,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPage) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::X),
+                        ExecutionStep::MaskAddressBusToZeroPage,
+                    ]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::YIndexedZeroPage) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::ModifyAddressBus(AddressBusModification::Y),
+                        ExecutionStep::MaskAddressBusToZeroPage,
+                    ]);
+                }
+
+                AddressingMode::Mos6502(Mos6502AddressingMode::ZeroPage) => {
+                    self.state
+                        .execution_queue
+                        .extend([ExecutionStep::LoadData, ExecutionStep::LatchToAddressBus]);
+                }
+                AddressingMode::Mos6502(Mos6502AddressingMode::Relative) => {}
+                AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator) => {}
+                AddressingMode::Wdc65C02(Wdc65C02AddressingMode::ZeroPageIndirect) => {
+                    self.state.execution_queue.extend([
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::MaskAddressBusToZeroPage,
+                        ExecutionStep::LoadData,
+                        ExecutionStep::LatchToAddressBus,
+                    ]);
+                }
+            }
+        }
+    }
 }
 
 impl Component for Mos6502 {
@@ -347,7 +504,7 @@ impl Component for Mos6502 {
         bincode::serde::encode_into_std_write(
             &Snapshot {
                 state: self.state.clone(),
-                rdy: *self.rdy.0.lock().unwrap(),
+                rdy: self.rdy.load(),
             },
             &mut writer,
             bincode::config::standard(),
@@ -367,12 +524,152 @@ impl Component for Mos6502 {
                     bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
 
                 self.state = snapshot.state;
-                *self.rdy.0.lock().unwrap() = snapshot.rdy;
+                self.rdy.store(snapshot.rdy);
 
                 Ok(())
             }
             other => Err(format!("Unsupported snapshot version: {other}").into()),
         }
+    }
+
+    fn synchronize(&mut self, mut context: SynchronizationContext) {
+        let period = self.config.frequency.recip();
+
+        while context.allocate_period(period) {
+            self.timestamp = context.now();
+
+            if self.rdy.load() {
+                'main_loop_inner: {
+                    match self.state.execution_queue.pop_front().unwrap() {
+                        ExecutionStep::Reset => {
+                            self.state.interrupt(RESET_VECTOR, false, false);
+                        }
+                        ExecutionStep::Jammed => {
+                            self.state.execution_queue.clear();
+                            self.state.execution_queue.push_back(ExecutionStep::Jammed);
+                        }
+                        ExecutionStep::Wait => {
+                            self.state.execution_queue.push_back(ExecutionStep::Wait);
+                        }
+                        ExecutionStep::FetchAndDecode => {
+                            if self.config.kind.supports_interrupts() {
+                                if self.nmi.interrupt_required() {
+                                    self.state.interrupt(NMI_VECTOR, false, true);
+                                } else if self.irq.interrupt_required()
+                                    && !self.state.flags.interrupt_disable
+                                {
+                                    self.state.interrupt(IRQ_VECTOR, true, true);
+                                } else {
+                                    self.fetch_and_decode();
+                                }
+                            } else {
+                                self.fetch_and_decode();
+                            }
+                        }
+                        ExecutionStep::LoadData => {
+                            let byte = self
+                                .address_space
+                                .read_le_value(
+                                    self.state.address_bus as usize,
+                                    self.timestamp,
+                                    Some(&mut self.address_space_cache),
+                                )
+                                .unwrap_or_default();
+
+                            self.state.latch.push(byte);
+                            self.state.address_bus = self.state.address_bus.wrapping_add(1);
+                        }
+                        ExecutionStep::LoadDataFromConstant(data) => {
+                            self.state.latch.push(data);
+                        }
+                        ExecutionStep::StoreData(data) => {
+                            let _ = self.address_space.write_le_value(
+                                self.state.address_bus as usize,
+                                self.timestamp,
+                                Some(&mut self.address_space_cache),
+                                data,
+                            );
+                            self.state.address_bus = self.state.address_bus.wrapping_add(1);
+                        }
+                        ExecutionStep::PushStack(data) => {
+                            let _ = self.address_space.write_le_value(
+                                STACK_BASE_ADDRESS + self.state.stack as usize,
+                                self.timestamp,
+                                Some(&mut self.address_space_cache),
+                                data,
+                            );
+                            self.state.stack = self.state.stack.wrapping_sub(1);
+                        }
+                        ExecutionStep::LatchToAddressBus => {
+                            match self.state.latch.len() {
+                                1 => {
+                                    self.state.address_bus = u16::from(self.state.latch[0]);
+                                }
+                                2 => {
+                                    let latch = [self.state.latch[0], self.state.latch[1]];
+                                    self.state.address_bus = u16::from_le_bytes(latch);
+                                }
+                                _ => {
+                                    unreachable!()
+                                }
+                            }
+
+                            self.state.latch.clear();
+
+                            break 'main_loop_inner;
+                        }
+                        // only used for interrupts
+                        ExecutionStep::LatchToProgramPointer => {
+                            assert!(self.state.latch.len() == 2);
+
+                            self.state.program =
+                                u16::from_le_bytes([self.state.latch[0], self.state.latch[1]]);
+                            self.state.latch.clear();
+
+                            break 'main_loop_inner;
+                        }
+                        ExecutionStep::AddressBusToProgramPointer => {
+                            self.state.program = self.state.address_bus;
+
+                            break 'main_loop_inner;
+                        }
+                        ExecutionStep::ModifyProgramPointer(value) => {
+                            self.state.program =
+                                self.state.program.wrapping_add_signed(i16::from(value));
+                        }
+                        ExecutionStep::MaskAddressBusToZeroPage => {
+                            self.state.address_bus %= PAGE_SIZE as u16;
+
+                            break 'main_loop_inner;
+                        }
+                        ExecutionStep::ModifyAddressBus(modification) => {
+                            let modification = match modification {
+                                AddressBusModification::X => self.state.x,
+                                AddressBusModification::Y => self.state.y,
+                            };
+
+                            self.state.address_bus =
+                                self.state.address_bus.wrapping_add(u16::from(modification));
+
+                            break 'main_loop_inner;
+                        }
+                        ExecutionStep::Interpret { instruction } => {
+                            self.interpret_instruction(instruction.clone());
+
+                            self.state
+                                .execution_queue
+                                .push_back(ExecutionStep::FetchAndDecode);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn needs_work(&self, delta: Period) -> bool {
+        let period = self.config.frequency.recip();
+
+        delta >= period
     }
 }
 
@@ -383,24 +680,21 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        let address_space = component_builder.address_space(self.assigned_address_space);
+        let address_space = component_builder
+            .get_address_space(self.assigned_address_space)
+            .clone();
 
-        component_builder.insert_task(
-            "driver",
-            self.frequency,
-            Driver {
-                address_space_cache: address_space.cache(),
-                address_space,
-                instruction_decoder: Mos6502InstructionDecoder::new(self.kind),
-            },
-        );
+        component_builder.set_scheduler_participation(SchedulerParticipation::SchedulerDriven);
 
         Ok(Mos6502 {
             rdy: Arc::default(),
             irq: Arc::default(),
             nmi: Arc::default(),
             state: ProcessorState::default(),
+            address_space_cache: address_space.cache(),
+            address_space,
             config: self,
+            timestamp: Period::default(),
         })
     }
 }
@@ -408,7 +702,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Snapshot {
     state: ProcessorState,
-    rdy: RdyState,
+    rdy: bool,
 }
 
 #[derive(Debug)]
@@ -455,5 +749,36 @@ impl NmiFlag {
 
     pub fn interrupt_required(&self) -> bool {
         self.falling_edge_occured.swap(false, Ordering::AcqRel)
+    }
+}
+
+impl ProcessorState {
+    pub fn interrupt(&mut self, vector: u16, break_status: bool, save_current_state: bool) {
+        let vector = vector.to_le_bytes();
+        let mut flags = self.flags;
+
+        flags.break_ = break_status;
+        flags.undocumented = true;
+        flags.interrupt_disable = true;
+
+        if save_current_state {
+            let program_pointer = self.program.to_le_bytes();
+
+            self.execution_queue.extend([
+                ExecutionStep::PushStack(program_pointer[1]),
+                ExecutionStep::PushStack(program_pointer[0]),
+                ExecutionStep::PushStack(flags.to_byte()),
+            ]);
+        }
+
+        self.execution_queue.extend([
+            ExecutionStep::LoadDataFromConstant(vector[0]),
+            ExecutionStep::LoadDataFromConstant(vector[1]),
+            ExecutionStep::LatchToAddressBus,
+            ExecutionStep::LoadData,
+            ExecutionStep::LoadData,
+            ExecutionStep::LatchToProgramPointer,
+            ExecutionStep::FetchAndDecode,
+        ]);
     }
 }

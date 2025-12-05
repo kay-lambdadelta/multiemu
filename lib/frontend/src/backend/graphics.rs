@@ -33,7 +33,7 @@ pub trait GraphicsRuntime<P: Platform>: Debug + Sized + 'static {
         &mut self,
         egui_context: &egui::Context,
         full_output: FullOutput,
-        machine: Option<&Machine<P>>,
+        machine: Option<&Machine>,
         environment: &Environment,
     );
 

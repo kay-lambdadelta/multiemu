@@ -4,7 +4,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use multiemu_definition_atari2600::Atari2600;
 use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment};
 use multiemu_runtime::{
-    machine::{Machine, MachineFactory},
+    machine::{Machine, MachineFactory, builder::MachineBuilder},
     platform::TestPlatform,
     program::{ProgramManager, RomId},
 };
@@ -24,28 +24,19 @@ fn criterion_benchmark(c: &mut Criterion) {
         .unwrap()
         .expect("You need a copy of \"Donkey Kong (USA)\" to run this benchmark");
 
-    let machine = Machine::build(
+    let machine: MachineBuilder<TestPlatform> = Machine::build(
         Some(program_specification),
         program_manager,
         None,
         None,
         Ratio::from_integer(44100),
     );
-    let mut machine: Machine<TestPlatform> = Atari2600.construct(machine).build(());
-
-    let scheduler_state = machine.scheduler.as_mut().unwrap();
-    let full_cycle = scheduler_state.timeline_length();
-
-    c.bench_function("atari_2600_full_machine_cycle", |b| {
-        b.iter(|| {
-            scheduler_state.run_for_cycles(full_cycle);
-        })
-    });
+    let machine = Atari2600.construct(machine).build(());
 
     let one_second = Duration::from_secs(1);
     c.bench_function("atari_2600_one_second", |b| {
         b.iter(|| {
-            scheduler_state.run(one_second);
+            machine.run_duration(one_second);
         })
     });
 }

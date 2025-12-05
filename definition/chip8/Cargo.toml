@@ -25,16 +25,7 @@ ringbuffer = { workspace = true }
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
 multiemu-frontend = { workspace = true}
 ron = { workspace = true }
-criterion = { workspace = true }
 
 [features]
 vulkan = ["multiemu-runtime/vulkan"]
 opengl = ["multiemu-runtime/opengl"]
-
-[[bench]]
-name = "instruction_decode"
-harness = false
-
-[[bench]]
-name = "machine_cycle"
-harness = false

@@ -50,7 +50,6 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
             }
             ReadRegisters::Cxblpf => {
                 let collision = self
-                    .state
                     .collision_matrix
                     .get(&ObjectId::Ball)
                     .is_some_and(|set| set.contains(&ObjectId::Playfield));
@@ -78,13 +77,11 @@ impl<R: Region, G: SupportedGraphicsApiTia> Tia<R, G> {
     #[inline]
     fn read_collision_register(&self, data: &mut u8, pair1: [ObjectId; 2], pair2: [ObjectId; 2]) {
         let collision1 = self
-            .state
             .collision_matrix
             .get(&pair1[0])
             .is_some_and(|set| set.contains(&pair1[1]));
 
         let collision2 = self
-            .state
             .collision_matrix
             .get(&pair2[0])
             .is_some_and(|set| set.contains(&pair2[1]));

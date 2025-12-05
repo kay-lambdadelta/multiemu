@@ -28,7 +28,8 @@ pub const HASH_ALIAS_TABLE: MultimapTableDefinition<RomId, ProgramId> =
 static DATABASE_CACHE: LazyLock<scc::HashMap<PathBuf, Weak<Database>>> =
     LazyLock::new(Default::default);
 
-/// The ROM manager which contains the database and information about the roms that were loaded
+/// The ROM manager which contains the database and information about the roms
+/// that were loaded
 #[derive(Debug)]
 pub struct ProgramManager {
     database: Arc<Database>,
@@ -105,7 +106,8 @@ impl ProgramManager {
         }))
     }
 
-    /// Opens a ROM, giving a warning or panicking in the case that the requirement is not met
+    /// Opens a ROM, giving a warning or panicking in the case that the
+    /// requirement is not met
     ///
     /// Components should use this instead of directly opening ROM files
     pub fn open(&self, id: RomId, requirement: RomRequirement) -> Option<File> {
@@ -202,7 +204,8 @@ impl ProgramManager {
 
     /// Attempts to identify a program from its program ids
     ///
-    /// Prefer [`Self::identify_program_from_paths`] when possible, as it will have a higher success rate
+    /// Prefer [`Self::identify_program_from_paths`] when possible, as it will
+    /// have a higher success rate
     #[tracing::instrument(skip_all)]
     pub fn identify_program(
         &self,
@@ -384,7 +387,8 @@ impl ProgramManager {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// The requirement of a ROM as pertains to a component attempting to load it
 pub enum RomRequirement {
-    /// Ok to boot machine without this ROM but runtime failure can occur without it
+    /// Ok to boot machine without this ROM but runtime failure can occur
+    /// without it
     Sometimes,
     /// Machine will boot emulating this ROM
     Optional,

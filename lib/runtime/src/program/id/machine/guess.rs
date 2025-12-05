@@ -75,7 +75,8 @@ pub fn guess_system(rom_path: impl AsRef<Path>) -> Option<MachineId> {
     let rom_path = rom_path.as_ref();
     let mut rom = File::open(rom_path).unwrap();
 
-    // This goes first since a lot of roms have misleading or nonexistent magic bytes
+    // This goes first since a lot of roms have misleading or nonexistent magic
+    // bytes
     if let Some(system) = guess_by_extension(rom_path) {
         return Some(system);
     }

@@ -4,6 +4,7 @@ use std::{
     fmt::Debug,
     io::{Read, Write},
     ops::RangeInclusive,
+    sync::Weak,
 };
 
 pub use handle::*;
@@ -14,9 +15,10 @@ use ringbuffer::AllocRingBuffer;
 
 use crate::{
     graphics::GraphicsApi,
-    machine::builder::ComponentBuilder,
+    machine::{Machine, builder::ComponentBuilder},
     memory::{Address, AddressSpaceId, MemoryError, MemoryErrorType},
     platform::Platform,
+    scheduler::{EventQueue, Period},
 };
 
 mod handle;
@@ -54,7 +56,8 @@ pub trait Component: Send + Sync + Debug + Any {
         Ok(())
     }
 
-    /// Reads memory at the specified address in the specified address space to fill the buffer
+    /// Reads memory at the specified address in the specified address space to
+    /// fill the buffer
     fn memory_read(
         &self,
         address: Address,
@@ -101,6 +104,16 @@ pub trait Component: Send + Sync + Debug + Any {
     ) -> &mut AllocRingBuffer<SVector<f32, 2>> {
         unreachable!()
     }
+
+    /// Synchronize until the time tracker indicates that no more time can be consumed
+    fn synchronize(&mut self, context: SynchronizationContext) {
+        unreachable!()
+    }
+
+    /// Given a delta between this components time and real time, is the component as much as it can be
+    fn needs_work(&self, delta: Period) -> bool {
+        unreachable!()
+    }
 }
 
 #[allow(unused)]
@@ -114,14 +127,50 @@ pub trait ComponentConfig<P: Platform>: Debug + Sized {
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn Error>>;
+
+    /// Do setup for subsystems that cannot be initalized during
+    /// [`Self::build_component`]
+    fn late_initialize(component: &mut Self::Component, data: &LateInitializedData<P>) {}
 }
 
 /// Data that the runtime will provide at the end of the initialization sequence
 #[derive(Debug)]
 pub struct LateInitializedData<P: Platform> {
+    /// Pointer to the running machine
+    pub machine: Weak<Machine>,
     /// Graphics related data
     pub component_graphics_initialization_data: <P::GraphicsApi as GraphicsApi>::InitializationData,
 }
 
 /// Version that components use
 pub type ComponentVersion = u64;
+
+#[derive(Debug)]
+pub struct SynchronizationContext<'a> {
+    event_queue: &'a EventQueue,
+    updated_timestamp: &'a mut Period,
+    current_timestamp: Period,
+    last_attempted_allocation: &'a mut Option<Period>,
+}
+
+impl<'a> SynchronizationContext<'a> {
+    #[inline]
+    pub fn allocate_period(&mut self, period: Period) -> bool {
+        let next_timestamp = *self.updated_timestamp + period;
+        *self.last_attempted_allocation = Some(period);
+
+        if next_timestamp <= self.current_timestamp
+            && self.event_queue.within_deadline(next_timestamp)
+        {
+            *self.updated_timestamp = next_timestamp;
+
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn now(&self) -> Period {
+        *self.updated_timestamp
+    }
+}

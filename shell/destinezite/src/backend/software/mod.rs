@@ -39,7 +39,7 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
         display_api_handle: Self::WindowingHandle,
         _required_features: <Software as GraphicsApi>::Features,
         _preferred_features: <Software as GraphicsApi>::Features,
-        environment: &Environment,
+        _environment: &Environment,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window_dimensions = display_api_handle.dimensions();
 
@@ -67,7 +67,7 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
         &mut self,
         egui_context: &egui::Context,
         full_output: FullOutput,
-        machine: Option<&Machine<DesktopPlatform<Software, Self>>>,
+        machine: Option<&Machine>,
         environment: &Environment,
     ) {
         if self.previously_recorded_size.min() == 0 {
@@ -123,12 +123,11 @@ impl SoftwareGraphicsRuntime {
     fn draw_component_displays(
         mut surface_buffer_view: DMatrixViewMut<Packed<Argb, u32>>,
         integer_scaling: bool,
-        machine: &Machine<DesktopPlatform<Software, SoftwareGraphicsRuntime>>,
+        machine: &Machine,
         previously_recorded_size: Vector2<u16>,
     ) {
         for display_path in machine.displays.iter() {
             machine
-                .component_registry
                 .interact_dyn_mut(&display_path.component, |component| {
                     let display = component.access_framebuffer(display_path);
 

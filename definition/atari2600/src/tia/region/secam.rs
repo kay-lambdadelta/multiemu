@@ -1,4 +1,4 @@
-use num::rational::Ratio;
+use multiemu_runtime::scheduler::Frequency;
 
 use super::Region;
 use crate::tia::color::TiaColor;
@@ -9,7 +9,7 @@ pub struct Secam;
 impl Region for Secam {
     const TOTAL_SCANLINES: u16 = 312;
 
-    fn frequency() -> Ratio<u32> {
+    fn frequency() -> Frequency {
         todo!()
     }
 

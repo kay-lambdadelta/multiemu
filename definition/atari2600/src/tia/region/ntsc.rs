@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
+use multiemu_runtime::scheduler::Frequency;
 use nalgebra::SMatrix;
-use num::rational::Ratio;
 use palette::{FromColor, Hsl, Srgb};
 
 use super::Region;
@@ -56,8 +56,8 @@ pub struct Ntsc;
 impl Region for Ntsc {
     const TOTAL_SCANLINES: u16 = 262;
 
-    fn frequency() -> Ratio<u32> {
-        Ratio::new(3579545, 1)
+    fn frequency() -> Frequency {
+        Frequency::from_num(3579545)
     }
 
     fn color_to_srgb(color: TiaColor) -> Srgb<u8> {

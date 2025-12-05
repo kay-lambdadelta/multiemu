@@ -30,8 +30,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
             component_builder.insert_gamepad("player-1", player2_gamepad.clone());
 
         component_builder
-            .registry()
-            .interact::<Mos6532Riot, _>(&self.mos6532_riot, |riot| {
+            .interact_mut::<Mos6532Riot, _>(&self.mos6532_riot, |riot| {
                 riot.install_swcha(JoystickSwchaCallback {
                     gamepads: [player1_gamepad, player2_gamepad],
                 });

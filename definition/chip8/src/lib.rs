@@ -10,10 +10,9 @@ use multiemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     platform::Platform,
     program::Filesystem,
+    scheduler::Frequency,
 };
-use num::rational::Ratio;
 use processor::Chip8ProcessorConfig;
-pub use processor::decoder::Chip8InstructionDecoder;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};
 use timer::Chip8TimerConfig;
@@ -52,7 +51,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> MachineFactory<
                 timer,
                 audio,
                 display,
-                frequency: Ratio::from_integer(1000),
+                frequency: Frequency::from_num(1000),
                 force_mode: None,
                 always_shr_in_place: false,
                 _phantom: PhantomData,

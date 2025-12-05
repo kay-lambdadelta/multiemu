@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
+use multiemu_runtime::scheduler::Frequency;
 use nalgebra::SMatrix;
-use num::rational::Ratio;
 use palette::Srgb;
 
 use super::Region;
@@ -99,9 +99,9 @@ impl Region for Ntsc {
     const VISIBLE_SCANLINES: u16 = 240;
     const VBLANK_LENGTH: u16 = 20;
 
-    fn master_clock() -> Ratio<u32> {
+    fn master_clock() -> Frequency {
         // 236.25 MHz / 11
-        Ratio::new(236250000, 11)
+        Frequency::from_num(236250000) / 11
     }
 
     #[inline]

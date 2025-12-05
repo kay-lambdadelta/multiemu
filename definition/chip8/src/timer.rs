@@ -1,14 +1,10 @@
-use std::{
-    io::{Read, Write},
-    num::NonZero,
-};
+use std::io::{Read, Write};
 
 use multiemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
-    machine::builder::ComponentBuilder,
+    machine::builder::{ComponentBuilder, SchedulerParticipation},
     platform::Platform,
 };
-use num::rational::Ratio;
 
 #[derive(Debug)]
 pub struct Chip8Timer {
@@ -63,15 +59,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8TimerConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        component_builder.insert_task(
-            "driver",
-            Ratio::from_integer(60),
-            move |component: &mut Chip8Timer, slice: NonZero<u32>| {
-                component.timer = component
-                    .timer
-                    .saturating_sub(slice.get().try_into().unwrap_or(u8::MAX));
-            },
-        );
+        component_builder.set_scheduler_participation(SchedulerParticipation::OnDemand);
 
         Ok(Chip8Timer { timer: 0 })
     }

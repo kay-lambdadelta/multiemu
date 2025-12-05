@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     num::Wrapping,
-    sync::{Arc, RwLock},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -37,7 +37,6 @@ pub struct WindowingContext<P: PlatformExt> {
 }
 
 /// Type alias for a possibly active machine
-pub type MaybeMachine<P> = RwLock<Option<Machine<P>>>;
 
 #[derive(Debug)]
 struct GamepadData {
@@ -49,8 +48,8 @@ struct GamepadData {
 #[derive(Debug)]
 /// Frontend for the emulator
 pub struct Frontend<P: PlatformExt> {
-    /// Main swappable machine
-    maybe_machine: Arc<MaybeMachine<P>>,
+    // Current machine
+    machine: Option<Arc<Machine>>,
     /// Gamepads connected
     gamepads: HashMap<RealGamepadId, GamepadData, FxBuildHasher>,
     /// The rom manager in use
@@ -88,15 +87,15 @@ impl<P: PlatformExt> Frontend<P> {
         program_manager: Arc<ProgramManager>,
         machine_factories: MachineFactories<P>,
     ) -> Self {
-        let maybe_machine = Arc::new(MaybeMachine::default());
+        let machine = None;
         let gui = GuiState::new(&environment);
         let gamepads = HashMap::default();
-        let audio_runtime = P::AudioRuntime::new(maybe_machine.clone());
+        let audio_runtime = P::AudioRuntime::new();
 
         audio_runtime.play();
 
         Self {
-            maybe_machine,
+            machine,
             gamepads,
             environment,
             program_manager,
@@ -136,9 +135,8 @@ impl<P: PlatformExt> Frontend<P> {
         self.in_focus = focused;
     }
 
-    /// Get the [`MaybeMachine`]
-    pub fn maybe_machine(&self) -> Arc<MaybeMachine<P>> {
-        self.maybe_machine.clone()
+    pub fn machine(&self) -> Option<&Machine> {
+        self.machine.as_deref()
     }
 
     /// Get access to the inner egui platform integration type
@@ -148,13 +146,14 @@ impl<P: PlatformExt> Frontend<P> {
 
     /// Late initialization of the display API handle
     ///
-    /// Comes up on desktop platforms since they send to give a window handle asynchronously
+    /// Comes up on desktop platforms since they send to give a window handle
+    /// asynchronously
     pub fn set_windowing_handle(
         &mut self,
         windowing_handle: <P::GraphicsRuntime as GraphicsRuntime<P>>::WindowingHandle,
         egui_windowing_integration: P::EguiWindowingIntegration,
     ) {
-        if self.maybe_machine.write().unwrap().take().is_some() {
+        if self.machine.is_some() {
             tracing::error!("Machine was set up before the display handle was given!");
         }
 
@@ -166,7 +165,8 @@ impl<P: PlatformExt> Frontend<P> {
             program_specification,
         }) = self.pending_machine_resources.take()
         {
-            // setup_runtime_for_new_machine will relock mode but its ok because no threads should be running here
+            // setup_runtime_for_new_machine will relock mode but its ok because no threads
+            // should be running here
 
             self.setup_runtime_for_new_machine(Some(windowing_handle), program_specification);
         } else {
@@ -223,39 +223,32 @@ impl<P: PlatformExt> Frontend<P> {
         }
 
         self.handle_virtual_and_hotkey_inputs();
-        let mut maybe_machine_guard = self.maybe_machine.write().unwrap();
 
-        {
-            let windowing = self.windowing_context.as_mut().unwrap();
+        let windowing = self.windowing_context.as_mut().unwrap();
 
-            let new_window_dimensions = windowing.handle.dimensions();
-            if self.previous_window_size != new_window_dimensions {
-                windowing.graphics_runtime.display_resized();
-                self.previous_window_size = new_window_dimensions;
-            }
+        let new_window_dimensions = windowing.handle.dimensions();
+        if self.previous_window_size != new_window_dimensions {
+            windowing.graphics_runtime.display_resized();
+            self.previous_window_size = new_window_dimensions;
         }
 
         self.collected_frame_timings
             .enqueue(self.previous_frame_timestamp.elapsed());
         self.previous_frame_timestamp = Instant::now();
 
-        if let Some(machine) = maybe_machine_guard.as_mut()
+        if let Some(machine) = self.machine.as_mut()
             && !self.gui.active
         {
             // If the scheduler state is here, we must manually drive it
-            if let Some(scheduler) = &mut machine.scheduler {
-                let frame_timing = if self.collected_frame_timings.is_empty() {
-                    Duration::from_secs(1) / 60
-                } else {
-                    self.collected_frame_timings.iter().sum::<Duration>()
-                        / self.collected_frame_timings.len() as u32
-                };
+            let frame_timing = if self.collected_frame_timings.is_empty() {
+                Duration::from_secs(1) / 60
+            } else {
+                self.collected_frame_timings.iter().sum::<Duration>()
+                    / self.collected_frame_timings.len() as u32
+            };
 
-                scheduler.run(frame_timing);
-            }
+            machine.run_duration(frame_timing);
         }
-
-        drop(maybe_machine_guard);
 
         // TODO: Account for out of windowing systems input
         let input = self
@@ -270,16 +263,14 @@ impl<P: PlatformExt> Frontend<P> {
 
         let egui_context = self.gui.context();
         let windowing = self.windowing_context.as_mut().unwrap();
-        let maybe_machine_guard = self.maybe_machine.read().unwrap();
 
         windowing.graphics_runtime.redraw(
             egui_context,
             egui_output,
-            maybe_machine_guard.as_ref(),
+            self.machine.as_deref(),
             &self.environment,
         );
 
-        drop(maybe_machine_guard);
         if let Some(new_program) = new_program {
             self.setup_runtime_for_new_machine(None, new_program);
         }
@@ -290,14 +281,12 @@ impl<P: PlatformExt> Frontend<P> {
         windowing_handle: Option<<P::GraphicsRuntime as GraphicsRuntime<P>>::WindowingHandle>,
         program_specification: ProgramSpecification,
     ) {
-        let mut maybe_machine_guard = self.maybe_machine.write().unwrap();
-
         let windowing_handle = {
             let old_windowing_context = self.windowing_context.take();
             windowing_handle.unwrap_or_else(|| old_windowing_context.map(|w| w.handle).unwrap())
         };
 
-        maybe_machine_guard.take();
+        self.machine = None;
         let machine_id = program_specification.id.machine;
 
         let machine_builder = Machine::build(
@@ -352,14 +341,12 @@ impl<P: PlatformExt> Frontend<P> {
             }
         }
 
-        *maybe_machine_guard = Some(machine);
+        self.machine = Some(machine);
         self.need_egui_reset = true;
         self.gui.active = false;
     }
 
     fn handle_virtual_and_hotkey_inputs(&mut self) {
-        let mut maybe_machine_guard = self.maybe_machine.write().unwrap();
-
         // Check if any gamepad is mashing a hotkey
         for (real_gamepad_id, real_gamepad_data) in &mut self.gamepads {
             let mut inputs_relevant_to_hotkeys = HashSet::new();
@@ -372,7 +359,8 @@ impl<P: PlatformExt> Frontend<P> {
                     // Record what keys participated in hotkeys this run
                     inputs_relevant_to_hotkeys.extend(keys_to_press.iter().copied());
 
-                    // Make sure there are actually hotkeys, all the keys are pressed, and we are not throttling
+                    // Make sure there are actually hotkeys, all the keys are pressed, and we are
+                    // not throttling
                     if !keys_to_press.is_empty() && !real_gamepad_data.throttle_hotkey {
                         tracing::debug!(
                             "Hotkey pressed: {:?} with gamepad {}",
@@ -384,7 +372,7 @@ impl<P: PlatformExt> Frontend<P> {
 
                         match action {
                             Hotkey::ToggleMenu => {
-                                if maybe_machine_guard.is_some() {
+                                if self.machine.is_some() {
                                     self.gui.active = !self.gui.active;
                                 } else {
                                     self.gui.active = true;
@@ -414,7 +402,7 @@ impl<P: PlatformExt> Frontend<P> {
             // Copy real inputs into virtual inputs
 
             if !self.gui.active
-                && let Some(machine) = maybe_machine_guard.as_mut()
+                && let Some(machine) = self.machine.as_ref()
             {
                 let machine_id = machine
                     .program_specification
@@ -434,7 +422,8 @@ impl<P: PlatformExt> Frontend<P> {
                         && let Some(real2virtual_mapping) =
                             real2virtual_mappings.0.get(real_gamepad_id)
                     {
-                        // Scan real gamepad for its inputs and transform them into the virtual gamepad
+                        // Scan real gamepad for its inputs and transform them into the virtual
+                        // gamepad
                         //
                         // Do not check inputs that were part of a hotkey
 

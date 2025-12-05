@@ -2,18 +2,20 @@ use std::{
     any::Any,
     fmt::Debug,
     io::{Read, Write},
-    num::NonZero,
 };
 
 use bitvec::{order::Msb0, view::BitView};
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
+    component::{
+        Component, ComponentConfig, ComponentVersion, LateInitializedData, ResourcePath,
+        SynchronizationContext,
+    },
     graphics::GraphicsApi,
-    machine::builder::ComponentBuilder,
+    machine::builder::{ComponentBuilder, SchedulerParticipation},
     platform::Platform,
+    scheduler::Period,
 };
 use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Point2, Vector2};
-use num::rational::Ratio;
 use palette::{
     Srgba,
     named::{BLACK, WHITE},
@@ -217,6 +219,17 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
     fn access_framebuffer(&mut self, _path: &ResourcePath) -> &dyn Any {
         self.backend.as_mut().unwrap().access_framebuffer()
     }
+
+    fn synchronize(&mut self, mut context: SynchronizationContext) {
+        if context.allocate_period(Period::ONE / 60) {
+            self.vsync_occurred = true;
+            self.backend.as_mut().unwrap().commit_staging_buffer();
+        }
+    }
+
+    fn needs_work(&self, delta: Period) -> bool {
+        delta >= Period::ONE / 60
+    }
 }
 
 pub(crate) trait Chip8DisplayBackend: Send + Sync + Debug + 'static {
@@ -240,26 +253,18 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> ComponentConfig
 {
     type Component = Chip8Display<P::GraphicsApi>;
 
+    fn late_initialize(component: &mut Self::Component, data: &LateInitializedData<P>) {
+        component.backend = Some(Chip8DisplayBackend::new(
+            data.component_graphics_initialization_data.clone(),
+        ));
+    }
+
     fn build_component(
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         component_builder
-            .insert_task(
-                "driver",
-                Ratio::from_integer(60),
-                move |component: &mut Chip8Display<<P as Platform>::GraphicsApi>,
-                      _: NonZero<u32>| {
-                    component.vsync_occurred = true;
-                    component.backend.as_mut().unwrap().commit_staging_buffer();
-                },
-            )
-            .0
-            .set_lazy_component_initializer(move |component, data| {
-                component.backend = Some(Chip8DisplayBackend::new(
-                    data.component_graphics_initialization_data.clone(),
-                ));
-            })
+            .set_scheduler_participation(SchedulerParticipation::OnDemand)
             .insert_display("display");
 
         Ok(Chip8Display {

@@ -118,7 +118,7 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>> P
     for DesktopPlatform<G, GR>
 {
     type GraphicsRuntime = GR;
-    type AudioRuntime = CpalAudioRuntime<Self>;
+    type AudioRuntime = CpalAudioRuntime;
     type EguiWindowingIntegration = WinitEguiPlatformIntegration;
 
     fn run(
@@ -312,7 +312,8 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>>
 
         let gamepad = RealGamepad::new(RealGamepadMetadata {
             name: Cow::Borrowed("Keyboard"),
-            // We really can't make any assumptions about what the keyboard has so lets say "All of them"
+            // We really can't make any assumptions about what the keyboard has so lets say "All of
+            // them"
             present_inputs: KeyboardInput::iter().map(Input::Keyboard).collect(),
         });
         frontend.insert_gamepad(KEYBOARD_ID, gamepad.clone());

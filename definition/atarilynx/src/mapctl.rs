@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentPath},
-    machine::builder::ComponentBuilder,
+    component::{Component, ComponentConfig, ComponentPath, LateInitializedData},
+    machine::{Machine, builder::ComponentBuilder},
     memory::{
         Address, AddressSpace, AddressSpaceId, MapTarget, MemoryError, MemoryRemappingCommand,
         Permissions,
@@ -22,6 +22,7 @@ pub struct Mapctl {
     status: MapctlStatus,
     my_path: ComponentPath,
     cpu_address_space: Arc<AddressSpace>,
+    machine: Weak<Machine>,
 }
 
 impl Component for Mapctl {
@@ -43,6 +44,7 @@ impl Component for Mapctl {
         _address_space: AddressSpaceId,
         buffer: &[u8],
     ) -> Result<(), MemoryError> {
+        let machine = self.machine.upgrade().unwrap();
         self.status = MapctlStatus::from_byte(buffer[0]);
 
         let mut remapping_commands = Vec::default();
@@ -89,7 +91,7 @@ impl Component for Mapctl {
             permissions: Permissions::all(),
         });
 
-        self.cpu_address_space.remap(remapping_commands);
+        machine.remap_address_space(self.cpu_address_space.id(), remapping_commands);
 
         Ok(())
     }
@@ -108,6 +110,10 @@ pub struct MapctlConfig {
 impl<P: Platform> ComponentConfig<P> for MapctlConfig {
     type Component = Mapctl;
 
+    fn late_initialize(component: &mut Self::Component, data: &LateInitializedData<P>) {
+        component.machine = data.machine.clone();
+    }
+
     fn build_component(
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
@@ -117,13 +123,16 @@ impl<P: Platform> ComponentConfig<P> for MapctlConfig {
         let component_builder =
             component_builder.memory_map_component(self.cpu_address_space, 0xfff9..=0xfff9);
 
-        let cpu_address_space = component_builder.address_space(self.cpu_address_space);
+        let cpu_address_space = component_builder
+            .get_address_space(self.cpu_address_space)
+            .clone();
 
         Ok(Mapctl {
             config: self,
             status: Default::default(),
             my_path,
             cpu_address_space,
+            machine: Weak::new(),
         })
     }
 }

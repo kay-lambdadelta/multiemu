@@ -3,13 +3,12 @@ use multiemu_runtime::memory::Address;
 use num::traits::{FromBytes, ToBytes};
 
 use super::{
-    FlagRegister, ProcessorState,
+    FlagRegister,
     instruction::{Mos6502InstructionSet, Mos6502Opcode},
 };
 use crate::{
-    ExecutionStep, Mos6502Config,
+    ExecutionStep, Mos6502,
     instruction::{AddressingMode, Mos6502AddressingMode, Opcode, Wdc65C02Opcode},
-    task::Driver,
 };
 
 pub const STACK_BASE_ADDRESS: Address = 0x0100;
@@ -18,68 +17,63 @@ const INTERRUPT_VECTOR: Address = 0xfffe;
 // NOTE: https://www.pagetable.com/c64ref/6502
 
 // FIXME: Page crossing cycle penalties are not emulated
-// FIXME: Many undocumented instructions are either incorrect or not emulated at all
-// FIXME: Decimal mode is not implemented
+// FIXME: Many undocumented instructions are either incorrect or not emulated at
+// all FIXME: Decimal mode is not implemented
 
-impl Driver {
+impl Mos6502 {
     #[inline]
-    pub(super) fn interpret_instruction(
-        &mut self,
-        state: &mut ProcessorState,
-        config: &Mos6502Config,
-        instruction: Mos6502InstructionSet,
-    ) {
+    pub(super) fn interpret_instruction(&mut self, instruction: Mos6502InstructionSet) {
         match instruction.opcode {
             Opcode::Mos6502(opcode) => {
                 match opcode {
                     Mos6502Opcode::Adc => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        adc(state, config, value);
+                        self.adc(value);
                     }
                     Mos6502Opcode::Anc => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        let result = state.a & value;
+                        let result = self.state.a & value;
                         let result_bits = result.view_bits::<Lsb0>();
 
-                        state.flags.carry = result_bits[7];
-                        state.flags.negative = result_bits[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.carry = result_bits[7];
+                        self.state.flags.negative = result_bits[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.a = result;
+                        self.state.a = result;
                     }
                     Mos6502Opcode::And => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        let result = state.a & value;
+                        let result = self.state.a & value;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.a = result;
+                        self.state.a = result;
                     }
                     Mos6502Opcode::Arr => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        let mut result = state.a & value;
+                        let mut result = self.state.a & value;
 
-                        let carry = state.flags.carry;
-                        state.flags.carry = result.view_bits::<Lsb0>()[7];
+                        let carry = self.state.flags.carry;
+                        self.state.flags.carry = result.view_bits::<Lsb0>()[7];
 
                         result >>= 1;
 
                         let result_bits = result.view_bits_mut::<Lsb0>();
                         result_bits.set(7, carry);
 
-                        state.flags.overflow = result_bits[1] != result_bits[0];
-                        state.flags.negative = result_bits[0];
-                        state.flags.zero = result == 0;
+                        self.state.flags.overflow = result_bits[1] != result_bits[0];
+                        self.state.flags.negative = result_bits[0];
+                        self.state.flags.zero = result == 0;
 
-                        state.a = result;
+                        self.state.a = result;
                     }
                     Mos6502Opcode::Asl => {
-                        let mut value: u8 = self.load(state, &instruction);
+                        let mut value: u8 = self.load(&instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let carry = value_bits[7];
@@ -87,124 +81,127 @@ impl Driver {
 
                         value <<= 1;
 
-                        state.flags.carry = carry;
-                        state.flags.negative = negative;
-                        state.flags.zero = value == 0;
+                        self.state.flags.carry = carry;
+                        self.state.flags.negative = negative;
+                        self.state.flags.zero = value == 0;
 
                         if instruction.addressing_mode.unwrap()
                             == AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)
                         {
-                            state.a = value;
+                            self.state.a = value;
                         } else {
-                            state
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Asr => {
-                        let mut value: u8 = self.load(state, &instruction);
+                        let mut value: u8 = self.load(&instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let carry = value_bits[7];
 
-                        value = (state.a & value) >> 1;
+                        value = (self.state.a & value) >> 1;
 
-                        state.flags.carry = carry;
-                        state.flags.negative = false;
-                        state.flags.zero = value == 0;
+                        self.state.flags.carry = carry;
+                        self.state.flags.negative = false;
+                        self.state.flags.zero = value == 0;
 
-                        state.a = value;
+                        self.state.a = value;
                     }
                     Mos6502Opcode::Bcc => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(&instruction);
 
-                        if !state.flags.carry {
-                            state
+                        if !self.state.flags.carry {
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bcs => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(&instruction);
 
-                        if state.flags.carry {
-                            state
+                        if self.state.flags.carry {
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Beq => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(&instruction);
 
-                        if state.flags.zero {
-                            state
+                        if self.state.flags.zero {
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bit => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
-                        let result = state.a & value;
+                        let result = self.state.a & value;
 
-                        state.flags.negative = value_bits[7];
-                        state.flags.overflow = value_bits[6];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = value_bits[7];
+                        self.state.flags.overflow = value_bits[6];
+                        self.state.flags.zero = result == 0;
                     }
                     Mos6502Opcode::Bmi => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(&instruction);
 
-                        if state.flags.negative {
-                            state
+                        if self.state.flags.negative {
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bne => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(&instruction);
 
-                        if !state.flags.zero {
-                            state
+                        if !self.state.flags.zero {
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bpl => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(&instruction);
 
-                        if !state.flags.negative {
-                            state
+                        if !self.state.flags.negative {
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Brk => {
-                        let new_stack = state.stack.wrapping_sub(2);
-                        let program_bytes = (state.program.wrapping_add(2)).to_le_bytes();
+                        let new_stack = self.state.stack.wrapping_sub(2);
+                        let program_bytes = (self.state.program.wrapping_add(2)).to_le_bytes();
 
                         let _ = self.address_space.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
+                            self.timestamp,
                             Some(&mut self.address_space_cache),
                             program_bytes[0],
                         );
 
                         let _ = self.address_space.write_le_value(
                             (new_stack.wrapping_add(1)) as usize + STACK_BASE_ADDRESS,
+                            self.timestamp,
                             Some(&mut self.address_space_cache),
                             program_bytes[1],
                         );
 
                         // https://www.nesdev.org/wiki/Status_flags
-                        let mut flags = state.flags;
+                        let mut flags = self.state.flags;
                         flags.undocumented = true;
                         flags.break_ = true;
-                        state.flags.interrupt_disable = true;
+                        self.state.flags.interrupt_disable = true;
 
                         let new_stack = new_stack.wrapping_sub(1);
 
                         let _ = self.address_space.write_le_value(
                             new_stack as usize + STACK_BASE_ADDRESS,
+                            self.timestamp,
                             Some(&mut self.address_space_cache),
                             flags.to_byte(),
                         );
@@ -213,145 +210,145 @@ impl Driver {
                             self.address_space
                                 .read_le_value(
                                     INTERRUPT_VECTOR,
-                                    false,
+                                    self.timestamp,
                                     Some(&mut self.address_space_cache),
                                 )
                                 .unwrap_or_default(),
                             self.address_space
                                 .read_le_value(
                                     INTERRUPT_VECTOR + 1,
-                                    false,
+                                    self.timestamp,
                                     Some(&mut self.address_space_cache),
                                 )
                                 .unwrap_or_default(),
                         ];
-                        state.program = u16::from_le_bytes(program);
+                        self.state.program = u16::from_le_bytes(program);
 
-                        state.stack = new_stack;
+                        self.state.stack = new_stack;
                     }
                     Mos6502Opcode::Bvc => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(&instruction);
 
-                        if !state.flags.overflow {
-                            state
+                        if !self.state.flags.overflow {
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Bvs => {
-                        let value: i8 = self.load(state, &instruction);
+                        let value: i8 = self.load(&instruction);
 
-                        if state.flags.overflow {
-                            state
+                        if self.state.flags.overflow {
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::ModifyProgramPointer(value));
                         }
                     }
                     Mos6502Opcode::Clc => {
-                        state.flags.carry = false;
+                        self.state.flags.carry = false;
                     }
                     Mos6502Opcode::Cld => {
-                        state.flags.decimal = false;
+                        self.state.flags.decimal = false;
                     }
                     Mos6502Opcode::Cli => {
-                        state.flags.interrupt_disable = false;
+                        self.state.flags.interrupt_disable = false;
                     }
                     Mos6502Opcode::Clv => {
-                        state.flags.overflow = false;
+                        self.state.flags.overflow = false;
                     }
                     Mos6502Opcode::Cmp => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        let result = state.a.wrapping_sub(value);
+                        let result = self.state.a.wrapping_sub(value);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
-                        state.flags.carry = state.a >= value;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
+                        self.state.flags.carry = self.state.a >= value;
                     }
                     Mos6502Opcode::Cpx => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        let result = state.x.wrapping_sub(value);
+                        let result = self.state.x.wrapping_sub(value);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
-                        state.flags.carry = state.x >= value;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
+                        self.state.flags.carry = self.state.x >= value;
                     }
                     Mos6502Opcode::Cpy => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        let result = state.y.wrapping_sub(value);
+                        let result = self.state.y.wrapping_sub(value);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
-                        state.flags.carry = state.y >= value;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
+                        self.state.flags.carry = self.state.y >= value;
                     }
                     Mos6502Opcode::Dcp => todo!(),
                     Mos6502Opcode::Dec => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
                         let result = value.wrapping_sub(1);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state
+                        self.state
                             .execution_queue
                             .push_back(ExecutionStep::StoreData(result));
                     }
                     Mos6502Opcode::Dex => {
-                        let result = state.x.wrapping_sub(1);
+                        let result = self.state.x.wrapping_sub(1);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.x = result;
+                        self.state.x = result;
                     }
                     Mos6502Opcode::Dey => {
-                        let result = state.y.wrapping_sub(1);
+                        let result = self.state.y.wrapping_sub(1);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.y = result;
+                        self.state.y = result;
                     }
                     Mos6502Opcode::Eor => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        let result = state.a ^ value;
+                        let result = self.state.a ^ value;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.a = result;
+                        self.state.a = result;
                     }
                     Mos6502Opcode::Inc => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
                         let result = value.wrapping_add(1);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state
+                        self.state
                             .execution_queue
                             .push_back(ExecutionStep::StoreData(result));
                     }
                     Mos6502Opcode::Inx => {
-                        let result = state.x.wrapping_add(1);
+                        let result = self.state.x.wrapping_add(1);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.x = result;
+                        self.state.x = result;
                     }
                     Mos6502Opcode::Iny => {
-                        let result = state.y.wrapping_add(1);
+                        let result = self.state.y.wrapping_add(1);
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.y = result;
+                        self.state.y = result;
                     }
                     Mos6502Opcode::Isc => todo!(),
                     Mos6502Opcode::Jam => {
@@ -359,24 +356,24 @@ impl Driver {
                             "The MOS 6502 processor inside this machine just jammed itself"
                         );
 
-                        state.execution_queue.push_back(ExecutionStep::Jammed);
+                        self.state.execution_queue.push_back(ExecutionStep::Jammed);
                     }
                     Mos6502Opcode::Jmp => {
                         let value = match instruction.addressing_mode {
                             Some(AddressingMode::Mos6502(
                                 Mos6502AddressingMode::Absolute
                                 | Mos6502AddressingMode::AbsoluteIndirect,
-                            )) => state.address_bus,
+                            )) => self.state.address_bus,
                             _ => unreachable!(),
                         };
 
-                        state.program = value;
+                        self.state.program = value;
                     }
                     Mos6502Opcode::Jsr => {
                         // We load the byte BEFORE the program counter
-                        let program_bytes = (state.program.wrapping_sub(1)).to_le_bytes();
+                        let program_bytes = (self.state.program.wrapping_sub(1)).to_le_bytes();
 
-                        state.execution_queue.extend([
+                        self.state.execution_queue.extend([
                             ExecutionStep::PushStack(program_bytes[1]),
                             ExecutionStep::PushStack(program_bytes[0]),
                             ExecutionStep::AddressBusToProgramPointer,
@@ -384,241 +381,241 @@ impl Driver {
                     }
                     Mos6502Opcode::Las => todo!(),
                     Mos6502Opcode::Lax => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        state.a = value;
-                        state.x = value;
+                        self.state.a = value;
+                        self.state.x = value;
                     }
                     Mos6502Opcode::Lda => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        state.flags.negative = value.view_bits::<Lsb0>()[7];
-                        state.flags.zero = value == 0;
+                        self.state.flags.negative = value.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = value == 0;
 
-                        state.a = value;
+                        self.state.a = value;
                     }
                     Mos6502Opcode::Ldx => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        state.flags.negative = value.view_bits::<Lsb0>()[7];
-                        state.flags.zero = value == 0;
+                        self.state.flags.negative = value.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = value == 0;
 
-                        state.x = value;
+                        self.state.x = value;
                     }
                     Mos6502Opcode::Ldy => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        state.flags.negative = value.view_bits::<Lsb0>()[7];
-                        state.flags.zero = value == 0;
+                        self.state.flags.negative = value.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = value == 0;
 
-                        state.y = value;
+                        self.state.y = value;
                     }
                     Mos6502Opcode::Lsr => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
                         let carry = value_bits[0];
                         let value = value >> 1;
 
-                        state.flags.negative = false;
-                        state.flags.carry = carry;
-                        state.flags.zero = value == 0;
+                        self.state.flags.negative = false;
+                        self.state.flags.carry = carry;
+                        self.state.flags.zero = value == 0;
 
                         if instruction.addressing_mode.unwrap()
                             == AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)
                         {
-                            state.a = value;
+                            self.state.a = value;
                         } else {
-                            state
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Nop => {
                         if instruction.addressing_mode.is_some() {
-                            let _: u8 = self.load(state, &instruction);
+                            let _: u8 = self.load(&instruction);
                         }
                     }
                     Mos6502Opcode::Ora => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        let result = state.a | value;
+                        let result = self.state.a | value;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.a = result;
+                        self.state.a = result;
                     }
                     Mos6502Opcode::Pha => {
-                        state
+                        self.state
                             .execution_queue
-                            .push_back(ExecutionStep::PushStack(state.a));
+                            .push_back(ExecutionStep::PushStack(self.state.a));
                     }
                     Mos6502Opcode::Php => {
-                        let mut flags = state.flags;
+                        let mut flags = self.state.flags;
                         // https://www.nesdev.org/wiki/Status_flags
                         flags.undocumented = true;
                         flags.break_ = true;
 
-                        state
+                        self.state
                             .execution_queue
                             .push_back(ExecutionStep::PushStack(flags.to_byte()));
                     }
                     Mos6502Opcode::Pla => {
-                        state.stack = state.stack.wrapping_add(1);
+                        self.state.stack = self.state.stack.wrapping_add(1);
 
-                        state.a = self
+                        self.state.a = self
                             .address_space
                             .read_le_value(
-                                state.stack as usize + STACK_BASE_ADDRESS,
-                                false,
+                                self.state.stack as usize + STACK_BASE_ADDRESS,
+                                self.timestamp,
                                 Some(&mut self.address_space_cache),
                             )
                             .unwrap_or_default();
 
-                        state.flags.negative = state.a.view_bits::<Lsb0>()[7];
-                        state.flags.zero = state.a == 0;
+                        self.state.flags.negative = self.state.a.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = self.state.a == 0;
                     }
                     Mos6502Opcode::Plp => {
-                        state.stack = state.stack.wrapping_add(1);
+                        self.state.stack = self.state.stack.wrapping_add(1);
 
                         let value = self
                             .address_space
                             .read_le_value(
-                                state.stack as usize + STACK_BASE_ADDRESS,
-                                false,
+                                self.state.stack as usize + STACK_BASE_ADDRESS,
+                                self.timestamp,
                                 Some(&mut self.address_space_cache),
                             )
                             .unwrap_or_default();
 
-                        state.flags = FlagRegister::from_byte(value);
+                        self.state.flags = FlagRegister::from_byte(value);
                     }
                     Mos6502Opcode::Rla => todo!(),
                     Mos6502Opcode::Rol => {
-                        let mut value: u8 = self.load(state, &instruction);
+                        let mut value: u8 = self.load(&instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
-                        let old_carry = state.flags.carry;
-                        state.flags.carry = value_bits[7];
-                        state.flags.negative = value_bits[6];
+                        let old_carry = self.state.flags.carry;
+                        self.state.flags.carry = value_bits[7];
+                        self.state.flags.negative = value_bits[6];
                         value <<= 1;
                         value.view_bits_mut::<Lsb0>().set(0, old_carry);
 
-                        state.flags.zero = value == 0;
+                        self.state.flags.zero = value == 0;
 
                         if instruction.addressing_mode.unwrap()
                             == AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)
                         {
-                            state.a = value;
+                            self.state.a = value;
                         } else {
-                            state
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Ror => {
-                        let mut value: u8 = self.load(state, &instruction);
+                        let mut value: u8 = self.load(&instruction);
                         let value_bits = value.view_bits::<Lsb0>();
 
-                        let old_carry = state.flags.carry;
-                        state.flags.carry = value_bits[0];
-                        state.flags.negative = old_carry;
+                        let old_carry = self.state.flags.carry;
+                        self.state.flags.carry = value_bits[0];
+                        self.state.flags.negative = old_carry;
                         value >>= 1;
                         value.view_bits_mut::<Lsb0>().set(7, old_carry);
 
-                        state.flags.zero = value == 0;
+                        self.state.flags.zero = value == 0;
 
                         if instruction.addressing_mode.unwrap()
                             == AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)
                         {
-                            state.a = value;
+                            self.state.a = value;
                         } else {
-                            state
+                            self.state
                                 .execution_queue
                                 .push_back(ExecutionStep::StoreData(value));
                         }
                     }
                     Mos6502Opcode::Rra => todo!(),
                     Mos6502Opcode::Rti => {
-                        state.stack = state.stack.wrapping_add(1);
+                        self.state.stack = self.state.stack.wrapping_add(1);
                         let flags = self
                             .address_space
                             .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                false,
+                                STACK_BASE_ADDRESS + self.state.stack as usize,
+                                self.timestamp,
                                 Some(&mut self.address_space_cache),
                             )
                             .unwrap_or_default();
 
-                        state.flags = FlagRegister::from_byte(flags);
+                        self.state.flags = FlagRegister::from_byte(flags);
 
-                        state.stack = state.stack.wrapping_add(1);
+                        self.state.stack = self.state.stack.wrapping_add(1);
                         let program_pointer_low = self
                             .address_space
                             .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                false,
+                                STACK_BASE_ADDRESS + self.state.stack as usize,
+                                self.timestamp,
                                 Some(&mut self.address_space_cache),
                             )
                             .unwrap_or_default();
 
-                        state.stack = state.stack.wrapping_add(1);
+                        self.state.stack = self.state.stack.wrapping_add(1);
                         let program_pointer_high = self
                             .address_space
                             .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                false,
+                                STACK_BASE_ADDRESS + self.state.stack as usize,
+                                self.timestamp,
                                 Some(&mut self.address_space_cache),
                             )
                             .unwrap_or_default();
 
-                        state.program =
+                        self.state.program =
                             u16::from_le_bytes([program_pointer_low, program_pointer_high]);
                     }
                     Mos6502Opcode::Rts => {
-                        state.stack = state.stack.wrapping_add(1);
+                        self.state.stack = self.state.stack.wrapping_add(1);
                         let program_pointer_low = self
                             .address_space
                             .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                false,
+                                STACK_BASE_ADDRESS + self.state.stack as usize,
+                                self.timestamp,
                                 Some(&mut self.address_space_cache),
                             )
                             .unwrap_or_default();
 
-                        state.stack = state.stack.wrapping_add(1);
+                        self.state.stack = self.state.stack.wrapping_add(1);
                         let program_pointer_high = self
                             .address_space
                             .read_le_value::<u8>(
-                                STACK_BASE_ADDRESS + state.stack as usize,
-                                false,
+                                STACK_BASE_ADDRESS + self.state.stack as usize,
+                                self.timestamp,
                                 Some(&mut self.address_space_cache),
                             )
                             .unwrap_or_default();
 
-                        state.program =
+                        self.state.program =
                             u16::from_le_bytes([program_pointer_low, program_pointer_high]);
-                        state.program = state.program.wrapping_add(1);
+                        self.state.program = self.state.program.wrapping_add(1);
                     }
                     Mos6502Opcode::Sax => {
-                        let value = state.a & state.x;
+                        let value = self.state.a & self.state.x;
 
-                        self.store(state, &instruction, value);
+                        self.store(&instruction, value);
                     }
                     Mos6502Opcode::Sbc => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
 
-                        adc(state, config, !value);
+                        self.adc(!value);
                     }
                     Mos6502Opcode::Sbx => todo!(),
                     Mos6502Opcode::Sec => {
-                        state.flags.carry = true;
+                        self.state.flags.carry = true;
                     }
                     Mos6502Opcode::Sed => {
-                        state.flags.decimal = true;
+                        self.state.flags.decimal = true;
                     }
                     Mos6502Opcode::Sei => {
-                        state.flags.interrupt_disable = true;
+                        self.state.flags.interrupt_disable = true;
                     }
                     Mos6502Opcode::Sha => todo!(),
                     Mos6502Opcode::Shs => todo!(),
@@ -627,87 +624,87 @@ impl Driver {
                     Mos6502Opcode::Slo => todo!(),
                     Mos6502Opcode::Sre => todo!(),
                     Mos6502Opcode::Sta => {
-                        self.store(state, &instruction, state.a);
+                        self.store(&instruction, self.state.a);
                     }
                     Mos6502Opcode::Stx => {
-                        self.store(state, &instruction, state.x);
+                        self.store(&instruction, self.state.x);
                     }
                     Mos6502Opcode::Sty => {
-                        self.store(state, &instruction, state.y);
+                        self.store(&instruction, self.state.y);
                     }
                     Mos6502Opcode::Tax => {
-                        let result = state.a;
+                        let result = self.state.a;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.x = result;
+                        self.state.x = result;
                     }
                     Mos6502Opcode::Tay => {
-                        let result = state.a;
+                        let result = self.state.a;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.y = result;
+                        self.state.y = result;
                     }
                     Mos6502Opcode::Tsx => {
-                        let result = state.stack;
+                        let result = self.state.stack;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.x = result;
+                        self.state.x = result;
                     }
                     Mos6502Opcode::Txa => {
-                        let result = state.x;
+                        let result = self.state.x;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.a = result;
+                        self.state.a = result;
                     }
                     Mos6502Opcode::Txs => {
-                        state.stack = state.x;
+                        self.state.stack = self.state.x;
                     }
                     Mos6502Opcode::Tya => {
-                        let result = state.y;
+                        let result = self.state.y;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = result == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = result == 0;
 
-                        state.a = result;
+                        self.state.a = result;
                     }
                     Mos6502Opcode::Xaa => {
-                        let value: u8 = self.load(state, &instruction);
+                        let value: u8 = self.load(&instruction);
                         let random_value: u8 = rand::random();
 
-                        let result = (state.a & random_value) & state.x & value;
+                        let result = (self.state.a & random_value) & self.state.x & value;
 
-                        state.flags.negative = result.view_bits::<Lsb0>()[7];
-                        state.flags.zero = value == 0;
+                        self.state.flags.negative = result.view_bits::<Lsb0>()[7];
+                        self.state.flags.zero = value == 0;
 
-                        state.a = result;
+                        self.state.a = result;
                     }
                 }
             }
             Opcode::Wdc65C02(opcode) => match opcode {
                 Wdc65C02Opcode::Bra => {
-                    let value: i8 = self.load(state, &instruction);
+                    let value: i8 = self.load(&instruction);
 
-                    state
+                    self.state
                         .execution_queue
                         .push_back(ExecutionStep::ModifyProgramPointer(value));
                 }
                 Wdc65C02Opcode::Phx => {
-                    state
+                    self.state
                         .execution_queue
-                        .push_back(ExecutionStep::PushStack(state.x));
+                        .push_back(ExecutionStep::PushStack(self.state.x));
                 }
                 Wdc65C02Opcode::Phy => {
-                    state
+                    self.state
                         .execution_queue
-                        .push_back(ExecutionStep::PushStack(state.y));
+                        .push_back(ExecutionStep::PushStack(self.state.y));
                 }
                 Wdc65C02Opcode::Plx => todo!(),
                 Wdc65C02Opcode::Ply => todo!(),
@@ -723,19 +720,18 @@ impl Driver {
     #[inline]
     fn load<T: FromBytes<Bytes = [u8; 1]> + Default>(
         &mut self,
-        state: &mut ProcessorState,
         instruction: &Mos6502InstructionSet,
     ) -> T {
         match instruction.addressing_mode {
             Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)) => {
-                T::from_ne_bytes(&[state.a])
+                T::from_ne_bytes(&[self.state.a])
             }
             None => unreachable!(),
             _ => self
                 .address_space
                 .read_le_value(
-                    state.address_bus as usize,
-                    false,
+                    self.state.address_bus as usize,
+                    self.timestamp,
                     Some(&mut self.address_space_cache),
                 )
                 .unwrap_or_default(),
@@ -745,49 +741,51 @@ impl Driver {
     #[inline]
     fn store<T: ToBytes<Bytes = [u8; 1]>>(
         &mut self,
-        state: &mut ProcessorState,
         instruction: &Mos6502InstructionSet,
         value: T,
     ) {
         match instruction.addressing_mode {
             Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)) => {
-                state.a = value.to_ne_bytes()[0];
+                self.state.a = value.to_ne_bytes()[0];
             }
             None => {
                 unreachable!()
             }
             _ => {
                 let _ = self.address_space.write_le_value(
-                    state.address_bus as usize,
+                    self.state.address_bus as usize,
+                    self.timestamp,
                     Some(&mut self.address_space_cache),
                     value,
                 );
             }
         }
     }
-}
 
-#[inline]
-fn adc(state: &mut ProcessorState, config: &Mos6502Config, value: u8) {
-    if state.flags.decimal && config.kind.supports_decimal() {
-        todo!()
-    } else {
-        let carry = u8::from(state.flags.carry);
+    #[inline]
+    fn adc(&mut self, value: u8) {
+        if self.state.flags.decimal && self.config.kind.supports_decimal() {
+            todo!()
+        } else {
+            let carry = u8::from(self.state.flags.carry);
 
-        let (first_operation_result, first_operation_carry) = state.a.overflowing_add(value);
+            let (first_operation_result, first_operation_carry) =
+                self.state.a.overflowing_add(value);
 
-        let (second_operation_result, second_operation_carry) =
-            first_operation_result.overflowing_add(carry);
+            let (second_operation_result, second_operation_carry) =
+                first_operation_result.overflowing_add(carry);
 
-        let a_bits = state.a.view_bits::<Lsb0>();
-        let value_bits = value.view_bits::<Lsb0>();
-        let result_bits = second_operation_result.view_bits::<Lsb0>();
+            let a_bits = self.state.a.view_bits::<Lsb0>();
+            let value_bits = value.view_bits::<Lsb0>();
+            let result_bits = second_operation_result.view_bits::<Lsb0>();
 
-        state.flags.overflow = (a_bits[7] == value_bits[7]) && (a_bits[7] != result_bits[7]);
-        state.flags.carry = first_operation_carry || second_operation_carry;
-        state.flags.negative = result_bits[7];
-        state.flags.zero = second_operation_result == 0;
+            self.state.flags.overflow =
+                (a_bits[7] == value_bits[7]) && (a_bits[7] != result_bits[7]);
+            self.state.flags.carry = first_operation_carry || second_operation_carry;
+            self.state.flags.negative = result_bits[7];
+            self.state.flags.zero = second_operation_result == 0;
 
-        state.a = second_operation_result;
+            self.state.a = second_operation_result;
+        }
     }
 }

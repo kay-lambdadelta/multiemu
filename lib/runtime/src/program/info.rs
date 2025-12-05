@@ -33,7 +33,8 @@ pub enum ProgramInfo {
     V0 {
         /// Identifiable names of the program
         ///
-        /// Preferably these will be the names associated with the below languages, in their original script
+        /// Preferably these will be the names associated with the below
+        /// languages, in their original script
         names: BTreeSet<String>,
         /// Filesystem of the program
         filesystem: Filesystem,
@@ -41,7 +42,8 @@ pub enum ProgramInfo {
         ///
         /// Note that this is the languages a coherent title supports
         ///
-        /// If alternate files are required a different database entry is required
+        /// If alternate files are required a different database entry is
+        /// required
         languages: BTreeSet<Iso639Alpha3>,
         /// The version or revision of the program
         #[serde_as(as = "Option<DisplayFromStr>")]

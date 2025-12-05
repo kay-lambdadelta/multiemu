@@ -29,7 +29,8 @@ pub enum GraphicsApi {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 /// Graphics settings
 pub struct GraphicsSettings {
-    /// When scaling the display buffer to the render surface, should fractional scaling be disabled?
+    /// When scaling the display buffer to the render surface, should fractional
+    /// scaling be disabled?
     pub integer_scaling: bool,
     /// Vsync
     pub vsync: bool,

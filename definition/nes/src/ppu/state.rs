@@ -1,13 +1,21 @@
 use std::sync::atomic::AtomicBool;
 
+use multiemu_runtime::{
+    memory::{AddressSpace, AddressSpaceCache},
+    scheduler::Period,
+};
 use nalgebra::{Point2, Vector2};
+use palette::Srgb;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::ppu::{
-    BackgroundPipelineState, ColorEmphasis,
+    ATTRIBUTE_BASE_ADDRESS, BACKGROUND_PALETTE_BASE_ADDRESS, BackgroundPipelineState,
+    ColorEmphasis, NAMETABLE_BASE_ADDRESS, SPRITE_PALETTE_BASE_ADDRESS, TOTAL_SCANLINE_LENGTH,
     background::{BackgroundState, SpritePipelineState},
-    oam::OamState,
+    color::PpuColor,
+    oam::{CurrentlyRenderingSprite, OamSprite, OamState},
+    region::Region,
 };
 
 #[serde_as]
@@ -32,6 +40,299 @@ pub struct State {
     pub vram_address_pointer: u16,
     /// Actually 15 bits, usually called t
     pub shadow_vram_address_pointer: u16,
+}
+
+impl State {
+    pub fn drive_sprite_pipeline<R: Region>(
+        &mut self,
+        ppu_address_space: &AddressSpace,
+        ppu_address_space_cache: &mut AddressSpaceCache,
+        timestamp: Period,
+    ) {
+        if !self.awaiting_memory_access {
+            let currently_relevant_sprite_index = (self.cycle_counter.x - 257) / 8;
+            let currently_relevant_sprite = self
+                .oam
+                .secondary_data
+                .get(usize::from(currently_relevant_sprite_index));
+
+            match self.sprite_pipeline_state {
+                SpritePipelineState::FetchingNametableGarbage0 => {
+                    self.sprite_pipeline_state = SpritePipelineState::FetchingNametableGarbage1;
+                }
+                SpritePipelineState::FetchingNametableGarbage1 => {
+                    self.sprite_pipeline_state = SpritePipelineState::FetchingPatternTableLow;
+                }
+                SpritePipelineState::FetchingPatternTableLow => {
+                    if let Some(currently_relevant_sprite) = currently_relevant_sprite {
+                        let mut row = (self.cycle_counter.y
+                            - u16::from(currently_relevant_sprite.position.y))
+                            % 8;
+                        if currently_relevant_sprite.flip.y {
+                            row = 7 - row;
+                        }
+
+                        let address = u16::from(self.oam.sprite_8x8_pattern_table_index) * 0x1000
+                            + u16::from(currently_relevant_sprite.tile_index) * 16
+                            + row;
+
+                        let pattern_table_low = ppu_address_space
+                            .read_le_value(
+                                address as usize,
+                                timestamp,
+                                Some(ppu_address_space_cache),
+                            )
+                            .unwrap();
+
+                        self.sprite_pipeline_state =
+                            SpritePipelineState::FetchingPatternTableHigh { pattern_table_low };
+                    } else {
+                        self.sprite_pipeline_state =
+                            SpritePipelineState::FetchingPatternTableHigh {
+                                // This is a garbage value, it isn't used
+                                pattern_table_low: 0x00,
+                            };
+                    }
+                }
+                SpritePipelineState::FetchingPatternTableHigh { pattern_table_low } => {
+                    if let Some(currently_relevant_sprite) = currently_relevant_sprite {
+                        let mut row = (self.cycle_counter.y
+                            - u16::from(currently_relevant_sprite.position.y))
+                            % 8;
+                        if currently_relevant_sprite.flip.y {
+                            row = 7 - row;
+                        }
+
+                        let address = u16::from(self.oam.sprite_8x8_pattern_table_index) * 0x1000
+                            + u16::from(currently_relevant_sprite.tile_index) * 16
+                            + row
+                            + 8;
+
+                        let pattern_table_high = ppu_address_space
+                            .read_le_value(
+                                address as usize,
+                                timestamp,
+                                Some(ppu_address_space_cache),
+                            )
+                            .unwrap();
+
+                        self.oam
+                            .currently_rendering_sprites
+                            .push(CurrentlyRenderingSprite {
+                                oam: *currently_relevant_sprite,
+                                pattern_table_high,
+                                pattern_table_low,
+                            });
+                    }
+
+                    self.sprite_pipeline_state = SpritePipelineState::FetchingNametableGarbage0;
+                }
+            }
+        }
+
+        self.awaiting_memory_access = !self.awaiting_memory_access;
+    }
+
+    pub fn drive_background_pipeline<R: Region>(
+        &mut self,
+        ppu_address_space: &AddressSpace,
+        ppu_address_space_cache: &mut AddressSpaceCache,
+        timestamp: Period,
+    ) {
+        // Steps wait a cycle inbetween for memory access realism
+        if !self.awaiting_memory_access {
+            let mut vram_address_pointer_contents =
+                VramAddressPointerContents::from(self.vram_address_pointer);
+
+            match self.background_pipeline_state {
+                BackgroundPipelineState::FetchingNametable => {
+                    let nametable_index = (vram_address_pointer_contents.nametable.y as usize) * 2
+                        + (vram_address_pointer_contents.nametable.x as usize);
+
+                    let nametable_base = NAMETABLE_BASE_ADDRESS + (nametable_index * 0x400);
+
+                    let address = nametable_base
+                        + (usize::from(vram_address_pointer_contents.coarse.y) * 32)
+                        + usize::from(vram_address_pointer_contents.coarse.x);
+
+                    let nametable = ppu_address_space
+                        .read_le_value(address, timestamp, Some(ppu_address_space_cache))
+                        .unwrap();
+
+                    self.background_pipeline_state =
+                        BackgroundPipelineState::FetchingAttribute { nametable };
+                }
+                BackgroundPipelineState::FetchingAttribute { nametable } => {
+                    let coarse = vram_address_pointer_contents.coarse.cast::<usize>();
+                    let nametable_index = (vram_address_pointer_contents.nametable.y as usize) * 2
+                        + (vram_address_pointer_contents.nametable.x as usize);
+
+                    // Attribute table is every 4x4 tiles
+                    let address = ATTRIBUTE_BASE_ADDRESS
+                        + (nametable_index * 0x400)
+                        + (coarse.y / 4) * 8
+                        + (coarse.x / 4);
+
+                    let attribute: u8 = ppu_address_space
+                        .read_le_value(address, timestamp, Some(ppu_address_space_cache))
+                        .unwrap();
+
+                    let attribute_quadrant = Point2::new(coarse.x % 4, coarse.y % 4) / 2;
+                    let shift = (attribute_quadrant.y * 2 + attribute_quadrant.x) * 2;
+                    let attribute = (attribute >> shift) & 0b11;
+
+                    self.background_pipeline_state =
+                        BackgroundPipelineState::FetchingPatternTableLow {
+                            nametable,
+                            attribute,
+                        };
+                }
+                BackgroundPipelineState::FetchingPatternTableLow {
+                    nametable,
+                    attribute,
+                } => {
+                    let pattern_table_base =
+                        u16::from(self.background.pattern_table_index) * 0x1000;
+
+                    let address = pattern_table_base
+                        + (u16::from(nametable) * 16)
+                        + u16::from(vram_address_pointer_contents.fine_y);
+
+                    let pattern_table_low = ppu_address_space
+                        .read_le_value(address as usize, timestamp, Some(ppu_address_space_cache))
+                        .unwrap();
+
+                    self.background_pipeline_state =
+                        BackgroundPipelineState::FetchingPatternTableHigh {
+                            nametable,
+                            attribute,
+                            pattern_table_low,
+                        };
+                }
+                BackgroundPipelineState::FetchingPatternTableHigh {
+                    nametable,
+                    attribute,
+                    pattern_table_low,
+                } => {
+                    let pattern_table_base =
+                        u16::from(self.background.pattern_table_index) * 0x1000;
+
+                    let address = pattern_table_base
+                        + (u16::from(nametable) * 16)
+                        + u16::from(vram_address_pointer_contents.fine_y)
+                        + 8;
+
+                    let pattern_table_high: u8 = ppu_address_space
+                        .read_le_value(address as usize, timestamp, Some(ppu_address_space_cache))
+                        .unwrap();
+
+                    self.background.pattern_low_shift =
+                        (self.background.pattern_low_shift & 0xff00) | u16::from(pattern_table_low);
+                    self.background.pattern_high_shift = (self.background.pattern_high_shift
+                        & 0xff00)
+                        | u16::from(pattern_table_high);
+                    self.background.attribute_shift = (self.background.attribute_shift
+                        & 0xffff_0000)
+                        // Spread the bits
+                        | (u32::from(attribute) * 0x5555);
+
+                    if self.background.rendering_enabled {
+                        if vram_address_pointer_contents.coarse.x == 31 {
+                            vram_address_pointer_contents.coarse.x = 0;
+                            vram_address_pointer_contents.nametable.x =
+                                !vram_address_pointer_contents.nametable.x;
+                        } else {
+                            vram_address_pointer_contents.coarse.x += 1;
+                        }
+
+                        self.vram_address_pointer = vram_address_pointer_contents.into();
+                    }
+
+                    self.background_pipeline_state = BackgroundPipelineState::FetchingNametable;
+                }
+            }
+        }
+
+        self.awaiting_memory_access = !self.awaiting_memory_access;
+    }
+
+    #[inline]
+    pub fn get_modified_cycle_counter<R: Region>(&self, amount: u16) -> Point2<u16> {
+        let mut cycle_counter = self.cycle_counter;
+        cycle_counter.x += amount;
+
+        if cycle_counter.x >= TOTAL_SCANLINE_LENGTH {
+            cycle_counter.x = 0;
+            cycle_counter.y += 1;
+        }
+
+        if cycle_counter.y >= R::TOTAL_SCANLINES {
+            cycle_counter.y = 0;
+        }
+
+        cycle_counter
+    }
+
+    // This function uses manual bit math because absolute speed is critical here
+
+    #[inline]
+    pub fn calculate_background_color<R: Region>(
+        &self,
+        ppu_address_space: &AddressSpace,
+        ppu_address_space_cache: &mut AddressSpaceCache,
+        timestamp: Period,
+        attribute: u8,
+        color: u8,
+    ) -> Srgb<u8> {
+        let color_bits = color & 0b11;
+
+        // Combine into a 4-bit palette index
+        let palette_index = color_bits | (attribute << 2);
+
+        let color_value: u8 = ppu_address_space
+            .read_le_value(
+                BACKGROUND_PALETTE_BASE_ADDRESS + palette_index as usize,
+                timestamp,
+                Some(ppu_address_space_cache),
+            )
+            .unwrap();
+
+        let color = PpuColor {
+            hue: color_value & 0b1111,
+            luminance: (color_value >> 4) & 0b11,
+        };
+
+        R::color_to_srgb(color)
+    }
+
+    #[inline]
+    pub fn calculate_sprite_color<R: Region>(
+        &self,
+        ppu_address_space: &AddressSpace,
+        ppu_address_space_cache: &mut AddressSpaceCache,
+        timestamp: Period,
+        sprite: OamSprite,
+        color: u8,
+    ) -> Srgb<u8> {
+        let color_bits = color & 0b11;
+
+        let color_value: u8 = ppu_address_space
+            .read_le_value(
+                SPRITE_PALETTE_BASE_ADDRESS
+                    + (usize::from(sprite.palette_index) * 4)
+                    + usize::from(color_bits),
+                timestamp,
+                Some(ppu_address_space_cache),
+            )
+            .unwrap();
+
+        let color = PpuColor {
+            hue: color_value & 0b1111,
+            luminance: (color_value >> 4) & 0b11,
+        };
+
+        R::color_to_srgb(color)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

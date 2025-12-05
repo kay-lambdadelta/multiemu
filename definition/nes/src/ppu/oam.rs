@@ -32,6 +32,7 @@ impl OamSprite {
         }
     }
 
+    #[allow(unused)]
     pub fn to_bytes(self) -> [u8; 4] {
         let mut bytes = [0; 4];
         bytes[0] = self.position.y;

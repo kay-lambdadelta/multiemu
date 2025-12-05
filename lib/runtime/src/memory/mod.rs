@@ -1,12 +1,14 @@
 use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
+    ops::RangeInclusive,
     sync::Arc,
 };
 
 use arc_swap::{ArcSwap, Cache};
 use bitvec::{field::BitField, order::Lsb0};
 use bytes::Bytes;
+pub use commit::{MapTarget, MemoryRemappingCommand, Permissions};
 use multiemu_range::RangeIntersection;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
@@ -16,7 +18,6 @@ use crate::{
     component::{ComponentHandle, ComponentPath, ResourcePath},
     machine::registry::ComponentRegistry,
 };
-pub use commit::{MapTarget, MemoryRemappingCommand, Permissions};
 
 mod commit;
 mod overlapping;
@@ -34,15 +35,10 @@ pub struct AddressSpace {
     id: AddressSpaceId,
     members: Arc<ArcSwap<Members>>,
     resources: scc::HashMap<ResourcePath, Bytes>,
-    registry: Arc<ComponentRegistry>,
 }
 
 impl AddressSpace {
-    pub(crate) fn new(
-        registry: Arc<ComponentRegistry>,
-        address_space_id: AddressSpaceId,
-        address_space_width: u8,
-    ) -> Self {
+    pub(crate) fn new(address_space_id: AddressSpaceId, address_space_width: u8) -> Self {
         let mut mask = bitvec::bitvec![usize, Lsb0; 0; usize::BITS as usize];
         mask[..address_space_width as usize].fill(true);
         let width_mask = mask.load_le();
@@ -56,7 +52,6 @@ impl AddressSpace {
                 write: MemoryMappingTable::new(address_space_width),
             }))),
             resources: scc::HashMap::default(),
-            registry,
         }
     }
 
@@ -66,7 +61,11 @@ impl AddressSpace {
         }
     }
 
-    pub fn remap(&self, commands: impl IntoIterator<Item = MemoryRemappingCommand>) {
+    pub(crate) fn remap(
+        &self,
+        commands: impl IntoIterator<Item = MemoryRemappingCommand>,
+        registry: &ComponentRegistry,
+    ) {
         let max = 2usize.pow(u32::from(self.address_space_width)) - 1;
         let valid_range = 0..=max;
         let commands: Vec<_> = commands.into_iter().collect();
@@ -83,7 +82,8 @@ impl AddressSpace {
                     } => {
                         assert!(
                             !valid_range.disjoint(&range),
-                            "Range {range:#04x?} is invalid for a address space that ends at {max:04x?}"
+                            "Range {range:#04x?} is invalid for a address space that ends at \
+                             {max:04x?}"
                         );
 
                         match target {
@@ -101,7 +101,7 @@ impl AddressSpace {
                                         MappingEntry::Component(component_path),
                                     );
                                 }
-                            },
+                            }
                             MapTarget::Memory(resource_path) => {
                                 assert!(self.resources.contains_sync(&resource_path));
 
@@ -113,16 +113,17 @@ impl AddressSpace {
                                 }
 
                                 if permissions.write {
-                                    members.write.master.insert(
-                                        range.clone(),
-                                        MappingEntry::Memory(resource_path),
-                                    );
+                                    members
+                                        .write
+                                        .master
+                                        .insert(range.clone(), MappingEntry::Memory(resource_path));
                                 }
-                            },
+                            }
                             MapTarget::Mirror { destination } => {
                                 assert!(
                                     !valid_range.disjoint(&destination),
-                                    "Range {destination:#04x?} is invalid for a address space that ends at {max:04x?}"
+                                    "Range {destination:#04x?} is invalid for a address space \
+                                     that ends at {max:04x?}"
                                 );
 
                                 if permissions.read {
@@ -144,7 +145,7 @@ impl AddressSpace {
                                         },
                                     );
                                 }
-                            },
+                            }
                         }
                     }
                     MemoryRemappingCommand::Unmap { range, permissions } => {
@@ -158,14 +159,12 @@ impl AddressSpace {
                     }
                     MemoryRemappingCommand::Register { id, buffer } => {
                         self.resources.insert_sync(id, buffer).unwrap();
-                    },
+                    }
                 }
             }
 
-
-            members.read.commit(&self.registry, &self.resources);
-            members.write.commit(&self.registry, &self.resources);
-
+            members.read.commit(registry, &self.resources);
+            members.write.commit(registry, &self.resources);
 
             members
         });
@@ -188,16 +187,14 @@ pub enum ComputedTablePageTarget {
 #[derive(Clone)]
 struct ComputedTablePage {
     /// Full, uncropped relevant range
-    pub start: Address,
-    pub end: Address,
+    pub range: RangeInclusive<Address>,
     pub target: ComputedTablePageTarget,
 }
 
 impl Debug for ComputedTablePage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TableEntry")
-            .field("start", &self.start)
-            .field("end", &self.end)
+            .field("range", &self.range)
             .finish()
     }
 }

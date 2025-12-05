@@ -19,3 +19,10 @@ bytemuck = { workspace = true }
 [dev-dependencies]
 multiemu-definition-misc = { workspace = true }
 rangemap = { workspace = true }
+
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "raw_execution"
+harness = false

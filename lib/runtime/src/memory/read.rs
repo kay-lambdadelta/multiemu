@@ -4,9 +4,12 @@ use multiemu_range::{ContiguousRange, RangeIntersection};
 use num::traits::FromBytes;
 
 use super::AddressSpace;
-use crate::memory::{
-    Address, AddressSpaceCache, ComputedTablePageTarget, Members, MemoryError, MemoryErrorType,
-    overlapping::Item,
+use crate::{
+    memory::{
+        Address, AddressSpaceCache, ComputedTablePageTarget, Members, MemoryError, MemoryErrorType,
+        overlapping::Item,
+    },
+    scheduler::Period,
 };
 
 impl AddressSpace {
@@ -15,9 +18,10 @@ impl AddressSpace {
     pub(super) fn read_internal(
         &self,
         mut address: Address,
+        current_timestamp: Period,
+        members: &Members,
         avoid_side_effects: bool,
         buffer: &mut [u8],
-        members: &Members,
     ) -> Result<(), MemoryError> {
         let mut remaining_buffer = buffer;
 
@@ -58,6 +62,7 @@ impl AddressSpace {
                         let adjusted_buffer = &mut remaining_buffer[buffer_range];
 
                         component.interact(
+                            current_timestamp,
                             #[inline]
                             |component| {
                                 component.memory_read(
@@ -103,34 +108,48 @@ impl AddressSpace {
     }
 
     /// Given a location, read a little endian value
-    #[inline]
+    #[inline(always)]
     pub(super) fn read_le_value_internal<T: FromBytes>(
         &self,
         address: Address,
-        avoid_side_effects: bool,
+        current_timestamp: Period,
         members: &Members,
+        avoid_side_effects: bool,
     ) -> Result<T, MemoryError>
     where
         T::Bytes: Default,
     {
         let mut buffer = T::Bytes::default();
-        self.read_internal(address, avoid_side_effects, buffer.as_mut(), members)?;
+        self.read_internal(
+            address,
+            current_timestamp,
+            members,
+            avoid_side_effects,
+            buffer.as_mut(),
+        )?;
         Ok(T::from_le_bytes(&buffer))
     }
 
     /// Given a location, read a big endian value
-    #[inline]
+    #[inline(always)]
     pub(super) fn read_be_value_internal<T: FromBytes>(
         &self,
         address: Address,
-        avoid_side_effects: bool,
+        current_timestamp: Period,
         members: &Members,
+        avoid_side_effects: bool,
     ) -> Result<T, MemoryError>
     where
         T::Bytes: Default,
     {
         let mut buffer = T::Bytes::default();
-        self.read_internal(address, avoid_side_effects, buffer.as_mut(), members)?;
+        self.read_internal(
+            address,
+            current_timestamp,
+            members,
+            avoid_side_effects,
+            buffer.as_mut(),
+        )?;
         Ok(T::from_be_bytes(&buffer))
     }
 
@@ -141,16 +160,33 @@ impl AddressSpace {
     pub fn read(
         &self,
         address: Address,
-        avoid_side_effects: bool,
+        current_timestamp: Period,
         cache: Option<&mut AddressSpaceCache>,
         buffer: &mut [u8],
     ) -> Result<(), MemoryError> {
         if let Some(cache) = cache {
             let members = cache.members.load();
-            self.read_internal(address, avoid_side_effects, buffer, members)
+            self.read_internal(address, current_timestamp, members, false, buffer)
         } else {
             let members = self.members.load();
-            self.read_internal(address, avoid_side_effects, buffer, &members)
+            self.read_internal(address, current_timestamp, &members, false, buffer)
+        }
+    }
+
+    #[inline]
+    pub fn read_pure(
+        &self,
+        address: Address,
+        current_timestamp: Period,
+        cache: Option<&mut AddressSpaceCache>,
+        buffer: &mut [u8],
+    ) -> Result<(), MemoryError> {
+        if let Some(cache) = cache {
+            let members = cache.members.load();
+            self.read_internal(address, current_timestamp, members, true, buffer)
+        } else {
+            let members = self.members.load();
+            self.read_internal(address, current_timestamp, &members, true, buffer)
         }
     }
 
@@ -159,7 +195,7 @@ impl AddressSpace {
     pub fn read_le_value<T: FromBytes>(
         &self,
         address: Address,
-        avoid_side_effects: bool,
+        current_timestamp: Period,
         cache: Option<&mut AddressSpaceCache>,
     ) -> Result<T, MemoryError>
     where
@@ -167,10 +203,30 @@ impl AddressSpace {
     {
         if let Some(cache) = cache {
             let members = cache.members.load();
-            self.read_le_value_internal(address, avoid_side_effects, members)
+            self.read_le_value_internal(address, current_timestamp, members, false)
         } else {
             let members = self.members.load();
-            self.read_le_value_internal(address, avoid_side_effects, &members)
+            self.read_le_value_internal(address, current_timestamp, &members, false)
+        }
+    }
+
+    /// Given a location, read a little endian value
+    #[inline]
+    pub fn read_le_value_pure<T: FromBytes>(
+        &self,
+        address: Address,
+        current_timestamp: Period,
+        cache: Option<&mut AddressSpaceCache>,
+    ) -> Result<T, MemoryError>
+    where
+        T::Bytes: Default,
+    {
+        if let Some(cache) = cache {
+            let members = cache.members.load();
+            self.read_le_value_internal(address, current_timestamp, members, true)
+        } else {
+            let members = self.members.load();
+            self.read_le_value_internal(address, current_timestamp, &members, true)
         }
     }
 
@@ -179,7 +235,7 @@ impl AddressSpace {
     pub fn read_be_value<T: FromBytes>(
         &self,
         address: Address,
-        avoid_side_effects: bool,
+        current_timestamp: Period,
         cache: Option<&mut AddressSpaceCache>,
     ) -> Result<T, MemoryError>
     where
@@ -187,10 +243,30 @@ impl AddressSpace {
     {
         if let Some(cache) = cache {
             let members = cache.members.load();
-            self.read_be_value_internal(address, avoid_side_effects, members)
+            self.read_be_value_internal(address, current_timestamp, members, false)
         } else {
             let members = self.members.load();
-            self.read_be_value_internal(address, avoid_side_effects, &members)
+            self.read_be_value_internal(address, current_timestamp, &members, false)
+        }
+    }
+
+    /// Given a location, read a big endian value
+    #[inline]
+    pub fn read_be_value_pure<T: FromBytes>(
+        &self,
+        address: Address,
+        current_timestamp: Period,
+        cache: Option<&mut AddressSpaceCache>,
+    ) -> Result<T, MemoryError>
+    where
+        T::Bytes: Default,
+    {
+        if let Some(cache) = cache {
+            let members = cache.members.load();
+            self.read_be_value_internal(address, current_timestamp, members, true)
+        } else {
+            let members = self.members.load();
+            self.read_be_value_internal(address, current_timestamp, &members, true)
         }
     }
 }

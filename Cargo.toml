@@ -42,7 +42,7 @@ bitvec = { version = "1.0", features = ["serde"] }
 rand = "0.9"
 palette = { version = "0.7", features = ["bytemuck", "serializing", "named"] }
 clap = { version = "4.5", features = ["derive"] }
-criterion = "0.7"
+criterion = "0.8"
 uuid = { version = "1.18", features = ["serde", "v4"] }
 ringbuffer = "0.16"
 bincode = { version = "2.0", features = ["serde"] }
@@ -62,6 +62,8 @@ tempfile = "3.21"
 versions = "7.0"
 regex = "1.12"
 indexmap = "2.12"
+arc-swap = "1.7"
+fixed = { version =  "1.29", features = ["num-traits"] }
 
 [profile.bench]
 debug = true

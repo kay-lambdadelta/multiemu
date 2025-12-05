@@ -73,7 +73,8 @@ impl<T: ShaderFormat> Clone for Shader<T> {
 #[derive(Debug)]
 /// Shader LRU cache
 ///
-/// Graphics apis that require shaders should provide this as part of their component initialization data
+/// Graphics apis that require shaders should provide this as part of their
+/// component initialization data
 pub struct ShaderCache<T: ShaderFormat> {
     shaders:
         Arc<scc::HashCache<(Cow<'static, str>, GraphicsVersion), Arc<Shader<T>>, FxBuildHasher>>,

@@ -1,6 +1,7 @@
-use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
-use multiemu_runtime::machine::Machine;
+use multiemu_runtime::{machine::Machine, scheduler::Period};
 use rangemap::RangeInclusiveMap;
+
+use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};
 
 #[test]
 fn read() {
@@ -21,11 +22,13 @@ fn read() {
         },
     );
     let machine = machine.build(());
-    let address_space = machine.address_spaces.get(&address_space).unwrap();
+    let address_space = machine.address_spaces(address_space).unwrap();
 
     let mut buffer = [0; 8];
 
-    address_space.read(0, false, None, &mut buffer).unwrap();
+    address_space
+        .read(0, Period::default(), None, &mut buffer)
+        .unwrap();
     assert_eq!(buffer, [0xff; 8]);
 }
 
@@ -48,11 +51,13 @@ fn write() {
         },
     );
     let machine = machine.build(());
-    let address_space = machine.address_spaces.get(&address_space).unwrap();
+    let address_space = machine.address_spaces(address_space).unwrap();
 
     let buffer = [0; 8];
 
-    address_space.write(0, None, &buffer).unwrap();
+    address_space
+        .write(0, Period::default(), None, &buffer)
+        .unwrap();
 }
 
 #[test]
@@ -74,13 +79,17 @@ fn read_write() {
         },
     );
     let machine = machine.build(());
-    let address_space = machine.address_spaces.get(&address_space).unwrap();
+    let address_space = machine.address_spaces(address_space).unwrap();
 
     let mut buffer = [0xff; 8];
 
-    address_space.write(0, None, &buffer).unwrap();
+    address_space
+        .write(0, Period::default(), None, &buffer)
+        .unwrap();
     buffer.fill(0);
-    address_space.read(0, false, None, &mut buffer).unwrap();
+    address_space
+        .read(0, Period::default(), None, &mut buffer)
+        .unwrap();
     assert_eq!(buffer, [0xff; 8]);
 }
 
@@ -103,11 +112,13 @@ fn wraparound() {
         },
     );
     let machine = machine.build(());
-    let address_space = machine.address_spaces.get(&address_space).unwrap();
+    let address_space = machine.address_spaces(address_space).unwrap();
 
     let mut buffer = [0; 2];
 
-    address_space.read(0xff, false, None, &mut buffer).unwrap();
+    address_space
+        .read(0xff, Period::default(), None, &mut buffer)
+        .unwrap();
     assert_eq!(buffer, [0x00, 0xff]);
 }
 
@@ -132,10 +143,12 @@ fn mirror() {
     let machine = machine.memory_map_mirror(address_space, 0x02..=0x02, 0x00..=0x00);
 
     let machine = machine.build(());
-    let address_space = machine.address_spaces.get(&address_space).unwrap();
+    let address_space = machine.address_spaces(address_space).unwrap();
 
     let mut buffer = [0; 3];
 
-    address_space.read(0, false, None, &mut buffer).unwrap();
+    address_space
+        .read(0, Period::default(), None, &mut buffer)
+        .unwrap();
     assert_eq!(buffer, [0xfe, 0xff, 0xfe]);
 }

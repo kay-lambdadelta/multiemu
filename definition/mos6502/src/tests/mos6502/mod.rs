@@ -1,23 +1,24 @@
+use std::sync::Arc;
+
 use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use multiemu_runtime::{
-    component::ComponentPath, machine::Machine, memory::AddressSpaceId, platform::TestPlatform,
+    component::ComponentPath, machine::Machine, memory::AddressSpaceId, scheduler::Frequency,
 };
-use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
 
 use crate::{Mos6502Config, Mos6502Kind};
 
 mod adc;
 
-fn instruction_test_boilerplate() -> (Machine<TestPlatform>, ComponentPath, AddressSpaceId) {
+fn instruction_test_boilerplate() -> (Arc<Machine>, ComponentPath, AddressSpaceId) {
     let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
     let (machine, cpu) = machine.insert_component(
         "mos6502",
         Mos6502Config {
-            frequency: Ratio::from_integer(1000),
+            frequency: Frequency::from_num(1),
             assigned_address_space: cpu_address_space,
             kind: Mos6502Kind::Mos6502,
             broken_ror: false,

@@ -4,9 +4,12 @@ use multiemu_range::{ContiguousRange, RangeIntersection};
 use num::traits::ToBytes;
 
 use super::AddressSpace;
-use crate::memory::{
-    Address, AddressSpaceCache, ComputedTablePageTarget, Members, MemoryError, MemoryErrorType,
-    overlapping::Item,
+use crate::{
+    memory::{
+        Address, AddressSpaceCache, ComputedTablePageTarget, Members, MemoryError, MemoryErrorType,
+        overlapping::Item,
+    },
+    scheduler::Period,
 };
 
 impl AddressSpace {
@@ -14,8 +17,9 @@ impl AddressSpace {
     pub(super) fn write_internal(
         &self,
         mut address: Address,
-        buffer: &[u8],
+        current_timestamp: Period,
         members: &Members,
+        buffer: &[u8],
     ) -> Result<(), MemoryError> {
         let mut remaining_buffer = buffer;
 
@@ -56,6 +60,7 @@ impl AddressSpace {
                         let adjusted_buffer = &remaining_buffer[buffer_range];
 
                         component.interact_mut(
+                            current_timestamp,
                             #[inline]
                             |component| {
                                 component.memory_write(
@@ -87,25 +92,37 @@ impl AddressSpace {
     }
 
     /// Given a location, read a little endian value
-    #[inline]
+    #[inline(always)]
     pub(super) fn write_le_value_internal<T: ToBytes>(
         &self,
         address: Address,
-        value: T,
+        current_timestamp: Period,
         members: &Members,
+        value: T,
     ) -> Result<(), MemoryError> {
-        self.write_internal(address, value.to_le_bytes().as_ref(), members)
+        self.write_internal(
+            address,
+            current_timestamp,
+            members,
+            value.to_le_bytes().as_ref(),
+        )
     }
 
     /// Given a location, read a big endian value
-    #[inline]
+    #[inline(always)]
     pub(super) fn write_be_value_internal<T: ToBytes>(
         &self,
         address: Address,
-        value: T,
+        current_timestamp: Period,
         members: &Members,
+        value: T,
     ) -> Result<(), MemoryError> {
-        self.write_internal(address, value.to_be_bytes().as_ref(), members)
+        self.write_internal(
+            address,
+            current_timestamp,
+            members,
+            value.to_be_bytes().as_ref(),
+        )
     }
 
     /// Step through the memory translation table to fill a buffer
@@ -115,15 +132,16 @@ impl AddressSpace {
     pub fn write(
         &self,
         address: Address,
+        current_timestamp: Period,
         cache: Option<&mut AddressSpaceCache>,
         buffer: &[u8],
     ) -> Result<(), MemoryError> {
         if let Some(cache) = cache {
             let members = cache.members.load();
-            self.write_internal(address, buffer, members)
+            self.write_internal(address, current_timestamp, members, buffer)
         } else {
             let members = self.members.load();
-            self.write_internal(address, buffer, &members)
+            self.write_internal(address, current_timestamp, &members, buffer)
         }
     }
 
@@ -132,15 +150,16 @@ impl AddressSpace {
     pub fn write_le_value<T: ToBytes>(
         &self,
         address: Address,
+        current_timestamp: Period,
         cache: Option<&mut AddressSpaceCache>,
         value: T,
     ) -> Result<(), MemoryError> {
         if let Some(cache) = cache {
             let members = cache.members.load();
-            self.write_le_value_internal(address, value, members)
+            self.write_le_value_internal(address, current_timestamp, members, value)
         } else {
             let members = self.members.load();
-            self.write_le_value_internal(address, value, &members)
+            self.write_le_value_internal(address, current_timestamp, &members, value)
         }
     }
 
@@ -149,15 +168,16 @@ impl AddressSpace {
     pub fn write_be_value<T: ToBytes>(
         &self,
         address: Address,
+        current_timestamp: Period,
         cache: Option<&mut AddressSpaceCache>,
         value: T,
     ) -> Result<(), MemoryError> {
         if let Some(cache) = cache {
             let members = cache.members.load();
-            self.write_be_value_internal(address, value, members)
+            self.write_be_value_internal(address, current_timestamp, members, value)
         } else {
             let members = self.members.load();
-            self.write_be_value_internal(address, value, &members)
+            self.write_be_value_internal(address, current_timestamp, &members, value)
         }
     }
 }

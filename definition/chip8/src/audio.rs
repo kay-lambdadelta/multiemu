@@ -1,18 +1,16 @@
-use std::{
-    io::{Read, Write},
-    num::NonZero,
-};
+use std::io::{Read, Write};
 
 use multiemu_audio::SquareWave;
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion, ResourcePath},
-    machine::builder::ComponentBuilder,
+    component::{
+        Component, ComponentConfig, ComponentVersion, ResourcePath, SynchronizationContext,
+    },
+    machine::builder::{ComponentBuilder, SchedulerParticipation},
     platform::Platform,
-    scheduler::Task,
 };
 use nalgebra::SVector;
 use num::rational::Ratio;
-use ringbuffer::{AllocRingBuffer, RingBuffer};
+use ringbuffer::AllocRingBuffer;
 
 #[derive(Debug)]
 pub struct Chip8Audio {
@@ -20,6 +18,7 @@ pub struct Chip8Audio {
     sound_timer: u8,
     buffer: AllocRingBuffer<SVector<f32, 2>>,
     wave_generator: SquareWave<f32, 2>,
+    host_sample_rate: Ratio<u32>,
 }
 
 impl Chip8Audio {
@@ -60,6 +59,32 @@ impl Component for Chip8Audio {
     ) -> &mut AllocRingBuffer<SVector<f32, 2>> {
         &mut self.buffer
     }
+
+    fn synchronize(&mut self, context: SynchronizationContext) {
+        /*
+        *
+        *         self.cycle_counter.set_next_timestamp(timestamp);
+        let register_change_frequency = Frequency::from_num(60);
+        let cycles = self.cycle_counter.for_each_cycle(register_change_frequency);
+
+        /*
+        let sample_generation_slice = cycles.min(u64::from(self.sound_timer));
+        let samples_to_generate: u64 = ((self.host_sample_rate * sample_generation_slice)
+            / register_change_frequency)
+            .to_integer();
+
+        for _ in 0..samples_to_generate {
+            self.buffer.enqueue(self.wave_generator.next().unwrap());
+        }
+        */
+
+        self.sound_timer = self
+            .sound_timer
+            .saturating_sub(cycles.try_into().unwrap_or(u8::MAX));
+
+        UpdateResult::Complete
+        */
+    }
 }
 
 #[derive(Debug, Default)]
@@ -73,46 +98,16 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let host_sample_rate = component_builder.host_sample_rate();
-        let register_change_frequency = Ratio::from_integer(60);
-
-        let driver = Driver {
-            host_sample_rate,
-            register_change_frequency,
-        };
 
         component_builder
-            .insert_audio_output("audio-output")
-            .0
-            .insert_task("driver", register_change_frequency, driver);
+            .set_scheduler_participation(SchedulerParticipation::OnDemand)
+            .insert_audio_output("audio-output");
 
         Ok(Chip8Audio {
             sound_timer: 0,
             buffer: AllocRingBuffer::new(host_sample_rate.to_integer() as usize),
             wave_generator: SquareWave::new(Ratio::from_integer(440), host_sample_rate, 0.5),
+            host_sample_rate,
         })
-    }
-}
-
-struct Driver {
-    host_sample_rate: Ratio<u32>,
-    register_change_frequency: Ratio<u32>,
-}
-
-impl Task<Chip8Audio> for Driver {
-    fn run(&mut self, component: &mut Chip8Audio, time_slice: NonZero<u32>) {
-        let sample_generation_slice = time_slice.get().min(u32::from(component.sound_timer));
-        let samples_to_generate = ((self.host_sample_rate * sample_generation_slice)
-            / self.register_change_frequency)
-            .to_integer();
-
-        for _ in 0..samples_to_generate {
-            component
-                .buffer
-                .enqueue(component.wave_generator.next().unwrap());
-        }
-
-        component.sound_timer = component
-            .sound_timer
-            .saturating_sub(time_slice.get().try_into().unwrap_or(u8::MAX));
     }
 }

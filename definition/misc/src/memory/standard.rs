@@ -161,7 +161,8 @@ impl<P: Platform> ComponentConfig<P> for StandardMemoryConfig {
 
 impl StandardMemory {
     fn initialize_buffer(&mut self) {
-        // HACK: This overfills the buffer for ease of programming, but its ok because the actual mmu doesn't allow accesses out at runtime
+        // HACK: This overfills the buffer for ease of programming, but its ok because
+        // the actual mmu doesn't allow accesses out at runtime
         for (range, operation) in self.config.initial_contents.iter() {
             let range = range.start() - self.config.assigned_range.start()
                 ..=(range.end() - self.config.assigned_range.start());

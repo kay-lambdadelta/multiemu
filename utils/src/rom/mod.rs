@@ -30,7 +30,8 @@ impl Display for ExportStyle {
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum RomAction {
-    /// Recursively searches through select paths to find ROMs that match database entries
+    /// Recursively searches through select paths to find ROMs that match
+    /// database entries
     Import {
         #[clap(required=true, num_args=1..)]
         paths: Vec<PathBuf>,

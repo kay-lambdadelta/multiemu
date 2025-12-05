@@ -1,37 +1,11 @@
 use bitvec::{field::BitField, prelude::Msb0, view::BitView};
-use multiemu_runtime::{
-    memory::{Address, AddressSpace, AddressSpaceCache},
-    processor::InstructionDecoder,
-};
 use nalgebra::Point2;
 
 use super::instruction::{
     Chip8InstructionSet, InstructionSetChip8, InstructionSetSuperChip8, Register, ScrollDirection,
 };
 
-#[derive(Debug, Default)]
-pub struct Chip8InstructionDecoder;
-
-impl InstructionDecoder for Chip8InstructionDecoder {
-    type InstructionSet = Chip8InstructionSet;
-
-    fn decode(
-        &self,
-        cursor: Address,
-        address_space: &AddressSpace,
-        address_space_cache: Option<&mut AddressSpaceCache>,
-    ) -> Option<(Chip8InstructionSet, u8)> {
-        let mut instruction = [0; 2];
-
-        address_space
-            .read(cursor, false, address_space_cache, &mut instruction)
-            .unwrap();
-
-        decode_instruction(instruction).map(|i| (i, 2))
-    }
-}
-
-fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
+pub(super) fn decode_instruction(instruction: [u8; 2]) -> Option<Chip8InstructionSet> {
     let instruction_view = instruction.view_bits::<Msb0>();
 
     Some(match instruction_view[0..4].load::<u8>() {

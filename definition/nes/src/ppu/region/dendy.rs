@@ -1,4 +1,4 @@
-use num::rational::Ratio;
+use multiemu_runtime::scheduler::Frequency;
 
 use super::Region;
 use crate::ppu::color::PpuColor;
@@ -10,7 +10,7 @@ impl Region for Dendy {
     const VBLANK_LENGTH: u16 = 0;
     const VISIBLE_SCANLINES: u16 = 0;
 
-    fn master_clock() -> Ratio<u32> {
+    fn master_clock() -> Frequency {
         todo!()
     }
 

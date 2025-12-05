@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use num::rational::Ratio;
+use multiemu_runtime::scheduler::Frequency;
 use palette::Srgb;
 
 use crate::ppu::{DUMMY_SCANLINE_COUNT, color::PpuColor};
@@ -15,6 +15,6 @@ pub trait Region: Send + Sync + Debug + 'static {
     const TOTAL_SCANLINES: u16 =
         Self::VISIBLE_SCANLINES + Self::VBLANK_LENGTH + DUMMY_SCANLINE_COUNT;
 
-    fn master_clock() -> Ratio<u32>;
+    fn master_clock() -> Frequency;
     fn color_to_srgb(color: PpuColor) -> Srgb<u8>;
 }

@@ -82,11 +82,10 @@ impl MemoryMappingTable {
                     .map(|(range, component)| (range.clone(), component))
                     .flat_map(|(source_range, entry)| match entry {
                         MappingEntry::Component(path) => {
-                            let component = registry.get_erased(path).unwrap();
+                            let component = registry.handle(path).unwrap();
 
                             vec![ComputedTablePage {
-                                start: *source_range.start(),
-                                end: *source_range.end(),
+                                range: source_range,
                                 target: ComputedTablePageTarget::Component {
                                     mirror_start: None,
                                     component,
@@ -128,11 +127,10 @@ impl MemoryMappingTable {
                                     match dest_entry {
                                         MappingEntry::Component(component_path) => {
                                             let component =
-                                                registry.get_erased(component_path).unwrap();
+                                                registry.handle(component_path).unwrap();
 
                                             ComputedTablePage {
-                                                start: *calculated_source_range.start(),
-                                                end: *calculated_source_range.end(),
+                                                range: calculated_source_range,
                                                 target: ComputedTablePageTarget::Component {
                                                     mirror_start: Some(*destination_range.start()),
                                                     component,
@@ -146,6 +144,7 @@ impl MemoryMappingTable {
                                             let memory = resources.get_sync(resource_path).unwrap();
                                             let destination_overlap = assigned_destination_range
                                                 .intersection(destination_range);
+
                                             debug_assert_eq!(
                                                 destination_overlap.len(),
                                                 calculated_source_range.len()
@@ -159,8 +158,7 @@ impl MemoryMappingTable {
                                             let memory = memory.slice(buffer_subrange);
 
                                             ComputedTablePage {
-                                                start: *calculated_source_range.start(),
-                                                end: *calculated_source_range.end(),
+                                                range: calculated_source_range,
                                                 target: ComputedTablePageTarget::Memory(memory),
                                             }
                                         }
@@ -174,13 +172,12 @@ impl MemoryMappingTable {
                             assert_eq!(memory.len(), source_range.len());
 
                             vec![ComputedTablePage {
-                                start: *source_range.start(),
-                                end: *source_range.end(),
+                                range: source_range,
                                 target: ComputedTablePageTarget::Memory(memory.clone()),
                             }]
                         }
                     })
-                    .sorted_by_key(|entry| entry.start)
+                    .sorted_by_key(|entry| *entry.range.start())
                     .collect();
             });
     }

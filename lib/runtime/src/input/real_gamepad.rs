@@ -16,7 +16,8 @@ impl RealGamepadId {
     ///
     /// For desktop operating systems, this is the keyboard
     ///
-    /// For handheld consoles with abnormal operating systems this is the built in gamepad
+    /// For handheld consoles with abnormal operating systems this is the built
+    /// in gamepad
     pub const PLATFORM_RESERVED: RealGamepadId = RealGamepadId(Uuid::from_u128(0));
 
     /// Creates a new gamepad ID

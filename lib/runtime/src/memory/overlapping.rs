@@ -32,7 +32,7 @@ impl MemoryMappingTable {
 }
 
 pub struct Item<'a> {
-    pub entry_assigned_range: RangeInclusive<Address>,
+    pub entry_assigned_range: &'a RangeInclusive<Address>,
     pub target: &'a ComputedTablePageTarget,
 }
 
@@ -46,13 +46,12 @@ impl<'a> Iterator for OverlappingMappingsIter<'a> {
 
             while self.entry_index < page.len() {
                 let entry = &page[self.entry_index];
-                let entry_assigned_range = entry.start..=entry.end;
 
                 self.entry_index += 1;
 
-                if self.access_range.intersects(&entry_assigned_range) {
+                if self.access_range.intersects(&entry.range) {
                     return Some(Item {
-                        entry_assigned_range,
+                        entry_assigned_range: &entry.range,
                         target: &entry.target,
                     });
                 }
