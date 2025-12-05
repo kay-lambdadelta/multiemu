@@ -99,6 +99,7 @@ impl Region for Ntsc {
     const VISIBLE_SCANLINES: u16 = 240;
     const VBLANK_LENGTH: u16 = 20;
 
+    #[inline]
     fn master_clock() -> Frequency {
         // 236.25 MHz / 11
         Frequency::from_num(236250000) / 11

@@ -108,6 +108,7 @@ pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
     my_path: ComponentPath,
     machine: Weak<Machine>,
     timestamp: Period,
+    period: Period,
 }
 
 impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConfig<P>
@@ -261,6 +262,7 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
             my_path,
             machine: Weak::new(),
             timestamp: Period::default(),
+            period: frequency.recip(),
         })
     }
 }
@@ -492,9 +494,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
         let backend = self.backend.as_mut().unwrap();
-        let frequency = R::master_clock() / 4;
 
-        while context.allocate_period(frequency.recip()) {
+        while context.allocate_period(self.period) {
             self.timestamp = context.now();
 
             if self.state.cycle_counter.y == 261 {
@@ -740,9 +741,6 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
     }
 
     fn needs_work(&self, delta: Period) -> bool {
-        let frequency = R::master_clock() / 4;
-        let period = frequency.recip();
-
-        delta >= period
+        delta >= self.period
     }
 }

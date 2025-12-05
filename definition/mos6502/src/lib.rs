@@ -305,6 +305,7 @@ pub struct Mos6502 {
     address_space: Arc<AddressSpace>,
     address_space_cache: AddressSpaceCache,
     timestamp: Period,
+    period: Period,
 }
 
 impl Mos6502 {
@@ -528,9 +529,7 @@ impl Component for Mos6502 {
     }
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
-        let period = self.config.frequency.recip();
-
-        while context.allocate_period(period) {
+        while context.allocate_period(self.period) {
             self.timestamp = context.now();
 
             if self.rdy.load() {
@@ -674,9 +673,7 @@ impl Component for Mos6502 {
     }
 
     fn needs_work(&self, delta: Period) -> bool {
-        let period = self.config.frequency.recip();
-
-        delta >= period
+        delta >= self.period
     }
 }
 
@@ -700,6 +697,7 @@ impl<P: Platform> ComponentConfig<P> for Mos6502Config {
             state: ProcessorState::default(),
             address_space_cache: address_space.cache(),
             address_space,
+            period: self.frequency.recip(),
             config: self,
             timestamp: Period::default(),
         })
