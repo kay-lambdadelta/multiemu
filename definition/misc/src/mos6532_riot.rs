@@ -26,10 +26,10 @@ pub struct Snapshot {
     swbcnt: bool,
     intim: u8,
     instat: u8,
-    tim1t: u8,
-    tim8t: u8,
-    tim64t: u8,
-    t1024t: u8,
+    tim1t: Wrapping<u8>,
+    tim8t: Counter,
+    tim64t: Counter,
+    t1024t: Counter,
 }
 
 pub trait SwchaCallback: Debug + Send + Sync + 'static {
@@ -42,6 +42,12 @@ pub trait SwchbCallback: Debug + Send + Sync + 'static {
     fn write_register(&self, value: u8);
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy)]
+struct Counter {
+    pub last_updated: u64,
+    pub value: Wrapping<u8>,
+}
+
 #[derive(Debug)]
 pub struct Mos6532Riot {
     swcha: Option<Box<dyn SwchaCallback>>,
@@ -51,9 +57,11 @@ pub struct Mos6532Riot {
     intim: u8,
     instat: u8,
     tim1t: Wrapping<u8>,
-    tim8t: Wrapping<u8>,
-    tim64t: Wrapping<u8>,
-    t1024t: Wrapping<u8>,
+    tim8t: Counter,
+    tim64t: Counter,
+    t1024t: Counter,
+
+    time_counter: u64,
     config: Mos6532RiotConfig,
 }
 
@@ -78,10 +86,10 @@ impl Component for Mos6532Riot {
             swbcnt: self.swbcnt,
             intim: self.intim,
             instat: self.instat,
-            tim1t: self.tim1t.0,
-            tim8t: self.tim8t.0,
-            tim64t: self.tim64t.0,
-            t1024t: self.t1024t.0,
+            tim1t: self.tim1t,
+            tim8t: self.tim8t,
+            tim64t: self.tim64t,
+            t1024t: self.t1024t,
         };
 
         bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
@@ -105,10 +113,10 @@ impl Component for Mos6532Riot {
                 self.swbcnt = snapshot.swbcnt;
                 self.intim = snapshot.intim;
                 self.instat = snapshot.instat;
-                self.tim1t.0 = snapshot.tim1t;
-                self.tim8t.0 = snapshot.tim8t;
-                self.tim64t.0 = snapshot.tim64t;
-                self.t1024t.0 = snapshot.t1024t;
+                self.tim1t = snapshot.tim1t;
+                self.tim8t = snapshot.tim8t;
+                self.tim64t = snapshot.tim64t;
+                self.t1024t = snapshot.t1024t;
 
                 Ok(())
             }
@@ -166,13 +174,13 @@ impl Component for Mos6532Riot {
                     *buffer_section = self.tim1t.0;
                 }
                 0x15 => {
-                    *buffer_section = self.tim8t.0;
+                    *buffer_section = self.tim8t.value.0;
                 }
                 0x16 => {
-                    *buffer_section = self.tim64t.0;
+                    *buffer_section = self.tim64t.value.0;
                 }
                 0x17 => {
-                    *buffer_section = self.t1024t.0;
+                    *buffer_section = self.t1024t.value.0;
                 }
                 _ => {
                     return Err(MemoryError(
@@ -214,16 +222,16 @@ impl Component for Mos6532Riot {
                     self.swbcnt = *buffer_section != 0;
                 }
                 0x14 => {
-                    self.tim1t.0 = *buffer_section;
+                    self.tim1t = Wrapping(*buffer_section);
                 }
                 0x15 => {
-                    self.tim8t.0 = *buffer_section;
+                    self.tim8t.value = Wrapping(*buffer_section);
                 }
                 0x16 => {
-                    self.tim64t.0 = *buffer_section;
+                    self.tim64t.value = Wrapping(*buffer_section);
                 }
                 0x17 => {
-                    self.t1024t.0 = *buffer_section;
+                    self.t1024t.value = Wrapping(*buffer_section);
                 }
                 _ => {
                     return Err(MemoryError(
@@ -240,12 +248,27 @@ impl Component for Mos6532Riot {
         Ok(())
     }
 
-    fn synchronize(&mut self, context: SynchronizationContext) {
-        todo!()
+    fn synchronize(&mut self, mut context: SynchronizationContext) {
+        while context.allocate_period(self.config.frequency.recip()) {
+            self.time_counter += 1;
+            self.tim1t += 1;
+
+            let value = (self.time_counter - self.tim8t.last_updated) / 8;
+            self.tim8t.last_updated += value * 8;
+            self.tim8t.value += value as u8;
+
+            let value = (self.time_counter - self.tim64t.last_updated) / 64;
+            self.tim64t.last_updated += value * 64;
+            self.tim64t.value += value as u8;
+
+            let value = (self.time_counter - self.t1024t.last_updated) / 1024;
+            self.t1024t.last_updated += value * 1024;
+            self.t1024t.value += value as u8;
+        }
     }
 
     fn needs_work(&self, delta: Period) -> bool {
-        todo!()
+        delta >= self.config.frequency.recip()
     }
 }
 
@@ -289,9 +312,10 @@ impl<P: Platform> ComponentConfig<P> for Mos6532RiotConfig {
             intim: 0,
             instat: 0,
             tim1t: Wrapping(0),
-            tim8t: Wrapping(0),
-            tim64t: Wrapping(0),
-            t1024t: Wrapping(0),
+            tim8t: Counter::default(),
+            tim64t: Counter::default(),
+            t1024t: Counter::default(),
+            time_counter: 0,
             config: self,
         })
     }

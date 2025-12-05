@@ -72,7 +72,7 @@ pub const NAMETABLE_BASE_ADDRESS: Address = *NAMETABLE_ADDRESSES[0].start();
 pub const BACKGROUND_PALETTE_BASE_ADDRESS: Address = 0x3f00;
 pub const SPRITE_PALETTE_BASE_ADDRESS: Address = 0x3f10;
 pub const ATTRIBUTE_BASE_ADDRESS: Address = NAMETABLE_BASE_ADDRESS + 0x3c0;
-const DUMMY_SCANLINE_COUNT: u16 = 1;
+const DUMMY_SCANLINE_COUNT: u16 = 2;
 const VISIBLE_SCANLINE_LENGTH: u16 = 256;
 const HBLANK_LENGTH: u16 = 85;
 const TOTAL_SCANLINE_LENGTH: u16 = VISIBLE_SCANLINE_LENGTH + HBLANK_LENGTH;
@@ -159,8 +159,6 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
 
         let vblank_end_from_initial_position =
             (Period::from_num(TOTAL_SCANLINE_LENGTH) * 261 + Period::from_num(1)) / frequency;
-
-        tracing::info!("{}", framerate);
 
         component_builder
             .memory_map_component_write(

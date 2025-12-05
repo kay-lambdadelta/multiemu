@@ -206,13 +206,13 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
 
             self.electron_beam.x += 1;
 
-            if self.electron_beam.x == SCANLINE_LENGTH {
+            if self.electron_beam.x >= SCANLINE_LENGTH {
                 self.electron_beam.x = 0;
                 self.electron_beam.y += 1;
+            }
 
-                if self.electron_beam.y >= R::TOTAL_SCANLINES {
-                    self.electron_beam.y = 0;
-                }
+            if self.electron_beam.y >= R::TOTAL_SCANLINES {
+                self.electron_beam.y = 0;
             }
         }
     }
