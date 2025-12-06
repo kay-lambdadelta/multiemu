@@ -4,7 +4,7 @@ use std::{
     ops::RangeInclusive,
     sync::{
         Arc, Weak,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU8, Ordering},
     },
 };
 
@@ -30,15 +30,12 @@ use palette::named::BLACK;
 use serde::{Deserialize, Serialize};
 use strum::FromRepr;
 
-use crate::{
-    INes,
-    ppu::{
-        backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
-        background::{BackgroundPipelineState, BackgroundState, SpritePipelineState},
-        oam::{OamSprite, OamState, SpriteEvaluationState},
-        region::Region,
-        state::{State, VramAddressPointerContents},
-    },
+use crate::ppu::{
+    backend::{PpuDisplayBackend, SupportedGraphicsApiPpu},
+    background::{BackgroundPipelineState, BackgroundState, SpritePipelineState},
+    oam::{OamSprite, OamState, SpriteEvaluationState},
+    region::Region,
+    state::{State, VramAddressPointerContents},
 };
 
 pub mod backend;
@@ -88,8 +85,7 @@ pub struct ColorEmphasis {
 }
 
 #[derive(Debug)]
-pub struct PpuConfig<'a, R: Region> {
-    pub ines: &'a INes,
+pub struct PpuConfig<R: Region> {
     pub cpu_address_space: AddressSpaceId,
     pub ppu_address_space: AddressSpaceId,
     pub processor: ComponentPath,
@@ -112,7 +108,7 @@ pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
 }
 
 impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConfig<P>
-    for PpuConfig<'_, R>
+    for PpuConfig<R>
 {
     type Component = Ppu<R, P::GraphicsApi>;
 
@@ -222,12 +218,12 @@ impl<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiPpu>> ComponentConf
                 show_background_leftmost_pixels: false,
                 vram_address_pointer_write_phase: false,
                 vram_address_pointer_increment_amount: 1,
+                vram_read_buffer: AtomicU8::new(0),
                 color_emphasis: ColorEmphasis {
                     red: false,
                     green: false,
                     blue: false,
                 },
-                // Start it on the dummy scanline
                 cycle_counter: INITIAL_CYCLE_COUNTER_POSITION,
                 awaiting_memory_access: true,
                 background_pipeline_state: BackgroundPipelineState::FetchingNametable,
@@ -326,11 +322,16 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                             None,
                         )?;
                     } else {
-                        *buffer = self.ppu_address_space.read_le_value(
+                        let new_value = self.ppu_address_space.read_le_value::<u8>(
                             self.state.vram_address_pointer as usize,
                             self.timestamp,
                             None,
                         )?;
+
+                        *buffer = self
+                            .state
+                            .vram_read_buffer
+                            .swap(new_value, Ordering::AcqRel);
                     }
                 }
                 _ => {
@@ -361,8 +362,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     let mut shadow_vram_address_pointer =
                         VramAddressPointerContents::from(self.state.shadow_vram_address_pointer);
 
-                    shadow_vram_address_pointer.nametable.x = data_bits[1];
-                    shadow_vram_address_pointer.nametable.y = data_bits[0];
+                    shadow_vram_address_pointer.nametable.x = data_bits[0];
+                    shadow_vram_address_pointer.nametable.y = data_bits[1];
 
                     self.state.vram_address_pointer_increment_amount =
                         if data_bits[2] { 32 } else { 1 };
@@ -423,10 +424,11 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                     let mut unpacked_address = self.state.shadow_vram_address_pointer.to_be_bytes();
                     unpacked_address[usize::from(self.state.vram_address_pointer_write_phase)] =
                         *buffer;
-                    self.state.vram_address_pointer_write_phase =
-                        !self.state.vram_address_pointer_write_phase;
                     self.state.shadow_vram_address_pointer =
                         u16::from_be_bytes(unpacked_address) & 0b0111_1111_1111_1111;
+
+                    self.state.vram_address_pointer_write_phase =
+                        !self.state.vram_address_pointer_write_phase;
 
                     // Write the completed address
                     if !self.state.vram_address_pointer_write_phase {
@@ -736,7 +738,16 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
                 }
             }
 
-            self.state.cycle_counter = self.state.get_modified_cycle_counter::<R>(1);
+            self.state.cycle_counter.x += 1;
+
+            if self.state.cycle_counter.x >= TOTAL_SCANLINE_LENGTH {
+                self.state.cycle_counter.x = 0;
+                self.state.cycle_counter.y += 1;
+            }
+
+            if self.state.cycle_counter.y >= R::TOTAL_SCANLINES {
+                self.state.cycle_counter.y = 0;
+            }
         }
     }
 

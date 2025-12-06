@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU8};
 
 use multiemu_runtime::{
     memory::{AddressSpace, AddressSpaceCache},
@@ -11,7 +11,7 @@ use serde_with::serde_as;
 
 use crate::ppu::{
     ATTRIBUTE_BASE_ADDRESS, BACKGROUND_PALETTE_BASE_ADDRESS, BackgroundPipelineState,
-    ColorEmphasis, NAMETABLE_BASE_ADDRESS, SPRITE_PALETTE_BASE_ADDRESS, TOTAL_SCANLINE_LENGTH,
+    ColorEmphasis, NAMETABLE_BASE_ADDRESS, SPRITE_PALETTE_BASE_ADDRESS,
     background::{BackgroundState, SpritePipelineState},
     color::PpuColor,
     oam::{CurrentlyRenderingSprite, OamSprite, OamState},
@@ -29,6 +29,7 @@ pub struct State {
     /// NES documents tend to call this w
     pub vram_address_pointer_write_phase: bool,
     pub vram_address_pointer_increment_amount: u8,
+    pub vram_read_buffer: AtomicU8,
     pub color_emphasis: ColorEmphasis,
     pub cycle_counter: Point2<u16>,
     pub awaiting_memory_access: bool,
@@ -43,7 +44,8 @@ pub struct State {
 }
 
 impl State {
-    pub fn drive_sprite_pipeline<R: Region>(
+    #[inline]
+    pub(crate) fn drive_sprite_pipeline<R: Region>(
         &mut self,
         ppu_address_space: &AddressSpace,
         ppu_address_space_cache: &mut AddressSpaceCache,
@@ -133,7 +135,8 @@ impl State {
         self.awaiting_memory_access = !self.awaiting_memory_access;
     }
 
-    pub fn drive_background_pipeline<R: Region>(
+    #[inline]
+    pub(crate) fn drive_background_pipeline<R: Region>(
         &mut self,
         ppu_address_space: &AddressSpace,
         ppu_address_space_cache: &mut AddressSpaceCache,
@@ -254,23 +257,6 @@ impl State {
         }
 
         self.awaiting_memory_access = !self.awaiting_memory_access;
-    }
-
-    #[inline]
-    pub fn get_modified_cycle_counter<R: Region>(&self, amount: u16) -> Point2<u16> {
-        let mut cycle_counter = self.cycle_counter;
-        cycle_counter.x += amount;
-
-        if cycle_counter.x >= TOTAL_SCANLINE_LENGTH {
-            cycle_counter.x = 0;
-            cycle_counter.y += 1;
-        }
-
-        if cycle_counter.y >= R::TOTAL_SCANLINES {
-            cycle_counter.y = 0;
-        }
-
-        cycle_counter
     }
 
     // This function uses manual bit math because absolute speed is critical here

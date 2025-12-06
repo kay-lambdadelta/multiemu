@@ -227,11 +227,10 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
 
                 let (machine, _) = machine.insert_component(
                     "ppu",
-                    PpuConfig::<'_, Ntsc> {
+                    PpuConfig::<Ntsc> {
                         ppu_address_space,
                         cpu_address_space,
                         processor,
-                        ines: &ines,
                         _phantom: PhantomData,
                     },
                 );
