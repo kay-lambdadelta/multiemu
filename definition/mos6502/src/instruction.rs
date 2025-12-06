@@ -168,7 +168,7 @@ pub enum Wdc65C02Opcode {
     Wai,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Opcode {
     Mos6502(Mos6502Opcode),
     Wdc65C02(Wdc65C02Opcode),
@@ -183,7 +183,7 @@ impl Display for Opcode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Mos6502InstructionSet {
     pub opcode: Opcode,
     pub addressing_mode: Option<AddressingMode>,

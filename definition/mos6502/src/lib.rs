@@ -131,6 +131,8 @@ pub enum ExecutionStep {
     FetchAndDecode,
     /// Loading data, pushing it to the latch, from the address bus pointer
     LoadData,
+    /// Handle the original mos 6502 absolute indirect errata
+    LoadDataWithoutAdvancingPage,
     /// Same as before but it isn't referencing memory
     LoadDataFromConstant(u8),
     /// Putting data into memory, from the address bus pointer
@@ -150,7 +152,7 @@ pub enum ExecutionStep {
     /// Make sure the address bus is within the zero page
     MaskAddressBusToZeroPage,
     /// Execute this instruction
-    Interpret { instruction: Mos6502InstructionSet },
+    Interpret,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -179,6 +181,11 @@ impl Mos6502Kind {
     #[inline]
     pub fn supports_interrupts(&self) -> bool {
         !matches!(self, Mos6502Kind::Mos6507)
+    }
+
+    #[inline]
+    pub fn absolute_indirect_page_wrap_errata(&self) -> bool {
+        matches!(self, Self::Mos6502 | Self::Mos6507 | Self::Ricoh2A0x)
     }
 }
 
@@ -257,6 +264,8 @@ struct ProcessorState {
     pub address_bus: u16,
     /// Imaginary processor latch
     pub latch: ArrayVec<u8, 2>,
+    /// Next instruction that will be executed
+    pub next_instruction: Option<Mos6502InstructionSet>,
 }
 
 impl Default for ProcessorState {
@@ -272,6 +281,7 @@ impl Default for ProcessorState {
             execution_queue: VecDeque::from_iter([ExecutionStep::Reset]),
             address_bus: 0x0000,
             latch: ArrayVec::default(),
+            next_instruction: None,
         }
     }
 }
@@ -387,9 +397,10 @@ impl Mos6502 {
 
         self.push_steps_for_instruction(&instruction);
 
+        self.state.next_instruction = Some(instruction);
         self.state
             .execution_queue
-            .push_back(ExecutionStep::Interpret { instruction });
+            .push_back(ExecutionStep::Interpret);
     }
 
     fn push_steps_for_instruction(&mut self, instruction: &Mos6502InstructionSet) {
@@ -420,14 +431,25 @@ impl Mos6502 {
                     ]);
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::AbsoluteIndirect) => {
-                    self.state.execution_queue.extend([
-                        ExecutionStep::LoadData,
-                        ExecutionStep::LoadData,
-                        ExecutionStep::LatchToAddressBus,
-                        ExecutionStep::LoadData,
-                        ExecutionStep::LoadData,
-                        ExecutionStep::LatchToAddressBus,
-                    ]);
+                    if self.config.kind.absolute_indirect_page_wrap_errata() {
+                        self.state.execution_queue.extend([
+                            ExecutionStep::LoadData,
+                            ExecutionStep::LoadData,
+                            ExecutionStep::LatchToAddressBus,
+                            ExecutionStep::LoadDataWithoutAdvancingPage,
+                            ExecutionStep::LoadData,
+                            ExecutionStep::LatchToAddressBus,
+                        ]);
+                    } else {
+                        self.state.execution_queue.extend([
+                            ExecutionStep::LoadData,
+                            ExecutionStep::LoadData,
+                            ExecutionStep::LatchToAddressBus,
+                            ExecutionStep::LoadData,
+                            ExecutionStep::LoadData,
+                            ExecutionStep::LatchToAddressBus,
+                        ]);
+                    }
                 }
                 AddressingMode::Mos6502(Mos6502AddressingMode::XIndexedZeroPageIndirect) => {
                     self.state.execution_queue.extend([
@@ -583,6 +605,24 @@ impl Component for Mos6502 {
 
                             break;
                         }
+                        ExecutionStep::LoadDataWithoutAdvancingPage => {
+                            let byte = self
+                                .address_space
+                                .read_le_value(
+                                    self.state.address_bus as usize,
+                                    self.timestamp,
+                                    Some(&mut self.address_space_cache),
+                                )
+                                .unwrap_or_default();
+
+                            self.state.latch.push(byte);
+
+                            let mut address_bus_contents = self.state.address_bus.to_le_bytes();
+                            address_bus_contents[0] = address_bus_contents[0].wrapping_add(1);
+                            self.state.address_bus = u16::from_le_bytes(address_bus_contents);
+
+                            break;
+                        }
                         ExecutionStep::LoadDataFromConstant(data) => {
                             self.state.latch.push(data);
 
@@ -657,8 +697,10 @@ impl Component for Mos6502 {
                             self.state.address_bus =
                                 self.state.address_bus.wrapping_add(u16::from(modification));
                         }
-                        ExecutionStep::Interpret { instruction } => {
-                            self.interpret_instruction(instruction.clone());
+                        ExecutionStep::Interpret => {
+                            let instruction = self.state.next_instruction.take().unwrap();
+
+                            self.interpret_instruction(instruction);
 
                             self.state
                                 .execution_queue
