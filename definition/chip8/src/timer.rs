@@ -1,9 +1,10 @@
 use std::io::{Read, Write};
 
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion},
+    component::{Component, ComponentConfig, ComponentVersion, SynchronizationContext},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     platform::Platform,
+    scheduler::Period,
 };
 
 #[derive(Debug)]
@@ -46,6 +47,16 @@ impl Component for Chip8Timer {
         writer.write_all(timer)?;
 
         Ok(())
+    }
+
+    fn synchronize(&mut self, mut context: SynchronizationContext) {
+        while context.allocate_period(Period::ONE / 60) {
+            self.timer = self.timer.saturating_sub(1);
+        }
+    }
+
+    fn needs_work(&self, delta: Period) -> bool {
+        delta >= Period::ONE / 60
     }
 }
 

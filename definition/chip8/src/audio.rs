@@ -7,6 +7,7 @@ use multiemu_runtime::{
     },
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     platform::Platform,
+    scheduler::Period,
 };
 use nalgebra::SVector;
 use num::rational::Ratio;
@@ -15,7 +16,7 @@ use ringbuffer::AllocRingBuffer;
 #[derive(Debug)]
 pub struct Chip8Audio {
     // The CPU will set this according to what the program wants
-    sound_timer: u8,
+    timer: u8,
     buffer: AllocRingBuffer<SVector<f32, 2>>,
     wave_generator: SquareWave<f32, 2>,
     host_sample_rate: Ratio<u32>,
@@ -23,7 +24,7 @@ pub struct Chip8Audio {
 
 impl Chip8Audio {
     pub fn set(&mut self, value: u8) {
-        self.sound_timer = value;
+        self.timer = value;
     }
 }
 
@@ -38,7 +39,7 @@ impl Component for Chip8Audio {
         mut reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(version, 0);
-        let timer = std::array::from_mut(&mut self.sound_timer);
+        let timer = std::array::from_mut(&mut self.timer);
 
         reader.read_exact(timer)?;
 
@@ -46,7 +47,7 @@ impl Component for Chip8Audio {
     }
 
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
-        let timer = std::array::from_ref(&self.sound_timer);
+        let timer = std::array::from_ref(&self.timer);
 
         writer.write_all(timer)?;
 
@@ -60,30 +61,14 @@ impl Component for Chip8Audio {
         &mut self.buffer
     }
 
-    fn synchronize(&mut self, context: SynchronizationContext) {
-        /*
-        *
-        *         self.cycle_counter.set_next_timestamp(timestamp);
-        let register_change_frequency = Frequency::from_num(60);
-        let cycles = self.cycle_counter.for_each_cycle(register_change_frequency);
-
-        /*
-        let sample_generation_slice = cycles.min(u64::from(self.sound_timer));
-        let samples_to_generate: u64 = ((self.host_sample_rate * sample_generation_slice)
-            / register_change_frequency)
-            .to_integer();
-
-        for _ in 0..samples_to_generate {
-            self.buffer.enqueue(self.wave_generator.next().unwrap());
+    fn synchronize(&mut self, mut context: SynchronizationContext) {
+        while context.allocate_period(Period::ONE / 60) {
+            self.timer = self.timer.saturating_sub(1);
         }
-        */
+    }
 
-        self.sound_timer = self
-            .sound_timer
-            .saturating_sub(cycles.try_into().unwrap_or(u8::MAX));
-
-        UpdateResult::Complete
-        */
+    fn needs_work(&self, delta: Period) -> bool {
+        delta >= Period::ONE / 60
     }
 }
 
@@ -104,7 +89,7 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
             .insert_audio_output("audio-output");
 
         Ok(Chip8Audio {
-            sound_timer: 0,
+            timer: 0,
             buffer: AllocRingBuffer::new(host_sample_rate.to_integer() as usize),
             wave_generator: SquareWave::new(Ratio::from_integer(440), host_sample_rate, 0.5),
             host_sample_rate,
