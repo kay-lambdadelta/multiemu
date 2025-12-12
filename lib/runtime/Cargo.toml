@@ -47,6 +47,9 @@ vulkano = { version = "0.35", default-features = false, optional = true }
 # Opengl support
 glow = { version = "0.16", optional = true }
 
+[target.'cfg(any(target_family = "unix", target_os = "windows"))'.dependencies]
+memmap2 = "0.9"
+
 [features]
 vulkan = ["dep:vulkano", "dep:naga", "naga/spv-out"]
 opengl = ["dep:glow", "dep:naga", "naga/glsl-out"]

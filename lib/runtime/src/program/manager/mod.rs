@@ -8,6 +8,8 @@ use std::{
     sync::{Arc, LazyLock, Weak},
 };
 
+use bytes::Bytes;
+use cfg_if::cfg_if;
 use redb::{
     Database, MultimapTableDefinition, ReadableDatabase, ReadableMultimapTable,
     backends::InMemoryBackend,
@@ -34,6 +36,7 @@ static DATABASE_CACHE: LazyLock<scc::HashMap<PathBuf, Weak<Database>>> =
 pub struct ProgramManager {
     database: Arc<Database>,
     external_roms: scc::HashMap<RomId, PathBuf, FxBuildHasher>,
+    rom_cache: scc::HashCache<RomId, Bytes>,
     rom_store: PathBuf,
 }
 
@@ -56,6 +59,7 @@ impl Default for ProgramManager {
         Self {
             database: Arc::new(database),
             external_roms: Default::default(),
+            rom_cache: scc::HashCache::with_capacity(0, 16),
             rom_store: PathBuf::default(),
         }
     }
@@ -102,6 +106,7 @@ impl ProgramManager {
         Ok(Arc::new(Self {
             database,
             external_roms: scc::HashMap::default(),
+            rom_cache: scc::HashCache::with_capacity(0, 16),
             rom_store: rom_store_path.to_path_buf(),
         }))
     }
@@ -110,12 +115,40 @@ impl ProgramManager {
     /// requirement is not met
     ///
     /// Components should use this instead of directly opening ROM files
-    pub fn open(&self, id: RomId, requirement: RomRequirement) -> Option<File> {
-        if let Some(path) = self.get_rom_path(id) {
-            if path.is_file() {
-                return Some(File::open(path).unwrap());
+    pub fn open(&self, id: RomId, requirement: RomRequirement) -> Option<Bytes> {
+        match self.rom_cache.entry_sync(id) {
+            scc::hash_cache::Entry::Occupied(bytes) => {
+                return Some(bytes.clone());
             }
-            tracing::error!("ROM {} is not a file", id);
+            scc::hash_cache::Entry::Vacant(vacant_entry) => {
+                if let Some(path) = self.get_rom_path(id) {
+                    if path.is_file() {
+                        let file = File::open(path).unwrap();
+
+                        cfg_if! {
+                            if #[cfg(any(target_family = "unix", target_os = "windows"))] {
+                                // Modifying files on disk that are memmapped is UB, so we attempt to acquire a
+                                // file lock to prevent such a thing
+                                let _ = file.lock_shared();
+                                let buffer = unsafe { memmap2::Mmap::map(&file) }.unwrap();
+
+                                 let bytes = Bytes::from_owner(buffer);
+                            } else {
+                                let mut buffer = Vec::default();
+                                file.read_to_end(&mut buffer);
+
+                                let bytes = Bytes::from_owner(buffer);
+                            }
+                        };
+
+                        vacant_entry.put_entry(bytes.clone());
+
+                        return Some(bytes);
+                    }
+
+                    tracing::error!("ROM {} is not a file", id);
+                }
+            }
         }
 
         match requirement {

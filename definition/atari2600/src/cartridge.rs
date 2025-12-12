@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
@@ -18,7 +19,7 @@ pub enum CartType {
 
 #[derive(Debug)]
 pub struct Atari2600Cartridge {
-    rom: Vec<u8>,
+    rom: Bytes,
     cart_type: CartType,
 }
 
@@ -62,16 +63,14 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let program_manager = component_builder.program_manager();
 
-        let mut rom = program_manager
+        let rom = program_manager
             .open(self.rom, RomRequirement::Required)
             .unwrap();
-        let mut rom_bytes = Vec::default();
-        std::io::copy(&mut rom, &mut rom_bytes).unwrap();
 
-        assert!(rom_bytes.len().is_power_of_two(), "Obviously invalid rom");
+        assert!(rom.len().is_power_of_two(), "Obviously invalid rom");
 
         let cart_type = self.force_cart_type.unwrap_or_else(|| {
-            if rom_bytes.len() <= 0x1000 {
+            if rom.len() <= 0x1000 {
                 CartType::Raw
             } else {
                 todo!()
@@ -80,9 +79,6 @@ impl<P: Platform> ComponentConfig<P> for Atari2600CartridgeConfig {
 
         component_builder.memory_map_component_read(self.cpu_address_space, 0x1000..=0x1fff);
 
-        Ok(Atari2600Cartridge {
-            cart_type,
-            rom: rom_bytes,
-        })
+        Ok(Atari2600Cartridge { cart_type, rom })
     }
 }

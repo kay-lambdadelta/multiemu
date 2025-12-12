@@ -10,15 +10,15 @@ use multiemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     memory::AddressSpaceId,
     platform::Platform,
-    program::Filesystem,
+    program::{Filesystem, RomRequirement},
 };
 use ppu::PpuConfig;
 use rangemap::RangeInclusiveMap;
 
 use crate::{
     cartridge::{
-        NesCartridge,
-        ines::{INesVersion, Mirroring, expansion_device::DefaultExpansionDevice},
+        ines::{INesVersion, Mirroring, RomType, expansion_device::DefaultExpansionDevice},
+        mapper::Mapper,
     },
     gamepad::controller::NesControllerConfig,
     ppu::{
@@ -75,12 +75,29 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             );
         }
 
-        let (machine, cartridge) = machine.insert_component(
+        let rom = machine
+            .program_manager()
+            .open(rom, RomRequirement::Required)
+            .unwrap();
+        let header = INes::parse(rom[0..16].try_into().unwrap()).unwrap();
+
+        #[allow(clippy::zero_prefixed_literal)]
+        let mapper = match header.mapper {
+            000 => Mapper::NRom,
+            001 | 155 => Mapper::Mmc1,
+            _ => {
+                unreachable!()
+            }
+        };
+
+        let (machine, _) = machine.insert_component(
             "cartridge",
             NesCartridgeConfig {
                 cpu_address_space,
                 ppu_address_space,
-                rom,
+                chr: rom.slice(header.roms[&RomType::Chr].clone()),
+                prg: rom.slice(header.roms[&RomType::Prg].clone()),
+                mapper,
             },
         );
 
@@ -100,13 +117,9 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
             },
         );
 
-        let ines = machine
-            .interact::<NesCartridge, _>(&cartridge, |cart| cart.rom())
-            .unwrap();
+        let machine = setup_ppu_nametables(machine, ppu_address_space, &header);
 
-        let machine = setup_ppu_nametables(machine, ppu_address_space, &ines);
-
-        let default_expansion_device = match ines.version {
+        let default_expansion_device = match header.version {
             INesVersion::V1 => None,
             INesVersion::V2 {
                 default_expansion_device,
@@ -210,13 +223,13 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
         );
         */
 
-        match ines.timing_mode {
+        match header.timing_mode {
             // FIXME: Implementing Multi as NTSC for now
             TimingMode::Ntsc | TimingMode::Multi => {
                 let processor_frequency = Ntsc::master_clock() / 12;
 
                 let (machine, processor) = machine.insert_component(
-                    "processor",
+                    "mos_6502",
                     Mos6502Config {
                         frequency: processor_frequency,
                         assigned_address_space: cpu_address_space,

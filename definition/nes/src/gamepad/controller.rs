@@ -96,8 +96,10 @@ impl<P: Platform> ComponentConfig<P> for NesControllerConfig {
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
         let gamepad = create_gamepad();
 
-        let (component_builder, _) = component_builder
-            .insert_gamepad(format!("player-{}", self.controller_index), gamepad.clone());
+        let (component_builder, _) = component_builder.insert_gamepad(
+            &format!("player-{}", self.controller_index),
+            gamepad.clone(),
+        );
 
         let register_location = CONTROLLER_0 + self.controller_index as usize;
         let component_builder = component_builder.memory_map_component_read(

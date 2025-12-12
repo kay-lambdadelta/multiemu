@@ -1,13 +1,10 @@
-use multiemu_definition_misc::memory::rom::RomMemoryConfig;
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
-    memory::AddressSpaceId,
     platform::Platform,
-    program::RomId,
 };
 
-use crate::{INes, cartridge::ines::RomType};
+use crate::cartridge::NesCartridgeConfig;
 
 #[derive(Debug)]
 pub struct NRom;
@@ -16,10 +13,7 @@ impl Component for NRom {}
 
 #[derive(Debug)]
 pub struct NRomConfig<'a> {
-    pub ines: &'a INes,
-    pub rom_id: RomId,
-    pub cpu_address_space: AddressSpaceId,
-    pub ppu_address_space: AddressSpaceId,
+    pub config: &'a NesCartridgeConfig,
 }
 
 impl<P: Platform> ComponentConfig<P> for NRomConfig<'_> {
@@ -29,52 +23,58 @@ impl<P: Platform> ComponentConfig<P> for NRomConfig<'_> {
         self,
         component_builder: ComponentBuilder<P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        let component_builder = match self.ines.prg_bank_count() {
+        let prg_bank_count = self.config.prg.len() / (16 * 1024);
+
+        let component_builder = match prg_bank_count {
             // NROM-128
             1 => {
-                let (component_builder, _) = component_builder.insert_child_component(
+                let (component_builder, prg) = component_builder.memory_register_buffer(
+                    self.config.cpu_address_space,
                     "prg",
-                    RomMemoryConfig {
-                        rom: self.rom_id,
-                        assigned_address_space: self.cpu_address_space,
-                        assigned_range: 0x8000..=0xbfff,
-                        rom_range: self.ines.roms.get(&RomType::Prg).unwrap().clone(),
-                    },
+                    self.config.prg.clone(),
+                );
+
+                let component_builder = component_builder.memory_map_buffer_read(
+                    self.config.cpu_address_space,
+                    0x8000..=0xbfff,
+                    &prg,
                 );
 
                 component_builder.memory_mirror_map_read(
-                    self.cpu_address_space,
+                    self.config.cpu_address_space,
                     0xc000..=0xffff,
                     0x8000..=0xbfff,
                 )
             }
             // NROM-256
             2 => {
-                let (component_builder, _) = component_builder.insert_child_component(
+                let (component_builder, prg) = component_builder.memory_register_buffer(
+                    self.config.cpu_address_space,
                     "prg",
-                    RomMemoryConfig {
-                        rom: self.rom_id,
-                        assigned_address_space: self.cpu_address_space,
-                        assigned_range: 0x8000..=0xffff,
-                        rom_range: self.ines.roms.get(&RomType::Prg).unwrap().clone(),
-                    },
+                    self.config.prg.clone(),
                 );
 
-                component_builder
+                component_builder.memory_map_buffer_read(
+                    self.config.cpu_address_space,
+                    0x8000..=0xffff,
+                    &prg,
+                )
             }
             _ => {
-                panic!("Unsupported PRG ROM size for NROM mapper: {:?}", self.ines);
+                panic!("Unsupported PRG ROM size for NROM mapper");
             }
         };
 
-        component_builder.insert_child_component(
+        let (component_builder, chr) = component_builder.memory_register_buffer(
+            self.config.ppu_address_space,
             "chr",
-            RomMemoryConfig {
-                rom: self.rom_id,
-                assigned_address_space: self.ppu_address_space,
-                assigned_range: 0x0000..=0x1fff,
-                rom_range: self.ines.roms.get(&RomType::Chr).unwrap().clone(),
-            },
+            self.config.chr.clone(),
+        );
+
+        component_builder.memory_map_buffer_read(
+            self.config.ppu_address_space,
+            0x0000..=0x1fff,
+            &chr,
         );
 
         Ok(NRom)

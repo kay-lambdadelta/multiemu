@@ -22,6 +22,7 @@ palette = { workspace = true }
 ringbuffer = { workspace = true }
 rand = { workspace = true }
 arrayvec = { workspace = true }
+bytes = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
 multiemu-frontend = { workspace = true}

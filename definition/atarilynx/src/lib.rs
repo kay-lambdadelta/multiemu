@@ -3,14 +3,13 @@ use std::{ops::RangeInclusive, str::FromStr};
 use mapctl::MapctlConfig;
 use multiemu_definition_misc::memory::{
     null::NullMemoryConfig,
-    rom::RomMemoryConfig,
     standard::{StandardMemoryConfig, StandardMemoryInitialContents},
 };
 use multiemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     memory::Address,
     platform::Platform,
-    program::RomId,
+    program::{RomId, RomRequirement},
 };
 use num::rational::Ratio;
 use rangemap::RangeInclusiveMap;
@@ -62,16 +61,23 @@ impl<P: Platform> MachineFactory<P> for AtariLynx {
             },
         );
 
-        let (machine, rom) = machine.insert_component(
-            "bootstrap",
-            RomMemoryConfig {
+        let rom = machine
+            .program_manager()
+            .open(
                 // "[BIOS] Atari Lynx (World).lyx"
-                rom: RomId::from_str("e4ed47fae31693e016b081c6bda48da5b70d7ccb").unwrap(),
-                assigned_range: 0xfe00..=0xffff,
-                assigned_address_space: cpu_address_space,
-                rom_range: 0x0000..=0x1fff,
-            },
+                RomId::from_str("e4ed47fae31693e016b081c6bda48da5b70d7ccb").unwrap(),
+                RomRequirement::Required,
+            )
+            .unwrap();
+
+        let (machine, bootstrap) = machine.memory_register_buffer(
+            cpu_address_space,
+            "bootstrap",
+            rom.slice(0x0000..=0x1fff),
         );
+
+        let machine =
+            machine.memory_map_buffer_read(cpu_address_space, 0xfe00..=0xffff, &bootstrap);
 
         let (machine, suzy) = machine.insert_component("suzy", SuzyConfig { cpu_address_space });
 

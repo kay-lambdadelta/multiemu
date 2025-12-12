@@ -14,9 +14,10 @@ use bitvec::{
 use color::TiaColor;
 use multiemu_definition_mos6502::RdyFlag;
 use multiemu_runtime::{
-    component::{Component, ComponentPath, ResourcePath, SynchronizationContext},
+    component::{Component, SynchronizationContext},
     machine::Machine,
     memory::{Address, AddressSpaceId, MemoryError},
+    path::MultiemuPath,
     scheduler::Period,
 };
 use nalgebra::Point2;
@@ -125,7 +126,7 @@ pub(crate) struct Tia<R: Region, G: SupportedGraphicsApiTia> {
     cpu_rdy: Arc<RdyFlag>,
     machine: Weak<Machine>,
     timestamp: Period,
-    my_path: ComponentPath,
+    my_path: MultiemuPath,
 }
 
 impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
@@ -169,7 +170,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         }
     }
 
-    fn access_framebuffer(&mut self, _path: &ResourcePath) -> &dyn Any {
+    fn access_framebuffer(&mut self, _path: &MultiemuPath) -> &dyn Any {
         self.backend.as_mut().unwrap().access_framebuffer()
     }
 

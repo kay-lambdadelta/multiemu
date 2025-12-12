@@ -8,12 +8,13 @@ use std::{
     sync::Arc,
 };
 
+use bytes::Bytes;
 use indexmap::IndexMap;
 use num::rational::Ratio;
 use rustc_hash::FxBuildHasher;
 
 use crate::{
-    component::{Component, ComponentConfig, ComponentPath, LateInitializedData},
+    component::{Component, ComponentConfig, LateInitializedData},
     graphics::GraphicsApi,
     machine::{
         Machine,
@@ -27,6 +28,7 @@ use crate::{
     memory::{
         Address, AddressSpace, AddressSpaceId, MapTarget, MemoryRemappingCommand, Permissions,
     },
+    path::MultiemuPath,
     persistence::{SaveManager, SnapshotManager},
     platform::Platform,
     program::{MachineId, ProgramManager, ProgramSpecification},
@@ -46,7 +48,7 @@ pub struct MachineBuilder<P: Platform> {
     /// The store for components
     pub(super) registry: ComponentRegistry,
     /// Component metadata
-    pub(super) component_metadata: IndexMap<ComponentPath, ComponentMetadata<P>, FxBuildHasher>,
+    pub(super) component_metadata: IndexMap<MultiemuPath, ComponentMetadata<P>, FxBuildHasher>,
     /// Program we were opened with
     pub(super) program_specification: Option<ProgramSpecification>,
     /// Scheduler
@@ -98,11 +100,7 @@ impl<P: Platform> MachineBuilder<P> {
     }
 
     #[inline]
-    fn insert_component_with_path<B: ComponentConfig<P>>(
-        &mut self,
-        path: ComponentPath,
-        config: B,
-    ) {
+    fn insert_component_with_path<B: ComponentConfig<P>>(&mut self, path: MultiemuPath, config: B) {
         let mut component_metadata = ComponentMetadata::new::<B>();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
@@ -132,13 +130,13 @@ impl<P: Platform> MachineBuilder<P> {
         mut self,
         name: &str,
         config: B,
-    ) -> (Self, ComponentPath) {
+    ) -> (Self, MultiemuPath) {
         assert!(
-            !name.contains(ComponentPath::SEPARATOR),
+            !name.contains(MultiemuPath::SEPARATOR),
             "This function requires a name not a path"
         );
 
-        let path = ComponentPath::from_str(name).unwrap();
+        let path = MultiemuPath::from_str(&format!(":component/{}", name)).unwrap();
         self.insert_component_with_path(path.clone(), config);
 
         (self, path)
@@ -149,7 +147,7 @@ impl<P: Platform> MachineBuilder<P> {
     pub fn insert_default_component<B: ComponentConfig<P> + Default>(
         self,
         name: &str,
-    ) -> (Self, ComponentPath) {
+    ) -> (Self, MultiemuPath) {
         let config = B::default();
         self.insert_component(name, config)
     }
@@ -248,9 +246,51 @@ impl<P: Platform> MachineBuilder<P> {
         self
     }
 
+    pub fn memory_register_buffer(
+        mut self,
+        address_space: AddressSpaceId,
+        name: &str,
+        buffer: Bytes,
+    ) -> (Self, MultiemuPath) {
+        let resource_path = MultiemuPath::from_str(&format!(":resource/{}", name)).unwrap();
+
+        self.address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Register {
+                path: resource_path.clone(),
+                buffer,
+            });
+
+        (self, resource_path)
+    }
+
+    pub fn memory_map_buffer_read(
+        mut self,
+        address_space: AddressSpaceId,
+        range: RangeInclusive<Address>,
+        path: &MultiemuPath,
+    ) -> Self {
+        self.address_spaces
+            .get_mut(&address_space)
+            .unwrap()
+            .memory_map_queue
+            .push(MemoryRemappingCommand::Map {
+                range,
+                target: MapTarget::Memory(path.clone()),
+                permissions: Permissions {
+                    read: true,
+                    write: false,
+                },
+            });
+
+        self
+    }
+
     pub fn interact<C: Component, T>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&C) -> T,
     ) -> Option<T> {
         self.registry
@@ -259,7 +299,7 @@ impl<P: Platform> MachineBuilder<P> {
 
     pub fn interact_mut<C: Component, T: 'static>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&mut C) -> T,
     ) -> Option<T> {
         self.registry

@@ -11,13 +11,11 @@ pub(crate) use event_queue::{EventQueue, EventType, QueuedEvent};
 use fixed::{FixedU128, types::extra::U64};
 use rustc_hash::FxBuildHasher;
 
-use crate::component::{ComponentHandle, ComponentPath};
+use crate::{component::ComponentHandle, path::MultiemuPath};
 
 mod event_queue;
 #[cfg(test)]
 mod tests;
-
-// NOTE: These operations are purely so our minheap schedule timeline works
 
 #[derive(Debug)]
 pub struct DrivenComponent {
@@ -31,7 +29,7 @@ pub struct DrivenComponent {
 #[derive(Debug)]
 pub(crate) struct Scheduler {
     pub event_queue: Arc<EventQueue>,
-    driven: HashMap<ComponentPath, DrivenComponent, FxBuildHasher>,
+    driven: HashMap<MultiemuPath, DrivenComponent, FxBuildHasher>,
     now: AtomicCell<Period>,
 }
 
@@ -44,7 +42,7 @@ impl Scheduler {
         }
     }
 
-    pub fn register_driven_component(&mut self, path: ComponentPath, component: ComponentHandle) {
+    pub fn register_driven_component(&mut self, path: MultiemuPath, component: ComponentHandle) {
         self.driven.insert(path, DrivenComponent { component });
     }
 

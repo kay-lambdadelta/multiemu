@@ -3,9 +3,10 @@ use std::{borrow::Cow, collections::HashMap, sync::Arc};
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu_definition_misc::mos6532_riot::{Mos6532Riot, SwchaCallback};
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentPath},
+    component::{Component, ComponentConfig},
     input::{GamepadInput, Input, VirtualGamepad, VirtualGamepadMetadata, keyboard::KeyboardInput},
     machine::builder::ComponentBuilder,
+    path::MultiemuPath,
     platform::Platform,
 };
 
@@ -43,7 +44,7 @@ impl<P: Platform> ComponentConfig<P> for Atari2600JoystickConfig {
 
 #[derive(Debug)]
 pub struct Atari2600JoystickConfig {
-    pub mos6532_riot: ComponentPath,
+    pub mos6532_riot: MultiemuPath,
 }
 
 #[derive(Debug)]

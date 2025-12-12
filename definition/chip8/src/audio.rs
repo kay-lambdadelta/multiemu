@@ -2,10 +2,9 @@ use std::io::{Read, Write};
 
 use multiemu_audio::SquareWave;
 use multiemu_runtime::{
-    component::{
-        Component, ComponentConfig, ComponentVersion, ResourcePath, SynchronizationContext,
-    },
+    component::{Component, ComponentConfig, ComponentVersion, SynchronizationContext},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
+    path::MultiemuPath,
     platform::Platform,
     scheduler::Period,
 };
@@ -56,7 +55,7 @@ impl Component for Chip8Audio {
 
     fn drain_samples(
         &mut self,
-        _audio_output_path: &ResourcePath,
+        _audio_output_path: &MultiemuPath,
     ) -> &mut AllocRingBuffer<SVector<f32, 2>> {
         &mut self.buffer
     }

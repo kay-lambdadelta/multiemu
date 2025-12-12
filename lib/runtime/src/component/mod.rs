@@ -10,19 +10,18 @@ use std::{
 pub use handle::*;
 use multiemu_range::ContiguousRange;
 use nalgebra::SVector;
-pub use path::{ComponentPath, ResourcePath};
 use ringbuffer::AllocRingBuffer;
 
 use crate::{
     graphics::GraphicsApi,
     machine::{Machine, builder::ComponentBuilder},
     memory::{Address, AddressSpaceId, MemoryError, MemoryErrorType},
+    path::MultiemuPath,
     platform::Platform,
     scheduler::{EventQueue, Period},
 };
 
 mod handle;
-mod path;
 
 #[allow(unused)]
 /// Basic supertrait for all components
@@ -93,14 +92,14 @@ pub trait Component: Send + Sync + Debug + Any {
     // TODO: Find out a non nightmarish way to have the platform generic here
 
     /// The [Any] needs to be cast to a [`GraphicsApi::FramebufferTexture`]
-    fn access_framebuffer(&mut self, path: &ResourcePath) -> &dyn Any {
+    fn access_framebuffer(&mut self, path: &MultiemuPath) -> &dyn Any {
         unreachable!()
     }
 
     /// Give the runtime the audio sample ring buffer
     fn drain_samples(
         &mut self,
-        audio_output_path: &ResourcePath,
+        audio_output_path: &MultiemuPath,
     ) -> &mut AllocRingBuffer<SVector<f32, 2>> {
         unreachable!()
     }

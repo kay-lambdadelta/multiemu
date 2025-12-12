@@ -20,9 +20,9 @@ struct AddressSpaceInfo {
 pub enum SchedulerParticipation {
     /// The scheduler will make no attempt to time synchronize this component
     None,
-    /// [`Component::synchronize`] will only be called upon interaction
+    /// [`crate::component::Component::synchronize`] will only be called upon interaction
     OnDemand,
-    /// [`Component::synchronize`] will also be called when the scheduler advances time
+    /// [`crate::component::Component::synchronize`] will also be called when the scheduler advances time
     SchedulerDriven,
 }
 

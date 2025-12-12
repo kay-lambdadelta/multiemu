@@ -5,9 +5,9 @@ use gamepad::joystick::Atari2600JoystickConfig;
 use multiemu_definition_misc::mos6532_riot::Mos6532RiotConfig;
 use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
 use multiemu_runtime::{
-    component::ComponentPath,
     machine::{MachineFactory, builder::MachineBuilder},
     memory::{Address, AddressSpaceId},
+    path::MultiemuPath,
     platform::Platform,
     program::Filesystem,
 };
@@ -85,7 +85,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
 fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
     cpu_address_space: AddressSpaceId,
     machine: MachineBuilder<P>,
-) -> (MachineBuilder<P>, ComponentPath) {
+) -> (MachineBuilder<P>, MultiemuPath) {
     let (machine, cpu) = machine.insert_component(
         "mos_6502",
         Mos6502Config {

@@ -6,18 +6,18 @@ use multiemu_range::{ContiguousRange, RangeIntersection};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::{
-    component::{ComponentPath, ResourcePath},
     machine::registry::ComponentRegistry,
     memory::{
         Address, ComputedTablePage, ComputedTablePageTarget, MappingEntry, MemoryMappingTable,
         PAGE_SIZE,
     },
+    path::MultiemuPath,
 };
 
 #[derive(Debug, Clone)]
 pub enum MapTarget {
-    Component(ComponentPath),
-    Memory(ResourcePath),
+    Component(MultiemuPath),
+    Memory(MultiemuPath),
     Mirror {
         destination: RangeInclusive<Address>,
     },
@@ -39,7 +39,7 @@ pub enum MemoryRemappingCommand {
         permissions: Permissions,
     },
     /// Register a buffer or another item
-    Register { id: ResourcePath, buffer: Bytes },
+    Register { path: MultiemuPath, buffer: Bytes },
 }
 
 #[allow(missing_docs)]
@@ -65,7 +65,7 @@ impl MemoryMappingTable {
     pub(super) fn commit(
         &mut self,
         registry: &ComponentRegistry,
-        resources: &scc::HashMap<ResourcePath, Bytes>,
+        resources: &scc::HashMap<MultiemuPath, Bytes>,
     ) {
         // Process all pages in parallel
         self.computed_table
@@ -145,7 +145,7 @@ impl MemoryMappingTable {
                                             let destination_overlap = assigned_destination_range
                                                 .intersection(destination_range);
 
-                                            debug_assert_eq!(
+                                            assert_eq!(
                                                 destination_overlap.len(),
                                                 calculated_source_range.len()
                                             );

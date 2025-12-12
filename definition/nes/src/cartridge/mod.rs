@@ -1,30 +1,19 @@
-use std::io::{BufReader, Read};
-
-use ines::INes;
+use bytes::Bytes;
 use multiemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,
     platform::Platform,
-    program::{RomId, RomRequirement},
 };
 use serde::{Deserialize, Serialize};
 
-use crate::cartridge::mapper::{mmc1::Mmc1Config, nrom::NRomConfig};
+use crate::cartridge::mapper::{Mapper, mmc1::Mmc1Config, nrom::NRomConfig};
 
 pub mod ines;
 pub mod mapper;
 
 #[derive(Debug)]
-pub struct NesCartridge {
-    rom: INes,
-}
-
-impl NesCartridge {
-    pub fn rom(&self) -> INes {
-        self.rom.clone()
-    }
-}
+pub struct NesCartridge;
 
 impl Component for NesCartridge {}
 
@@ -32,12 +21,14 @@ impl Component for NesCartridge {}
 pub struct NesCartridgeConfig {
     pub cpu_address_space: AddressSpaceId,
     pub ppu_address_space: AddressSpaceId,
-    pub rom: RomId,
+    pub chr: Bytes,
+    pub prg: Bytes,
+    pub mapper: Mapper,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct NesCartridgeQuirks {
-    pub force_mapper: u8,
+    pub force_mapper: Mapper,
 }
 
 impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
@@ -47,55 +38,22 @@ impl<P: Platform> ComponentConfig<P> for NesCartridgeConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        let program_manager = component_builder.program_manager();
-
-        let mut rom_file = BufReader::new(
-            program_manager
-                .open(self.rom, RomRequirement::Required)
-                .unwrap(),
-        );
-
-        let mut header = [0; 16];
-        rom_file.read_exact(&mut header).unwrap();
-
-        // Try parsing as a INES rom
-        let ines = INes::parse(header).unwrap();
-
-        tracing::info!("Loaded INES ROM: {:?}", ines);
-
-        #[allow(clippy::zero_prefixed_literal)]
-        match ines.mapper {
-            000 => {
+        match self.mapper {
+            Mapper::NRom => {
                 component_builder
-                    .insert_child_component(
-                        "nrom",
-                        NRomConfig {
-                            ines: &ines,
-                            rom_id: self.rom,
-                            cpu_address_space: self.cpu_address_space,
-                            ppu_address_space: self.ppu_address_space,
-                        },
-                    )
+                    .insert_child_component("nrom", NRomConfig { config: &self })
                     .0
             }
-            001 | 155 => {
+            Mapper::Mmc1 => {
                 component_builder
-                    .insert_child_component(
-                        "mmc1",
-                        Mmc1Config {
-                            ines: &ines,
-                            rom_id: self.rom,
-                            cpu_address_space: self.cpu_address_space,
-                            ppu_address_space: self.ppu_address_space,
-                        },
-                    )
+                    .insert_child_component("mmc1", Mmc1Config { config: &self })
                     .0
             }
             _ => {
-                unreachable!("Unsupported mapper {}", ines.mapper);
+                unreachable!("Unsupported mapper {:?}", self.mapper);
             }
         };
 
-        Ok(NesCartridge { rom: ines })
+        Ok(NesCartridge)
     }
 }

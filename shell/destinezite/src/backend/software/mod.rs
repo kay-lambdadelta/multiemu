@@ -128,7 +128,7 @@ impl SoftwareGraphicsRuntime {
     ) {
         for display_path in machine.displays.iter() {
             machine
-                .interact_dyn_mut(&display_path.component, |component| {
+                .interact_dyn_mut(display_path, |component| {
                     let display = component.access_framebuffer(display_path);
 
                     let display: &<Software as GraphicsApi>::FramebufferTexture =

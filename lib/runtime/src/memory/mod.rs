@@ -14,10 +14,7 @@ use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use thiserror::Error;
 
-use crate::{
-    component::{ComponentHandle, ComponentPath, ResourcePath},
-    machine::registry::ComponentRegistry,
-};
+use crate::{component::ComponentHandle, machine::registry::ComponentRegistry, path::MultiemuPath};
 
 mod commit;
 mod overlapping;
@@ -34,7 +31,7 @@ pub struct AddressSpace {
     address_space_width: u8,
     id: AddressSpaceId,
     members: Arc<ArcSwap<Members>>,
-    resources: scc::HashMap<ResourcePath, Bytes>,
+    resources: scc::HashMap<MultiemuPath, Bytes>,
 }
 
 impl AddressSpace {
@@ -157,7 +154,7 @@ impl AddressSpace {
                             members.write.master.remove(range.clone());
                         }
                     }
-                    MemoryRemappingCommand::Register { id, buffer } => {
+                    MemoryRemappingCommand::Register { path: id, buffer } => {
                         self.resources.insert_sync(id, buffer).unwrap();
                     }
                 }
@@ -201,12 +198,12 @@ impl Debug for ComputedTablePage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MappingEntry {
-    Component(ComponentPath),
+    Component(MultiemuPath),
     Mirror {
         source_base: Address,
         destination_base: Address,
     },
-    Memory(ResourcePath),
+    Memory(MultiemuPath),
 }
 
 #[derive(Debug, Clone)]
@@ -256,10 +253,18 @@ pub enum MemoryErrorType {
     Impossible,
 }
 
-#[derive(Error, Debug)]
+#[derive(Error)]
 #[error("Memory operation failed: {0:#x?}")]
 /// Wrapper around the error type in order to specify ranges
 pub struct MemoryError(pub RangeInclusiveMap<Address, MemoryErrorType>);
+
+impl Debug for MemoryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("MemoryError")
+            .field(&format_args!("{:x?}", self.0))
+            .finish()
+    }
+}
 
 #[derive(Debug)]
 pub struct AddressSpaceCache {

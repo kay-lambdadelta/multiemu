@@ -9,7 +9,6 @@ multiemu-runtime = { workspace = true }
 multiemu-range = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
-rangemap = { workspace = true }
 tracing = { workspace = true }
 bitvec = { workspace = true }
 strum = { workspace = true }
@@ -19,6 +18,7 @@ nalgebra = { workspace = true }
 palette = { workspace = true }
 bytemuck = { workspace = true }
 bincode = { workspace = true }
+bytes = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
 multiemu-frontend = { workspace = true }

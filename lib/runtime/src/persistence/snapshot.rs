@@ -10,8 +10,7 @@ use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    component::{ComponentPath, ComponentVersion},
-    machine::registry::ComponentRegistry,
+    component::ComponentVersion, machine::registry::ComponentRegistry, path::MultiemuPath,
     program::RomId,
 };
 
@@ -21,7 +20,7 @@ pub type SnapshotSlot = u16;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SnapshotMetadata {
-    pub components: HashMap<ComponentPath, ComponentSnapshotInfo>,
+    pub components: HashMap<MultiemuPath, ComponentSnapshotInfo>,
     /// compression always implies zlib compression
     pub compressed: bool,
 }

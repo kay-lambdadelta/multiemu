@@ -12,6 +12,8 @@ pub mod input;
 pub mod machine;
 /// Memory access utilities
 pub mod memory;
+/// Path
+pub mod path;
 /// Saves and snapshots
 pub mod persistence;
 /// Platform description utilities

@@ -263,7 +263,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         if let Some(machine) = machine {
             for display_path in machine.displays.iter() {
                 machine
-                    .interact_dyn_mut(&display_path.component, |component| {
+                    .interact_dyn_mut(display_path, |component| {
                         let display = component.access_framebuffer(display_path);
 
                         let display: &<Vulkan as GraphicsApi>::FramebufferTexture =

@@ -10,12 +10,12 @@ use input::{Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu_runtime::{
     component::{
-        Component, ComponentConfig, ComponentPath, ComponentVersion, SynchronizationContext,
-        TypedComponentHandle,
+        Component, ComponentConfig, ComponentVersion, SynchronizationContext, TypedComponentHandle,
     },
     input::{VirtualGamepad, VirtualGamepadMetadata},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     memory::{AddressSpace, AddressSpaceId},
+    path::MultiemuPath,
     platform::Platform,
     scheduler::{Frequency, Period},
 };
@@ -235,9 +235,9 @@ impl<G: SupportedGraphicsApiChip8Display> Component for Chip8Processor<G> {
 #[derive(Debug)]
 pub struct Chip8ProcessorConfig<G: SupportedGraphicsApiChip8Display> {
     pub cpu_address_space: AddressSpaceId,
-    pub display: ComponentPath,
-    pub audio: ComponentPath,
-    pub timer: ComponentPath,
+    pub display: MultiemuPath,
+    pub audio: MultiemuPath,
+    pub timer: MultiemuPath,
     pub frequency: Frequency,
     pub force_mode: Option<Chip8Mode>,
     pub always_shr_in_place: bool,

@@ -4,7 +4,7 @@ use multiemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
 use multiemu_runtime::{
-    component::ComponentPath, machine::Machine, memory::AddressSpaceId, scheduler::Frequency,
+    machine::Machine, memory::AddressSpaceId, path::MultiemuPath, scheduler::Frequency,
 };
 use rangemap::RangeInclusiveMap;
 
@@ -12,7 +12,7 @@ use crate::{Mos6502Config, Mos6502Kind};
 
 mod adc;
 
-fn instruction_test_boilerplate() -> (Arc<Machine>, ComponentPath, AddressSpaceId) {
+fn instruction_test_boilerplate() -> (Arc<Machine>, MultiemuPath, AddressSpaceId) {
     let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
     let (machine, cpu) = machine.insert_component(

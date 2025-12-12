@@ -178,13 +178,11 @@ impl StandardMemory {
                     self.buffer[range.clone()].copy_from_slice(value);
                 }
                 StandardMemoryInitialContents::Rom(rom_id) => {
-                    let mut rom_file = self
+                    let rom = self
                         .program_manager
                         .open(*rom_id, RomRequirement::Required)
                         .unwrap();
 
-                    let mut rom = Vec::new();
-                    rom_file.read_to_end(&mut rom).unwrap();
                     let actual_buffer_range = range.intersection(
                         &RangeInclusive::from_start_and_length(*range.start(), rom.len()),
                     );

@@ -15,12 +15,14 @@ use std::{
 use nohash::BuildNoHashHasher;
 use num::rational::Ratio;
 use rustc_hash::FxBuildHasher;
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    component::{Component, ComponentHandle, ComponentPath, ResourcePath, TypedComponentHandle},
+    component::{Component, ComponentHandle, TypedComponentHandle},
     input::VirtualGamepad,
     machine::{builder::MachineBuilder, registry::ComponentRegistry},
     memory::{AddressSpace, AddressSpaceId, MemoryRemappingCommand},
+    path::MultiemuPath,
     persistence::{SaveManager, SnapshotManager},
     platform::{Platform, TestPlatform},
     program::{ProgramManager, ProgramSpecification},
@@ -44,13 +46,13 @@ where
     pub address_spaces:
         HashMap<AddressSpaceId, Arc<AddressSpace>, BuildNoHashHasher<AddressSpaceId>>,
     /// All virtual gamepads inserted by components
-    pub virtual_gamepads: HashMap<ResourcePath, Arc<VirtualGamepad>, FxBuildHasher>,
+    pub virtual_gamepads: HashMap<MultiemuPath, Arc<VirtualGamepad>, FxBuildHasher>,
     /// Component Registry
     pub(crate) registry: ComponentRegistry,
     /// All displays this machine has
-    pub displays: HashSet<ResourcePath>,
+    pub displays: HashSet<MultiemuPath>,
     /// All audio outputs this machine has
-    pub audio_outputs: HashSet<ResourcePath>,
+    pub audio_outputs: HashSet<MultiemuPath>,
     /// The program that this machine was set up with, if any
     pub program_specification: Option<ProgramSpecification>,
     #[allow(unused)]
@@ -118,7 +120,7 @@ impl Machine {
     pub fn schedule_event<C: Component>(
         &self,
         time: Period,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&mut C, Period) + Send + Sync + 'static,
     ) {
         let component = self.registry.handle(path).unwrap();
@@ -140,7 +142,7 @@ impl Machine {
         &self,
         time: Period,
         frequency: Frequency,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         mut callback: impl FnMut(&mut C, Period) + Send + Sync + 'static,
     ) {
         let component = self.registry.handle(path).unwrap();
@@ -179,7 +181,7 @@ impl Machine {
 
     pub fn interact<C: Component, T>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&C) -> T,
     ) -> Option<T> {
         let now = self.now();
@@ -190,7 +192,7 @@ impl Machine {
 
     pub fn interact_mut<C: Component, T: 'static>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&mut C) -> T,
     ) -> Option<T> {
         let now = self.now();
@@ -201,7 +203,7 @@ impl Machine {
 
     pub fn interact_dyn<T>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Option<T> {
         let now = self.now();
@@ -212,7 +214,7 @@ impl Machine {
 
     pub fn interact_dyn_mut<T>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&mut dyn Component) -> T,
     ) -> Option<T> {
         let now = self.now();
@@ -223,12 +225,12 @@ impl Machine {
 
     pub fn typed_handle<C: Component>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
     ) -> Option<TypedComponentHandle<C>> {
         self.registry.typed_handle(path)
     }
 
-    pub fn component_handle(&self, path: &ComponentPath) -> Option<ComponentHandle> {
+    pub fn component_handle(&self, path: &MultiemuPath) -> Option<ComponentHandle> {
         self.registry.handle(path)
     }
 }
@@ -239,11 +241,5 @@ pub trait MachineFactory<P: Platform>: Send + Sync + 'static {
     fn construct(&self, machine_builder: MachineBuilder<P>) -> MachineBuilder<P>;
 }
 
-/// Implement for closures
-impl<P: Platform, F: Fn(MachineBuilder<P>) -> MachineBuilder<P> + Send + Sync + 'static>
-    MachineFactory<P> for F
-{
-    fn construct(&self, machine_builder: MachineBuilder<P>) -> MachineBuilder<P> {
-        self(machine_builder)
-    }
-}
+pub trait Quirks: Serialize + DeserializeOwned + Debug + Clone + Default + 'static {}
+impl<T: Serialize + DeserializeOwned + Debug + Clone + Default + 'static> Quirks for T {}

@@ -73,6 +73,8 @@ pub(crate) struct QueuedEvent {
     pub time: Reverse<Period>,
 }
 
+// NOTE: These operations are purely so our minheap schedule timeline works
+
 impl PartialEq for QueuedEvent {
     fn eq(&self, other: &Self) -> bool {
         self.time.eq(&other.time)

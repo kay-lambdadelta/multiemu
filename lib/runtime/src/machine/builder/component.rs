@@ -1,6 +1,5 @@
 use std::{
     any::Any,
-    borrow::Cow,
     collections::{HashMap, HashSet},
     io::Read,
     marker::PhantomData,
@@ -13,8 +12,8 @@ use num::rational::Ratio;
 
 use crate::{
     component::{
-        Component, ComponentConfig, ComponentHandle, ComponentPath, ComponentVersion,
-        LateInitializedData, ResourcePath, TypedComponentHandle,
+        Component, ComponentConfig, ComponentHandle, ComponentVersion, LateInitializedData,
+        TypedComponentHandle,
     },
     input::VirtualGamepad,
     machine::{
@@ -24,6 +23,7 @@ use crate::{
     memory::{
         Address, AddressSpace, AddressSpaceId, MapTarget, MemoryRemappingCommand, Permissions,
     },
+    path::{MultiemuPath, Namespace},
     platform::Platform,
     program::ProgramManager,
     scheduler::{EventType, Frequency, Period},
@@ -31,10 +31,10 @@ use crate::{
 
 /// Overall data extracted from components needed for machine initialization
 pub(super) struct ComponentMetadata<P: Platform> {
-    pub displays: HashSet<ResourcePath>,
+    pub displays: HashSet<MultiemuPath>,
     pub graphics_requirements: GraphicsRequirements<P::GraphicsApi>,
-    pub audio_outputs: HashSet<ResourcePath>,
-    pub gamepads: HashMap<ResourcePath, Arc<VirtualGamepad>>,
+    pub audio_outputs: HashSet<MultiemuPath>,
+    pub gamepads: HashMap<MultiemuPath, Arc<VirtualGamepad>>,
     #[allow(clippy::type_complexity)]
     pub late_initializer: Box<dyn FnOnce(&mut dyn Component, &LateInitializedData<P>)>,
     pub scheduler_participation: SchedulerParticipation,
@@ -62,12 +62,12 @@ impl<P: Platform> ComponentMetadata<P> {
 pub struct ComponentBuilder<'a, P: Platform, C: Component> {
     pub(super) machine_builder: &'a mut MachineBuilder<P>,
     pub(super) component_metadata: &'a mut ComponentMetadata<P>,
-    pub(super) path: &'a ComponentPath,
+    pub(super) path: &'a MultiemuPath,
     pub(super) _phantom: PhantomData<C>,
 }
 
 impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
-    pub fn path(&self) -> &'a ComponentPath {
+    pub fn path(&self) -> &'a MultiemuPath {
         self.path
     }
 
@@ -98,7 +98,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn interact<C2: Component, T>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&C2) -> T,
     ) -> Option<T> {
         self.machine_builder
@@ -108,7 +108,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn interact_mut<C2: Component, T: 'static>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
         callback: impl FnOnce(&mut C2) -> T,
     ) -> Option<T> {
         self.machine_builder
@@ -118,12 +118,12 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn typed_handle<C2: Component>(
         &self,
-        path: &ComponentPath,
+        path: &MultiemuPath,
     ) -> Option<TypedComponentHandle<C2>> {
         self.machine_builder.registry.typed_handle(path)
     }
 
-    pub fn handle(&self, path: &ComponentPath) -> Option<ComponentHandle> {
+    pub fn handle(&self, path: &MultiemuPath) -> Option<ComponentHandle> {
         self.machine_builder.registry.handle(path)
     }
 
@@ -132,21 +132,21 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self,
         name: &str,
         config: B,
-    ) -> (Self, ComponentPath) {
+    ) -> (Self, MultiemuPath) {
         assert!(
-            !name.contains(ComponentPath::SEPARATOR),
+            !name.contains(MultiemuPath::SEPARATOR),
             "This function requires a name not a path"
         );
 
-        let mut path = self.path.clone();
-        path.push(name).unwrap();
+        let mut component_path = self.path.clone();
+        component_path.push(Namespace::Component, name);
 
         let mut component_metadata = ComponentMetadata::new::<B>();
 
         let component_builder = ComponentBuilder::<P, B::Component> {
             machine_builder: self.machine_builder,
             component_metadata: &mut component_metadata,
-            path: &path,
+            path: &component_path,
             _phantom: PhantomData,
         };
 
@@ -155,7 +155,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .expect("Failed to build component");
 
         self.machine_builder.registry.insert_component(
-            path.clone(),
+            component_path.clone(),
             component_metadata.scheduler_participation,
             self.machine_builder.scheduler.event_queue.clone(),
             component,
@@ -163,25 +163,23 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
         self.machine_builder
             .component_metadata
-            .insert(path.clone(), component_metadata);
+            .insert(component_path.clone(), component_metadata);
 
-        (self, path)
+        (self, component_path)
     }
 
     /// Insert a component with a default config
     pub fn insert_default_child_component<B: ComponentConfig<P> + Default>(
         self,
         name: &str,
-    ) -> (Self, ComponentPath) {
+    ) -> (Self, MultiemuPath) {
         let config = B::default();
         self.insert_child_component(name, config)
     }
 
-    pub fn insert_audio_output(self, name: impl Into<Cow<'static, str>>) -> (Self, ResourcePath) {
-        let resource_path = ResourcePath {
-            component: self.path.clone(),
-            name: name.into(),
-        };
+    pub fn insert_audio_output(self, name: &str) -> (Self, MultiemuPath) {
+        let mut resource_path = self.path.clone();
+        resource_path.push(Namespace::Resource, name);
 
         self.component_metadata
             .audio_outputs
@@ -190,11 +188,9 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         (self, resource_path)
     }
 
-    pub fn insert_display(self, name: impl Into<Cow<'static, str>>) -> (Self, ResourcePath) {
-        let resource_path = ResourcePath {
-            component: self.path.clone(),
-            name: name.into(),
-        };
+    pub fn insert_display(self, name: &str) -> (Self, MultiemuPath) {
+        let mut resource_path = self.path.clone();
+        resource_path.push(Namespace::Resource, name);
 
         self.component_metadata
             .displays
@@ -203,15 +199,9 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         (self, resource_path)
     }
 
-    pub fn insert_gamepad(
-        self,
-        name: impl Into<Cow<'static, str>>,
-        gamepad: Arc<VirtualGamepad>,
-    ) -> (Self, ResourcePath) {
-        let resource_path = ResourcePath {
-            component: self.path.clone(),
-            name: name.into(),
-        };
+    pub fn insert_gamepad(self, name: &str, gamepad: Arc<VirtualGamepad>) -> (Self, MultiemuPath) {
+        let mut resource_path = self.path.clone();
+        resource_path.push(Namespace::Resource, name);
 
         self.component_metadata
             .gamepads
@@ -361,11 +351,9 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         address_space: AddressSpaceId,
         name: &str,
         buffer: Bytes,
-    ) -> (Self, ResourcePath) {
-        let path = ResourcePath {
-            component: self.path.clone(),
-            name: Cow::Owned(name.to_string()),
-        };
+    ) -> (Self, MultiemuPath) {
+        let mut resource_path = self.path.clone();
+        resource_path.push(Namespace::Resource, name);
 
         self.machine_builder
             .address_spaces
@@ -373,18 +361,18 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             .unwrap()
             .memory_map_queue
             .push(MemoryRemappingCommand::Register {
-                id: path.clone(),
+                path: resource_path.clone(),
                 buffer,
             });
 
-        (self, path)
+        (self, resource_path)
     }
 
     pub fn memory_map_buffer_read(
         self,
         address_space: AddressSpaceId,
         range: RangeInclusive<Address>,
-        path: &ResourcePath,
+        path: &MultiemuPath,
     ) -> Self {
         self.machine_builder
             .address_spaces

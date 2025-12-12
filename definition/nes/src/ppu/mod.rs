@@ -13,15 +13,13 @@ use bitvec::{array::BitArray, field::BitField, prelude::Lsb0, view::BitView};
 use multiemu_definition_mos6502::{Mos6502, NmiFlag, RdyFlag};
 use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
-    component::{
-        Component, ComponentConfig, ComponentPath, LateInitializedData, ResourcePath,
-        SynchronizationContext,
-    },
+    component::{Component, ComponentConfig, LateInitializedData, SynchronizationContext},
     machine::{
         Machine,
         builder::{ComponentBuilder, SchedulerParticipation},
     },
     memory::{Address, AddressSpace, AddressSpaceCache, AddressSpaceId, MemoryError},
+    path::MultiemuPath,
     platform::Platform,
     scheduler::Period,
 };
@@ -88,7 +86,7 @@ pub struct ColorEmphasis {
 pub struct PpuConfig<R: Region> {
     pub cpu_address_space: AddressSpaceId,
     pub ppu_address_space: AddressSpaceId,
-    pub processor: ComponentPath,
+    pub processor: MultiemuPath,
     pub _phantom: PhantomData<R>,
 }
 
@@ -101,7 +99,7 @@ pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
     processor_rdy: Arc<RdyFlag>,
     processor_nmi: Arc<NmiFlag>,
     ppu_address_space_cache: AddressSpaceCache,
-    my_path: ComponentPath,
+    my_path: MultiemuPath,
     machine: Weak<Machine>,
     timestamp: Period,
     period: Period,
@@ -490,7 +488,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
         Ok(())
     }
 
-    fn access_framebuffer(&mut self, _path: &ResourcePath) -> &dyn Any {
+    fn access_framebuffer(&mut self, _path: &MultiemuPath) -> &dyn Any {
         self.backend.as_mut().unwrap().access_framebuffer()
     }
 
