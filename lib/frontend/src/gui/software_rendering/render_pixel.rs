@@ -8,6 +8,7 @@ use palette::{
 
 use super::Triangle;
 
+#[inline]
 pub(super) fn render_pixel<P: ComponentOrder<Srgba<u8>, u32> + Scalar>(
     position: Point2<f32>,
     triangle: &Triangle,

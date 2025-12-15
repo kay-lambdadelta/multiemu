@@ -7,6 +7,7 @@ use palette::{
     cast::{ComponentOrder, Packed},
     named::BLACK,
 };
+use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 
 mod render_pixel;
 
@@ -157,20 +158,21 @@ impl SoftwareEguiRenderer {
                         let mut bounding_box =
                             render_buffer.view_range_mut(min.x..=max.x, min.y..=max.y);
 
-                        for x in min.x..=max.x {
-                            for y in min.y..=max.y {
-                                let destination_pixel =
-                                    bounding_box.get_mut((x - min.x, y - min.y)).unwrap();
+                        bounding_box.par_column_iter_mut().enumerate().for_each(
+                            |(y, mut column)| {
+                                for (x, destination_pixel) in column.iter_mut().enumerate() {
+                                    let point = Point2::new((x + min.x) as f32, (y + min.y) as f32);
 
-                                render_pixel::render_pixel(
-                                    Point2::new(x as f32, y as f32),
-                                    &triangle,
-                                    texture,
-                                    texture_dimensions,
-                                    destination_pixel,
-                                );
-                            }
-                        }
+                                    render_pixel::render_pixel(
+                                        point,
+                                        &triangle,
+                                        texture,
+                                        texture_dimensions,
+                                        destination_pixel,
+                                    );
+                                }
+                            },
+                        );
                     }
                 }
                 egui::epaint::Primitive::Callback(_) => {

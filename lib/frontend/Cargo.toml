@@ -24,6 +24,7 @@ ron = { workspace = true }
 rustc-hash = { workspace = true }
 scc = { workspace = true }
 itertools = { workspace = true }
+rayon = { workspace = true }
 egui_extras = { version = "0.32", default-features = false, features = [
     "image",
 ] }
