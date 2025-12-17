@@ -8,7 +8,6 @@ use multiemu_runtime::{
     platform::TestPlatform,
     program::{ProgramManager, RomId},
 };
-use num::rational::Ratio;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let environment_file = File::create(ENVIRONMENT_LOCATION.deref()).unwrap();
@@ -24,13 +23,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         .unwrap()
         .expect("You need a copy of \"BurgerTime (USA)\" to run this benchmark");
 
-    let machine: MachineBuilder<TestPlatform> = Machine::build(
-        Some(program_specification),
-        program_manager,
-        None,
-        None,
-        Ratio::from_integer(44100),
-    );
+    let machine: MachineBuilder<TestPlatform> =
+        Machine::build(Some(program_specification), program_manager, None, None);
     let machine = Nes.construct(machine).build(());
 
     let one_second = Duration::from_secs(1);

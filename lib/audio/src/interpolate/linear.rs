@@ -1,5 +1,5 @@
-use nalgebra::{ComplexField, SVector};
-use num::{Float, ToPrimitive, rational::Ratio};
+use nalgebra::SVector;
+use num::Float;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 
 use super::Interpolator;
@@ -9,32 +9,32 @@ use crate::{FrameIterator, FromSample, SampleFormat};
 /// Linear interpolation
 pub struct Linear;
 
-impl<S: SampleFormat, const CHANNELS: usize, F: Float + SampleFormat + ComplexField>
-    Interpolator<S, CHANNELS, F> for Linear
+impl<S: SampleFormat, const CHANNELS: usize, F: Float + SampleFormat> Interpolator<S, CHANNELS, F>
+    for Linear
 where
     F: FromSample<S>,
     S: FromSample<F>,
 {
     fn interpolate(
         self,
-        source_rate: Ratio<u32>,
-        target_rate: Ratio<u32>,
+        source_rate: f32,
+        target_rate: f32,
         input: impl IntoIterator<Item = SVector<S, CHANNELS>>,
     ) -> impl Iterator<Item = SVector<S, CHANNELS>> {
         interpolate_internal(source_rate, target_rate, input)
     }
 }
 
-impl<S: SampleFormat, const CHANNELS: usize, F: Float + SampleFormat + ComplexField>
-    Interpolator<S, CHANNELS, F> for &Linear
+impl<S: SampleFormat, const CHANNELS: usize, F: Float + SampleFormat> Interpolator<S, CHANNELS, F>
+    for &Linear
 where
     F: FromSample<S>,
     S: FromSample<F>,
 {
     fn interpolate(
         self,
-        source_rate: Ratio<u32>,
-        target_rate: Ratio<u32>,
+        source_rate: f32,
+        target_rate: f32,
         input: impl IntoIterator<Item = SVector<S, CHANNELS>>,
     ) -> impl Iterator<Item = SVector<S, CHANNELS>> {
         interpolate_internal(source_rate, target_rate, input)
@@ -47,8 +47,8 @@ fn interpolate_internal<
     const CHANNELS: usize,
     F: Float + SampleFormat + FromSample<S>,
 >(
-    source_rate: Ratio<u32>,
-    target_rate: Ratio<u32>,
+    source_rate: f32,
+    target_rate: f32,
     input: impl IntoIterator<Item = SVector<S, CHANNELS>>,
 ) -> impl FrameIterator<S, CHANNELS> {
     let mut input = input.into_iter().rescale::<F>();
@@ -70,7 +70,7 @@ fn interpolate_internal<
     }
 
     LinearIterator::<F, CHANNELS, _> {
-        resampling_ratio: F::from_f64((target_rate / source_rate).to_f64().unwrap()).unwrap(),
+        resampling_ratio: F::from_f32(target_rate / source_rate).unwrap(),
         index: F::zero(),
         input_index: F::zero(),
         held_samples,

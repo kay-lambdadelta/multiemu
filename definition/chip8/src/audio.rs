@@ -1,24 +1,26 @@
 use std::io::{Read, Write};
 
-use multiemu_audio::SquareWave;
+use multiemu_audio::{FrameIterator, SquareWave};
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion, SynchronizationContext},
+    component::{
+        Component, ComponentConfig, ComponentVersion, SampleSource, SynchronizationContext,
+    },
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     path::MultiemuPath,
     platform::Platform,
-    scheduler::Period,
+    scheduler::{Frequency, Period},
 };
 use nalgebra::SVector;
-use num::rational::Ratio;
-use ringbuffer::AllocRingBuffer;
+use ringbuffer::{AllocRingBuffer, RingBuffer};
 
 #[derive(Debug)]
 pub struct Chip8Audio {
     // The CPU will set this according to what the program wants
     timer: u8,
-    buffer: AllocRingBuffer<SVector<f32, 2>>,
-    wave_generator: SquareWave<f32, 2>,
-    host_sample_rate: Ratio<u32>,
+    buffer: AllocRingBuffer<SVector<f32, 1>>,
+    wave_generator: SquareWave<f32, 1>,
+    processor_frequency: Frequency,
+    timer_accumulator: Period,
 }
 
 impl Chip8Audio {
@@ -53,26 +55,40 @@ impl Component for Chip8Audio {
         Ok(())
     }
 
-    fn drain_samples(
-        &mut self,
-        _audio_output_path: &MultiemuPath,
-    ) -> &mut AllocRingBuffer<SVector<f32, 2>> {
-        &mut self.buffer
+    fn get_audio_channel(&mut self, _audio_output_path: &MultiemuPath) -> SampleSource<'_> {
+        let sample_rate = self.processor_frequency.to_num();
+
+        SampleSource {
+            source: Box::new(self.buffer.drain().repeat_last_frame()),
+            sample_rate,
+        }
     }
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
-        while context.allocate_period(Period::ONE / 60) {
-            self.timer = self.timer.saturating_sub(1);
+        let timer_period = Period::from_num(60).recip();
+
+        while context.allocate_period(self.processor_frequency.recip()) {
+            if self.timer != 0 {
+                self.buffer.enqueue(self.wave_generator.next().unwrap());
+            }
+
+            self.timer_accumulator += self.processor_frequency.recip();
+            while self.timer_accumulator >= timer_period {
+                self.timer = self.timer.saturating_sub(1);
+                self.timer_accumulator -= timer_period;
+            }
         }
     }
 
     fn needs_work(&self, delta: Period) -> bool {
-        delta >= Period::ONE / 60
+        delta >= self.processor_frequency.recip()
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Chip8AudioConfig;
+#[derive(Debug)]
+pub struct Chip8AudioConfig {
+    pub processor_frequency: Frequency,
+}
 
 impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
     type Component = Chip8Audio;
@@ -81,17 +97,16 @@ impl<P: Platform> ComponentConfig<P> for Chip8AudioConfig {
         self,
         component_builder: ComponentBuilder<'_, P, Self::Component>,
     ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-        let host_sample_rate = component_builder.host_sample_rate();
-
         component_builder
             .set_scheduler_participation(SchedulerParticipation::OnDemand)
-            .insert_audio_output("audio-output");
+            .insert_audio_channel("mono");
 
         Ok(Chip8Audio {
             timer: 0,
-            buffer: AllocRingBuffer::new(host_sample_rate.to_integer() as usize),
-            wave_generator: SquareWave::new(Ratio::from_integer(440), host_sample_rate, 0.5),
-            host_sample_rate,
+            buffer: AllocRingBuffer::new(440),
+            wave_generator: SquareWave::new(440.0, self.processor_frequency.to_num(), 0.5),
+            processor_frequency: self.processor_frequency,
+            timer_accumulator: Period::ZERO,
         })
     }
 }

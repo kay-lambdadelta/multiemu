@@ -13,7 +13,7 @@ use std::{
 };
 
 use nohash::BuildNoHashHasher;
-use num::rational::Ratio;
+use num::FromPrimitive;
 use rustc_hash::FxBuildHasher;
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -67,14 +67,12 @@ impl Machine {
         program_manager: Arc<ProgramManager>,
         save_path: Option<PathBuf>,
         snapshot_path: Option<PathBuf>,
-        sample_rate: Ratio<u32>,
     ) -> MachineBuilder<P> {
         MachineBuilder::new(
             program_specification,
             program_manager,
             save_path,
             snapshot_path,
-            sample_rate,
         )
     }
 
@@ -89,18 +87,11 @@ impl Machine {
             program_manager,
             save_path,
             snapshot_path,
-            Ratio::from_integer(44100),
         )
     }
 
     pub fn build_test_minimal() -> MachineBuilder<TestPlatform> {
-        Self::build(
-            None,
-            Arc::new(ProgramManager::default()),
-            None,
-            None,
-            Ratio::from_integer(44100),
-        )
+        Self::build(None, Arc::new(ProgramManager::default()), None, None)
     }
 
     #[inline]
@@ -162,7 +153,7 @@ impl Machine {
     }
 
     pub fn run_duration(&self, allocated_time: Duration) {
-        let allocated_time = Period::from_num(allocated_time.as_secs_f32());
+        let allocated_time = Period::from_f32(allocated_time.as_secs_f32()).unwrap_or_default();
         self.scheduler.run(allocated_time);
     }
 

@@ -8,6 +8,7 @@ authors = ["Kay <lambdadeltakay@proton.me>"]
 [dependencies]
 multiemu-locale = { workspace = true }
 multiemu-range = { workspace = true }
+multiemu-audio = { workspace = true }
 nalgebra = { workspace = true }
 num = { workspace = true }
 ringbuffer = { workspace = true }

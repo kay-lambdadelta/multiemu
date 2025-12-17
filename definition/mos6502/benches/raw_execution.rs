@@ -57,8 +57,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         .write_le_value(RESET_VECTOR as Address, machine.now(), None, 0x8000)
         .unwrap();
 
-    let one_second = Period::from_num(1);
-    let mut timestamp = Period::from_num(0);
+    let one_second = Period::ONE;
+    let mut timestamp = Period::ZERO;
 
     c.bench_function("mos6502_raw_execution_speed_1sec_1mhz", |b| {
         b.iter(|| {

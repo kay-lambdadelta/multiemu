@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::{
     component::{Component, ComponentConfig, SynchronizationContext},
     machine::{
@@ -9,6 +7,8 @@ use crate::{
     platform::Platform,
     scheduler::Period,
 };
+use num::FromPrimitive;
+use std::time::Duration;
 
 #[test]
 fn basic_operation() {
@@ -120,7 +120,7 @@ fn basic_events() {
             self,
             component_builder: ComponentBuilder<P, Self::Component>,
         ) -> Result<Self::Component, Box<dyn std::error::Error>> {
-            let frequency = Period::from_num(1000);
+            let frequency = Period::from_u64(1000).unwrap();
 
             component_builder
                 .set_scheduler_participation(self.scheduler_participation)

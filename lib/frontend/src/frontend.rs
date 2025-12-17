@@ -90,7 +90,7 @@ impl<P: PlatformExt> Frontend<P> {
         let machine = None;
         let gui = GuiState::new(&environment);
         let gamepads = HashMap::default();
-        let audio_runtime = P::AudioRuntime::new();
+        let mut audio_runtime = P::AudioRuntime::new();
 
         audio_runtime.play();
 
@@ -287,6 +287,8 @@ impl<P: PlatformExt> Frontend<P> {
         };
 
         self.machine = None;
+        self.audio_runtime.set_machine(None);
+
         let machine_id = program_specification.id.machine;
 
         let machine_builder = Machine::build(
@@ -294,7 +296,6 @@ impl<P: PlatformExt> Frontend<P> {
             self.program_manager.clone(),
             Some(self.environment.save_directory.clone()),
             Some(self.environment.snapshot_directory.clone()),
-            self.audio_runtime.sample_rate(),
         );
 
         let machine_builder = self.machine_factories.construct_machine(machine_builder);
@@ -313,6 +314,7 @@ impl<P: PlatformExt> Frontend<P> {
         .unwrap();
 
         let machine = machine_builder.build(graphics_runtime.component_initialization_data());
+        self.audio_runtime.set_machine(Some(machine.clone()));
 
         let windowing = WindowingContext {
             handle: windowing_handle,

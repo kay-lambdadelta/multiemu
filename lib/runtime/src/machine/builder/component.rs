@@ -8,7 +8,6 @@ use std::{
 };
 
 use bytes::Bytes;
-use num::rational::Ratio;
 
 use crate::{
     component::{
@@ -73,10 +72,6 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn program_manager(&self) -> &Arc<ProgramManager> {
         self.machine_builder.program_manager()
-    }
-
-    pub fn host_sample_rate(&self) -> Ratio<u32> {
-        self.machine_builder.sample_rate
     }
 
     pub fn get_address_space(&self, address_space: AddressSpaceId) -> &Arc<AddressSpace> {
@@ -177,7 +172,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self.insert_child_component(name, config)
     }
 
-    pub fn insert_audio_output(self, name: &str) -> (Self, MultiemuPath) {
+    pub fn insert_audio_channel(self, name: &str) -> (Self, MultiemuPath) {
         let mut resource_path = self.path.clone();
         resource_path.push(Namespace::Resource, name);
 

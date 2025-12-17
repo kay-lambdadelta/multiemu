@@ -9,6 +9,7 @@ multiemu-runtime = { workspace = true }
 multiemu-definition-misc = { workspace = true }
 multiemu-definition-mos6502 = { workspace = true }
 multiemu-range = { workspace = true }
+multiemu-audio = { workspace = true }
 rangemap = { workspace = true }
 tracing = { workspace = true }
 bitvec = { workspace = true }
@@ -16,7 +17,6 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_with = { workspace = true }
-num = { workspace = true }
 nalgebra = { workspace = true }
 palette = { workspace = true }
 ringbuffer = { workspace = true }

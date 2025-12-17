@@ -1,16 +1,13 @@
-use std::fmt::Debug;
-
-use multiemu_runtime::platform::Platform;
-use num::rational::Ratio;
+use multiemu_runtime::{machine::Machine, platform::Platform};
+use std::{fmt::Debug, sync::Arc};
 
 /// Audio runtime to provide the frontend
 pub trait AudioRuntime<P: Platform>: Debug {
-    /// Initialize it with a pointer to the [`MaybeMachine`]
     fn new() -> Self;
-    /// Get the used sample rate
-    fn sample_rate(&self) -> Ratio<u32>;
     /// Pause audio playback
-    fn pause(&self);
+    fn pause(&mut self);
     /// Play audio
-    fn play(&self);
+    fn play(&mut self);
+    /// Set current machine
+    fn set_machine(&mut self, machine: Option<Arc<Machine>>);
 }

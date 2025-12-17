@@ -1,8 +1,6 @@
 use core::fmt::Debug;
 
-use num::{
-    Bounded, FromPrimitive, Integer, Num, ToPrimitive, rational::Ratio, traits::NumAssignOps,
-};
+use num::{FromPrimitive, Num, ToPrimitive, traits::NumAssignOps};
 
 mod conversion;
 mod iterator;
@@ -70,27 +68,3 @@ sample_impl!(int, u64);
 sample_impl!(int, u128);
 sample_impl!(float, f32);
 sample_impl!(float, f64);
-
-impl<
-    R: Integer
-        + NumAssignOps
-        + Debug
-        + ToPrimitive
-        + FromPrimitive
-        + Copy
-        + Send
-        + Sync
-        + Bounded
-        + 'static,
-> SampleFormat for Ratio<R>
-where
-    Ratio<R>: ToPrimitive + FromPrimitive,
-{
-    fn min_sample() -> Self {
-        Ratio::from_integer(R::min_value())
-    }
-
-    fn max_sample() -> Self {
-        Ratio::from_integer(R::max_value())
-    }
-}

@@ -10,7 +10,6 @@ use std::{
 
 use bytes::Bytes;
 use indexmap::IndexMap;
-use num::rational::Ratio;
 use rustc_hash::FxBuildHasher;
 
 use crate::{
@@ -43,8 +42,6 @@ pub struct MachineBuilder<P: Platform> {
     pub(super) save_manager: SaveManager,
     /// Snapshot manager
     pub(super) snapshot_manager: SnapshotManager,
-    /// Selected sample rate
-    pub(super) sample_rate: Ratio<u32>,
     /// The store for components
     pub(super) registry: ComponentRegistry,
     /// Component metadata
@@ -63,7 +60,6 @@ impl<P: Platform> MachineBuilder<P> {
         program_manager: Arc<ProgramManager>,
         save_path: Option<PathBuf>,
         snapshot_path: Option<PathBuf>,
-        sample_rate: Ratio<u32>,
     ) -> Self {
         let scheduler = Scheduler::new();
 
@@ -76,7 +72,6 @@ impl<P: Platform> MachineBuilder<P> {
             save_manager,
             snapshot_manager,
             program_manager,
-            sample_rate,
             component_metadata: IndexMap::default(),
             program_specification,
             scheduler,

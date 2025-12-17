@@ -1,24 +1,23 @@
 use nalgebra::SVector;
-use num::rational::Ratio;
 
 use crate::SampleFormat;
 
 #[derive(Debug)]
 /// Square wave generator
 pub struct SquareWave<S: SampleFormat, const CHANNELS: usize> {
-    step: Ratio<u32>,
-    phase: Ratio<u32>,
+    step: f32,
+    phase: f32,
     amplitude: S,
 }
 
 impl<S: SampleFormat, const CHANNELS: usize> SquareWave<S, CHANNELS> {
     /// Create the square wave
-    pub fn new(frequency: Ratio<u32>, sample_rate: Ratio<u32>, amplitude: S) -> Self {
+    pub fn new(frequency: f32, sample_rate: f32, amplitude: S) -> Self {
         let step = frequency / sample_rate;
 
         Self {
             step,
-            phase: Ratio::from_integer(0),
+            phase: 0.0,
             amplitude,
         }
     }
@@ -29,13 +28,13 @@ impl<S: SampleFormat, const CHANNELS: usize> Iterator for SquareWave<S, CHANNELS
 
     fn next(&mut self) -> Option<Self::Item> {
         // A square wave toggles every 0.5 in phase
-        let value = if self.phase < Ratio::new(1, 2) {
+        let value = if self.phase < 0.5 {
             S::equilibrium() + self.amplitude
         } else {
             S::equilibrium() - self.amplitude
         };
 
-        self.phase = (self.phase + self.step) % Ratio::from_integer(1);
+        self.phase = (self.phase + self.step) % 1.0;
         Some(SVector::<S, CHANNELS>::from_element(value))
     }
 }

@@ -18,7 +18,7 @@ fn instruction_test_boilerplate() -> (Arc<Machine>, MultiemuPath, AddressSpaceId
     let (machine, cpu) = machine.insert_component(
         "mos6502",
         Mos6502Config {
-            frequency: Frequency::from_num(1),
+            frequency: Frequency::ONE,
             assigned_address_space: cpu_address_space,
             kind: Mos6502Kind::Mos6502,
             broken_ror: false,

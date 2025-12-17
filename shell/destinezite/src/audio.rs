@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use cpal::{
     Device, Host,
@@ -6,14 +6,13 @@ use cpal::{
 };
 use itertools::Itertools;
 use multiemu_frontend::AudioRuntime;
-use multiemu_runtime::platform::Platform;
-use num::rational::Ratio;
+use multiemu_runtime::{machine::Machine, platform::Platform};
 
 #[allow(unused)]
 pub struct CpalAudioRuntime {
     host: Host,
     device: Device,
-    sample_rate: Ratio<u32>,
+    sample_rate: f32,
 }
 
 impl Debug for CpalAudioRuntime {
@@ -49,7 +48,7 @@ impl<P: Platform> AudioRuntime<P> for CpalAudioRuntime {
 
         tracing::info!("Selected audio device with config: {:#?}", config);
 
-        let sample_rate = Ratio::from_integer(sample_rate.0);
+        let sample_rate = sample_rate.0 as f32;
 
         Self {
             host,
@@ -58,11 +57,9 @@ impl<P: Platform> AudioRuntime<P> for CpalAudioRuntime {
         }
     }
 
-    fn pause(&self) {}
+    fn pause(&mut self) {}
 
-    fn play(&self) {}
+    fn play(&mut self) {}
 
-    fn sample_rate(&self) -> Ratio<u32> {
-        self.sample_rate
-    }
+    fn set_machine(&mut self, machine: Option<Arc<Machine>>) {}
 }

@@ -1,6 +1,5 @@
 use bitvec::{prelude::Lsb0, view::BitView};
 use multiemu_runtime::memory::Address;
-use num::traits::{FromBytes, ToBytes};
 
 use super::{
     FlagRegister,
@@ -110,7 +109,7 @@ impl Mos6502 {
                         self.state.a = value;
                     }
                     Mos6502Opcode::Bcc => {
-                        let value: i8 = self.load(&instruction);
+                        let value = self.load(&instruction) as i8;
 
                         if !self.state.flags.carry {
                             self.state
@@ -119,7 +118,7 @@ impl Mos6502 {
                         }
                     }
                     Mos6502Opcode::Bcs => {
-                        let value: i8 = self.load(&instruction);
+                        let value = self.load(&instruction) as i8;
 
                         if self.state.flags.carry {
                             self.state
@@ -128,7 +127,7 @@ impl Mos6502 {
                         }
                     }
                     Mos6502Opcode::Beq => {
-                        let value: i8 = self.load(&instruction);
+                        let value = self.load(&instruction) as i8;
 
                         if self.state.flags.zero {
                             self.state
@@ -147,7 +146,7 @@ impl Mos6502 {
                         self.state.flags.zero = result == 0;
                     }
                     Mos6502Opcode::Bmi => {
-                        let value: i8 = self.load(&instruction);
+                        let value = self.load(&instruction) as i8;
 
                         if self.state.flags.negative {
                             self.state
@@ -156,7 +155,7 @@ impl Mos6502 {
                         }
                     }
                     Mos6502Opcode::Bne => {
-                        let value: i8 = self.load(&instruction);
+                        let value = self.load(&instruction) as i8;
 
                         if !self.state.flags.zero {
                             self.state
@@ -165,7 +164,7 @@ impl Mos6502 {
                         }
                     }
                     Mos6502Opcode::Bpl => {
-                        let value: i8 = self.load(&instruction);
+                        let value = self.load(&instruction) as i8;
 
                         if !self.state.flags.negative {
                             self.state
@@ -227,7 +226,7 @@ impl Mos6502 {
                         self.state.stack = new_stack;
                     }
                     Mos6502Opcode::Bvc => {
-                        let value: i8 = self.load(&instruction);
+                        let value = self.load(&instruction) as i8;
 
                         if !self.state.flags.overflow {
                             self.state
@@ -236,7 +235,7 @@ impl Mos6502 {
                         }
                     }
                     Mos6502Opcode::Bvs => {
-                        let value: i8 = self.load(&instruction);
+                        let value = self.load(&instruction) as i8;
 
                         if self.state.flags.overflow {
                             self.state
@@ -690,7 +689,7 @@ impl Mos6502 {
             }
             Opcode::Wdc65C02(opcode) => match opcode {
                 Wdc65C02Opcode::Bra => {
-                    let value: i8 = self.load(&instruction);
+                    let value = self.load(&instruction) as i8;
 
                     self.state
                         .execution_queue
@@ -718,14 +717,9 @@ impl Mos6502 {
     }
 
     #[inline]
-    fn load<T: FromBytes<Bytes = [u8; 1]> + Default>(
-        &mut self,
-        instruction: &Mos6502InstructionSet,
-    ) -> T {
+    fn load(&mut self, instruction: &Mos6502InstructionSet) -> u8 {
         match instruction.addressing_mode {
-            Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)) => {
-                T::from_ne_bytes(&[self.state.a])
-            }
+            Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)) => self.state.a,
             None => unreachable!(),
             _ => self
                 .address_space
@@ -739,14 +733,10 @@ impl Mos6502 {
     }
 
     #[inline]
-    fn store<T: ToBytes<Bytes = [u8; 1]>>(
-        &mut self,
-        instruction: &Mos6502InstructionSet,
-        value: T,
-    ) {
+    fn store(&mut self, instruction: &Mos6502InstructionSet, value: u8) {
         match instruction.addressing_mode {
             Some(AddressingMode::Mos6502(Mos6502AddressingMode::Accumulator)) => {
-                self.state.a = value.to_ne_bytes()[0];
+                self.state.a = value;
             }
             None => {
                 unreachable!()

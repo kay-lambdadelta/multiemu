@@ -17,7 +17,6 @@ multiemu-definition-atarilynx = { workspace = true }
 tracing = { workspace = true }
 nalgebra = { workspace = true }
 bytemuck = { workspace = true }
-num = { workspace = true }
 tracing-subscriber = { workspace = true }
 palette = { workspace = true }
 uuid = { workspace = true }

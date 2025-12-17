@@ -8,9 +8,8 @@ use std::{
 };
 
 pub use handle::*;
+use multiemu_audio::FrameIterator;
 use multiemu_range::ContiguousRange;
-use nalgebra::SVector;
-use ringbuffer::AllocRingBuffer;
 
 use crate::{
     graphics::GraphicsApi,
@@ -97,10 +96,7 @@ pub trait Component: Send + Sync + Debug + Any {
     }
 
     /// Give the runtime the audio sample ring buffer
-    fn drain_samples(
-        &mut self,
-        audio_output_path: &MultiemuPath,
-    ) -> &mut AllocRingBuffer<SVector<f32, 2>> {
+    fn get_audio_channel(&mut self, audio_output_path: &MultiemuPath) -> SampleSource<'_> {
         unreachable!()
     }
 
@@ -172,4 +168,9 @@ impl<'a> SynchronizationContext<'a> {
     pub fn now(&self) -> Period {
         *self.updated_timestamp
     }
+}
+
+pub struct SampleSource<'a> {
+    pub source: Box<dyn FrameIterator<f32, 1> + 'a>,
+    pub sample_rate: f32,
 }

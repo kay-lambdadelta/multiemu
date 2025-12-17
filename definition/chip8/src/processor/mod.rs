@@ -110,6 +110,11 @@ pub struct Chip8ProcessorSnapshot {
     stack: ArrayVec<u16, 16>,
     execution_state: ExecutionState,
 }
+impl<G: SupportedGraphicsApiChip8Display> Chip8Processor<G> {
+    pub fn frequency(&self) -> Frequency {
+        self.config.frequency
+    }
+}
 
 impl<G: SupportedGraphicsApiChip8Display> Component for Chip8Processor<G> {
     fn load_snapshot(

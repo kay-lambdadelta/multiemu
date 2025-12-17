@@ -1,7 +1,6 @@
-use multiemu_runtime::scheduler::Frequency;
-
 use super::Region;
 use crate::ppu::color::PpuColor;
+use multiemu_runtime::scheduler::Frequency;
 
 #[derive(Debug)]
 pub struct Pal;

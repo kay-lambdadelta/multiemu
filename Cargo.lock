@@ -436,9 +436,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.19.0"
+version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
+checksum = "5dd9dc738b7a8311c7ade152424974d8115f2cdad61e8dab8dac9f2362298510"
 
 [[package]]
 name = "by_address"
@@ -2236,13 +2236,13 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "libredox"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "416f7e718bdb06000964960ffa43b4335ad4012ae8b99060261aa4a8088d5ccb"
+checksum = "df15f6eac291ed1cf25865b1ee60399f57e7c227e7f51bdbd4c5270396a9ed50"
 dependencies = [
  "bitflags 2.10.0",
  "libc",
- "redox_syscall 0.5.18",
+ "redox_syscall 0.6.0",
 ]
 
 [[package]]
@@ -2425,7 +2425,6 @@ dependencies = [
  "multiemu-range",
  "multiemu-runtime",
  "nalgebra",
- "num",
  "palette",
  "ron",
  "serde",
@@ -2464,7 +2463,6 @@ dependencies = [
  "multiemu-frontend",
  "multiemu-runtime",
  "nalgebra",
- "num",
  "palette",
  "rand 0.9.2",
  "rangemap",
@@ -2482,7 +2480,6 @@ dependencies = [
  "bitvec",
  "bytemuck",
  "multiemu-runtime",
- "num",
  "strum",
 ]
 
@@ -2511,7 +2508,6 @@ dependencies = [
  "criterion",
  "multiemu-definition-misc",
  "multiemu-runtime",
- "num",
  "rand 0.9.2",
  "rangemap",
  "serde",
@@ -2527,13 +2523,13 @@ dependencies = [
  "bitvec",
  "bytes",
  "criterion",
+ "multiemu-audio",
  "multiemu-definition-misc",
  "multiemu-definition-mos6502",
  "multiemu-frontend",
  "multiemu-range",
  "multiemu-runtime",
  "nalgebra",
- "num",
  "palette",
  "rand 0.9.2",
  "rangemap",
@@ -2618,6 +2614,7 @@ dependencies = [
  "indexmap 2.12.1",
  "itertools 0.14.0",
  "memmap2",
+ "multiemu-audio",
  "multiemu-locale",
  "multiemu-range",
  "naga",
@@ -2663,7 +2660,6 @@ dependencies = [
  "multiemu-frontend",
  "multiemu-runtime",
  "nalgebra",
- "num",
  "palette",
  "ringbuffer",
  "softbuffer",
@@ -3918,6 +3914,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_syscall"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec96166dafa0886eb81fe1c0a388bece180fbef2135f97c1e2cf8302e74b43b5"
+dependencies = [
+ "bitflags 2.10.0",
+]
+
+[[package]]
 name = "redox_users"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4152,9 +4157,9 @@ checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
 
 [[package]]
 name = "saa"
-version = "5.4.0"
+version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3192d99ee2f69effeacef86c9fa80e75b6604e2a5d3ade6856d206b519521e53"
+checksum = "0a0333ba2ea22f7721fc41ebdc02596d9eefae8229046bf21aae78613a929d0f"
 
 [[package]]
 name = "safe_arch"
@@ -4176,9 +4181,9 @@ dependencies = [
 
 [[package]]
 name = "scc"
-version = "3.4.6"
+version = "3.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b6f8686af8563182fc6b63ab7bd7b5cad8f40fbe660675627caedc6c073eca8"
+checksum = "aad2fce7723ccd611108e74ff1a1b4db35bf474240ebdf2e44b1bac663f31b4b"
 dependencies = [
  "saa",
  "sdd",

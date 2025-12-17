@@ -42,7 +42,12 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiChip8Display>> MachineFactory<
     fn construct(&self, machine: MachineBuilder<P>) -> MachineBuilder<P> {
         let (machine, cpu_address_space) = machine.insert_address_space(12);
         let (machine, timer) = machine.insert_default_component::<Chip8TimerConfig>("timer");
-        let (machine, audio) = machine.insert_default_component::<Chip8AudioConfig>("audio");
+        let (machine, audio) = machine.insert_component(
+            "audio",
+            Chip8AudioConfig {
+                processor_frequency: Frequency::from_num(1000),
+            },
+        );
         let (machine, display) = machine.insert_default_component::<Chip8DisplayConfig>("display");
         let (machine, _) = machine.insert_component(
             "cpu",
