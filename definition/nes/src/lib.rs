@@ -16,6 +16,7 @@ use ppu::PpuConfig;
 use rangemap::RangeInclusiveMap;
 
 use crate::{
+    apu::ApuConfig,
     cartridge::{
         ines::{INesVersion, Mirroring, RomType, expansion_device::DefaultExpansionDevice},
         mapper::Mapper,
@@ -247,6 +248,8 @@ impl<G: SupportedGraphicsApiPpu, P: Platform<GraphicsApi = G>> MachineFactory<P>
                         _phantom: PhantomData,
                     },
                 );
+
+                let (machine, _) = machine.insert_component("apu", ApuConfig { cpu_address_space });
 
                 machine
             }
