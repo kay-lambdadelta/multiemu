@@ -519,13 +519,12 @@ impl Component for Mos6502 {
     }
 
     fn store_snapshot(&self, mut writer: Box<dyn Write>) -> Result<(), Box<dyn std::error::Error>> {
-        bincode::serde::encode_into_std_write(
+        rmp_serde::encode::write_named(
+            &mut writer,
             &Snapshot {
                 state: self.state.clone(),
                 rdy: self.rdy.load(),
             },
-            &mut writer,
-            bincode::config::standard(),
         )?;
 
         Ok(())
@@ -534,12 +533,11 @@ impl Component for Mos6502 {
     fn load_snapshot(
         &mut self,
         version: ComponentVersion,
-        mut reader: Box<dyn Read>,
+        reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         match version {
             0 => {
-                let snapshot: Snapshot =
-                    bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+                let snapshot: Snapshot = rmp_serde::decode::from_read(reader)?;
 
                 self.state = snapshot.state;
                 self.rdy.store(snapshot.rdy);

@@ -64,16 +64,14 @@ impl Value for ProgramId {
     where
         Self: 'a,
     {
-        bincode::serde::decode_from_slice(data, bincode::config::standard())
-            .unwrap()
-            .0
+        rmp_serde::from_slice(data).unwrap()
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
     where
         Self: 'b,
     {
-        bincode::serde::encode_to_vec(value, bincode::config::standard()).unwrap()
+        rmp_serde::to_vec_named(value).unwrap()
     }
 
     fn type_name() -> redb::TypeName {

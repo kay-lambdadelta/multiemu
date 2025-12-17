@@ -110,22 +110,16 @@ pub struct Chip8ProcessorSnapshot {
     stack: ArrayVec<u16, 16>,
     execution_state: ExecutionState,
 }
-impl<G: SupportedGraphicsApiChip8Display> Chip8Processor<G> {
-    pub fn frequency(&self) -> Frequency {
-        self.config.frequency
-    }
-}
 
 impl<G: SupportedGraphicsApiChip8Display> Component for Chip8Processor<G> {
     fn load_snapshot(
         &mut self,
         version: ComponentVersion,
-        mut reader: Box<dyn Read>,
+        reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(version, 0);
 
-        let snapshot: Chip8ProcessorSnapshot =
-            bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+        let snapshot: Chip8ProcessorSnapshot = rmp_serde::decode::from_read(reader)?;
 
         self.state.registers = snapshot.registers;
         self.state.stack = snapshot.stack;
@@ -141,7 +135,8 @@ impl<G: SupportedGraphicsApiChip8Display> Component for Chip8Processor<G> {
             execution_state: self.state.execution_state.clone(),
         };
 
-        bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
+        rmp_serde::encode::write_named(&mut writer, &snapshot)?;
+
         Ok(())
     }
 

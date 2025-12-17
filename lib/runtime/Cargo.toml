@@ -26,7 +26,6 @@ redb = { workspace = true }
 uuid = { workspace = true }
 itertools = { workspace = true }
 thiserror = { workspace = true }
-bincode = { workspace = true }
 data-encoding = { workspace = true }
 rangemap = { workspace = true }
 bitvec = { workspace = true }
@@ -38,6 +37,7 @@ ron = { workspace = true }
 bytes = { workspace = true }
 arc-swap = { workspace = true }
 fixed = { workspace = true }
+rmp-serde = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["webp"] }
 flate2 = "1.1"
 sha1 = "0.10"

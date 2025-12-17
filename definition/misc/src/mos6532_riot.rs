@@ -92,7 +92,7 @@ impl Component for Mos6532Riot {
             t1024t: self.t1024t,
         };
 
-        bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
+        rmp_serde::encode::write_named(&mut writer, &snapshot)?;
 
         Ok(())
     }
@@ -100,13 +100,12 @@ impl Component for Mos6532Riot {
     fn load_snapshot(
         &mut self,
         version: ComponentVersion,
-        mut reader: Box<dyn Read>,
+        reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         match version {
             0 => {
                 // Decode the snapshot from the file
-                let snapshot: Snapshot =
-                    bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+                let snapshot: Snapshot = rmp_serde::decode::from_read(reader)?;
 
                 // Restore state into atomics
                 self.swacnt = snapshot.swacnt;

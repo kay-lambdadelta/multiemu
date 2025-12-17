@@ -16,7 +16,6 @@ serde = { workspace = true }
 nalgebra = { workspace = true }
 palette = { workspace = true }
 bytemuck = { workspace = true }
-bincode = { workspace = true }
 bytes = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]

@@ -174,11 +174,10 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
     fn load_snapshot(
         &mut self,
         version: ComponentVersion,
-        mut reader: Box<dyn Read>,
+        reader: Box<dyn Read>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(version, 0);
-        let snapshot: Snapshot =
-            bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+        let snapshot: Snapshot = rmp_serde::decode::from_read(reader)?;
 
         self.set_hires(snapshot.hires);
 
@@ -211,7 +210,8 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
             hires: self.hires,
             vsync_occurred: self.vsync_occurred,
         };
-        bincode::serde::encode_into_std_write(&snapshot, &mut writer, bincode::config::standard())?;
+
+        rmp_serde::encode::write_named(&mut writer, &snapshot)?;
 
         Ok(())
     }

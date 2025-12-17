@@ -11,7 +11,7 @@ rangemap = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
 serde_with = { workspace = true }
-bincode = { workspace = true }
+rmp-serde = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
 criterion = { workspace = true }
