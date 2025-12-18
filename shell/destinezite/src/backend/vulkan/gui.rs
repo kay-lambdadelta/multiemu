@@ -68,8 +68,6 @@ use multiemu_runtime::{
 use nalgebra::{Point2, Vector2};
 use palette::Srgba;
 
-use crate::windowing::WinitWindow;
-
 #[derive(Clone, Copy, Debug, Zeroable, Pod)]
 #[repr(C)]
 struct Vertex {

@@ -2536,6 +2536,7 @@ dependencies = [
  "egui_extras",
  "indexmap 2.12.1",
  "itertools 0.14.0",
+ "multiemu-range",
  "multiemu-runtime",
  "nalgebra",
  "num",
