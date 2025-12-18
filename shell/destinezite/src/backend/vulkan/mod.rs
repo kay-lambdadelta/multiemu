@@ -61,6 +61,7 @@ pub struct VulkanGraphicsRuntime {
     display_api_handle: WinitWindow,
     gui_renderer: VulkanEguiRenderer,
     shader_cache: ShaderCache<SpirvShader>,
+    max_texture_side_size: u32,
 }
 
 impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
@@ -79,7 +80,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
             return Err("Cannot create more than one vulkan runtime at a time".into());
         }
 
-        let window_dimensions = display_api_handle.dimensions();
+        let window_dimensions = display_api_handle.physical_size();
         let shader_cache: ShaderCache<SpirvShader> = ShaderCache::default();
 
         let library = VulkanLibrary::new().unwrap();
@@ -111,7 +112,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         );
 
         let (device, queues) = Device::new(
-            physical_device,
+            physical_device.clone(),
             DeviceCreateInfo {
                 enabled_extensions: enabled_device_extensions,
                 queue_create_infos: vec![QueueCreateInfo {
@@ -221,6 +222,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
             display_api_handle,
             gui_renderer,
             shader_cache,
+            max_texture_side_size: physical_device.properties().max_image_dimension2_d,
         })
     }
 
@@ -241,7 +243,7 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
         machine: Option<&Machine>,
         environment: &Environment,
     ) {
-        let window_dimensions = self.display_api_handle.dimensions();
+        let window_dimensions = self.display_api_handle.physical_size();
 
         // Skip rendering if impossible window size
         if window_dimensions.min() == 0 {
@@ -315,6 +317,10 @@ impl GraphicsRuntime<DesktopPlatform<Vulkan, Self>> for VulkanGraphicsRuntime {
 
     fn display_resized(&mut self) {
         self.recreate_swapchain = true;
+    }
+
+    fn max_texture_side_size(&self) -> u32 {
+        self.max_texture_side_size
     }
 }
 

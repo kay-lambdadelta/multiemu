@@ -41,7 +41,7 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
         _preferred_features: <Software as GraphicsApi>::Features,
         _environment: &Environment,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let window_dimensions = display_api_handle.dimensions();
+        let window_dimensions = display_api_handle.physical_size();
 
         let context = Context::new(display_api_handle.clone())?;
         let mut surface = Surface::new(&context, display_api_handle.clone())?;
@@ -107,7 +107,7 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
     }
 
     fn display_resized(&mut self) {
-        let window_dimensions = self.display_api_handle.dimensions();
+        let window_dimensions = self.display_api_handle.physical_size();
 
         self.surface
             .resize(
@@ -116,6 +116,11 @@ impl GraphicsRuntime<DesktopPlatform<Software, Self>> for SoftwareGraphicsRuntim
             )
             .unwrap();
         self.previously_recorded_size = window_dimensions.cast();
+    }
+
+    fn max_texture_side_size(&self) -> u32 {
+        // We can do whatever we want forever
+        u32::MAX
     }
 }
 

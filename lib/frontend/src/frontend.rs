@@ -226,7 +226,7 @@ impl<P: PlatformExt> Frontend<P> {
 
         let windowing = self.windowing_context.as_mut().unwrap();
 
-        let new_window_dimensions = windowing.handle.dimensions();
+        let new_window_dimensions = windowing.handle.physical_size();
         if self.previous_window_size != new_window_dimensions {
             windowing.graphics_runtime.display_resized();
             self.previous_window_size = new_window_dimensions;
@@ -239,7 +239,6 @@ impl<P: PlatformExt> Frontend<P> {
         if let Some(machine) = self.machine.as_mut()
             && !self.gui.active
         {
-            // If the scheduler state is here, we must manually drive it
             let frame_timing = if self.collected_frame_timings.is_empty() {
                 Duration::from_secs(1) / 60
             } else {
@@ -256,6 +255,7 @@ impl<P: PlatformExt> Frontend<P> {
             .get_windowing_integration()
             .unwrap()
             .gather_platform_specific_inputs();
+
         let MenuOutput {
             egui_output,
             new_program,

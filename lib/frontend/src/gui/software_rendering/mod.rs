@@ -127,11 +127,15 @@ impl SoftwareEguiRenderer {
                         Vector2::new(texture.nrows() as f32, texture.ncols() as f32);
 
                     for vertex_indexes in mesh.indices.chunks_exact(3) {
-                        let [v0, v1, v2]: [Vertex; 3] = [
+                        let [mut v0, mut v1, mut v2]: [Vertex; 3] = [
                             mesh.vertices[vertex_indexes[0] as usize].into(),
                             mesh.vertices[vertex_indexes[1] as usize].into(),
                             mesh.vertices[vertex_indexes[2] as usize].into(),
                         ];
+
+                        v0.position *= full_output.pixels_per_point;
+                        v1.position *= full_output.pixels_per_point;
+                        v2.position *= full_output.pixels_per_point;
 
                         let max = Vector2::new(
                             Vector3::new(v0.position.x, v1.position.x, v2.position.x)

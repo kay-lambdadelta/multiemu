@@ -27,7 +27,7 @@ use winit::{
     raw_window_handle::{
         DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
     },
-    window::{Window, WindowId},
+    window::{Theme, Window, WindowId},
 };
 
 use crate::{
@@ -61,16 +61,21 @@ impl HasWindowHandle for WinitWindow {
 }
 
 impl WindowingHandle for WinitWindow {
-    fn dimensions(&self) -> nalgebra::Vector2<u32> {
+    fn physical_size(&self) -> nalgebra::Vector2<u32> {
         let size = self.0.inner_size();
 
         Vector2::new(size.width, size.height)
+    }
+
+    fn scale(&self) -> f64 {
+        self.0.scale_factor()
     }
 }
 
 pub struct WinitEguiPlatformIntegration {
     egui_winit: Option<egui_winit::State>,
     display_api_handle: WinitWindow,
+    theme: Theme,
 }
 
 impl Debug for WinitEguiPlatformIntegration {
@@ -86,7 +91,7 @@ impl EguiWindowingIntegration<WinitWindow> for WinitEguiPlatformIntegration {
             ViewportId::ROOT,
             &self.display_api_handle,
             Some(self.display_api_handle.0.scale_factor() as f32),
-            None,
+            Some(self.theme),
             None,
         ));
     }
@@ -154,10 +159,11 @@ impl<G: GraphicsApi, GR: GraphicsRuntime<Self, WindowingHandle = WinitWindow>> A
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let display_api_handle = setup_window(event_loop);
 
-        tracing::debug!("Scale factor: {}", display_api_handle.0.scale_factor());
+        tracing::info!("Scale factor: {}", display_api_handle.scale());
         let egui_platform_integration = WinitEguiPlatformIntegration {
             egui_winit: None,
             display_api_handle: display_api_handle.clone(),
+            theme: event_loop.system_theme().unwrap_or(Theme::Dark),
         };
 
         self.frontend
@@ -356,7 +362,8 @@ fn setup_window(event_loop: &ActiveEventLoop) -> WinitWindow {
     let window_attributes = Window::default_attributes()
         .with_title("MultiEMU")
         .with_resizable(true)
-        .with_transparent(false);
+        .with_transparent(false)
+        .with_decorations(true);
 
     WinitWindow(Arc::new(
         event_loop.create_window(window_attributes).unwrap(),

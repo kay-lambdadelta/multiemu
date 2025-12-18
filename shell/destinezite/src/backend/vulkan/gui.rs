@@ -68,6 +68,8 @@ use multiemu_runtime::{
 use nalgebra::{Point2, Vector2};
 use palette::Srgba;
 
+use crate::windowing::WinitWindow;
+
 #[derive(Clone, Copy, Debug, Zeroable, Pod)]
 #[repr(C)]
 struct Vertex {
@@ -400,7 +402,7 @@ impl VulkanEguiRenderer {
         }
 
         let mut screen_size_guard = self.screen_size.write().unwrap();
-        *screen_size_guard = render_buffer_dimensions.map(|v| v as f32);
+        *screen_size_guard = render_buffer_dimensions.cast() / full_output.pixels_per_point;
         drop(screen_size_guard);
 
         let framebuffer = Framebuffer::new(
