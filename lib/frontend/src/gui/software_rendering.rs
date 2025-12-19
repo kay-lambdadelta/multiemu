@@ -173,6 +173,7 @@ impl SoftwareEguiRenderer {
                             mesh.vertices[vertex_indexes[2] as usize].into(),
                         ];
 
+                        // Scale for our physical screen dimensions
                         v0.position *= full_output.pixels_per_point;
                         v1.position *= full_output.pixels_per_point;
                         v2.position *= full_output.pixels_per_point;
@@ -239,9 +240,12 @@ impl SoftwareEguiRenderer {
                     for triangle in active_triangles {
                         let source_pixel = calculate_source_pixel(point.cast(), triangle);
 
-                        *destination_pixel = Packed::pack(Srgba::from_format(
-                            source_pixel.over(destination_pixel.unpack().into_format()),
-                        ));
+                        // Eliminate useless blending
+                        if source_pixel.alpha > 0.0 {
+                            *destination_pixel = Packed::pack(Srgba::from_format(
+                                source_pixel.over(destination_pixel.unpack().into_format()),
+                            ));
+                        }
                     }
                 }
             });
