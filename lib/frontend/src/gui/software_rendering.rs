@@ -114,18 +114,15 @@ impl SoftwareEguiRenderer {
         mut render_buffer: DMatrixViewMut<Packed<P, u32>>,
         full_output: FullOutput,
     ) {
-        for remove_texture_id in full_output.textures_delta.free {
-            tracing::trace!("Freeing egui texture {:?}", remove_texture_id);
-            self.textures.remove(&remove_texture_id);
-        }
-
         for (new_texture_id, new_texture) in full_output.textures_delta.set {
-            tracing::debug!("Adding new egui texture {:?}", new_texture_id);
-
             assert!(
-                new_texture.pos.is_none() || self.textures.contains_key(&new_texture_id),
+                new_texture.is_whole() || self.textures.contains_key(&new_texture_id),
                 "Texture not found: {new_texture_id:?}"
             );
+
+            if new_texture.is_whole() {
+                self.textures.remove(&new_texture_id);
+            }
 
             let texture = self.textures.entry(new_texture_id).or_insert_with(|| {
                 let image_size = new_texture.image.size();
@@ -152,6 +149,11 @@ impl SoftwareEguiRenderer {
                     ..(texture_update_offset.x + source_texture_view.nrows()).min(texture.nrows()),
                 texture_update_offset.y
                     ..(texture_update_offset.y + source_texture_view.ncols()).min(texture.ncols()),
+            );
+
+            assert_eq!(
+                source_texture_view.shape(),
+                destination_texture_view.shape()
             );
 
             destination_texture_view.copy_from(&source_texture_view);
@@ -249,6 +251,11 @@ impl SoftwareEguiRenderer {
                     }
                 }
             });
+
+        for remove_texture_id in full_output.textures_delta.free {
+            tracing::trace!("Freeing egui texture {:?}", remove_texture_id);
+            self.textures.remove(&remove_texture_id);
+        }
     }
 }
 

@@ -49,8 +49,8 @@ data-encoding = "2.9"
 scc = "3.4"
 sealed = "0.6"
 crossbeam = "0.8"
-egui = { version = "0.32", features = ["rayon", "log"] }
-naga = { version = "27.0", features = ["wgsl-in", "serialize", "deserialize"] }
+egui = { version = "0.33", features = ["rayon"] }
+naga = { version = "28.0", features = ["wgsl-in", "serialize", "deserialize"] }
 itertools = "0.14"
 smallvec = "1.15"
 cfg-if = "1.0"

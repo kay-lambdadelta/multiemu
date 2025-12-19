@@ -294,16 +294,14 @@ impl VulkanEguiRenderer {
             render_buffer.image().extent()[1],
         );
 
-        for remove_texture_id in full_output.textures_delta.free {
-            tracing::trace!("Freeing egui texture {:?}", remove_texture_id);
-            self.textures.remove(&remove_texture_id);
-        }
-
         for (new_texture_id, new_texture) in full_output.textures_delta.set {
-            tracing::debug!("Adding new egui texture {:?}", new_texture_id);
+            assert!(
+                new_texture.is_whole() || self.textures.contains_key(&new_texture_id),
+                "Texture not found: {new_texture_id:?}"
+            );
 
-            if new_texture.pos.is_some() && !self.textures.contains_key(&new_texture_id) {
-                panic!("Texture not found: {:?}", new_texture_id);
+            if new_texture.is_whole() {
+                self.textures.remove(&new_texture_id);
             }
 
             let new_texture_dimensions = Vector2::from(new_texture.image.size());
@@ -534,5 +532,10 @@ impl VulkanEguiRenderer {
         command_buffer
             .end_render_pass(SubpassEndInfo::default())
             .unwrap();
+
+        for remove_texture_id in full_output.textures_delta.free {
+            tracing::trace!("Freeing egui texture {:?}", remove_texture_id);
+            self.textures.remove(&remove_texture_id);
+        }
     }
 }
