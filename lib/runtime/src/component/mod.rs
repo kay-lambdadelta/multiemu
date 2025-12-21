@@ -3,6 +3,7 @@ use std::{
     error::Error,
     fmt::Debug,
     io::{Read, Write},
+    iter::Fuse,
     ops::RangeInclusive,
     sync::Weak,
 };
@@ -150,23 +151,52 @@ pub struct SynchronizationContext<'a> {
 
 impl<'a> SynchronizationContext<'a> {
     #[inline]
-    pub fn allocate_period(&mut self, period: Period) -> bool {
-        let next_timestamp = *self.updated_timestamp + period;
+    pub fn allocate<'b>(
+        &'b mut self,
+        period: Period,
+        limit: Option<u64>,
+    ) -> Fuse<QuantaIterator<'b, 'a>> {
         *self.last_attempted_allocation = Some(period);
 
-        if next_timestamp <= self.current_timestamp
-            && self.event_queue.within_deadline(next_timestamp)
-        {
-            *self.updated_timestamp = next_timestamp;
-
-            true
-        } else {
-            false
+        QuantaIterator {
+            period,
+            limit,
+            context: self,
         }
+        .fuse()
     }
+}
 
-    pub fn now(&self) -> Period {
-        *self.updated_timestamp
+pub struct QuantaIterator<'b, 'a> {
+    period: Period,
+    limit: Option<u64>,
+    context: &'b mut SynchronizationContext<'a>,
+}
+
+impl Iterator for QuantaIterator<'_, '_> {
+    type Item = Period;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(limit) = &mut self.limit {
+            if *limit == 0 {
+                return None;
+            } else {
+                *limit -= 1;
+            }
+        }
+
+        let next_timestamp = *self.context.updated_timestamp + self.period;
+
+        if next_timestamp <= self.context.current_timestamp
+            && self.context.event_queue.within_deadline(next_timestamp)
+        {
+            *self.context.updated_timestamp = next_timestamp;
+
+            Some(next_timestamp)
+        } else {
+            None
+        }
     }
 }
 

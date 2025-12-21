@@ -495,8 +495,8 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
     fn synchronize(&mut self, mut context: SynchronizationContext) {
         let backend = self.backend.as_mut().unwrap();
 
-        while context.allocate_period(self.period) {
-            self.timestamp = context.now();
+        for now in context.allocate(self.period, None) {
+            self.timestamp = now;
 
             if self.state.cycle_counter.y == 261 {
                 if self.state.cycle_counter.x == 257 && self.state.background.rendering_enabled {

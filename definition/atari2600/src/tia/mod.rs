@@ -175,8 +175,8 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
     }
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
-        while context.allocate_period(R::frequency().recip()) {
-            self.timestamp = context.now();
+        for now in context.allocate(R::frequency().recip(), None) {
+            self.timestamp = now;
 
             if let Some(cycles) = self.cycles_waiting_for_vsync {
                 self.cycles_waiting_for_vsync = Some(cycles.saturating_sub(1));

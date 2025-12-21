@@ -67,7 +67,7 @@ impl Component for Chip8Audio {
     fn synchronize(&mut self, mut context: SynchronizationContext) {
         let timer_period = Period::from_num(60).recip();
 
-        while context.allocate_period(self.processor_frequency.recip()) {
+        for _ in context.allocate(self.processor_frequency.recip(), None) {
             if self.timer != 0 {
                 self.buffer.enqueue(self.wave_generator.next().unwrap());
             }

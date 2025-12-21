@@ -248,7 +248,7 @@ impl Component for Mos6532Riot {
     }
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
-        while context.allocate_period(self.config.frequency.recip()) {
+        for _ in context.allocate(self.config.frequency.recip(), None) {
             self.time_counter += 1;
             self.tim1t += 1;
 

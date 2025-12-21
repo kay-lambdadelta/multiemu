@@ -145,8 +145,8 @@ impl<G: SupportedGraphicsApiChip8Display> Component for Chip8Processor<G> {
     }
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
-        while context.allocate_period(self.config.frequency.recip()) {
-            self.timestamp = context.now();
+        for now in context.allocate(self.config.frequency.recip(), None) {
+            self.timestamp = now;
 
             'main: {
                 match &self.state.execution_state {

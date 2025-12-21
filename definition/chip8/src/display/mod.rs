@@ -221,8 +221,15 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
     }
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
-        if context.allocate_period(Period::ONE / 60) {
+        let mut commit_staging_buffer = false;
+
+        for _ in context.allocate(Period::ONE / 60, None) {
             self.vsync_occurred = true;
+
+            commit_staging_buffer = true;
+        }
+
+        if commit_staging_buffer {
             self.backend.as_mut().unwrap().commit_staging_buffer();
         }
     }

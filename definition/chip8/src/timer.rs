@@ -50,7 +50,7 @@ impl Component for Chip8Timer {
     }
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
-        while context.allocate_period(Period::ONE / 60) {
+        for _ in context.allocate(Period::ONE / 60, None) {
             self.timer = self.timer.saturating_sub(1);
         }
     }

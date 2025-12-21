@@ -19,7 +19,7 @@ fn basic_operation() {
 
     impl Component for TestComponent {
         fn synchronize(&mut self, mut context: SynchronizationContext) {
-            while context.allocate_period(Period::ONE / 1000) {
+            for _ in context.allocate(Period::ONE / 1000, None) {
                 self.counter += 1;
             }
         }
@@ -96,7 +96,7 @@ fn basic_events() {
 
     impl Component for TestComponent {
         fn synchronize(&mut self, mut context: SynchronizationContext) {
-            while context.allocate_period(Period::ONE / 1000) {
+            for _ in context.allocate(Period::ONE / 1000, None) {
                 assert_eq!(self.counter, self.event_counter);
 
                 self.counter += 1;

@@ -549,8 +549,8 @@ impl Component for Mos6502 {
     }
 
     fn synchronize(&mut self, mut context: SynchronizationContext) {
-        while context.allocate_period(self.period) {
-            self.timestamp = context.now();
+        for now in context.allocate(self.period, None) {
+            self.timestamp = now;
 
             if self.rdy.load() {
                 loop {
