@@ -1,16 +1,16 @@
 [package]
-name = "multiemu-utils"
+name = "fluxemu-utils"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 authors = ["Kay <lambdadeltakay@proton.me>"]
-description = "A command line utility interface for multiemu, but has tools generically useful for rom organization"
+description = "A command line utility interface for FluxEMU, but has tools generically useful for rom organization"
 
 [dependencies]
-multiemu-runtime = { workspace = true }
-multiemu-locale = { workspace = true }
-# TODO: Split up the frontend crate so this doesn't pull in graphics stuff or merge this crate into multiemu-shell-destinezite
-multiemu-frontend = { workspace = true }
+fluxemu-runtime = { workspace = true }
+fluxemu-locale = { workspace = true }
+# TODO: Split up the frontend crate so this doesn't pull in graphics stuff or merge this crate into fluxemu-shell-destinezite
+fluxemu-frontend = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 rayon = { workspace = true }

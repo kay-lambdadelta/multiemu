@@ -6,8 +6,8 @@ use std::{
     sync::LazyLock,
 };
 
-use multiemu_locale::{Iso639Alpha2, Iso639Alpha3};
-use multiemu_runtime::program::{
+use fluxemu_locale::{Iso639Alpha2, Iso639Alpha3};
+use fluxemu_runtime::program::{
     Filesystem, HASH_ALIAS_TABLE, MachineId, PROGRAM_INFORMATION_TABLE, ProgramId, ProgramInfo,
     ProgramManager, RomId,
 };

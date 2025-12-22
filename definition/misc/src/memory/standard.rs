@@ -5,8 +5,8 @@ use std::{
     sync::Arc,
 };
 
-use multiemu_range::{ContiguousRange, RangeIntersection};
-use multiemu_runtime::{
+use fluxemu_range::{ContiguousRange, RangeIntersection};
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::ComponentBuilder,
     memory::{Address, AddressSpaceId, MemoryError},

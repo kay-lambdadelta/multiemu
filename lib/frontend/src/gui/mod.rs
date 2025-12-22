@@ -8,7 +8,7 @@ use egui::{
     RichText, TextStyle, TopBottomPanel, Ui,
 };
 use file_browser::FileBrowserState;
-use multiemu_runtime::program::ProgramSpecification;
+use fluxemu_runtime::program::ProgramSpecification;
 use options::OptionsState;
 use palette::{Srgba, WithAlpha, named::BLACK};
 use strum::{EnumIter, IntoEnumIterator};

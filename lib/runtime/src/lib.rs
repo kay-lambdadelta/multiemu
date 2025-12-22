@@ -1,6 +1,6 @@
-//! Multiemu Runtime
+//! FluxEMU Runtime
 //!
-//! Main runtime crate for the multiemu framework
+//! Main runtime crate for the FluxEMU framework
 
 /// Basic types relating to the fundemental unit of this emulator
 pub mod component;

@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
 use egui::FullOutput;
-use multiemu_frontend::{
+use fluxemu_frontend::{
     GraphicsRuntime, WindowingHandle, environment::Environment,
     gui_software_rendering::SoftwareEguiRenderer,
 };
-use multiemu_runtime::{
+use fluxemu_runtime::{
     graphics::{GraphicsApi, software::Software},
     machine::Machine,
 };

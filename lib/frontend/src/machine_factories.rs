@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use multiemu_runtime::{
+use fluxemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     platform::Platform,
     program::MachineId,

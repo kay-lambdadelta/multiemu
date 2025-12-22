@@ -10,16 +10,16 @@ use std::{
 
 use arrayvec::ArrayVec;
 use bitvec::{array::BitArray, field::BitField, prelude::Lsb0, view::BitView};
-use multiemu_definition_mos6502::{Mos6502, NmiFlag, RdyFlag};
-use multiemu_range::ContiguousRange;
-use multiemu_runtime::{
+use fluxemu_definition_mos6502::{Mos6502, NmiFlag, RdyFlag};
+use fluxemu_range::ContiguousRange;
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, LateInitializedData},
     machine::{
         Machine,
         builder::{ComponentBuilder, SchedulerParticipation},
     },
     memory::{Address, AddressSpace, AddressSpaceCache, AddressSpaceId, MemoryError},
-    path::MultiemuPath,
+    path::FluxEmuPath,
     platform::Platform,
     scheduler::{Period, SynchronizationContext},
 };
@@ -86,7 +86,7 @@ pub struct ColorEmphasis {
 pub struct PpuConfig<R: Region> {
     pub cpu_address_space: AddressSpaceId,
     pub ppu_address_space: AddressSpaceId,
-    pub processor: MultiemuPath,
+    pub processor: FluxEmuPath,
     pub _phantom: PhantomData<R>,
 }
 
@@ -99,7 +99,7 @@ pub struct Ppu<R: Region, G: SupportedGraphicsApiPpu> {
     processor_rdy: Arc<RdyFlag>,
     processor_nmi: Arc<NmiFlag>,
     ppu_address_space_cache: AddressSpaceCache,
-    my_path: MultiemuPath,
+    my_path: FluxEmuPath,
     machine: Weak<Machine>,
     timestamp: Period,
     period: Period,
@@ -488,7 +488,7 @@ impl<R: Region, G: SupportedGraphicsApiPpu> Component for Ppu<R, G> {
         Ok(())
     }
 
-    fn access_framebuffer(&mut self, _path: &MultiemuPath) -> &dyn Any {
+    fn access_framebuffer(&mut self, _path: &FluxEmuPath) -> &dyn Any {
         self.backend.as_mut().unwrap().access_framebuffer()
     }
 

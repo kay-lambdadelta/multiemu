@@ -1,11 +1,11 @@
 [package]
-name = "multiemu-definition-intel8080"
+name = "fluxemu-definition-intel8080"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-multiemu-runtime = { workspace = true }
+fluxemu-runtime = { workspace = true }
 strum = { workspace = true }
 bitvec = { workspace = true }
 bytemuck = { workspace = true }

@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use multiemu_range::{ContiguousRange, RangeIntersection};
+use fluxemu_range::{ContiguousRange, RangeIntersection};
 use num::traits::FromBytes;
 
 use super::AddressSpace;

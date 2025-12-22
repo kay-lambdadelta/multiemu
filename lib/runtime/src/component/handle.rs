@@ -113,7 +113,7 @@ impl ComponentHandle {
                 let context = SynchronizationContext {
                     event_manager: &self.event_manager,
                     updated_timestamp: &mut synchronization_data.updated_timestamp,
-                    current_timestamp,
+                    target_timestamp: current_timestamp,
                     last_attempted_allocation: &mut last_attempted_allocation,
                     interrupt: &synchronization_data.interrupt,
                 };

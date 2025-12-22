@@ -1,5 +1,5 @@
 use bitvec::{field::BitField, order::Msb0, slice::BitSlice, view::BitView};
-use multiemu_runtime::scheduler::Period;
+use fluxemu_runtime::scheduler::Period;
 use nalgebra::Point2;
 
 use super::WriteRegisters;

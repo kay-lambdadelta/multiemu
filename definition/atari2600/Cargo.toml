@@ -1,14 +1,14 @@
 [package]
-name = "multiemu-definition-atari2600"
+name = "fluxemu-definition-atari2600"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-multiemu-runtime = { workspace = true }
-multiemu-range = { workspace = true }
-multiemu-definition-misc = { workspace = true }
-multiemu-definition-mos6502 = { workspace = true }
+fluxemu-runtime = { workspace = true }
+fluxemu-range = { workspace = true }
+fluxemu-definition-misc = { workspace = true }
+fluxemu-definition-mos6502 = { workspace = true }
 tracing = { workspace = true }
 bitvec = { workspace = true }
 strum = { workspace = true }
@@ -19,13 +19,13 @@ bytemuck = { workspace = true }
 bytes = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
-multiemu-frontend = { workspace = true }
+fluxemu-frontend = { workspace = true }
 ron = { workspace = true }
 criterion = { workspace = true }
 
 [features]
-vulkan = ["multiemu-runtime/vulkan"]
-opengl = ["multiemu-runtime/opengl"]
+vulkan = ["fluxemu-runtime/vulkan"]
+opengl = ["fluxemu-runtime/opengl"]
 
 [[bench]]
 name = "machine_cycle"

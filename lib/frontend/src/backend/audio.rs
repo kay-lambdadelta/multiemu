@@ -1,4 +1,4 @@
-use multiemu_runtime::{machine::Machine, platform::Platform};
+use fluxemu_runtime::{machine::Machine, platform::Platform};
 use std::{fmt::Debug, sync::Arc};
 
 /// Audio runtime to provide the frontend

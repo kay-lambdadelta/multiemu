@@ -1,9 +1,9 @@
 use std::{fs::File, ops::Deref, str::FromStr, time::Duration};
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_definition_atari2600::Atari2600;
-use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment};
-use multiemu_runtime::{
+use fluxemu_definition_atari2600::Atari2600;
+use fluxemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment};
+use fluxemu_runtime::{
     machine::{Machine, MachineFactory, builder::MachineBuilder},
     platform::TestPlatform,
     program::{ProgramManager, RomId},

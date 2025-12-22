@@ -1,13 +1,13 @@
 [package]
-name = "multiemu-definition-atarilynx"
+name = "fluxemu-definition-atarilynx"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-multiemu-runtime = { workspace = true }
-multiemu-definition-misc = { workspace = true }
-multiemu-definition-mos6502 = { workspace = true }
+fluxemu-runtime = { workspace = true }
+fluxemu-definition-misc = { workspace = true }
+fluxemu-definition-mos6502 = { workspace = true }
 rangemap = { workspace = true }
 tracing = { workspace = true }
 bitvec = { workspace = true }
@@ -19,5 +19,5 @@ nalgebra = { workspace = true }
 palette = { workspace = true }
 
 [features]
-vulkan = ["multiemu-runtime/vulkan"]
-opengl = ["multiemu-runtime/opengl"]
+vulkan = ["fluxemu-runtime/vulkan"]
+opengl = ["fluxemu-runtime/opengl"]

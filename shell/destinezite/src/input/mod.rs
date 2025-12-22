@@ -3,8 +3,8 @@ use std::{
     sync::LazyLock,
 };
 
-use multiemu_frontend::Hotkey;
-use multiemu_runtime::input::{GamepadInput, Input, keyboard::KeyboardInput};
+use fluxemu_frontend::Hotkey;
+use fluxemu_runtime::input::{GamepadInput, Input, keyboard::KeyboardInput};
 
 pub mod gamepad;
 pub mod keyboard;

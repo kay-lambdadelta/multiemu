@@ -2,16 +2,16 @@ use std::{borrow::Cow, marker::PhantomData};
 
 use audio::Chip8AudioConfig;
 use display::Chip8DisplayConfig;
-use font::CHIP8_FONT;
-use multiemu_definition_misc::memory::standard::{
+use fluxemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_runtime::{
+use fluxemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     platform::Platform,
     program::Filesystem,
     scheduler::Frequency,
 };
+use font::CHIP8_FONT;
 use processor::Chip8ProcessorConfig;
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};

@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, AtomicU8};
 
-use multiemu_runtime::{
+use fluxemu_runtime::{
     memory::{AddressSpace, AddressSpaceCache},
     scheduler::Period,
 };

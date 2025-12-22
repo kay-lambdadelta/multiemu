@@ -11,11 +11,11 @@ use std::{
 
 use clap::Parser;
 use cli::{Cli, CliAction};
-use multiemu_frontend::{
+use fluxemu_frontend::{
     PlatformExt,
     environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY},
 };
-use multiemu_runtime::{graphics::software::Software, program::ProgramManager};
+use fluxemu_runtime::{graphics::software::Software, program::ProgramManager};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
     EnvFilter, Layer, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
@@ -67,7 +67,7 @@ fn main() {
         .with(file_layer)
         .init();
 
-    tracing::info!("MultiEMU v{}", env!("CARGO_PKG_VERSION"));
+    tracing::info!("FluxEMU v{}", env!("CARGO_PKG_VERSION"));
 
     let program_manager = ProgramManager::new(
         &environment.database_location,
@@ -106,7 +106,7 @@ fn main() {
         };
 
         match environment.graphics_setting.api {
-            multiemu_frontend::environment::graphics::GraphicsApi::Software => {
+            fluxemu_frontend::environment::graphics::GraphicsApi::Software => {
                 DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run_with_program(
                     environment,
                     program_manager.clone(),
@@ -116,8 +116,8 @@ fn main() {
                 .unwrap();
             }
             #[cfg(feature = "vulkan")]
-            multiemu_frontend::environment::graphics::GraphicsApi::Vulkan => {
-                use multiemu_runtime::graphics::vulkan::Vulkan;
+            fluxemu_frontend::environment::graphics::GraphicsApi::Vulkan => {
+                use fluxemu_runtime::graphics::vulkan::Vulkan;
 
                 use crate::backend::vulkan::VulkanGraphicsRuntime;
 
@@ -136,7 +136,7 @@ fn main() {
     }
 
     match environment.graphics_setting.api {
-        multiemu_frontend::environment::graphics::GraphicsApi::Software => {
+        fluxemu_frontend::environment::graphics::GraphicsApi::Software => {
             DesktopPlatform::<Software, SoftwareGraphicsRuntime>::run(
                 environment,
                 program_manager.clone(),
@@ -145,8 +145,8 @@ fn main() {
             .unwrap();
         }
         #[cfg(feature = "vulkan")]
-        multiemu_frontend::environment::graphics::GraphicsApi::Vulkan => {
-            use multiemu_runtime::graphics::vulkan::Vulkan;
+        fluxemu_frontend::environment::graphics::GraphicsApi::Vulkan => {
+            use fluxemu_runtime::graphics::vulkan::Vulkan;
 
             use crate::backend::vulkan::VulkanGraphicsRuntime;
 

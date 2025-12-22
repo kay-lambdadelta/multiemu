@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use egui::RawInput;
-use multiemu_runtime::{
+use fluxemu_runtime::{
     platform::Platform,
     program::{ProgramManager, ProgramSpecification},
 };
@@ -41,6 +41,6 @@ pub trait PlatformExt: Platform + Sized + 'static {
 pub trait EguiWindowingIntegration<D: WindowingHandle>: Debug + 'static {
     /// Set new egui context
     fn set_egui_context(&mut self, context: &egui::Context);
-    /// Gather inputs that can't be represented in [multiemu]'s input system
+    /// Gather inputs that can't be represented in [fluxemu]'s input system
     fn gather_platform_specific_inputs(&mut self) -> RawInput;
 }

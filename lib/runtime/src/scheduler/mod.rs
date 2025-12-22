@@ -11,7 +11,7 @@ pub(crate) use event::{EventManager, EventType, PreemptionSignal, QueuedEvent};
 use fixed::{FixedU128, types::extra::U64};
 use rustc_hash::FxBuildHasher;
 
-use crate::{component::ComponentHandle, path::MultiemuPath};
+use crate::{component::ComponentHandle, path::FluxEmuPath};
 
 mod event;
 #[cfg(test)]
@@ -29,7 +29,7 @@ pub struct DrivenComponent {
 #[derive(Debug)]
 pub(crate) struct Scheduler {
     pub event_queue: Arc<EventManager>,
-    driven: HashMap<MultiemuPath, DrivenComponent, FxBuildHasher>,
+    driven: HashMap<FluxEmuPath, DrivenComponent, FxBuildHasher>,
     now: AtomicCell<Period>,
 }
 
@@ -42,7 +42,7 @@ impl Scheduler {
         }
     }
 
-    pub fn register_driven_component(&mut self, path: MultiemuPath, component: ComponentHandle) {
+    pub fn register_driven_component(&mut self, path: FluxEmuPath, component: ComponentHandle) {
         self.driven.insert(path, DrivenComponent { component });
     }
 
@@ -104,7 +104,7 @@ fn find_reasonable_sleep_resolution() -> Duration {
 pub struct SynchronizationContext<'a> {
     pub(crate) event_manager: &'a EventManager,
     pub(crate) updated_timestamp: &'a mut Period,
-    pub(crate) current_timestamp: Period,
+    pub(crate) target_timestamp: Period,
     pub(crate) last_attempted_allocation: &'a mut Option<Period>,
     pub(crate) interrupt: &'a PreemptionSignal,
 }
@@ -118,7 +118,7 @@ impl<'a> SynchronizationContext<'a> {
     ) -> QuantaIterator<'b, 'a> {
         *self.last_attempted_allocation = Some(period);
 
-        let mut stop_time = self.current_timestamp;
+        let mut stop_time = self.target_timestamp;
 
         if let Some(next_event) = self.event_manager.next_event() {
             stop_time = stop_time.min(next_event)
@@ -153,7 +153,7 @@ impl Iterator for QuantaIterator<'_, '_> {
     fn next(&mut self) -> Option<Self::Item> {
         // New event(s) spotted we have not evaluated
         while self.context.interrupt.needs_preemption() {
-            let mut stop_time = self.context.current_timestamp;
+            let mut stop_time = self.context.target_timestamp;
 
             if let Some(next_event) = self.context.event_manager.next_event() {
                 stop_time = stop_time.min(next_event)

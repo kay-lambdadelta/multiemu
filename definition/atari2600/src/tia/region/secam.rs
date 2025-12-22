@@ -1,4 +1,4 @@
-use multiemu_runtime::scheduler::Frequency;
+use fluxemu_runtime::scheduler::Frequency;
 
 use super::Region;
 use crate::tia::color::TiaColor;

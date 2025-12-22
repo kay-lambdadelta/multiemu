@@ -5,7 +5,7 @@ use std::{
 };
 
 use bitvec::{prelude::Lsb0, view::BitView};
-use multiemu_runtime::{
+use fluxemu_runtime::{
     component::{Component, ComponentConfig},
     input::{GamepadInput, Input, VirtualGamepad, VirtualGamepadMetadata, keyboard::KeyboardInput},
     machine::builder::ComponentBuilder,

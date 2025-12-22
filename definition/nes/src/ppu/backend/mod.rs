@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use multiemu_runtime::graphics::GraphicsApi;
+use fluxemu_runtime::graphics::GraphicsApi;
 use nalgebra::DMatrixViewMut;
 use palette::Srgba;
 

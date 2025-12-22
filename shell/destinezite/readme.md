@@ -1,3 +1,3 @@
 # Destinezite
 
-This is the multiemu shell for desktop type platforms.
+This is the fluxemu shell for desktop type platforms.

@@ -1,14 +1,14 @@
 use std::sync::{Arc, Weak};
 
 use bitvec::{field::BitField, prelude::Lsb0, view::BitView};
-use multiemu_runtime::{
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, LateInitializedData},
     machine::{Machine, builder::ComponentBuilder},
     memory::{
         Address, AddressSpace, AddressSpaceId, MapTarget, MemoryError, MemoryRemappingCommand,
         Permissions,
     },
-    path::MultiemuPath,
+    path::FluxEmuPath,
     platform::Platform,
 };
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ use crate::{
 pub struct Mapctl {
     config: MapctlConfig,
     status: MapctlStatus,
-    my_path: MultiemuPath,
+    my_path: FluxEmuPath,
     cpu_address_space: Arc<AddressSpace>,
     machine: Weak<Machine>,
 }
@@ -100,11 +100,11 @@ impl Component for Mapctl {
 
 #[derive(Debug, Clone)]
 pub struct MapctlConfig {
-    pub ram: MultiemuPath,
-    pub suzy: MultiemuPath,
-    pub mikey: MultiemuPath,
-    pub vector: MultiemuPath,
-    pub reserved: MultiemuPath,
+    pub ram: FluxEmuPath,
+    pub suzy: FluxEmuPath,
+    pub mikey: FluxEmuPath,
+    pub vector: FluxEmuPath,
+    pub reserved: FluxEmuPath,
     pub cpu_address_space: AddressSpaceId,
 }
 

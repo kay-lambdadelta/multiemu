@@ -1,9 +1,9 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_definition_misc::memory::standard::{
+use fluxemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind, RESET_VECTOR};
-use multiemu_runtime::{
+use fluxemu_definition_mos6502::{Mos6502Config, Mos6502Kind, RESET_VECTOR};
+use fluxemu_runtime::{
     machine::Machine,
     memory::Address,
     scheduler::{Frequency, Period},

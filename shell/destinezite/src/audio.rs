@@ -4,9 +4,9 @@ use cpal::{
     Device, Host,
     traits::{DeviceTrait, HostTrait},
 };
+use fluxemu_frontend::AudioRuntime;
+use fluxemu_runtime::{machine::Machine, platform::Platform};
 use itertools::Itertools;
-use multiemu_frontend::AudioRuntime;
-use multiemu_runtime::{machine::Machine, platform::Platform};
 
 #[allow(unused)]
 pub struct CpalAudioRuntime {

@@ -10,7 +10,7 @@ use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    component::ComponentVersion, machine::registry::ComponentRegistry, path::MultiemuPath,
+    component::ComponentVersion, machine::registry::ComponentRegistry, path::FluxEmuPath,
     program::RomId,
 };
 
@@ -18,7 +18,7 @@ pub const SAVE_METADATA_FILE_NAME: &str = "metadata.ron";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SaveMetadata {
-    pub components: HashMap<MultiemuPath, ComponentSaveInfo>,
+    pub components: HashMap<FluxEmuPath, ComponentSaveInfo>,
     /// compression always implies zlib compression
     pub compressed: bool,
 }
@@ -42,7 +42,7 @@ impl SaveManager {
         &self,
         rom_id: RomId,
         rom_name: &str,
-        component_path: MultiemuPath,
+        component_path: FluxEmuPath,
     ) -> Result<Option<(Box<dyn Read>, ComponentVersion)>, Box<dyn std::error::Error>> {
         let save_directory = match &self.save_directory {
             Some(save_directory) => save_directory,

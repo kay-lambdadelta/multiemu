@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use multiemu_runtime::scheduler::Frequency;
+use fluxemu_runtime::scheduler::Frequency;
 use nalgebra::SMatrix;
 use palette::Srgb;
 

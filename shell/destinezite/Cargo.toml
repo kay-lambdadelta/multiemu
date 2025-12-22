@@ -1,5 +1,5 @@
 [package]
-name = "multiemu-shell-destinezite"
+name = "fluxemu-shell-destinezite"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
@@ -7,13 +7,13 @@ authors = ["Kay <lambdadeltakay@proton.me>"]
 description = "A multi system emulator"
 
 [dependencies]
-multiemu-runtime = { workspace = true }
-multiemu-frontend = { workspace = true }
-multiemu-audio = { workspace = true }
-multiemu-definition-chip8 = { workspace = true }
-multiemu-definition-nes = { workspace = true }
-multiemu-definition-atari2600 = { workspace = true }
-multiemu-definition-atarilynx = { workspace = true }
+fluxemu-runtime = { workspace = true }
+fluxemu-frontend = { workspace = true }
+fluxemu-audio = { workspace = true }
+fluxemu-definition-chip8 = { workspace = true }
+fluxemu-definition-nes = { workspace = true }
+fluxemu-definition-atari2600 = { workspace = true }
+fluxemu-definition-atarilynx = { workspace = true }
 tracing = { workspace = true }
 nalgebra = { workspace = true }
 bytemuck = { workspace = true }
@@ -34,18 +34,18 @@ softbuffer = "0.4"
 [features]
 default = ["vulkan"]
 vulkan = [
-    "multiemu-runtime/vulkan",
-    "multiemu-definition-chip8/vulkan",
-    "multiemu-definition-nes/vulkan",
-    "multiemu-definition-atari2600/vulkan",
-    "multiemu-definition-atarilynx/vulkan",
+    "fluxemu-runtime/vulkan",
+    "fluxemu-definition-chip8/vulkan",
+    "fluxemu-definition-nes/vulkan",
+    "fluxemu-definition-atari2600/vulkan",
+    "fluxemu-definition-atarilynx/vulkan",
 ]
 opengl = [
-    "multiemu-runtime/opengl",
-    "multiemu-definition-chip8/opengl",
-    "multiemu-definition-nes/opengl",
-    "multiemu-definition-atari2600/opengl",
-    "multiemu-definition-atarilynx/opengl",
+    "fluxemu-runtime/opengl",
+    "fluxemu-definition-chip8/opengl",
+    "fluxemu-definition-nes/opengl",
+    "fluxemu-definition-atari2600/opengl",
+    "fluxemu-definition-atarilynx/opengl",
 ]
 
 [package.metadata.deb]

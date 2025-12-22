@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use multiemu_definition_misc::memory::standard::{
+use fluxemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_runtime::{
-    machine::Machine, memory::AddressSpaceId, path::MultiemuPath, scheduler::Frequency,
+use fluxemu_runtime::{
+    machine::Machine, memory::AddressSpaceId, path::FluxEmuPath, scheduler::Frequency,
 };
 use rangemap::RangeInclusiveMap;
 
@@ -12,7 +12,7 @@ use crate::{Mos6502Config, Mos6502Kind};
 
 mod adc;
 
-fn instruction_test_boilerplate() -> (Arc<Machine>, MultiemuPath, AddressSpaceId) {
+fn instruction_test_boilerplate() -> (Arc<Machine>, FluxEmuPath, AddressSpaceId) {
     let (machine, cpu_address_space) = Machine::build_test_minimal().insert_address_space(16);
 
     let (machine, cpu) = machine.insert_component(

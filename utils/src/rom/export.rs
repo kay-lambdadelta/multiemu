@@ -4,8 +4,8 @@ use std::{
     path::PathBuf,
 };
 
-use multiemu_frontend::environment::Environment;
-use multiemu_runtime::program::{Filesystem, PROGRAM_INFORMATION_TABLE, ProgramManager};
+use fluxemu_frontend::environment::Environment;
+use fluxemu_runtime::program::{Filesystem, PROGRAM_INFORMATION_TABLE, ProgramManager};
 use redb::{ReadableDatabase, ReadableMultimapTable};
 
 use super::ExportStyle;

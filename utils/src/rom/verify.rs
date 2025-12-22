@@ -1,7 +1,7 @@
 use std::fs::{self, File};
 
-use multiemu_frontend::environment::Environment;
-use multiemu_runtime::program::{ProgramManager, RomId};
+use fluxemu_frontend::environment::Environment;
+use fluxemu_runtime::program::{ProgramManager, RomId};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
 pub fn rom_verify(

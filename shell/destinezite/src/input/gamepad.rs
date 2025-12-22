@@ -1,5 +1,5 @@
+use fluxemu_runtime::input::{GamepadInput, Input, InputState};
 use gilrs::{Axis, Button};
-use multiemu_runtime::input::{GamepadInput, Input, InputState};
 
 pub fn gilrs_button2input(button: Button) -> Option<Input> {
     Some(Input::Gamepad(match button {

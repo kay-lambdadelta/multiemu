@@ -5,8 +5,8 @@ use std::{
     ops::RangeInclusive,
 };
 
-use multiemu_range::ContiguousRange;
-use multiemu_runtime::{
+use fluxemu_range::ContiguousRange;
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     memory::{Address, AddressSpaceId, MemoryError, MemoryErrorType},

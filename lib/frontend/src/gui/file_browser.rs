@@ -7,9 +7,9 @@ use std::{
 
 use cfg_if::cfg_if;
 use egui::{Button, Frame, ScrollArea, Stroke, TextEdit};
+use fluxemu_runtime::program::{ProgramManager, ProgramSpecification};
 use indexmap::IndexMap;
 use itertools::Itertools;
-use multiemu_runtime::program::{ProgramManager, ProgramSpecification};
 use palette::{
     WithAlpha,
     named::{GREEN, RED},

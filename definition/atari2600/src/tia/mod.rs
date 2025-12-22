@@ -12,12 +12,12 @@ use bitvec::{
     view::BitView,
 };
 use color::TiaColor;
-use multiemu_definition_mos6502::RdyFlag;
-use multiemu_runtime::{
+use fluxemu_definition_mos6502::RdyFlag;
+use fluxemu_runtime::{
     component::Component,
     machine::Machine,
     memory::{Address, AddressSpaceId, MemoryError},
-    path::MultiemuPath,
+    path::FluxEmuPath,
     scheduler::{Period, SynchronizationContext},
 };
 use nalgebra::Point2;
@@ -126,7 +126,7 @@ pub(crate) struct Tia<R: Region, G: SupportedGraphicsApiTia> {
     cpu_rdy: Arc<RdyFlag>,
     machine: Weak<Machine>,
     timestamp: Period,
-    my_path: MultiemuPath,
+    my_path: FluxEmuPath,
 }
 
 impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
@@ -170,7 +170,7 @@ impl<R: Region, G: SupportedGraphicsApiTia> Component for Tia<R, G> {
         }
     }
 
-    fn access_framebuffer(&mut self, _path: &MultiemuPath) -> &dyn Any {
+    fn access_framebuffer(&mut self, _path: &FluxEmuPath) -> &dyn Any {
         self.backend.as_mut().unwrap().access_framebuffer()
     }
 

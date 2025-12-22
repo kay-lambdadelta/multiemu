@@ -5,11 +5,11 @@ use std::{
 };
 
 use bitvec::{order::Msb0, view::BitView};
-use multiemu_runtime::{
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, LateInitializedData},
     graphics::GraphicsApi,
     machine::builder::{ComponentBuilder, SchedulerParticipation},
-    path::MultiemuPath,
+    path::FluxEmuPath,
     platform::Platform,
     scheduler::{Period, SynchronizationContext},
 };
@@ -214,7 +214,7 @@ impl<R: SupportedGraphicsApiChip8Display> Component for Chip8Display<R> {
         Ok(())
     }
 
-    fn access_framebuffer(&mut self, _path: &MultiemuPath) -> &dyn Any {
+    fn access_framebuffer(&mut self, _path: &FluxEmuPath) -> &dyn Any {
         self.backend.as_mut().unwrap().access_framebuffer()
     }
 

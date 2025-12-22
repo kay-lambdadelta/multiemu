@@ -1,8 +1,8 @@
 use std::{fs::File, io::BufReader, path::PathBuf};
 
 use clap::Subcommand;
-use multiemu_frontend::environment::Environment;
-use multiemu_runtime::program::ProgramManager;
+use fluxemu_frontend::environment::Environment;
+use fluxemu_runtime::program::ProgramManager;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 #[derive(Clone, Debug, Subcommand)]

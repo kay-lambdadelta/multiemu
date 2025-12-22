@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use multiemu_runtime::scheduler::Frequency;
+use fluxemu_runtime::scheduler::Frequency;
 use palette::Srgb;
 
 use super::color::TiaColor;

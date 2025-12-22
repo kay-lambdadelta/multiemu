@@ -8,7 +8,7 @@ use versions::SemVer;
 
 #[derive(Debug)]
 pub struct Properties {
-    pub multiemu_version: Option<SemVer>,
+    pub fluxemu_version: Option<SemVer>,
     pub os_name: Option<String>,
     pub max_memory: Byte,
 }
@@ -47,7 +47,7 @@ impl AboutState {
             );
 
             let properties = Properties {
-                multiemu_version: option_env!("CARGO_PKG_VERSION")
+                fluxemu_version: option_env!("CARGO_PKG_VERSION")
                     .map(|version| version.parse().unwrap()),
                 os_name: System::long_os_version().or_else(System::name),
                 max_memory: self.system.total_memory().into(),
@@ -63,9 +63,9 @@ impl AboutState {
         // Prepare the table data
         let rows = vec![
             (
-                "MultiEMU Version",
+                "fluxEMU Version",
                 properties
-                    .multiemu_version
+                    .fluxemu_version
                     .as_ref()
                     .map(std::string::ToString::to_string),
             ),

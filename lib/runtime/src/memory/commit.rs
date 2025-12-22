@@ -1,8 +1,8 @@
 use std::ops::RangeInclusive;
 
 use bytes::Bytes;
+use fluxemu_range::{ContiguousRange, RangeIntersection};
 use itertools::Itertools;
-use multiemu_range::{ContiguousRange, RangeIntersection};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::{
@@ -11,13 +11,13 @@ use crate::{
         Address, ComputedTablePage, ComputedTablePageTarget, MappingEntry, MemoryMappingTable,
         PAGE_SIZE,
     },
-    path::MultiemuPath,
+    path::FluxEmuPath,
 };
 
 #[derive(Debug, Clone)]
 pub enum MapTarget {
-    Component(MultiemuPath),
-    Memory(MultiemuPath),
+    Component(FluxEmuPath),
+    Memory(FluxEmuPath),
     Mirror {
         destination: RangeInclusive<Address>,
     },
@@ -39,7 +39,7 @@ pub enum MemoryRemappingCommand {
         permissions: Permissions,
     },
     /// Register a buffer or another item
-    Register { path: MultiemuPath, buffer: Bytes },
+    Register { path: FluxEmuPath, buffer: Bytes },
 }
 
 #[allow(missing_docs)]
@@ -65,7 +65,7 @@ impl MemoryMappingTable {
     pub(super) fn commit(
         &mut self,
         registry: &ComponentRegistry,
-        resources: &scc::HashMap<MultiemuPath, Bytes>,
+        resources: &scc::HashMap<FluxEmuPath, Bytes>,
     ) {
         // Process all pages in parallel
         self.computed_table

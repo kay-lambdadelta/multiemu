@@ -1,7 +1,7 @@
 use std::ffi::OsString;
 
 use clap::{Parser, Subcommand};
-use multiemu_runtime::program::MachineId;
+use fluxemu_runtime::program::MachineId;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

@@ -6,17 +6,17 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use input::{Chip8KeyCode, default_bindings, present_inputs};
-use instruction::Register;
-use multiemu_runtime::{
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, TypedComponentHandle},
     input::{VirtualGamepad, VirtualGamepadMetadata},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     memory::{AddressSpace, AddressSpaceId},
-    path::MultiemuPath,
+    path::FluxEmuPath,
     platform::Platform,
     scheduler::{Frequency, Period, SynchronizationContext},
 };
+use input::{Chip8KeyCode, default_bindings, present_inputs};
+use instruction::Register;
 use serde::{Deserialize, Serialize};
 
 use super::Chip8Mode;
@@ -233,9 +233,9 @@ impl<G: SupportedGraphicsApiChip8Display> Component for Chip8Processor<G> {
 #[derive(Debug)]
 pub struct Chip8ProcessorConfig<G: SupportedGraphicsApiChip8Display> {
     pub cpu_address_space: AddressSpaceId,
-    pub display: MultiemuPath,
-    pub audio: MultiemuPath,
-    pub timer: MultiemuPath,
+    pub display: FluxEmuPath,
+    pub audio: FluxEmuPath,
+    pub timer: FluxEmuPath,
     pub frequency: Frequency,
     pub force_mode: Option<Chip8Mode>,
     pub always_shr_in_place: bool,

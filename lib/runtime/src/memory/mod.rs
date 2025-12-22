@@ -9,12 +9,12 @@ use arc_swap::{ArcSwap, Cache};
 use bitvec::{field::BitField, order::Lsb0};
 use bytes::Bytes;
 pub use commit::{MapTarget, MemoryRemappingCommand, Permissions};
-use multiemu_range::RangeIntersection;
+use fluxemu_range::RangeIntersection;
 use nohash::IsEnabled;
 use rangemap::RangeInclusiveMap;
 use thiserror::Error;
 
-use crate::{component::ComponentHandle, machine::registry::ComponentRegistry, path::MultiemuPath};
+use crate::{component::ComponentHandle, machine::registry::ComponentRegistry, path::FluxEmuPath};
 
 mod commit;
 mod overlapping;
@@ -31,7 +31,7 @@ pub struct AddressSpace {
     address_space_width: u8,
     id: AddressSpaceId,
     members: Arc<ArcSwap<Members>>,
-    resources: scc::HashMap<MultiemuPath, Bytes>,
+    resources: scc::HashMap<FluxEmuPath, Bytes>,
 }
 
 impl AddressSpace {
@@ -198,12 +198,12 @@ impl Debug for ComputedTablePage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MappingEntry {
-    Component(MultiemuPath),
+    Component(FluxEmuPath),
     Mirror {
         source_base: Address,
         destination_base: Address,
     },
-    Memory(MultiemuPath),
+    Memory(FluxEmuPath),
 }
 
 #[derive(Debug, Clone)]

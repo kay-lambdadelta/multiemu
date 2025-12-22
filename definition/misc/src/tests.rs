@@ -1,4 +1,4 @@
-use multiemu_runtime::{machine::Machine, scheduler::Period};
+use fluxemu_runtime::{machine::Machine, scheduler::Period};
 use rangemap::RangeInclusiveMap;
 
 use crate::memory::standard::{StandardMemoryConfig, StandardMemoryInitialContents};

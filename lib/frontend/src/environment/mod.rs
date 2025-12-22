@@ -6,7 +6,7 @@ use std::{
 };
 
 use audio::AudioSettings;
-use multiemu_runtime::input::Input;
+use fluxemu_runtime::input::Input;
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
@@ -28,14 +28,14 @@ cfg_if::cfg_if! {
     if #[cfg(miri)] {
         pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(PathBuf::default);
     } else if #[cfg(target_os = "espidf")] {
-        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("/multiemu"));
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("/fluxemu"));
     } else if #[cfg(target_os = "horizon")] {
-        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("sdmc:/multiemu"));
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("sdmc:/fluxemu"));
     } else if #[cfg(target_os = "psp")] {
-        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("ms0:/multiemu"));
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("ms0:/fluxemu"));
     } else if #[cfg(any(target_family = "unix", target_os = "windows"))] {
-        /// Directory that multiemu will use as a "home" folder
-        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| dirs::data_dir().unwrap().join("multiemu"));
+        /// Directory that fluxemu will use as a "home" folder
+        pub static STORAGE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| dirs::data_dir().unwrap().join("fluxemu"));
     } else {
         compile_error!("Unsupported target");
     }

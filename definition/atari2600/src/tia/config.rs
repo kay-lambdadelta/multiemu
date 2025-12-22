@@ -1,11 +1,11 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Weak};
 
-use multiemu_definition_mos6502::Mos6502;
-use multiemu_runtime::{
+use fluxemu_definition_mos6502::Mos6502;
+use fluxemu_runtime::{
     component::{ComponentConfig, LateInitializedData},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     memory::AddressSpaceId,
-    path::MultiemuPath,
+    path::FluxEmuPath,
     platform::Platform,
     scheduler::Period,
 };
@@ -21,7 +21,7 @@ use crate::tia::{
 
 #[derive(Debug, Clone)]
 pub(crate) struct TiaConfig<R: Region> {
-    pub cpu: MultiemuPath,
+    pub cpu: FluxEmuPath,
     pub cpu_address_space: AddressSpaceId,
     pub _phantom: PhantomData<R>,
 }

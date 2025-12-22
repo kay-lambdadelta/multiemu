@@ -1,6 +1,6 @@
-//! Multiemu Runtime
+//! FluxEMU Runtime
 //!
-//! The main runtime for the multiemu emulator framework
+//! The main runtime for the FluxEMU emulator framework
 
 use std::{
     any::Any,
@@ -22,7 +22,7 @@ use crate::{
     input::VirtualGamepad,
     machine::{builder::MachineBuilder, registry::ComponentRegistry},
     memory::{AddressSpace, AddressSpaceId, MemoryRemappingCommand},
-    path::MultiemuPath,
+    path::FluxEmuPath,
     persistence::{SaveManager, SnapshotManager},
     platform::{Platform, TestPlatform},
     program::{ProgramManager, ProgramSpecification},
@@ -46,13 +46,13 @@ where
     pub address_spaces:
         HashMap<AddressSpaceId, Arc<AddressSpace>, BuildNoHashHasher<AddressSpaceId>>,
     /// All virtual gamepads inserted by components
-    pub virtual_gamepads: HashMap<MultiemuPath, Arc<VirtualGamepad>, FxBuildHasher>,
+    pub virtual_gamepads: HashMap<FluxEmuPath, Arc<VirtualGamepad>, FxBuildHasher>,
     /// Component Registry
     pub(crate) registry: ComponentRegistry,
     /// All displays this machine has
-    pub displays: HashSet<MultiemuPath>,
+    pub displays: HashSet<FluxEmuPath>,
     /// All audio outputs this machine has
-    pub audio_outputs: HashSet<MultiemuPath>,
+    pub audio_outputs: HashSet<FluxEmuPath>,
     /// The program that this machine was set up with, if any
     pub program_specification: Option<ProgramSpecification>,
     #[allow(unused)]
@@ -112,7 +112,7 @@ impl Machine {
     pub fn schedule_event<C: Component>(
         &self,
         time: Period,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&mut C, Period) + Send + Sync + 'static,
     ) {
         let component = self.registry.handle(path).unwrap();
@@ -136,7 +136,7 @@ impl Machine {
         &self,
         time: Period,
         frequency: Frequency,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         mut callback: impl FnMut(&mut C, Period) + Send + Sync + 'static,
     ) {
         let component = self.registry.handle(path).unwrap();
@@ -183,7 +183,7 @@ impl Machine {
 
     pub fn interact<C: Component, T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&C) -> T,
     ) -> Option<T> {
         let now = self.now();
@@ -194,7 +194,7 @@ impl Machine {
 
     pub fn interact_mut<C: Component, T: 'static>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&mut C) -> T,
     ) -> Option<T> {
         let now = self.now();
@@ -205,7 +205,7 @@ impl Machine {
 
     pub fn interact_dyn<T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Option<T> {
         let now = self.now();
@@ -216,7 +216,7 @@ impl Machine {
 
     pub fn interact_dyn_mut<T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&mut dyn Component) -> T,
     ) -> Option<T> {
         let now = self.now();
@@ -227,12 +227,12 @@ impl Machine {
 
     pub fn typed_handle<C: Component>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
     ) -> Option<TypedComponentHandle<C>> {
         self.registry.typed_handle(path)
     }
 
-    pub fn component_handle(&self, path: &MultiemuPath) -> Option<ComponentHandle> {
+    pub fn component_handle(&self, path: &FluxEmuPath) -> Option<ComponentHandle> {
         self.registry.handle(path)
     }
 }

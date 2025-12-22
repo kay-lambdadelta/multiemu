@@ -7,15 +7,15 @@ use std::{
     sync::Weak,
 };
 
+use fluxemu_audio::FrameIterator;
+use fluxemu_range::ContiguousRange;
 pub use handle::*;
-use multiemu_audio::FrameIterator;
-use multiemu_range::ContiguousRange;
 
 use crate::{
     graphics::GraphicsApi,
     machine::{Machine, builder::ComponentBuilder},
     memory::{Address, AddressSpaceId, MemoryError, MemoryErrorType},
-    path::MultiemuPath,
+    path::FluxEmuPath,
     platform::Platform,
     scheduler::{Period, SynchronizationContext},
 };
@@ -91,12 +91,12 @@ pub trait Component: Send + Sync + Debug + Any {
     // TODO: Find out a non nightmarish way to have the platform generic here
 
     /// The [Any] needs to be cast to a [`GraphicsApi::FramebufferTexture`]
-    fn access_framebuffer(&mut self, path: &MultiemuPath) -> &dyn Any {
+    fn access_framebuffer(&mut self, path: &FluxEmuPath) -> &dyn Any {
         unreachable!()
     }
 
     /// Give the runtime the audio sample ring buffer
-    fn get_audio_channel(&mut self, audio_output_path: &MultiemuPath) -> SampleSource<'_> {
+    fn get_audio_channel(&mut self, audio_output_path: &FluxEmuPath) -> SampleSource<'_> {
         unreachable!()
     }
 

@@ -1,10 +1,10 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use multiemu_definition_misc::memory::standard::{
+use fluxemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_runtime::machine::Machine;
+use fluxemu_runtime::machine::Machine;
 use rangemap::RangeInclusiveMap;
 
 fn criterion_benchmark(c: &mut Criterion) {

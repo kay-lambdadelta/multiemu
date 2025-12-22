@@ -9,14 +9,14 @@ use std::{
 
 use arrayvec::ArrayVec;
 use bitvec::{prelude::Lsb0, view::BitView};
-use instruction::Mos6502InstructionSet;
-use multiemu_runtime::{
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     memory::{Address, AddressSpace, AddressSpaceCache, AddressSpaceId},
     platform::Platform,
     scheduler::{Frequency, Period, SynchronizationContext},
 };
+use instruction::Mos6502InstructionSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{

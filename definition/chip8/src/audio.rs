@@ -1,10 +1,10 @@
 use std::io::{Read, Write};
 
-use multiemu_audio::{FrameIterator, SquareWave};
-use multiemu_runtime::{
+use fluxemu_audio::{FrameIterator, SquareWave};
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion, SampleSource},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
-    path::MultiemuPath,
+    path::FluxEmuPath,
     platform::Platform,
     scheduler::{Frequency, Period, SynchronizationContext},
 };
@@ -53,7 +53,7 @@ impl Component for Chip8Audio {
         Ok(())
     }
 
-    fn get_audio_channel(&mut self, _audio_output_path: &MultiemuPath) -> SampleSource<'_> {
+    fn get_audio_channel(&mut self, _audio_output_path: &FluxEmuPath) -> SampleSource<'_> {
         let sample_rate = self.processor_frequency.to_num();
 
         SampleSource {

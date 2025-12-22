@@ -4,10 +4,8 @@ use std::{
 };
 
 use clap::Subcommand;
-use multiemu_frontend::environment::Environment;
-use multiemu_runtime::program::{
-    MachineId, NintendoSystem, ProgramManager, SegaSystem, SonySystem,
-};
+use fluxemu_frontend::environment::Environment;
+use fluxemu_runtime::program::{MachineId, NintendoSystem, ProgramManager, SegaSystem, SonySystem};
 use strum::{Display, EnumIter};
 use zip::ZipArchive;
 

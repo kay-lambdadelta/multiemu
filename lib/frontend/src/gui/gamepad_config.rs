@@ -2,7 +2,7 @@ use egui_snarl::{
     Snarl,
     ui::{PinInfo, SnarlPin, SnarlStyle, SnarlViewer},
 };
-use multiemu_runtime::input::{Input, RealGamepadMetadata};
+use fluxemu_runtime::input::{Input, RealGamepadMetadata};
 
 #[derive(Debug)]
 pub struct GamepadConfigState {

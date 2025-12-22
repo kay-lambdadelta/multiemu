@@ -7,8 +7,8 @@ use std::{
 
 use bytemuck::{Pod, Zeroable};
 use egui::{TextureId, epaint::Primitive};
-use multiemu_frontend::EGUI_WGSL_SHADER;
-use multiemu_runtime::{
+use fluxemu_frontend::EGUI_WGSL_SHADER;
+use fluxemu_runtime::{
     graphics::{
         GraphicsVersion,
         vulkan::vulkano::{

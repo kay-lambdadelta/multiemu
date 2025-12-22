@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use multiemu_runtime::processor::InstructionSet;
+use fluxemu_runtime::processor::InstructionSet;
 use serde::{Deserialize, Serialize};
 
 use crate::Mos6502Kind;

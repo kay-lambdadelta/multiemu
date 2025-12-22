@@ -1,12 +1,12 @@
 [package]
-name = "multiemu-definition-misc"
+name = "fluxemu-definition-misc"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-multiemu-runtime = { workspace = true }
-multiemu-range = { workspace = true }
+fluxemu-runtime = { workspace = true }
+fluxemu-range = { workspace = true }
 rangemap = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use multiemu_locale::Iso639Alpha3;
+use fluxemu_locale::Iso639Alpha3;
 use redb::{Key, TypeName, Value};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};

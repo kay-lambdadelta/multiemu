@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use multiemu_runtime::input::{Input, keyboard::KeyboardInput};
+use fluxemu_runtime::input::{Input, keyboard::KeyboardInput};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]

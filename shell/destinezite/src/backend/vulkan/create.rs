@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use multiemu_runtime::graphics::vulkan::vulkano::{
+use fluxemu_runtime::graphics::vulkan::vulkano::{
     VulkanLibrary,
     device::{
         Device, DeviceExtensions, QueueFlags,

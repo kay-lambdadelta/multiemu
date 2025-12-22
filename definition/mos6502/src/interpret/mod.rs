@@ -1,5 +1,5 @@
 use bitvec::{prelude::Lsb0, view::BitView};
-use multiemu_runtime::memory::Address;
+use fluxemu_runtime::memory::Address;
 
 use super::{
     FlagRegister,

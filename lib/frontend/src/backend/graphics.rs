@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use egui::FullOutput;
-use multiemu_runtime::{graphics::GraphicsApi, machine::Machine, platform::Platform};
+use fluxemu_runtime::{graphics::GraphicsApi, machine::Machine, platform::Platform};
 use nalgebra::Vector2;
 
 use crate::environment::Environment;

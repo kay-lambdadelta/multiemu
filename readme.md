@@ -1,26 +1,26 @@
-# MultiEMU
+# FluxEMU
 
 This is a prototype of a multisystem hardware emulator, designed for fast, portable, and convenient execution of ROM based hardware systems
 
 ## Dependencies
 
-`multiemu-utils`
+`fluxemu-utils`
 
-| Distro    | Development Package Name |
-| --------  | -------                  |
-| Debian    | libbz2-dev               |
+| Distro | Development Package Name |
+| ------ | ------------------------ |
+| Debian | libbz2-dev               |
 
-`multiemu-shell-destinezite`
+`fluxemu-shell-destinezite`
 
-| Distro    | Development Package Name                                                                         |
-| --------  | -------                                                                                          |
-| Debian    | libx11-dev libxkbcommon-dev libwayland-dev libasound2-dev libudev-dev pkg-config build-essential |
+| Distro | Development Package Name                                                                         |
+| ------ | ------------------------------------------------------------------------------------------------ |
+| Debian | libx11-dev libxkbcommon-dev libwayland-dev libasound2-dev libudev-dev pkg-config build-essential |
 
 Feature specific dependencies (all features are enabled by default)
 
-| Distro   | Feature | Development Package Name |
-| -------- | ------- | -------                  |
-| Debian   | `vulkan` | libvulkan-dev           |
+| Distro | Feature  | Development Package Name |
+| ------ | -------- | ------------------------ |
+| Debian | `vulkan` | libvulkan-dev            |
 
 ## UI
 

@@ -1,9 +1,9 @@
-use multiemu_definition_atari2600::Atari2600;
-use multiemu_definition_atarilynx::AtariLynx;
-use multiemu_definition_chip8::Chip8;
-use multiemu_definition_nes::Nes;
-use multiemu_frontend::MachineFactories;
-use multiemu_runtime::{
+use fluxemu_definition_atari2600::Atari2600;
+use fluxemu_definition_atarilynx::AtariLynx;
+use fluxemu_definition_chip8::Chip8;
+use fluxemu_definition_nes::Nes;
+use fluxemu_frontend::MachineFactories;
+use fluxemu_runtime::{
     graphics::software::Software,
     platform::Platform,
     program::{AtariSystem, MachineId, NintendoSystem, OtherSystem},
@@ -11,7 +11,7 @@ use multiemu_runtime::{
 
 #[cfg(feature = "vulkan")]
 pub fn get_vulkan_factories<
-    P: Platform<GraphicsApi = multiemu_runtime::graphics::vulkan::Vulkan>,
+    P: Platform<GraphicsApi = fluxemu_runtime::graphics::vulkan::Vulkan>,
 >() -> MachineFactories<P> {
     let mut factories = MachineFactories::default();
 

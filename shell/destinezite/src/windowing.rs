@@ -2,13 +2,12 @@ use std::{borrow::Cow, collections::HashMap, fmt::Debug, fs::File, ops::Deref, s
 
 use egui::RawInput;
 use egui_winit::egui::ViewportId;
-use gilrs::{EventType, Gilrs, GilrsBuilder};
-use multiemu_frontend::{
+use fluxemu_frontend::{
     EguiWindowingIntegration, Frontend, GraphicsRuntime, MachineFactories, PlatformExt,
     WindowingHandle,
     environment::{ENVIRONMENT_LOCATION, Environment},
 };
-use multiemu_runtime::{
+use fluxemu_runtime::{
     graphics::GraphicsApi,
     input::{
         GamepadInput, Input, InputState, RealGamepad, RealGamepadId, RealGamepadMetadata,
@@ -17,6 +16,7 @@ use multiemu_runtime::{
     platform::Platform,
     program::{ProgramManager, ProgramSpecification},
 };
+use gilrs::{EventType, Gilrs, GilrsBuilder};
 use nalgebra::Vector2;
 use strum::IntoEnumIterator;
 use uuid::Uuid;
@@ -360,7 +360,7 @@ fn produce_id_for_gilrs_gamepad(
 
 fn setup_window(event_loop: &ActiveEventLoop) -> WinitWindow {
     let window_attributes = Window::default_attributes()
-        .with_title("MultiEMU")
+        .with_title("FluxEMU")
         .with_resizable(true)
         .with_transparent(false)
         .with_decorations(true);

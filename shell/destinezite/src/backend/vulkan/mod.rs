@@ -4,9 +4,8 @@ use std::sync::{
 };
 
 use create::{create_vulkan_instance, create_vulkan_swapchain, select_vulkan_device};
-use gui::VulkanEguiRenderer;
-use multiemu_frontend::{GraphicsRuntime, WindowingHandle, environment::Environment};
-use multiemu_runtime::{
+use fluxemu_frontend::{GraphicsRuntime, WindowingHandle, environment::Environment};
+use fluxemu_runtime::{
     graphics::{
         GraphicsApi,
         vulkan::{
@@ -37,6 +36,7 @@ use multiemu_runtime::{
     machine::Machine,
     shader::{ShaderCache, SpirvShader},
 };
+use gui::VulkanEguiRenderer;
 use nalgebra::Vector2;
 
 use crate::windowing::{DesktopPlatform, WinitWindow};

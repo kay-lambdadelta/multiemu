@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use multiemu_runtime::{
+use fluxemu_runtime::{
     component::{Component, ComponentConfig},
     machine::builder::ComponentBuilder,
     memory::AddressSpaceId,

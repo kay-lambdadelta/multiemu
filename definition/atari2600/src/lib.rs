@@ -1,16 +1,16 @@
 use std::{marker::PhantomData, ops::RangeInclusive};
 
 use cartridge::Atari2600CartridgeConfig;
-use gamepad::joystick::Atari2600JoystickConfig;
-use multiemu_definition_misc::mos6532_riot::Mos6532RiotConfig;
-use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_runtime::{
+use fluxemu_definition_misc::mos6532_riot::Mos6532RiotConfig;
+use fluxemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
+use fluxemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     memory::{Address, AddressSpaceId},
-    path::MultiemuPath,
+    path::FluxEmuPath,
     platform::Platform,
     program::Filesystem,
 };
+use gamepad::joystick::Atari2600JoystickConfig;
 use strum::Display;
 use tia::{
     config::TiaConfig,
@@ -85,7 +85,7 @@ impl<P: Platform<GraphicsApi: SupportedGraphicsApiTia>> MachineFactory<P> for At
 fn common<R: Region, P: Platform<GraphicsApi: SupportedGraphicsApiTia>>(
     cpu_address_space: AddressSpaceId,
     machine: MachineBuilder<P>,
-) -> (MachineBuilder<P>, MultiemuPath) {
+) -> (MachineBuilder<P>, FluxEmuPath) {
     let (machine, cpu) = machine.insert_component(
         "mos_6502",
         Mos6502Config {

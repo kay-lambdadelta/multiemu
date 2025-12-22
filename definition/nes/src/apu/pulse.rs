@@ -1,5 +1,5 @@
 use crate::apu::Apu;
-use multiemu_runtime::memory::Address;
+use fluxemu_runtime::memory::Address;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Sweep {

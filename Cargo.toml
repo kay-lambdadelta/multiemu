@@ -4,18 +4,18 @@ members = ["utils", "definition/*", "shell/*", "lib/*"]
 
 [workspace.dependencies]
 # Main emulator runtime shared with shell and components
-multiemu-runtime = { path = "lib/runtime" }
-multiemu-frontend = { path = "lib/frontend" }
-multiemu-locale = { path = "lib/locale" }
-multiemu-definition-misc = { path = "definition/misc" }
-multiemu-definition-mos6502 = { path = "definition/mos6502" }
-multiemu-definition-chip8 = { path = "definition/chip8" }
-multiemu-definition-nes = { path = "definition/nes" }
-multiemu-definition-intel8080 = { path = "definition/intel8080" }
-multiemu-definition-atari2600 = { path = "definition/atari2600" }
-multiemu-definition-atarilynx = { path = "definition/atarilynx" }
-multiemu-audio = { path = "lib/audio" }
-multiemu-range = { path = "lib/range" }
+fluxemu-runtime = { path = "lib/runtime" }
+fluxemu-frontend = { path = "lib/frontend" }
+fluxemu-locale = { path = "lib/locale" }
+fluxemu-definition-misc = { path = "definition/misc" }
+fluxemu-definition-mos6502 = { path = "definition/mos6502" }
+fluxemu-definition-chip8 = { path = "definition/chip8" }
+fluxemu-definition-nes = { path = "definition/nes" }
+fluxemu-definition-intel8080 = { path = "definition/intel8080" }
+fluxemu-definition-atari2600 = { path = "definition/atari2600" }
+fluxemu-definition-atarilynx = { path = "definition/atarilynx" }
+fluxemu-audio = { path = "lib/audio" }
+fluxemu-range = { path = "lib/range" }
 
 # External dependencies
 strum = { version = "0.27", features = ["derive"] }

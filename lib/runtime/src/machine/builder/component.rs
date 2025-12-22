@@ -22,7 +22,7 @@ use crate::{
     memory::{
         Address, AddressSpace, AddressSpaceId, MapTarget, MemoryRemappingCommand, Permissions,
     },
-    path::{MultiemuPath, Namespace},
+    path::{FluxEmuPath, Namespace},
     platform::Platform,
     program::ProgramManager,
     scheduler::{EventType, Frequency, Period, PreemptionSignal},
@@ -30,10 +30,10 @@ use crate::{
 
 /// Overall data extracted from components needed for machine initialization
 pub(super) struct ComponentMetadata<P: Platform> {
-    pub displays: HashSet<MultiemuPath>,
+    pub displays: HashSet<FluxEmuPath>,
     pub graphics_requirements: GraphicsRequirements<P::GraphicsApi>,
-    pub audio_outputs: HashSet<MultiemuPath>,
-    pub gamepads: HashMap<MultiemuPath, Arc<VirtualGamepad>>,
+    pub audio_outputs: HashSet<FluxEmuPath>,
+    pub gamepads: HashMap<FluxEmuPath, Arc<VirtualGamepad>>,
     #[allow(clippy::type_complexity)]
     pub late_initializer: Box<dyn FnOnce(&mut dyn Component, &LateInitializedData<P>)>,
     pub scheduler_participation: SchedulerParticipation,
@@ -63,12 +63,12 @@ impl<P: Platform> ComponentMetadata<P> {
 pub struct ComponentBuilder<'a, P: Platform, C: Component> {
     pub(super) machine_builder: &'a mut MachineBuilder<P>,
     pub(super) component_metadata: &'a mut ComponentMetadata<P>,
-    pub(super) path: &'a MultiemuPath,
+    pub(super) path: &'a FluxEmuPath,
     pub(super) _phantom: PhantomData<C>,
 }
 
 impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
-    pub fn path(&self) -> &'a MultiemuPath {
+    pub fn path(&self) -> &'a FluxEmuPath {
         self.path
     }
 
@@ -95,7 +95,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn interact<C2: Component, T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&C2) -> T,
     ) -> Option<T> {
         self.machine_builder
@@ -105,7 +105,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn interact_mut<C2: Component, T: 'static>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&mut C2) -> T,
     ) -> Option<T> {
         self.machine_builder
@@ -115,12 +115,12 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
 
     pub fn typed_handle<C2: Component>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
     ) -> Option<TypedComponentHandle<C2>> {
         self.machine_builder.registry.typed_handle(path)
     }
 
-    pub fn handle(&self, path: &MultiemuPath) -> Option<ComponentHandle> {
+    pub fn handle(&self, path: &FluxEmuPath) -> Option<ComponentHandle> {
         self.machine_builder.registry.handle(path)
     }
 
@@ -129,9 +129,9 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self,
         name: &str,
         config: B,
-    ) -> (Self, MultiemuPath) {
+    ) -> (Self, FluxEmuPath) {
         assert!(
-            !name.contains(MultiemuPath::SEPARATOR),
+            !name.contains(FluxEmuPath::SEPARATOR),
             "This function requires a name not a path"
         );
 
@@ -170,12 +170,12 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
     pub fn insert_default_child_component<B: ComponentConfig<P> + Default>(
         self,
         name: &str,
-    ) -> (Self, MultiemuPath) {
+    ) -> (Self, FluxEmuPath) {
         let config = B::default();
         self.insert_child_component(name, config)
     }
 
-    pub fn insert_audio_channel(self, name: &str) -> (Self, MultiemuPath) {
+    pub fn insert_audio_channel(self, name: &str) -> (Self, FluxEmuPath) {
         let mut resource_path = self.path.clone();
         resource_path.push(Namespace::Resource, name);
 
@@ -186,7 +186,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         (self, resource_path)
     }
 
-    pub fn insert_display(self, name: &str) -> (Self, MultiemuPath) {
+    pub fn insert_display(self, name: &str) -> (Self, FluxEmuPath) {
         let mut resource_path = self.path.clone();
         resource_path.push(Namespace::Resource, name);
 
@@ -197,7 +197,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         (self, resource_path)
     }
 
-    pub fn insert_gamepad(self, name: &str, gamepad: Arc<VirtualGamepad>) -> (Self, MultiemuPath) {
+    pub fn insert_gamepad(self, name: &str, gamepad: Arc<VirtualGamepad>) -> (Self, FluxEmuPath) {
         let mut resource_path = self.path.clone();
         resource_path.push(Namespace::Resource, name);
 
@@ -349,7 +349,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         address_space: AddressSpaceId,
         name: &str,
         buffer: Bytes,
-    ) -> (Self, MultiemuPath) {
+    ) -> (Self, FluxEmuPath) {
         let mut resource_path = self.path.clone();
         resource_path.push(Namespace::Resource, name);
 
@@ -370,7 +370,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
         self,
         address_space: AddressSpaceId,
         range: RangeInclusive<Address>,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
     ) -> Self {
         self.machine_builder
             .address_spaces

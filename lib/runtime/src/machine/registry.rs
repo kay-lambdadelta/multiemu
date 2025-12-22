@@ -10,7 +10,7 @@ use rustc_hash::FxBuildHasher;
 use crate::{
     component::{Component, ComponentHandle, TypedComponentHandle},
     machine::builder::SchedulerParticipation,
-    path::{MultiemuPath, Namespace},
+    path::{FluxEmuPath, Namespace},
     scheduler::{EventManager, Period, PreemptionSignal},
 };
 
@@ -32,13 +32,13 @@ pub struct ComponentRegistry
 where
     Self: Send + Sync,
 {
-    components: HashMap<MultiemuPath, ComponentInfo, FxBuildHasher>,
+    components: HashMap<FluxEmuPath, ComponentInfo, FxBuildHasher>,
 }
 
 impl ComponentRegistry {
     pub(crate) fn insert_component<C: Component>(
         &mut self,
-        path: MultiemuPath,
+        path: FluxEmuPath,
         scheduler_participation: SchedulerParticipation,
         event_manager: Arc<EventManager>,
         interrupt: Arc<PreemptionSignal>,
@@ -60,7 +60,7 @@ impl ComponentRegistry {
         );
     }
 
-    pub(crate) fn interact_all(&self, mut callback: impl FnMut(&MultiemuPath, &dyn Component)) {
+    pub(crate) fn interact_all(&self, mut callback: impl FnMut(&FluxEmuPath, &dyn Component)) {
         self.components.iter().for_each(|(path, info)| {
             info.component
                 .interact_without_synchronization(|component| callback(path, component))
@@ -69,7 +69,7 @@ impl ComponentRegistry {
 
     pub(crate) fn interact_all_mut(
         &self,
-        mut callback: impl FnMut(&MultiemuPath, &mut dyn Component),
+        mut callback: impl FnMut(&FluxEmuPath, &mut dyn Component),
     ) {
         self.components.iter().for_each(|(path, info)| {
             info.component
@@ -80,7 +80,7 @@ impl ComponentRegistry {
     #[inline]
     pub fn interact<C: Component, T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         current_timestamp: Period,
         callback: impl FnOnce(&C) -> T,
     ) -> Option<T> {
@@ -93,7 +93,7 @@ impl ComponentRegistry {
     #[inline]
     pub fn interact_mut<C: Component, T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         current_timestamp: Period,
         callback: impl FnOnce(&mut C) -> T,
     ) -> Option<T> {
@@ -106,7 +106,7 @@ impl ComponentRegistry {
     #[inline]
     pub fn interact_dyn<T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         current_timestamp: Period,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Option<T> {
@@ -126,7 +126,7 @@ impl ComponentRegistry {
     #[inline]
     pub fn interact_dyn_mut<T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         current_timestamp: Period,
         callback: impl FnOnce(&mut dyn Component) -> T,
     ) -> Option<T> {
@@ -145,7 +145,7 @@ impl ComponentRegistry {
 
     pub fn typed_handle<C: Component>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
     ) -> Option<TypedComponentHandle<C>> {
         let component_info = self.components.get(path)?;
 
@@ -154,7 +154,7 @@ impl ComponentRegistry {
         Some(unsafe { TypedComponentHandle::new(component_info.component.clone()) })
     }
 
-    pub fn handle(&self, path: &MultiemuPath) -> Option<ComponentHandle> {
+    pub fn handle(&self, path: &FluxEmuPath) -> Option<ComponentHandle> {
         let component_info = self.components.get(path)?;
 
         Some(component_info.component.clone())
@@ -162,7 +162,7 @@ impl ComponentRegistry {
 
     pub(crate) fn interact_without_synchronization<C: Component, T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&C) -> T,
     ) -> Option<T> {
         self.interact_dyn_without_synchronization(path, |component| {
@@ -173,7 +173,7 @@ impl ComponentRegistry {
 
     pub(crate) fn interact_mut_without_synchronization<C: Component, T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&mut C) -> T,
     ) -> Option<T> {
         self.interact_dyn_mut_without_synchronization(path, |component| {
@@ -184,7 +184,7 @@ impl ComponentRegistry {
 
     pub(crate) fn interact_dyn_without_synchronization<T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&dyn Component) -> T,
     ) -> Option<T> {
         let component_info = self.components.get(path)?;
@@ -198,7 +198,7 @@ impl ComponentRegistry {
 
     pub(crate) fn interact_dyn_mut_without_synchronization<T>(
         &self,
-        path: &MultiemuPath,
+        path: &FluxEmuPath,
         callback: impl FnOnce(&mut dyn Component) -> T,
     ) -> Option<T> {
         let component_info = self.components.get(path)?;

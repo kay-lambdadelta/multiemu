@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multiemu_runtime::{
+use fluxemu_runtime::{
     graphics::GraphicsApi,
     input::{RealGamepad, RealGamepadId},
     machine::{Machine, graphics::GraphicsRequirements},

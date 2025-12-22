@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use multiemu_range::RangeIntersection;
+use fluxemu_range::RangeIntersection;
 
 use crate::memory::{Address, ComputedTablePageTarget, MemoryMappingTable, PAGE_SIZE};
 

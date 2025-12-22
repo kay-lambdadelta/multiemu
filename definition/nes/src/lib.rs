@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 
 pub use cartridge::ines::INes;
 use cartridge::{NesCartridgeConfig, ines::TimingMode};
-use multiemu_definition_misc::memory::standard::{
+use fluxemu_definition_misc::memory::standard::{
     StandardMemoryConfig, StandardMemoryInitialContents,
 };
-use multiemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
-use multiemu_runtime::{
+use fluxemu_definition_mos6502::{Mos6502Config, Mos6502Kind};
+use fluxemu_runtime::{
     machine::{MachineFactory, builder::MachineBuilder},
     memory::AddressSpaceId,
     platform::Platform,

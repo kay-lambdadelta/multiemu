@@ -1508,6 +1508,303 @@ dependencies = [
 ]
 
 [[package]]
+name = "fluxemu-audio"
+version = "0.1.0"
+dependencies = [
+ "nalgebra",
+ "num",
+ "ringbuffer",
+]
+
+[[package]]
+name = "fluxemu-definition-atari2600"
+version = "0.1.0"
+dependencies = [
+ "bitvec",
+ "bytemuck",
+ "bytes",
+ "criterion",
+ "fluxemu-definition-misc",
+ "fluxemu-definition-mos6502",
+ "fluxemu-frontend",
+ "fluxemu-range",
+ "fluxemu-runtime",
+ "nalgebra",
+ "palette",
+ "ron",
+ "serde",
+ "strum",
+ "tracing",
+]
+
+[[package]]
+name = "fluxemu-definition-atarilynx"
+version = "0.1.0"
+dependencies = [
+ "bitvec",
+ "fluxemu-definition-misc",
+ "fluxemu-definition-mos6502",
+ "fluxemu-runtime",
+ "nalgebra",
+ "num",
+ "palette",
+ "rangemap",
+ "serde",
+ "strum",
+ "thiserror 2.0.17",
+ "tracing",
+]
+
+[[package]]
+name = "fluxemu-definition-chip8"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "bitvec",
+ "bytemuck",
+ "fluxemu-audio",
+ "fluxemu-definition-misc",
+ "fluxemu-frontend",
+ "fluxemu-runtime",
+ "nalgebra",
+ "palette",
+ "rand 0.9.2",
+ "rangemap",
+ "ringbuffer",
+ "rmp-serde",
+ "ron",
+ "serde",
+ "strum",
+ "tracing",
+]
+
+[[package]]
+name = "fluxemu-definition-intel8080"
+version = "0.1.0"
+dependencies = [
+ "bitvec",
+ "bytemuck",
+ "fluxemu-runtime",
+ "strum",
+]
+
+[[package]]
+name = "fluxemu-definition-misc"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "fluxemu-range",
+ "fluxemu-runtime",
+ "rand 0.9.2",
+ "rangemap",
+ "rmp-serde",
+ "serde",
+ "serde_with",
+]
+
+[[package]]
+name = "fluxemu-definition-mos6502"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "bitvec",
+ "bytemuck",
+ "criterion",
+ "fluxemu-definition-misc",
+ "fluxemu-runtime",
+ "rand 0.9.2",
+ "rangemap",
+ "rmp-serde",
+ "serde",
+ "strum",
+ "tracing",
+]
+
+[[package]]
+name = "fluxemu-definition-nes"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "bitvec",
+ "bytes",
+ "criterion",
+ "fluxemu-audio",
+ "fluxemu-definition-misc",
+ "fluxemu-definition-mos6502",
+ "fluxemu-frontend",
+ "fluxemu-range",
+ "fluxemu-runtime",
+ "nalgebra",
+ "palette",
+ "rand 0.9.2",
+ "rangemap",
+ "ringbuffer",
+ "ron",
+ "serde",
+ "serde_with",
+ "strum",
+ "thiserror 2.0.17",
+ "tracing",
+]
+
+[[package]]
+name = "fluxemu-frontend"
+version = "0.1.0"
+dependencies = [
+ "byte-unit",
+ "cfg-if",
+ "criterion",
+ "dirs",
+ "egui",
+ "egui-phosphor",
+ "egui-snarl",
+ "egui-toast",
+ "egui_extras",
+ "fluxemu-range",
+ "fluxemu-runtime",
+ "indexmap 2.12.1",
+ "itertools 0.14.0",
+ "nalgebra",
+ "num",
+ "palette",
+ "rayon",
+ "ringbuffer",
+ "ron",
+ "rustc-hash 2.1.1",
+ "scc",
+ "serde",
+ "serde-inline-default",
+ "serde_with",
+ "strum",
+ "sysinfo",
+ "tracing",
+ "versions",
+]
+
+[[package]]
+name = "fluxemu-locale"
+version = "0.1.0"
+dependencies = [
+ "csv",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "rayon",
+ "serde",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "fluxemu-range"
+version = "0.1.0"
+dependencies = [
+ "num",
+ "rangemap",
+]
+
+[[package]]
+name = "fluxemu-runtime"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+ "bitvec",
+ "bytes",
+ "cfg-if",
+ "crossbeam",
+ "data-encoding",
+ "fixed",
+ "flate2",
+ "fluxemu-audio",
+ "fluxemu-locale",
+ "fluxemu-range",
+ "glow",
+ "image",
+ "indexmap 2.12.1",
+ "itertools 0.14.0",
+ "memmap2",
+ "naga",
+ "nalgebra",
+ "nohash",
+ "num",
+ "palette",
+ "rangemap",
+ "rayon",
+ "redb",
+ "ringbuffer",
+ "rmp-serde",
+ "ron",
+ "rustc-hash 2.1.1",
+ "scc",
+ "sealed",
+ "serde",
+ "serde_with",
+ "sha1 0.10.6",
+ "strum",
+ "thiserror 2.0.17",
+ "tracing",
+ "uuid",
+ "versions",
+ "vulkano",
+]
+
+[[package]]
+name = "fluxemu-shell-destinezite"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "clap",
+ "cpal",
+ "egui",
+ "egui-winit",
+ "fluxemu-audio",
+ "fluxemu-definition-atari2600",
+ "fluxemu-definition-atarilynx",
+ "fluxemu-definition-chip8",
+ "fluxemu-definition-nes",
+ "fluxemu-frontend",
+ "fluxemu-runtime",
+ "gilrs",
+ "itertools 0.14.0",
+ "nalgebra",
+ "palette",
+ "ringbuffer",
+ "softbuffer",
+ "strum",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "winit",
+]
+
+[[package]]
+name = "fluxemu-utils"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "data-encoding",
+ "fluxemu-frontend",
+ "fluxemu-locale",
+ "fluxemu-runtime",
+ "itertools 0.14.0",
+ "nod",
+ "num_cpus",
+ "quick-xml 0.38.4",
+ "rayon",
+ "redb",
+ "regex",
+ "scc",
+ "serde",
+ "serde_with",
+ "strsim",
+ "strum",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+ "ureq",
+ "zip",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2116,9 +2413,9 @@ dependencies = [
 
 [[package]]
 name = "itoa"
-version = "1.0.15"
+version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+checksum = "7ee5b5339afb4c41626dde77b7a611bd4f2c202b897852b4bcf5d03eddc61010"
 
 [[package]]
 name = "jni"
@@ -2384,303 +2681,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "multiemu-audio"
-version = "0.1.0"
-dependencies = [
- "nalgebra",
- "num",
- "ringbuffer",
-]
-
-[[package]]
-name = "multiemu-definition-atari2600"
-version = "0.1.0"
-dependencies = [
- "bitvec",
- "bytemuck",
- "bytes",
- "criterion",
- "multiemu-definition-misc",
- "multiemu-definition-mos6502",
- "multiemu-frontend",
- "multiemu-range",
- "multiemu-runtime",
- "nalgebra",
- "palette",
- "ron",
- "serde",
- "strum",
- "tracing",
-]
-
-[[package]]
-name = "multiemu-definition-atarilynx"
-version = "0.1.0"
-dependencies = [
- "bitvec",
- "multiemu-definition-misc",
- "multiemu-definition-mos6502",
- "multiemu-runtime",
- "nalgebra",
- "num",
- "palette",
- "rangemap",
- "serde",
- "strum",
- "thiserror 2.0.17",
- "tracing",
-]
-
-[[package]]
-name = "multiemu-definition-chip8"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "bitvec",
- "bytemuck",
- "multiemu-audio",
- "multiemu-definition-misc",
- "multiemu-frontend",
- "multiemu-runtime",
- "nalgebra",
- "palette",
- "rand 0.9.2",
- "rangemap",
- "ringbuffer",
- "rmp-serde",
- "ron",
- "serde",
- "strum",
- "tracing",
-]
-
-[[package]]
-name = "multiemu-definition-intel8080"
-version = "0.1.0"
-dependencies = [
- "bitvec",
- "bytemuck",
- "multiemu-runtime",
- "strum",
-]
-
-[[package]]
-name = "multiemu-definition-misc"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "multiemu-range",
- "multiemu-runtime",
- "rand 0.9.2",
- "rangemap",
- "rmp-serde",
- "serde",
- "serde_with",
-]
-
-[[package]]
-name = "multiemu-definition-mos6502"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "bitvec",
- "bytemuck",
- "criterion",
- "multiemu-definition-misc",
- "multiemu-runtime",
- "rand 0.9.2",
- "rangemap",
- "rmp-serde",
- "serde",
- "strum",
- "tracing",
-]
-
-[[package]]
-name = "multiemu-definition-nes"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "bitvec",
- "bytes",
- "criterion",
- "multiemu-audio",
- "multiemu-definition-misc",
- "multiemu-definition-mos6502",
- "multiemu-frontend",
- "multiemu-range",
- "multiemu-runtime",
- "nalgebra",
- "palette",
- "rand 0.9.2",
- "rangemap",
- "ringbuffer",
- "ron",
- "serde",
- "serde_with",
- "strum",
- "thiserror 2.0.17",
- "tracing",
-]
-
-[[package]]
-name = "multiemu-frontend"
-version = "0.1.0"
-dependencies = [
- "byte-unit",
- "cfg-if",
- "criterion",
- "dirs",
- "egui",
- "egui-phosphor",
- "egui-snarl",
- "egui-toast",
- "egui_extras",
- "indexmap 2.12.1",
- "itertools 0.14.0",
- "multiemu-range",
- "multiemu-runtime",
- "nalgebra",
- "num",
- "palette",
- "rayon",
- "ringbuffer",
- "ron",
- "rustc-hash 2.1.1",
- "scc",
- "serde",
- "serde-inline-default",
- "serde_with",
- "strum",
- "sysinfo",
- "tracing",
- "versions",
-]
-
-[[package]]
-name = "multiemu-locale"
-version = "0.1.0"
-dependencies = [
- "csv",
- "prettyplease",
- "proc-macro2",
- "quote",
- "rayon",
- "serde",
- "syn 2.0.111",
-]
-
-[[package]]
-name = "multiemu-range"
-version = "0.1.0"
-dependencies = [
- "num",
- "rangemap",
-]
-
-[[package]]
-name = "multiemu-runtime"
-version = "0.1.0"
-dependencies = [
- "arc-swap",
- "bitvec",
- "bytes",
- "cfg-if",
- "crossbeam",
- "data-encoding",
- "fixed",
- "flate2",
- "glow",
- "image",
- "indexmap 2.12.1",
- "itertools 0.14.0",
- "memmap2",
- "multiemu-audio",
- "multiemu-locale",
- "multiemu-range",
- "naga",
- "nalgebra",
- "nohash",
- "num",
- "palette",
- "rangemap",
- "rayon",
- "redb",
- "ringbuffer",
- "rmp-serde",
- "ron",
- "rustc-hash 2.1.1",
- "scc",
- "sealed",
- "serde",
- "serde_with",
- "sha1 0.10.6",
- "strum",
- "thiserror 2.0.17",
- "tracing",
- "uuid",
- "versions",
- "vulkano",
-]
-
-[[package]]
-name = "multiemu-shell-destinezite"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "clap",
- "cpal",
- "egui",
- "egui-winit",
- "gilrs",
- "itertools 0.14.0",
- "multiemu-audio",
- "multiemu-definition-atari2600",
- "multiemu-definition-atarilynx",
- "multiemu-definition-chip8",
- "multiemu-definition-nes",
- "multiemu-frontend",
- "multiemu-runtime",
- "nalgebra",
- "palette",
- "ringbuffer",
- "softbuffer",
- "strum",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "winit",
-]
-
-[[package]]
-name = "multiemu-utils"
-version = "0.1.0"
-dependencies = [
- "clap",
- "data-encoding",
- "itertools 0.14.0",
- "multiemu-frontend",
- "multiemu-locale",
- "multiemu-runtime",
- "nod",
- "num_cpus",
- "quick-xml 0.38.4",
- "rayon",
- "redb",
- "regex",
- "scc",
- "serde",
- "serde_with",
- "strsim",
- "strum",
- "tempfile",
- "tracing",
- "tracing-subscriber",
- "ureq",
- "zip",
-]
-
-[[package]]
 name = "naga"
 version = "28.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2870,9 +2870,9 @@ dependencies = [
 
 [[package]]
 name = "ntapi"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8a3895c6391c39d7fe7ebc444a87eb2991b2a0bc718fdabd071eec617fc68e4"
+checksum = "c70f219e21142367c70c0b30c6a9e3a14d55b4d12a204d897fbec83a0363f081"
 dependencies = [
  "winapi",
 ]
@@ -4155,9 +4155,9 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "ryu"
-version = "1.0.20"
+version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
+checksum = "62049b2877bf12821e8f9ad256ee38fdc31db7387ec2d3b3f403024de2034aea"
 
 [[package]]
 name = "saa"
@@ -4244,9 +4244,9 @@ dependencies = [
 
 [[package]]
 name = "sdd"
-version = "4.5.1"
+version = "4.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9ea89eb9e30ea58278156f2bfa86994cd4d740b0be78a94d36223f2bf2b7363"
+checksum = "0966baff50310098da3dec90fd527d645629775db41e2e5d611d71e0757ada4c"
 
 [[package]]
 name = "seahash"

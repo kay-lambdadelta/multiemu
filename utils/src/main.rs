@@ -6,8 +6,8 @@ use std::{
 use clap::Parser;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use database::redump::RedumpAction;
-use multiemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY};
-use multiemu_runtime::program::MachineId;
+use fluxemu_frontend::environment::{ENVIRONMENT_LOCATION, Environment, STORAGE_DIRECTORY};
+use fluxemu_runtime::program::MachineId;
 use serde::{Deserialize, Deserializer};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;

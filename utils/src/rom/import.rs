@@ -8,8 +8,8 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use multiemu_frontend::environment::Environment;
-use multiemu_runtime::program::{HASH_ALIAS_TABLE, ProgramId, ProgramManager, RomId};
+use fluxemu_frontend::environment::Environment;
+use fluxemu_runtime::program::{HASH_ALIAS_TABLE, ProgramId, ProgramManager, RomId};
 use redb::{ReadOnlyMultimapTable, ReadableDatabase};
 use scc::{HashCache, hash_cache::OccupiedEntry};
 use zip::ZipArchive;

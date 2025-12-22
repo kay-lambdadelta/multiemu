@@ -2,7 +2,7 @@ use std::{collections::HashMap, hint::black_box};
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use egui::{Context, FullOutput, RawInput, TopBottomPanel, ViewportId, ViewportInfo};
-use multiemu_frontend::gui_software_rendering::SoftwareEguiRenderer;
+use fluxemu_frontend::gui_software_rendering::SoftwareEguiRenderer;
 use nalgebra::{DMatrix, Vector2};
 use palette::{
     cast::Packed,

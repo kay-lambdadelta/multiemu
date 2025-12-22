@@ -37,9 +37,9 @@ pub enum Error {
 /// Resources cannot have sub items, but can be top level items.
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MultiemuPath(String);
+pub struct FluxEmuPath(String);
 
-impl Value for MultiemuPath {
+impl Value for FluxEmuPath {
     type SelfType<'a> = Self;
     type AsBytes<'a> = String;
 
@@ -66,13 +66,13 @@ impl Value for MultiemuPath {
     }
 }
 
-impl Key for MultiemuPath {
+impl Key for FluxEmuPath {
     fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
         String::from_utf8_lossy(data1).cmp(&String::from_utf8_lossy(data2))
     }
 }
 
-impl MultiemuPath {
+impl FluxEmuPath {
     /// Path separator
     pub const SEPARATOR: char = '/';
 
@@ -105,7 +105,7 @@ impl MultiemuPath {
         self.0.split(Self::SEPARATOR).skip(1)
     }
 
-    pub fn parent(&self) -> Option<MultiemuPath> {
+    pub fn parent(&self) -> Option<FluxEmuPath> {
         let segment_count = self.iter().count();
 
         if segment_count < 1 {
@@ -114,17 +114,17 @@ impl MultiemuPath {
 
         let path = self.iter().take(segment_count - 1).join("/");
 
-        Some(MultiemuPath(format!(":component/{}", path)))
+        Some(FluxEmuPath(format!(":component/{}", path)))
     }
 }
 
-impl Display for MultiemuPath {
+impl Display for FluxEmuPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
 }
 
-impl FromStr for MultiemuPath {
+impl FromStr for FluxEmuPath {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -151,11 +151,11 @@ impl FromStr for MultiemuPath {
             }
         }
 
-        Ok(MultiemuPath(s.to_string()))
+        Ok(FluxEmuPath(s.to_string()))
     }
 }
 
-impl Serialize for MultiemuPath {
+impl Serialize for FluxEmuPath {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -164,7 +164,7 @@ impl Serialize for MultiemuPath {
     }
 }
 
-impl<'de> Deserialize<'de> for MultiemuPath {
+impl<'de> Deserialize<'de> for FluxEmuPath {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -174,7 +174,7 @@ impl<'de> Deserialize<'de> for MultiemuPath {
     }
 }
 
-impl AsRef<str> for MultiemuPath {
+impl AsRef<str> for FluxEmuPath {
     fn as_ref(&self) -> &str {
         &self.0
     }

@@ -1,4 +1,4 @@
-//! Main graphics definition things for multiemu
+//! Main graphics definition things for fluxemu
 
 mod backend;
 

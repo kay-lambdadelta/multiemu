@@ -1,4 +1,4 @@
-use multiemu_runtime::graphics::{
+use fluxemu_runtime::graphics::{
     GraphicsApi,
     software::{InitializationData, Software},
 };

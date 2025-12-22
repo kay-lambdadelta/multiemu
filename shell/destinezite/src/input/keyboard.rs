@@ -1,4 +1,4 @@
-use multiemu_runtime::input::{Input, RealGamepadId, keyboard::KeyboardInput};
+use fluxemu_runtime::input::{Input, RealGamepadId, keyboard::KeyboardInput};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 pub const KEYBOARD_ID: RealGamepadId = RealGamepadId::PLATFORM_RESERVED;

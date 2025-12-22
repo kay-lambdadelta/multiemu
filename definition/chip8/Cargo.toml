@@ -1,13 +1,13 @@
 [package]
-name = "multiemu-definition-chip8"
+name = "fluxemu-definition-chip8"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-multiemu-runtime = { workspace = true }
-multiemu-audio = { workspace = true }
-multiemu-definition-misc = { workspace = true }
+fluxemu-runtime = { workspace = true }
+fluxemu-audio = { workspace = true }
+fluxemu-definition-misc = { workspace = true }
 bytemuck = { workspace = true }
 serde = { workspace = true }
 arrayvec = { workspace = true }
@@ -22,9 +22,9 @@ ringbuffer = { workspace = true }
 rmp-serde = { workspace = true }
 
 [target.'cfg(any(target_family = "unix", target_os = "windows"))'.dev-dependencies]
-multiemu-frontend = { workspace = true}
+fluxemu-frontend = { workspace = true }
 ron = { workspace = true }
 
 [features]
-vulkan = ["multiemu-runtime/vulkan"]
-opengl = ["multiemu-runtime/opengl"]
+vulkan = ["fluxemu-runtime/vulkan"]
+opengl = ["fluxemu-runtime/opengl"]

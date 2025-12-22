@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use multiemu_runtime::{
+use fluxemu_runtime::{
     component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     platform::Platform,
