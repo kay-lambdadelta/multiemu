@@ -7,11 +7,11 @@ use std::{
 
 use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion, SynchronizationContext},
+    component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     memory::{Address, AddressSpaceId, MemoryError, MemoryErrorType},
     platform::Platform,
-    scheduler::{Frequency, Period},
+    scheduler::{Frequency, Period, SynchronizationContext},
 };
 use rangemap::RangeInclusiveMap;
 use serde::{Deserialize, Serialize};

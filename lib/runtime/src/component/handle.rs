@@ -5,15 +5,17 @@ use std::{
 };
 
 use crate::{
-    component::{Component, SynchronizationContext},
+    component::Component,
     machine::builder::SchedulerParticipation,
-    scheduler::{EventQueue, Period},
+    scheduler::{EventManager, Period, PreemptionSignal, SynchronizationContext},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct SynchronizationData {
     /// Timestamp this component is actually updated to
     updated_timestamp: Period,
+    /// Interrupt receiver
+    interrupt: Arc<PreemptionSignal>,
 }
 
 // HACK: Add a generic so we can coerce this unsized
@@ -27,14 +29,14 @@ struct HandleInner<T: ?Sized> {
 #[derive(Debug, Clone)]
 pub struct ComponentHandle {
     inner: Arc<RwLock<HandleInner<dyn Component>>>,
-    /// Event queue
-    event_queue: Arc<EventQueue>,
+    event_manager: Arc<EventManager>,
 }
 
 impl ComponentHandle {
     pub(crate) fn new(
         scheduler_participation: SchedulerParticipation,
-        event_queue: Arc<EventQueue>,
+        event_manager: Arc<EventManager>,
+        interrupt: Arc<PreemptionSignal>,
         component: impl Component,
     ) -> Self {
         let synchronization_data = if matches!(
@@ -43,6 +45,7 @@ impl ComponentHandle {
         ) {
             Some(SynchronizationData {
                 updated_timestamp: Period::default(),
+                interrupt,
             })
         } else {
             None
@@ -53,7 +56,7 @@ impl ComponentHandle {
                 component,
                 synchronization_data,
             })),
-            event_queue,
+            event_manager,
         }
     }
 
@@ -108,10 +111,11 @@ impl ComponentHandle {
                 }
 
                 let context = SynchronizationContext {
-                    event_queue: &self.event_queue,
+                    event_manager: &self.event_manager,
                     updated_timestamp: &mut synchronization_data.updated_timestamp,
                     current_timestamp,
                     last_attempted_allocation: &mut last_attempted_allocation,
+                    interrupt: &synchronization_data.interrupt,
                 };
 
                 guard_inner.component.synchronize(context);
@@ -134,7 +138,7 @@ impl ComponentHandle {
                     drop(guard);
 
                     // consume our events
-                    self.event_queue.consume_events(timestamp);
+                    self.event_manager.consume_events(timestamp);
 
                     // Reacquire lock
                     guard = self.inner.write().unwrap();

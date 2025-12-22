@@ -26,7 +26,7 @@ use crate::{
     persistence::{SaveManager, SnapshotManager},
     platform::{Platform, TestPlatform},
     program::{ProgramManager, ProgramSpecification},
-    scheduler::{EventType, Frequency, Period, QueuedEvent, Scheduler},
+    scheduler::{EventType, Frequency, Period, PreemptionSignal, QueuedEvent, Scheduler},
 };
 
 /// Machine builder
@@ -59,6 +59,7 @@ where
     save_manager: SaveManager,
     #[allow(unused)]
     snapshot_manager: SnapshotManager,
+    preemption_signals: Vec<Arc<PreemptionSignal>>,
 }
 
 impl Machine {
@@ -127,6 +128,8 @@ impl Machine {
             },
             time: Reverse(time),
         });
+
+        self.interrupt_in_flight_synchronization();
     }
 
     pub fn schedule_repeating_event<C: Component>(
@@ -150,6 +153,14 @@ impl Machine {
             },
             time: Reverse(time),
         });
+
+        self.interrupt_in_flight_synchronization();
+    }
+
+    fn interrupt_in_flight_synchronization(&self) {
+        for signal in &self.preemption_signals {
+            signal.event_occured();
+        }
     }
 
     pub fn run_duration(&self, allocated_time: Duration) {

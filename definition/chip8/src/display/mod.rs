@@ -6,14 +6,12 @@ use std::{
 
 use bitvec::{order::Msb0, view::BitView};
 use multiemu_runtime::{
-    component::{
-        Component, ComponentConfig, ComponentVersion, LateInitializedData, SynchronizationContext,
-    },
+    component::{Component, ComponentConfig, ComponentVersion, LateInitializedData},
     graphics::GraphicsApi,
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     path::MultiemuPath,
     platform::Platform,
-    scheduler::Period,
+    scheduler::{Period, SynchronizationContext},
 };
 use nalgebra::{DMatrix, DMatrixView, DMatrixViewMut, Point2, Vector2};
 use palette::{

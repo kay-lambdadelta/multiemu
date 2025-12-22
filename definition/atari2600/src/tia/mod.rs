@@ -14,11 +14,11 @@ use bitvec::{
 use color::TiaColor;
 use multiemu_definition_mos6502::RdyFlag;
 use multiemu_runtime::{
-    component::{Component, SynchronizationContext},
+    component::Component,
     machine::Machine,
     memory::{Address, AddressSpaceId, MemoryError},
     path::MultiemuPath,
-    scheduler::Period,
+    scheduler::{Period, SynchronizationContext},
 };
 use nalgebra::Point2;
 use region::Region;

@@ -7,13 +7,13 @@ use std::{
 };
 
 use crossbeam::atomic::AtomicCell;
-pub(crate) use event_queue::{EventQueue, EventType, QueuedEvent};
+pub(crate) use event::{EventManager, EventType, PreemptionSignal, QueuedEvent};
 use fixed::{FixedU128, types::extra::U64};
 use rustc_hash::FxBuildHasher;
 
 use crate::{component::ComponentHandle, path::MultiemuPath};
 
-mod event_queue;
+mod event;
 #[cfg(test)]
 mod tests;
 
@@ -28,7 +28,7 @@ pub struct DrivenComponent {
 /// order execution stuff
 #[derive(Debug)]
 pub(crate) struct Scheduler {
-    pub event_queue: Arc<EventQueue>,
+    pub event_queue: Arc<EventManager>,
     driven: HashMap<MultiemuPath, DrivenComponent, FxBuildHasher>,
     now: AtomicCell<Period>,
 }
@@ -98,4 +98,83 @@ fn find_reasonable_sleep_resolution() -> Duration {
     }
 
     Duration::from_millis(16)
+}
+
+#[derive(Debug)]
+pub struct SynchronizationContext<'a> {
+    pub(crate) event_manager: &'a EventManager,
+    pub(crate) updated_timestamp: &'a mut Period,
+    pub(crate) current_timestamp: Period,
+    pub(crate) last_attempted_allocation: &'a mut Option<Period>,
+    pub(crate) interrupt: &'a PreemptionSignal,
+}
+
+impl<'a> SynchronizationContext<'a> {
+    #[inline]
+    pub fn allocate<'b>(
+        &'b mut self,
+        period: Period,
+        execution_limit: Option<u64>,
+    ) -> QuantaIterator<'b, 'a> {
+        *self.last_attempted_allocation = Some(period);
+
+        let mut stop_time = self.current_timestamp;
+
+        if let Some(next_event) = self.event_manager.next_event() {
+            stop_time = stop_time.min(next_event)
+        }
+
+        let mut budget = (stop_time.saturating_sub(*self.updated_timestamp) / period)
+            .floor()
+            .to_num::<u64>();
+
+        if let Some(execution_limit) = execution_limit {
+            budget = budget.min(execution_limit);
+        }
+
+        QuantaIterator {
+            period,
+            budget,
+            context: self,
+        }
+    }
+}
+
+pub struct QuantaIterator<'b, 'a> {
+    period: Period,
+    budget: u64,
+    context: &'b mut SynchronizationContext<'a>,
+}
+
+impl Iterator for QuantaIterator<'_, '_> {
+    type Item = Period;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        // New event(s) spotted we have not evaluated
+        while self.context.interrupt.needs_preemption() {
+            let mut stop_time = self.context.current_timestamp;
+
+            if let Some(next_event) = self.context.event_manager.next_event() {
+                stop_time = stop_time.min(next_event)
+            }
+
+            let new_budget = (stop_time.saturating_sub(*self.context.updated_timestamp)
+                / self.period)
+                .floor()
+                .to_num::<u64>();
+
+            self.budget = self.budget.min(new_budget);
+        }
+
+        if self.budget == 0 {
+            return None;
+        } else {
+            self.budget -= 1;
+        }
+
+        let next_timestamp = *self.context.updated_timestamp + self.period;
+        *self.context.updated_timestamp = next_timestamp;
+        Some(next_timestamp)
+    }
 }

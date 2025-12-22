@@ -1,11 +1,11 @@
 use crate::{
-    component::{Component, ComponentConfig, SynchronizationContext},
+    component::{Component, ComponentConfig},
     machine::{
         Machine,
         builder::{ComponentBuilder, SchedulerParticipation},
     },
     platform::Platform,
-    scheduler::Period,
+    scheduler::{Period, SynchronizationContext},
 };
 use num::FromPrimitive;
 use std::time::Duration;

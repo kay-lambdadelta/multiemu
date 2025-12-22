@@ -1,10 +1,10 @@
 use std::io::{Read, Write};
 
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion, SynchronizationContext},
+    component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     platform::Platform,
-    scheduler::Period,
+    scheduler::{Period, SynchronizationContext},
 };
 
 #[derive(Debug)]

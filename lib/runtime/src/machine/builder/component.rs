@@ -25,7 +25,7 @@ use crate::{
     path::{MultiemuPath, Namespace},
     platform::Platform,
     program::ProgramManager,
-    scheduler::{EventType, Frequency, Period},
+    scheduler::{EventType, Frequency, Period, PreemptionSignal},
 };
 
 /// Overall data extracted from components needed for machine initialization
@@ -38,6 +38,7 @@ pub(super) struct ComponentMetadata<P: Platform> {
     pub late_initializer: Box<dyn FnOnce(&mut dyn Component, &LateInitializedData<P>)>,
     pub scheduler_participation: SchedulerParticipation,
     pub events: Vec<PartialEvent>,
+    pub preemption_signal: Arc<PreemptionSignal>,
 }
 
 impl<P: Platform> ComponentMetadata<P> {
@@ -54,6 +55,7 @@ impl<P: Platform> ComponentMetadata<P> {
             }),
             scheduler_participation: SchedulerParticipation::None,
             events: Vec::default(),
+            preemption_signal: Arc::default(),
         }
     }
 }
@@ -153,6 +155,7 @@ impl<'a, P: Platform, C: Component> ComponentBuilder<'a, P, C> {
             component_path.clone(),
             component_metadata.scheduler_participation,
             self.machine_builder.scheduler.event_queue.clone(),
+            component_metadata.preemption_signal.clone(),
             component,
         );
 

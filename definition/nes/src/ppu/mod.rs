@@ -13,7 +13,7 @@ use bitvec::{array::BitArray, field::BitField, prelude::Lsb0, view::BitView};
 use multiemu_definition_mos6502::{Mos6502, NmiFlag, RdyFlag};
 use multiemu_range::ContiguousRange;
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, LateInitializedData, SynchronizationContext},
+    component::{Component, ComponentConfig, LateInitializedData},
     machine::{
         Machine,
         builder::{ComponentBuilder, SchedulerParticipation},
@@ -21,7 +21,7 @@ use multiemu_runtime::{
     memory::{Address, AddressSpace, AddressSpaceCache, AddressSpaceId, MemoryError},
     path::MultiemuPath,
     platform::Platform,
-    scheduler::Period,
+    scheduler::{Period, SynchronizationContext},
 };
 use nalgebra::{Point2, Vector2};
 use palette::named::BLACK;

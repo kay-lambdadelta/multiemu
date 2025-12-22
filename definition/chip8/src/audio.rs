@@ -2,13 +2,11 @@ use std::io::{Read, Write};
 
 use multiemu_audio::{FrameIterator, SquareWave};
 use multiemu_runtime::{
-    component::{
-        Component, ComponentConfig, ComponentVersion, SampleSource, SynchronizationContext,
-    },
+    component::{Component, ComponentConfig, ComponentVersion, SampleSource},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     path::MultiemuPath,
     platform::Platform,
-    scheduler::{Frequency, Period},
+    scheduler::{Frequency, Period, SynchronizationContext},
 };
 use nalgebra::SVector;
 use ringbuffer::{AllocRingBuffer, RingBuffer};

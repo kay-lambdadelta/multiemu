@@ -9,15 +9,13 @@ use arrayvec::ArrayVec;
 use input::{Chip8KeyCode, default_bindings, present_inputs};
 use instruction::Register;
 use multiemu_runtime::{
-    component::{
-        Component, ComponentConfig, ComponentVersion, SynchronizationContext, TypedComponentHandle,
-    },
+    component::{Component, ComponentConfig, ComponentVersion, TypedComponentHandle},
     input::{VirtualGamepad, VirtualGamepadMetadata},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     memory::{AddressSpace, AddressSpaceId},
     path::MultiemuPath,
     platform::Platform,
-    scheduler::{Frequency, Period},
+    scheduler::{Frequency, Period, SynchronizationContext},
 };
 use serde::{Deserialize, Serialize};
 

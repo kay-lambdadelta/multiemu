@@ -113,6 +113,7 @@ impl<P: Platform> MachineBuilder<P> {
             path.clone(),
             component_metadata.scheduler_participation,
             self.scheduler.event_queue.clone(),
+            component_metadata.preemption_signal.clone(),
             component,
         );
 
@@ -319,6 +320,7 @@ impl<P: Platform> MachineBuilder<P> {
         let mut audio_outputs = HashSet::new();
         let mut component_initializers = HashMap::new();
         let mut displays = HashSet::default();
+        let mut preemption_signals = Vec::default();
 
         for (path, component_metadata) in self.component_metadata.drain(..) {
             let component_handle = self.registry.handle(&path).unwrap();
@@ -327,6 +329,13 @@ impl<P: Platform> MachineBuilder<P> {
             displays.extend(component_metadata.displays);
             virtual_gamepads.extend(component_metadata.gamepads);
             audio_outputs.extend(component_metadata.audio_outputs);
+
+            if component_metadata.scheduler_participation == SchedulerParticipation::OnDemand
+                || component_metadata.scheduler_participation
+                    == SchedulerParticipation::SchedulerDriven
+            {
+                preemption_signals.push(component_metadata.preemption_signal);
+            }
 
             if component_metadata.scheduler_participation == SchedulerParticipation::SchedulerDriven
             {
@@ -367,6 +376,7 @@ impl<P: Platform> MachineBuilder<P> {
             snapshot_manager: self.snapshot_manager,
             program_specification: self.program_specification,
             audio_outputs,
+            preemption_signals,
         });
 
         let late_initialized_data = LateInitializedData::<P> {

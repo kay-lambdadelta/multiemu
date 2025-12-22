@@ -11,11 +11,11 @@ use arrayvec::ArrayVec;
 use bitvec::{prelude::Lsb0, view::BitView};
 use instruction::Mos6502InstructionSet;
 use multiemu_runtime::{
-    component::{Component, ComponentConfig, ComponentVersion, SynchronizationContext},
+    component::{Component, ComponentConfig, ComponentVersion},
     machine::builder::{ComponentBuilder, SchedulerParticipation},
     memory::{Address, AddressSpace, AddressSpaceCache, AddressSpaceId},
     platform::Platform,
-    scheduler::{Frequency, Period},
+    scheduler::{Frequency, Period, SynchronizationContext},
 };
 use serde::{Deserialize, Serialize};
 

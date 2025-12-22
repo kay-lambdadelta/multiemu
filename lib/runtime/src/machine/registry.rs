@@ -11,7 +11,7 @@ use crate::{
     component::{Component, ComponentHandle, TypedComponentHandle},
     machine::builder::SchedulerParticipation,
     path::{MultiemuPath, Namespace},
-    scheduler::{EventQueue, Period},
+    scheduler::{EventManager, Period, PreemptionSignal},
 };
 
 struct ComponentInfo {
@@ -40,7 +40,8 @@ impl ComponentRegistry {
         &mut self,
         path: MultiemuPath,
         scheduler_participation: SchedulerParticipation,
-        event_queue: Arc<EventQueue>,
+        event_manager: Arc<EventManager>,
+        interrupt: Arc<PreemptionSignal>,
         component: C,
     ) {
         assert!(path.namespace() == Namespace::Component);
@@ -48,7 +49,12 @@ impl ComponentRegistry {
         self.components.insert(
             path,
             ComponentInfo {
-                component: ComponentHandle::new(scheduler_participation, event_queue, component),
+                component: ComponentHandle::new(
+                    scheduler_participation,
+                    event_manager,
+                    interrupt,
+                    component,
+                ),
                 type_id: TypeId::of::<C>(),
             },
         );

@@ -1,4 +1,12 @@
-use std::{cmp::Reverse, collections::BinaryHeap, fmt::Debug, sync::Mutex};
+use std::{
+    cmp::Reverse,
+    collections::BinaryHeap,
+    fmt::Debug,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use crate::{
     component::{Component, ComponentHandle},
@@ -6,11 +14,11 @@ use crate::{
 };
 
 #[derive(Debug, Default)]
-pub struct EventQueue {
+pub struct EventManager {
     event_queue: Mutex<BinaryHeap<QueuedEvent>>,
 }
 
-impl EventQueue {
+impl EventManager {
     pub fn queue(&self, event: QueuedEvent) {
         self.event_queue.lock().unwrap().push(event);
     }
@@ -56,14 +64,14 @@ impl EventQueue {
     }
 
     #[inline]
-    pub fn within_deadline(&self, timestamp: Period) -> bool {
+    pub fn next_event(&self) -> Option<Period> {
         let queue_guard = self.event_queue.lock().unwrap();
 
         if let Some(next_event) = queue_guard.peek() {
-            return next_event.time.0 > timestamp;
+            return Some(next_event.time.0);
         }
 
-        true
+        None
     }
 }
 
@@ -112,4 +120,22 @@ pub(crate) enum EventType {
         frequency: Frequency,
         callback: Box<dyn FnMut(&mut dyn Component, Period) + Send + Sync>,
     },
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct PreemptionSignal(AtomicBool);
+
+impl PreemptionSignal {
+    pub(crate) fn event_occured(&self) {
+        self.0.store(true, Ordering::Release);
+    }
+
+    #[inline]
+    pub(crate) fn needs_preemption(&self) -> bool {
+        if !self.0.load(Ordering::Acquire) {
+            return false;
+        }
+
+        self.0.swap(false, Ordering::AcqRel)
+    }
 }

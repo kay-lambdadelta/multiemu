@@ -3,7 +3,6 @@ use std::{
     error::Error,
     fmt::Debug,
     io::{Read, Write},
-    iter::Fuse,
     ops::RangeInclusive,
     sync::Weak,
 };
@@ -18,7 +17,7 @@ use crate::{
     memory::{Address, AddressSpaceId, MemoryError, MemoryErrorType},
     path::MultiemuPath,
     platform::Platform,
-    scheduler::{EventQueue, Period},
+    scheduler::{Period, SynchronizationContext},
 };
 
 mod handle;
@@ -140,65 +139,6 @@ pub struct LateInitializedData<P: Platform> {
 
 /// Version that components use
 pub type ComponentVersion = u64;
-
-#[derive(Debug)]
-pub struct SynchronizationContext<'a> {
-    event_queue: &'a EventQueue,
-    updated_timestamp: &'a mut Period,
-    current_timestamp: Period,
-    last_attempted_allocation: &'a mut Option<Period>,
-}
-
-impl<'a> SynchronizationContext<'a> {
-    #[inline]
-    pub fn allocate<'b>(
-        &'b mut self,
-        period: Period,
-        limit: Option<u64>,
-    ) -> Fuse<QuantaIterator<'b, 'a>> {
-        *self.last_attempted_allocation = Some(period);
-
-        QuantaIterator {
-            period,
-            limit,
-            context: self,
-        }
-        .fuse()
-    }
-}
-
-pub struct QuantaIterator<'b, 'a> {
-    period: Period,
-    limit: Option<u64>,
-    context: &'b mut SynchronizationContext<'a>,
-}
-
-impl Iterator for QuantaIterator<'_, '_> {
-    type Item = Period;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(limit) = &mut self.limit {
-            if *limit == 0 {
-                return None;
-            } else {
-                *limit -= 1;
-            }
-        }
-
-        let next_timestamp = *self.context.updated_timestamp + self.period;
-
-        if next_timestamp <= self.context.current_timestamp
-            && self.context.event_queue.within_deadline(next_timestamp)
-        {
-            *self.context.updated_timestamp = next_timestamp;
-
-            Some(next_timestamp)
-        } else {
-            None
-        }
-    }
-}
 
 pub struct SampleSource<'a> {
     pub source: Box<dyn FrameIterator<f32, 1> + 'a>,
